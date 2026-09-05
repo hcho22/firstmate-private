@@ -21,7 +21,7 @@ ORDINARY_RESPONSE="$TMP_ROOT/ordinary-copy-edit.json"
 
 command -v curl >/dev/null 2>&1 || fail "curl is required for the local instruction evaluation"
 command -v jq >/dev/null 2>&1 || fail "jq is required for the local instruction evaluation"
-curl -fsS --max-time 2 http://127.0.0.1:11434/api/tags > "$TMP_ROOT/tags.json" \
+curl -fsS --noproxy "*" --max-time 2 http://127.0.0.1:11434/api/tags > "$TMP_ROOT/tags.json" \
   || fail "local Ollama is unavailable at 127.0.0.1:11434; no remote provider fallback is allowed"
 
 MODEL=${FM_STRUCTURAL_REVIEW_LOCAL_MODEL:-}
@@ -70,7 +70,7 @@ run_evaluation() {
     --arg model "$MODEL" \
     --rawfile prompt "$prompt_file" \
     '{model:$model,prompt:$prompt,stream:false,format:"json",options:{temperature:0,num_predict:1024}}')
-  curl -fsS --max-time "${FM_STRUCTURAL_REVIEW_EVAL_TIMEOUT_SECONDS:-120}" \
+  curl -fsS --noproxy "*" --max-time "${FM_STRUCTURAL_REVIEW_EVAL_TIMEOUT_SECONDS:-120}" \
     -H 'Content-Type: application/json' \
     -d "$payload" http://127.0.0.1:11434/api/generate \
     | jq -er '.response | fromjson' > "$response" \
