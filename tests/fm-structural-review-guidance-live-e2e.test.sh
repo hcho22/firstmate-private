@@ -95,7 +95,11 @@ jq -e '
     .relationship_to_request == "unrelated" and
     .disposition == "recommendation"
   )] | length) == 1 and
-  ([.assessments[]? | select(.id == "display.date" and .disposition == "required")] | length) == 0 and
+  ([.assessments[]? | select(.id != "auth.rotation" and .id != "display.date")] | length) == 0 and
+  ([.assessments[]? | select(
+    .disposition == "required" and
+    (.id != "auth.rotation" or .relationship_to_request != "affected")
+  )] | length) == 0 and
   (.abstraction |
     if .proposed then
       .basis_responsibility == "auth.rotation" and
