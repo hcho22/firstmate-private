@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Opt-in behavioral evaluation for conditional Structural Review guidance.
-# It gives the directly loaded guidance a fixture containing both a competing
-# owner in the affected responsibility and an unrelated duplicated helper, then
-# verifies that the resulting review preserves the required scope boundary.
+# It gives the directly loaded guidance triggered and ordinary-change fixtures,
+# then verifies both the scope boundary and the conditional trigger.
 set -u
 
 if [ "${FM_STRUCTURAL_REVIEW_GUIDANCE_EVAL:-0}" != 1 ]; then
@@ -15,8 +14,10 @@ fi
 
 GUIDANCE="$ROOT/.agents/skills/firstmate-coding-guidelines/SKILL.md"
 TMP_ROOT=$(fm_test_tmproot fm-structural-review-guidance)
-PROMPT_FILE="$TMP_ROOT/prompt.txt"
-RESPONSE_JSON="$TMP_ROOT/response.json"
+TRIGGERED_FIXTURE="$TMP_ROOT/competing-owner.txt"
+ORDINARY_FIXTURE="$TMP_ROOT/ordinary-copy-edit.txt"
+TRIGGERED_RESPONSE="$TMP_ROOT/competing-owner.json"
+ORDINARY_RESPONSE="$TMP_ROOT/ordinary-copy-edit.json"
 
 command -v curl >/dev/null 2>&1 || fail "curl is required for the local instruction evaluation"
 command -v jq >/dev/null 2>&1 || fail "jq is required for the local instruction evaluation"
@@ -28,41 +29,84 @@ MODEL=${FM_STRUCTURAL_REVIEW_LOCAL_MODEL:-}
 jq -e --arg model "$MODEL" '.models | any(.name == $model)' "$TMP_ROOT/tags.json" >/dev/null \
   || fail "requested local Ollama model is unavailable: $MODEL"
 
-{
-  printf '%s\n' 'Act only as a reviewer applying the directly loaded coding guidance below.'
-  printf '%s\n' 'The requested change adds token rotation to bin/token-refresh.sh.'
-  printf '%s\n' 'That script and bin/session-auth.sh now each implement token rotation independently, so the affected token-rotation responsibility has two owners.'
-  printf '%s\n' 'Elsewhere, two unrelated display scripts duplicate a small date-formatting helper.'
-  printf '%s\n' 'Return only one JSON object with these exact keys and constrained values:'
-  printf '%s\n' 'trigger_structural_review: boolean.'
-  printf '%s\n' 'affected_responsibility: the string token rotation.'
-  printf '%s\n' 'required_fix: the string consolidate the competing token-rotation owners.'
-  printf '%s\n' 'unrelated_finding: the string duplicated date-formatting helper.'
-  printf '%s\n' 'unrelated_disposition: either required or recommendation.'
-  printf '%s\n' 'speculative_abstraction_required: boolean.'
-  printf '%s\n' 'GUIDANCE START'
-  cat "$GUIDANCE"
-  printf '%s\n' 'GUIDANCE END'
-} > "$PROMPT_FILE"
+cat > "$TRIGGERED_FIXTURE" <<'FIXTURE'
+case_id: competing-owner
+requested_change: Add token rotation to bin/token-refresh.sh.
+responsibility auth.rotation: bin/token-refresh.sh chooses the renewal threshold, requests a replacement token, and persists it.
+responsibility auth.rotation: bin/session-auth.sh separately chooses the renewal threshold, requests a replacement token, and persists it.
+responsibility display.date: bin/report-time.sh defines a helper that converts a Unix timestamp to YYYY-MM-DD.
+responsibility display.date: bin/status-time.sh defines its own helper that converts a Unix timestamp to YYYY-MM-DD.
+change_boundary: Neither display script is called by the token code or changed by the request.
+FIXTURE
 
-PAYLOAD=$(jq -n \
-  --arg model "$MODEL" \
-  --rawfile prompt "$PROMPT_FILE" \
-  '{model:$model,prompt:$prompt,stream:false,format:"json",options:{temperature:0,num_predict:1024}}')
-curl -fsS --max-time "${FM_STRUCTURAL_REVIEW_EVAL_TIMEOUT_SECONDS:-120}" \
-  -H 'Content-Type: application/json' \
-  -d "$PAYLOAD" http://127.0.0.1:11434/api/generate \
-  | jq -er '.response | fromjson' > "$RESPONSE_JSON" \
-  || fail "local model $MODEL did not return parseable Structural Review JSON"
+cat > "$ORDINARY_FIXTURE" <<'FIXTURE'
+case_id: ordinary-copy-edit
+requested_change: Correct the user-facing word "retrys" to "retries" in bin/upload.sh.
+change_boundary: No control flow, data transformation, ownership, or call relationship changes.
+FIXTURE
+
+run_evaluation() {
+  local fixture=$1 response=$2 case_id prompt_file payload
+  case_id=$(sed -n 's/^case_id: //p' "$fixture")
+  prompt_file="$TMP_ROOT/$case_id.prompt.txt"
+  {
+    printf '%s\n' 'Act only as a reviewer applying the directly loaded coding guidance below.'
+    printf '%s\n' 'Evaluate the fixture facts without assuming a desired outcome.'
+    printf '%s\n' 'Return only one JSON object with this schema:'
+    printf '%s\n' 'case_id: copy the fixture case_id.'
+    printf '%s\n' 'review_depth: either ordinary or structural.'
+    printf '%s\n' 'focus: a responsibility id from the fixture, or null.'
+    printf '%s\n' 'assessments: an array of structural concerns; each item has id (a responsibility id), relationship_to_request (affected or unrelated), disposition (required, recommendation, or none), and action (a short string or null).'
+    printf '%s\n' 'new_abstraction_needed: boolean.'
+    printf '%s\n' 'FIXTURE START'
+    cat "$fixture"
+    printf '%s\n' 'FIXTURE END'
+    printf '%s\n' 'GUIDANCE START'
+    cat "$GUIDANCE"
+    printf '%s\n' 'GUIDANCE END'
+  } > "$prompt_file"
+
+  payload=$(jq -n \
+    --arg model "$MODEL" \
+    --rawfile prompt "$prompt_file" \
+    '{model:$model,prompt:$prompt,stream:false,format:"json",options:{temperature:0,num_predict:1024}}')
+  curl -fsS --max-time "${FM_STRUCTURAL_REVIEW_EVAL_TIMEOUT_SECONDS:-120}" \
+    -H 'Content-Type: application/json' \
+    -d "$payload" http://127.0.0.1:11434/api/generate \
+    | jq -er '.response | fromjson' > "$response" \
+    || fail "local model $MODEL did not return parseable Structural Review JSON for $case_id"
+}
+
+run_evaluation "$TRIGGERED_FIXTURE" "$TRIGGERED_RESPONSE"
+run_evaluation "$ORDINARY_FIXTURE" "$ORDINARY_RESPONSE"
 
 jq -e '
-  .trigger_structural_review == true and
-  .affected_responsibility == "token rotation" and
-  .required_fix == "consolidate the competing token-rotation owners" and
-  .unrelated_finding == "duplicated date-formatting helper" and
-  .unrelated_disposition == "recommendation" and
-  .speculative_abstraction_required == false
-' "$RESPONSE_JSON" >/dev/null \
+  .case_id == "competing-owner" and
+  .review_depth == "structural" and
+  .focus == "auth.rotation" and
+  ([.assessments[]? | select(
+    .id == "auth.rotation" and
+    .relationship_to_request == "affected" and
+    .disposition == "required" and
+    (.action | type == "string" and length > 0)
+  )] | length) == 1 and
+  ([.assessments[]? | select(
+    .id == "display.date" and
+    .relationship_to_request == "unrelated" and
+    .disposition == "recommendation"
+  )] | length) == 1 and
+  ([.assessments[]? | select(.id == "display.date" and .disposition == "required")] | length) == 0 and
+  .new_abstraction_needed == false
+' "$TRIGGERED_RESPONSE" >/dev/null \
   || fail "local model $MODEL did not require the affected owner correction while keeping unrelated duplication advisory"
 
-pass "local model $MODEL scoped Structural Review to the competing owner and reported unrelated duplication separately"
+jq -e '
+  .case_id == "ordinary-copy-edit" and
+  .review_depth == "ordinary" and
+  .focus == null and
+  ([.assessments[]? | select(.disposition != "none")] | length) == 0 and
+  .new_abstraction_needed == false
+' "$ORDINARY_RESPONSE" >/dev/null \
+  || fail "local model $MODEL activated Structural Review for an ordinary change"
+
+pass "local model $MODEL applied Structural Review only to the competing-owner fixture"
