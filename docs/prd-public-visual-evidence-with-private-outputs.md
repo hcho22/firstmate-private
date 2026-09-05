@@ -33,12 +33,12 @@ Version 1 is macOS-only, browser-first, screenshot-focused, private by default, 
 
 **Acceptance Criteria:**
 
-- [ ] The guidance triggers **Structural Review** only for duplicated mechanics, competing implementations of one responsibility, or unclear ownership in the requested change.
-- [ ] The guidance requires actual violations of Firstmate's one-owner rules to be fixed.
-- [ ] The guidance treats ordinary refactoring opportunities as recommendations.
-- [ ] The guidance prohibits abstractions created only to satisfy the review routine.
-- [ ] The guidance limits deeper review to the responsibility directly affected by the request and reports other duplication separately.
-- [ ] Firstmate documentation checks and relevant guidance tests pass.
+- [x] The guidance triggers **Structural Review** only for duplicated mechanics, competing implementations of one responsibility, or unclear ownership in the requested change.
+- [x] The guidance requires actual violations of Firstmate's one-owner rules to be fixed.
+- [x] The guidance treats ordinary refactoring opportunities as recommendations.
+- [x] The guidance prohibits abstractions created only to satisfy the review routine.
+- [x] The guidance limits deeper review to the responsibility directly affected by the request and reports other duplication separately.
+- [x] Firstmate documentation checks and relevant guidance tests pass.
 
 **Validation Test:**
 

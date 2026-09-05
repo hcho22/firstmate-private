@@ -46,6 +46,16 @@ A single deliberate one-line reinforcement at a genuine risk point is allowed, f
 Restating the contract's substance a second time is not allowed: the two copies will drift the moment only one is edited.
 When you touch a contract, patch, replace, or prune the owner's existing language rather than appending a new clause or paragraph wherever possible, then grep the repo for its other mentions and update the cross-references, not duplicate the change into a second full copy.
 
+## Conditional Structural Review
+
+Run a **Structural Review** only when the requested change contains duplicated mechanics, competing implementations of one responsibility, or unclear ownership.
+Review the responsibility directly affected by the request deeply enough to identify its owner and competing implementations, but do not turn that review into a repository-wide cleanup.
+Apply the [one-owner rule](#one-owner-rule) to actual violations in that affected responsibility and require those violations to be corrected before delivery.
+Treat ordinary refactoring opportunities as recommendations rather than blockers.
+Report duplication outside the affected responsibility separately as an optional follow-up, without requiring its cleanup in the current task.
+Do not introduce an abstraction merely to satisfy the review routine: every new shared owner must solve a concrete ownership problem in the requested change.
+If none of the trigger conditions is present, keep the ordinary review depth and do not manufacture Structural Review work.
+
 ## Inline-stub pattern
 
 When content moves out of `AGENTS.md` into a skill, decide what stays behind by asking one question: what must survive with no skill loaded?
