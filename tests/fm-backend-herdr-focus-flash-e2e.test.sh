@@ -71,6 +71,25 @@ set -- "${args[@]}"
 for arg in "$@"; do
   case "$arg" in --session|--session=*) exit 9 ;; esac
 done
+if [ -n "${FM_FLASH_CLOSE_COMPLETE_MARKER:-}" ] \
+  && [ -n "${FM_FLASH_FOCUS_OBSERVED_MARKER:-}" ] \
+  && [ "${1:-}" = pane ] \
+  && [ "${2:-}" = close ]; then
+  status=0
+  env PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" run "$HERDR_LAB_SESSION" "$@" || status=$?
+  [ "$status" -eq 0 ] || exit "$status"
+  : > "$FM_FLASH_CLOSE_COMPLETE_MARKER"
+  attempt=0
+  while [ ! -e "$FM_FLASH_FOCUS_OBSERVED_MARKER" ] && [ "$attempt" -lt 500 ]; do
+    sleep 0.01
+    attempt=$((attempt + 1))
+  done
+  [ -e "$FM_FLASH_FOCUS_OBSERVED_MARKER" ] || {
+    printf 'focus sampler did not observe the completed explicit close\n' >&2
+    exit 8
+  }
+  exit 0
+fi
 exec env PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" run "$HERDR_LAB_SESSION" "$@"
 SH
 chmod +x "$FAKEBIN/herdr"
@@ -270,6 +289,12 @@ C_CALL_LOG="$TMP_ROOT/call-c.log"
 C_FOCUS_SAMPLES="$TMP_ROOT/focus-c.samples"
 C_OPERATION_ACTIVE="$TMP_ROOT/operation-c.active"
 C_SAMPLER_READY="$TMP_ROOT/sampler-c.ready"
+C_CLOSE_COMPLETE_MARKER=
+C_FOCUS_OBSERVED_MARKER=
+if [ "$STEAL_LIVE" = 1 ]; then
+  C_CLOSE_COMPLETE_MARKER="$TMP_ROOT/close-c.complete"
+  C_FOCUS_OBSERVED_MARKER="$TMP_ROOT/focus-c.observed"
+fi
 SAMPLER_STOP="$TMP_ROOT/sampler-c.stop"
 : > "$C_CALL_LOG"
 : > "$C_FOCUS_SAMPLES"
@@ -279,6 +304,11 @@ SAMPLER_STOP="$TMP_ROOT/sampler-c.stop"
     if [ -e "$C_OPERATION_ACTIVE" ]; then
       if C_SAMPLE=$(focus_snapshot); then
         printf '%s\n' "$C_SAMPLE" >> "$C_FOCUS_SAMPLES"
+        if [ -n "$C_CLOSE_COMPLETE_MARKER" ] \
+          && [ -e "$C_CLOSE_COMPLETE_MARKER" ] \
+          && [ "$C_SAMPLE" != "$C_BEFORE" ]; then
+          : > "$C_FOCUS_OBSERVED_MARKER"
+        fi
       else
         printf '%s\n' UNREADABLE >> "$C_FOCUS_SAMPLES"
       fi
@@ -297,6 +327,8 @@ done
 # what proves the proof was exhausted rather than skipped.
 C_PROOF_POLLS=3
 C_OUT=$(PATH="$FAKEBIN:$HERDR_ORIGINAL_PATH" FM_FLASH_CALL_LOG="$C_CALL_LOG" \
+  FM_FLASH_CLOSE_COMPLETE_MARKER="$C_CLOSE_COMPLETE_MARKER" \
+  FM_FLASH_FOCUS_OBSERVED_MARKER="$C_FOCUS_OBSERVED_MARKER" \
   FM_BACKEND_HERDR_IDLE_SHELL_PROOF_POLLS="$C_PROOF_POLLS" bash -c '
   . "$1/bin/backends/herdr.sh"
   fm_backend_herdr_cli() {

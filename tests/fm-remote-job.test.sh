@@ -712,6 +712,16 @@ done
 assert_present "$REPEAT_STATE/worker.ready" \
   "the worker after a repeatedly signalled shutdown never reported ready"
 kill -TERM "$REPEAT_WORKER_PID"
+REPEAT_DEADLINE=$((SECONDS + 10))
+while kill -0 "$REPEAT_WORKER_PID" 2>/dev/null && [ "$SECONDS" -lt "$REPEAT_DEADLINE" ]; do
+  sleep 0.05
+done
+if kill -0 "$REPEAT_WORKER_PID" 2>/dev/null; then
+  kill -KILL "$REPEAT_WORKER_PID" 2>/dev/null || true
+  wait "$REPEAT_WORKER_PID" 2>/dev/null || true
+  REPEAT_WORKER_PID=
+  fail "the replacement worker never finished its TERM shutdown"
+fi
 wait "$REPEAT_WORKER_PID" 2>/dev/null || true
 REPEAT_WORKER_PID=
 pass "a repeatedly signalled shutdown still releases ownership for the next worker"

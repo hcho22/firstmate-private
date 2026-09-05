@@ -28,6 +28,36 @@ test_quiet_checkpoint_exits_124_cleanly() {
   pass "quiet checkpoint exits 124 with a clean checkpoint line and no live lock"
 }
 
+test_startup_timeout_releases_an_acquired_lock() {
+  local home fakebin out err status real_ln
+  home=$(make_home startup-timeout)
+  fakebin="$home/fakebin"
+  out="$home/out.txt"
+  err="$home/err.txt"
+  mkdir -p "$fakebin"
+  real_ln=$(command -v ln)
+  cat > "$fakebin/ln" <<'SH'
+#!/usr/bin/env bash
+"$REAL_LN" "$@"
+for last do :; done
+case "$last" in
+  */.watch.lock) sleep 3 ;;
+esac
+SH
+  chmod 0700 "$fakebin/ln"
+
+  status=0
+  REAL_LN="$real_ln" PATH="$fakebin:$PATH" FM_HOME="$home" FM_POLL=1 \
+    FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 \
+    "$CHECKPOINT" --seconds 1 >"$out" 2>"$err" || status=$?
+  expect_code 124 "$status" "startup-timeout checkpoint exit"
+  assert_contains "$(cat "$out")" "checkpoint: no actionable wake within 1s" \
+    "startup-timeout checkpoint line missing"
+  assert_absent "$home/state/.watch.lock/pid" \
+    "watch lock pid survived an interruption during acquisition"
+  pass "startup timeout releases a lock acquired before watcher initialization completes"
+}
+
 test_signal_passes_through_and_exits_zero() {
   local home out err status drained
   home=$(make_home signal)
@@ -82,6 +112,7 @@ test_existing_singleton_watcher_is_not_success() {
 }
 
 test_quiet_checkpoint_exits_124_cleanly
+test_startup_timeout_releases_an_acquired_lock
 test_signal_passes_through_and_exits_zero
 test_registered_check_uses_preserved_watcher_environment
 test_existing_singleton_watcher_is_not_success

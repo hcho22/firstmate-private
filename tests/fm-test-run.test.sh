@@ -97,6 +97,7 @@ init_changed_fixture_repo() {
     fm-brief.test.sh \
     fm-ask-user-authority.test.sh \
     fm-documentation-audiences.test.sh \
+    fm-structural-review-guidance-live-e2e.test.sh \
     fm-test-isolation-proof.test.sh \
     fm-test-run.test.sh \
     fm-cd-pretool-check.test.sh \
@@ -153,6 +154,7 @@ init_changed_fixture_repo() {
   : >"$repo/.pi/extensions/fm-primary-pi-watch.ts"
   : >"$repo/.pi/extensions/fm-primary-turnend-guard.ts"
   : >"$repo/docs/fm-test-isolation-proof.md"
+  : >"$repo/CONTEXT.md"
   : >"$repo/CONTRIBUTING.md"
   : >"$repo/src/unmapped.ts"
   git -C "$repo" init -q
@@ -204,6 +206,23 @@ test_changed_runner_surfaces_select_their_family() {
 
   rm -rf "$tmp"
   pass "runner and its documentation surfaces select their curated family, not just their contract owners"
+}
+
+test_changed_context_selects_documentation_and_guidance_checks() {
+  local tmp repo listed
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-context-scope.XXXXXX")
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+
+  printf '\n' >>"$repo/CONTEXT.md"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD | LC_ALL=C sort)
+  assert_contains "$listed" "tests/fm-documentation-audiences.test.sh" \
+    "CONTEXT.md change selects maintained-documentation coverage"
+  assert_contains "$listed" "tests/fm-structural-review-guidance-live-e2e.test.sh" \
+    "CONTEXT.md change selects conditional Structural Review evaluation"
+
+  rm -rf "$tmp"
+  pass "CONTEXT.md changes select documentation and guidance checks"
 }
 
 test_changed_dependency_selection_and_unmapped_failure() {
@@ -1375,6 +1394,7 @@ test_family_selection
 test_single_script_selection
 test_changed_file_selection_is_conservative
 test_changed_runner_surfaces_select_their_family
+test_changed_context_selects_documentation_and_guidance_checks
 test_changed_dependency_selection_and_unmapped_failure
 test_changed_bin_reference_selects_per_script_not_per_family
 test_changed_uses_bounded_automatic_concurrency
