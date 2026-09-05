@@ -92,6 +92,8 @@ jq -e '
   .case_id == "competing-owner" and
   .review_depth == "structural" and
   .focus == "auth.rotation" and
+  ([.assessments[]? | select(.id == "auth.rotation")] | length) == 1 and
+  ([.assessments[]? | select(.id == "display.date")] | length) == 1 and
   ([.assessments[]? | select(
     .id == "auth.rotation" and
     .relationship_to_request == "affected" and
