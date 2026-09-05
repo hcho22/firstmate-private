@@ -98,12 +98,15 @@ jq -e '
   ([.assessments[]? | select(.id != "auth.rotation" and .id != "display.date")] | length) == 0 and
   ([.assessments[]? | select(
     .disposition == "required" and
-    (.id != "auth.rotation" or .relationship_to_request != "affected")
+    (.id != "auth.rotation" or
+      .relationship_to_request != "affected" or
+      .resulting_owner_count != 1)
   )] | length) == 0 and
   (.abstraction |
     if .proposed then
       .basis_responsibility == "auth.rotation" and
-      .basis_condition == "competing-implementations"
+      (.basis_condition == "competing-implementations" or
+        .basis_condition == "duplicated-mechanics")
     else
       .basis_responsibility == null and .basis_condition == "none"
     end
