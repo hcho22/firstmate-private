@@ -56,8 +56,8 @@ run_evaluation() {
     printf '%s\n' 'case_id: copy the fixture case_id.'
     printf '%s\n' 'review_depth: either ordinary or structural.'
     printf '%s\n' 'focus: a responsibility id from the fixture, or null.'
-    printf '%s\n' 'assessments: an array of structural concerns; each item has id (a responsibility id), relationship_to_request (affected or unrelated), disposition (required, recommendation, or none), and action (a short string or null).'
-    printf '%s\n' 'new_abstraction_needed: boolean.'
+    printf '%s\n' 'assessments: an array of structural concerns; each item has id (a responsibility id), relationship_to_request (affected or unrelated), disposition (required, recommendation, or none), and resulting_owner_count (a nonnegative integer or null).'
+    printf '%s\n' 'abstraction: an object with proposed (boolean), basis_responsibility (a responsibility id or null), and basis_condition (competing-implementations, duplicated-mechanics, unclear-ownership, other-concrete-need, review-routine-only, or none).'
     printf '%s\n' 'FIXTURE START'
     cat "$fixture"
     printf '%s\n' 'FIXTURE END'
@@ -88,7 +88,7 @@ jq -e '
     .id == "auth.rotation" and
     .relationship_to_request == "affected" and
     .disposition == "required" and
-    (.action | type == "string" and length > 0)
+    .resulting_owner_count == 1
   )] | length) == 1 and
   ([.assessments[]? | select(
     .id == "display.date" and
@@ -96,16 +96,25 @@ jq -e '
     .disposition == "recommendation"
   )] | length) == 1 and
   ([.assessments[]? | select(.id == "display.date" and .disposition == "required")] | length) == 0 and
-  .new_abstraction_needed == false
+  (.abstraction |
+    if .proposed then
+      .basis_responsibility == "auth.rotation" and
+      .basis_condition == "competing-implementations"
+    else
+      .basis_responsibility == null and .basis_condition == "none"
+    end
+  )
 ' "$TRIGGERED_RESPONSE" >/dev/null \
-  || fail "local model $MODEL did not require the affected owner correction while keeping unrelated duplication advisory"
+  || fail "local model $MODEL did not restore one affected owner, keep unrelated duplication advisory, and reject routine-only abstraction"
 
 jq -e '
   .case_id == "ordinary-copy-edit" and
   .review_depth == "ordinary" and
   .focus == null and
   ([.assessments[]? | select(.disposition != "none")] | length) == 0 and
-  .new_abstraction_needed == false
+  .abstraction.proposed == false and
+  .abstraction.basis_responsibility == null and
+  .abstraction.basis_condition == "none"
 ' "$ORDINARY_RESPONSE" >/dev/null \
   || fail "local model $MODEL activated Structural Review for an ordinary change"
 
