@@ -7,24 +7,29 @@
 #   fm-evidence-import-contract.sh < offer.json
 #
 # Contract schema `1.x` is one JSON object with these required fields:
-#   schema_version      "1.<minor>", where minor is a non-negative integer.
+#   schema_version      "1.<minor>", where minor is 0 or a positive decimal
+#                       without a leading zero.
 #   manifest_sha256     Lowercase 64-character SHA-256 digest.
 #   report              Object with path, sha256, and media_type.
 #   artifacts           Array of objects with path, sha256, and media_type.
-#   approval_identity   Non-empty opaque single-line identity.
-#   run_binding         Non-empty opaque single-line no-mistakes run binding.
+#   approval_identity   Opaque single-line identity of 1 to 512 characters.
+#   run_binding         Opaque single-line no-mistakes run binding of 1 to 512 characters.
 #   reviewed_head       Lowercase 40- or 64-character Git object identity.
-#   destination         Non-empty opaque single-line named destination.
+#   destination         Opaque single-line named destination of 1 to 512 characters.
+#
+# Opaque binding values have no leading or trailing whitespace, C0 or C1
+# control, or Unicode line or paragraph separator.
 #
 # The report media type is `text/markdown`.
 # Supported artifact media types are `image/png`, `image/jpeg`, and
 # `image/webp`.
-# Every report and artifact path is a normalized relative POSIX path: it has no
-# absolute root, backslash, empty segment, `.` segment, `..` segment, C0 or C1
-# control, or Unicode line or paragraph separator.
+# Every report and artifact path is a normalized relative POSIX path of 1 to 512
+# characters: it has no absolute root, backslash, empty segment, `.` segment,
+# `..` segment, C0 or C1 control, or Unicode line or paragraph separator.
 # Paths must be unique across the report and all artifacts, and no path may be
 # an ancestor of another path.
-# The JSON envelope may contain at most 1048576 bytes and 256 artifacts.
+# The UTF-8 JSON envelope must contain exactly one value, must not contain
+# duplicate object keys, and may contain at most 1048576 bytes and 256 artifacts.
 #
 # Unknown fields at any object level are optional extension data within schema
 # major 1 and are accepted but omitted from normalized output.
