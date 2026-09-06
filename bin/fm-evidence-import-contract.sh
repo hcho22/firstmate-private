@@ -45,8 +45,7 @@ usage() {
 }
 
 refuse() {
-  jq -cn --arg code "$1" --arg message "$2" \
-    '{code:$code,message:$message}' >&2
+  printf '{"code":"%s","message":"%s"}\n' "$1" "$2" >&2
   exit 2
 }
 
@@ -73,7 +72,6 @@ case "${1:-}" in
     ;;
 esac
 
-command -v jq >/dev/null 2>&1 || fail "jq is required"
 command -v python3 >/dev/null 2>&1 || fail "python3 is required"
 if [ -z "$SOURCE" ] && [ -t 0 ]; then
   refuse input-required "one JSON contract is required on stdin or with --file"
@@ -87,8 +85,16 @@ import json
 import re
 import sys
 
+
 class DuplicateKeyError(ValueError):
     pass
+
+
+class Refusal(ValueError):
+    def __init__(self, code, message):
+        self.code = code
+        self.message = message
+
 
 def object_without_duplicates(pairs):
     result = {}
@@ -98,23 +104,205 @@ def object_without_duplicates(pairs):
         result[key] = value
     return result
 
+
 def reject_constant(value):
     raise ValueError(value)
 
+
+def refuse(code, message):
+    raise Refusal(code, message)
+
+
+def missing(value, field, label):
+    if field not in value:
+        refuse("missing-field", f"missing required field: {label}.{field}")
+    return value[field]
+
+
+def has_forbidden_control(value):
+    return any(
+        ord(character) <= 31
+        or 127 <= ord(character) <= 159
+        or ord(character) in (8232, 8233)
+        for character in value
+    )
+
+
+def opaque(value, label):
+    if not isinstance(value, str):
+        refuse("invalid-value", f"{label} must be a string")
+    if not 1 <= len(value) <= 512:
+        refuse("invalid-value", f"{label} must contain 1 to 512 characters")
+    if has_forbidden_control(value):
+        refuse("invalid-value", f"{label} must not contain control characters")
+    if value[0].isspace() or value[-1].isspace():
+        refuse("invalid-value", f"{label} must not start or end with whitespace")
+    return value
+
+
+def sha256(value, label):
+    if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        refuse("invalid-hash", f"{label} must be a lowercase SHA-256 digest")
+    return value
+
+
+def relative_path(value, label):
+    if not isinstance(value, str):
+        refuse("invalid-path", f"{label} must be a string")
+    if not 1 <= len(value) <= 512:
+        refuse("invalid-path", f"{label} must contain 1 to 512 characters")
+    if value.startswith("/") or "\\" in value:
+        refuse("unsafe-path", f"{label} must be a relative POSIX path")
+    if has_forbidden_control(value):
+        refuse("unsafe-path", f"{label} must not contain control characters")
+    if any(segment in ("", ".", "..") for segment in value.split("/")):
+        refuse("unsafe-path", f"{label} must be normalized and must not traverse")
+    return value
+
+
+def json_value(value):
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def report_media(value):
+    if value != "text/markdown":
+        refuse(
+            "unsupported-media-type",
+            f"report.media_type is not supported: {json_value(value)}",
+        )
+    return value
+
+
+def artifact_media(value, label):
+    if value not in ("image/png", "image/jpeg", "image/webp"):
+        refuse(
+            "unsupported-media-type",
+            f"{label} is not supported: {json_value(value)}",
+        )
+    return value
+
+
+def validate_report(value):
+    if not isinstance(value, dict):
+        refuse("invalid-shape", "report must be an object")
+    return {
+        "path": relative_path(missing(value, "path", "report"), "report.path"),
+        "sha256": sha256(missing(value, "sha256", "report"), "report.sha256"),
+        "media_type": report_media(missing(value, "media_type", "report")),
+    }
+
+
+def validate_artifact(value, index):
+    label = f"artifacts[{index}]"
+    if not isinstance(value, dict):
+        refuse("invalid-shape", f"{label} must be an object")
+    return {
+        "path": relative_path(missing(value, "path", label), f"{label}.path"),
+        "sha256": sha256(missing(value, "sha256", label), f"{label}.sha256"),
+        "media_type": artifact_media(
+            missing(value, "media_type", label), f"{label}.media_type"
+        ),
+    }
+
+
+def validate_version(value):
+    if not isinstance(value, str) or re.fullmatch(
+        r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", value
+    ) is None:
+        refuse("invalid-schema-version", "schema_version must be <major>.<minor>")
+    major = value.split(".", 1)[0]
+    if major != "1":
+        refuse(
+            "unsupported-schema-version",
+            f"unsupported evidence import schema major: {major}",
+        )
+    return value
+
+
+def paths_overlap(paths):
+    ordered = sorted(paths, key=lambda path: path.split("/"))
+    return any(
+        current == previous or current.startswith(previous + "/")
+        for previous, current in zip(ordered, ordered[1:])
+    )
+
+
+def validate_contract(value, max_artifacts):
+    if not isinstance(value, dict):
+        refuse("invalid-shape", "contract must be a JSON object")
+
+    schema_version = validate_version(missing(value, "schema_version", "contract"))
+    manifest_sha256 = sha256(
+        missing(value, "manifest_sha256", "contract"), "manifest_sha256"
+    )
+    report = validate_report(missing(value, "report", "contract"))
+    artifact_input = missing(value, "artifacts", "contract")
+    if not isinstance(artifact_input, list):
+        refuse("invalid-shape", "artifacts must be an array")
+    if len(artifact_input) > max_artifacts:
+        refuse(
+            "too-many-artifacts",
+            f"artifacts must contain at most {max_artifacts} entries",
+        )
+    artifacts = [
+        validate_artifact(artifact, index)
+        for index, artifact in enumerate(artifact_input)
+    ]
+    paths = [report["path"], *(artifact["path"] for artifact in artifacts)]
+    if paths_overlap(paths):
+        refuse(
+            "duplicate-path",
+            "report and artifact paths must be distinct non-ancestor paths",
+        )
+
+    reviewed_head = missing(value, "reviewed_head", "contract")
+    if not isinstance(reviewed_head, str) or re.fullmatch(
+        r"(?:[0-9a-f]{40}|[0-9a-f]{64})", reviewed_head
+    ) is None:
+        refuse(
+            "invalid-reviewed-head",
+            "reviewed_head must be a lowercase 40- or 64-character Git object identity",
+        )
+
+    return {
+        "schema_version": schema_version,
+        "manifest_sha256": manifest_sha256,
+        "report": report,
+        "artifacts": sorted(artifacts, key=lambda artifact: artifact["path"]),
+        "approval_identity": opaque(
+            missing(value, "approval_identity", "contract"), "approval_identity"
+        ),
+        "run_binding": opaque(
+            missing(value, "run_binding", "contract"), "run_binding"
+        ),
+        "reviewed_head": reviewed_head,
+        "destination": opaque(
+            missing(value, "destination", "contract"), "destination"
+        ),
+    }
+
+
+def emit_refusal(code, message):
+    print(json_value({"code": code, "message": message}), file=sys.stderr)
+
+
 try:
-    limit = int(sys.argv[1])
-    if len(sys.argv) == 3:
-        with open(sys.argv[2], "rb") as source:
-            raw = source.read(limit + 1)
+    byte_limit = int(sys.argv[1])
+    artifact_limit = int(sys.argv[2])
+    if len(sys.argv) == 4:
+        with open(sys.argv[3], "rb") as source:
+            raw = source.read(byte_limit + 1)
     else:
-        raw = sys.stdin.buffer.read(limit + 1)
+        raw = sys.stdin.buffer.read(byte_limit + 1)
 except OSError:
     sys.exit(1)
 except (MemoryError, OverflowError):
+    emit_refusal("invalid-json", "input is not valid JSON")
     sys.exit(2)
 
-if len(raw) > limit:
-    sys.exit(5)
+if len(raw) > byte_limit:
+    emit_refusal("input-too-large", "input exceeds the 1048576-byte JSON envelope")
+    sys.exit(2)
 
 try:
     text = raw.decode("utf-8")
@@ -124,161 +312,34 @@ try:
     )
     whitespace = re.compile(r"[ \t\r\n]*")
     start = whitespace.match(text, 0).end()
-    _, end = decoder.raw_decode(text, start)
+    value, end = decoder.raw_decode(text, start)
     end = whitespace.match(text, end).end()
     if end != len(text):
         decoder.raw_decode(text, end)
-        sys.exit(4)
+        refuse("invalid-json-count", "input must contain exactly one JSON value")
+    normalized = validate_contract(value, artifact_limit)
 except DuplicateKeyError:
-    sys.exit(3)
+    emit_refusal("duplicate-key", "input contains a duplicate object key")
+    sys.exit(2)
+except Refusal as error:
+    emit_refusal(error.code, error.message)
+    sys.exit(2)
 except (UnicodeDecodeError, ValueError, RecursionError, MemoryError, OverflowError):
+    emit_refusal("invalid-json", "input is not valid JSON")
     sys.exit(2)
 
-sys.stdout.buffer.write(raw)
+print(json_value(normalized))
 PY
 )
 
-STRICT_JSON=
 if [ -n "$SOURCE" ]; then
-  STRICT_JSON=$(python3 -c "$PYTHON_PROGRAM" "$MAX_JSON_BYTES" "$SOURCE")
+  python3 -c "$PYTHON_PROGRAM" "$MAX_JSON_BYTES" "$MAX_ARTIFACTS" "$SOURCE"
 else
-  STRICT_JSON=$(python3 -c "$PYTHON_PROGRAM" "$MAX_JSON_BYTES")
+  python3 -c "$PYTHON_PROGRAM" "$MAX_JSON_BYTES" "$MAX_ARTIFACTS"
 fi
 case $? in
-  0) ;;
+  0) exit 0 ;;
   1) fail "could not read input" ;;
-  3) refuse duplicate-key "input contains a duplicate object key" ;;
-  4) refuse invalid-json-count "input must contain exactly one JSON value" ;;
-  5) refuse input-too-large "input exceeds the 1048576-byte JSON envelope" ;;
-  *) refuse invalid-json "input is not valid JSON" ;;
+  2) exit 2 ;;
+  *) fail "validator failed unexpectedly" ;;
 esac
-
-JQ_PROGRAM=$(cat <<'JQ'
-def refuse($code; $message): error({code: $code, message: $message});
-def has_forbidden_control:
-  any(explode[];
-    (. >= 0 and . <= 31) or
-    (. >= 127 and . <= 159) or
-    . == 8232 or
-    . == 8233);
-def missing($object; $field; $label):
-  if $object | has($field) then $object[$field]
-  else refuse("missing-field"; "missing required field: \($label).\($field)")
-  end;
-def opaque($value; $label):
-  if ($value | type) != "string" then
-    refuse("invalid-value"; "\($label) must be a string")
-  elif ($value | length) == 0 or ($value | length) > 512 then
-    refuse("invalid-value"; "\($label) must contain 1 to 512 characters")
-  elif $value | has_forbidden_control then
-    refuse("invalid-value"; "\($label) must not contain control characters")
-  elif ($value | test("^\\s|\\s$")) then
-    refuse("invalid-value"; "\($label) must not start or end with whitespace")
-  else $value
-  end;
-def sha256($value; $label):
-  if ($value | type) == "string" and ($value | test("^[0-9a-f]{64}$")) then $value
-  else refuse("invalid-hash"; "\($label) must be a lowercase SHA-256 digest")
-  end;
-def relative_path($value; $label):
-  if ($value | type) != "string" then
-    refuse("invalid-path"; "\($label) must be a string")
-  elif ($value | length) == 0 or ($value | length) > 512 then
-    refuse("invalid-path"; "\($label) must contain 1 to 512 characters")
-  elif ($value | startswith("/")) or ($value | contains("\\")) then
-    refuse("unsafe-path"; "\($label) must be a relative POSIX path")
-  elif $value | has_forbidden_control then
-    refuse("unsafe-path"; "\($label) must not contain control characters")
-  elif any($value | split("/")[]; . == "" or . == "." or . == "..") then
-    refuse("unsafe-path"; "\($label) must be normalized and must not traverse")
-  else $value
-  end;
-def report_media($value):
-  if $value == "text/markdown" then $value
-  else refuse("unsupported-media-type"; "report.media_type is not supported: \($value | tojson)")
-  end;
-def artifact_media($value; $label):
-  if $value == "image/png" or $value == "image/jpeg" or $value == "image/webp" then $value
-  else refuse("unsupported-media-type"; "\($label) is not supported: \($value | tojson)")
-  end;
-def validate_report($value):
-  if ($value | type) != "object" then
-    refuse("invalid-shape"; "report must be an object")
-  else {
-    path: relative_path(missing($value; "path"; "report"); "report.path"),
-    sha256: sha256(missing($value; "sha256"; "report"); "report.sha256"),
-    media_type: report_media(missing($value; "media_type"; "report"))
-  } end;
-def validate_artifact($entry; $index):
-  if ($entry | type) != "object" then
-    refuse("invalid-shape"; "artifacts[\($index)] must be an object")
-  else {
-    path: relative_path(missing($entry; "path"; "artifacts[\($index)]"); "artifacts[\($index)].path"),
-    sha256: sha256(missing($entry; "sha256"; "artifacts[\($index)]"); "artifacts[\($index)].sha256"),
-    media_type: artifact_media(missing($entry; "media_type"; "artifacts[\($index)]"); "artifacts[\($index)].media_type")
-  } end;
-def validate_version($value):
-  if ($value | type) != "string" or (($value | test("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$")) | not) then
-    refuse("invalid-schema-version"; "schema_version must be <major>.<minor>")
-  elif ($value | split(".")[0]) != "1" then
-    refuse("unsupported-schema-version"; "unsupported evidence import schema major: \($value | split(".")[0])")
-  else $value
-  end;
-def paths_overlap($paths):
-  ($paths | sort_by(split("/"))) as $sorted |
-  any(range(1; ($sorted | length));
-    . as $index |
-    ($sorted[$index] == $sorted[$index - 1]) or
-    ($sorted[$index] | startswith($sorted[$index - 1] + "/")));
-def validate_contract($value):
-  if ($value | type) != "object" then
-    refuse("invalid-shape"; "contract must be a JSON object")
-  else
-    (validate_version(missing($value; "schema_version"; "contract"))) as $schema_version |
-    (sha256(missing($value; "manifest_sha256"; "contract"); "manifest_sha256")) as $manifest_sha256 |
-    (validate_report(missing($value; "report"; "contract"))) as $report |
-    (missing($value; "artifacts"; "contract")) as $artifact_input |
-    if ($artifact_input | type) != "array" then
-      refuse("invalid-shape"; "artifacts must be an array")
-    elif ($artifact_input | length) > $max_artifacts then
-      refuse("too-many-artifacts"; "artifacts must contain at most \($max_artifacts) entries")
-    else
-      ($artifact_input | to_entries | map(validate_artifact(.value; .key))) as $artifacts |
-      ([$report.path] + ($artifacts | map(.path))) as $paths |
-      if paths_overlap($paths) then
-        refuse("duplicate-path"; "report and artifact paths must be distinct non-ancestor paths")
-      else {
-        schema_version: $schema_version,
-        manifest_sha256: $manifest_sha256,
-        report: $report,
-        artifacts: ($artifacts | sort_by(.path)),
-        approval_identity: opaque(missing($value; "approval_identity"; "contract"); "approval_identity"),
-        run_binding: opaque(missing($value; "run_binding"; "contract"); "run_binding"),
-        reviewed_head:
-          (missing($value; "reviewed_head"; "contract") as $head |
-           if ($head | type) == "string" and ($head | test("^([0-9a-f]{40}|[0-9a-f]{64})$")) then $head
-           else refuse("invalid-reviewed-head"; "reviewed_head must be a lowercase 40- or 64-character Git object identity")
-           end),
-        destination: opaque(missing($value; "destination"; "contract"); "destination")
-      } end
-    end
-  end;
-try (
-  if length != 1 then
-    refuse("invalid-json-count"; "input must contain exactly one JSON value")
-  else validate_contract(.[0])
-  end |
-  {accepted: true, contract: .}
-) catch {accepted: false, error: .}
-JQ
-)
-
-RESULT=$(printf '%s\n' "$STRICT_JSON" | jq -cs --argjson max_artifacts "$MAX_ARTIFACTS" "$JQ_PROGRAM" 2>/dev/null) \
-  || refuse invalid-json "input is not valid JSON"
-
-if [ "$(printf '%s\n' "$RESULT" | jq -r '.accepted')" = true ]; then
-  printf '%s\n' "$RESULT" | jq -c '.contract'
-  exit 0
-fi
-printf '%s\n' "$RESULT" | jq -c '.error' >&2
-exit 2
