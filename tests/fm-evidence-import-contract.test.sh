@@ -13,6 +13,8 @@ TMP_ROOT=$(fm_test_tmproot evidence-import-contract)
 BASE="$TMP_ROOT/base.json"
 OUT="$TMP_ROOT/out.json"
 ERR="$TMP_ROOT/err.json"
+MAX_JSON_BYTES=1048576
+MAX_ARTIFACTS=256
 
 cp "$FIXTURES/producer-a.json" "$BASE"
 
@@ -142,6 +144,9 @@ test_path_refusals() {
   fixture="$TMP_ROOT/artifact-path-ancestor.json"
   mutate '.artifacts[0].path = "evidence" | .artifacts[1].path = "evidence/shot.png"' "$fixture"
   expect_refusal duplicate-path "$fixture" "artifact path ancestor collision"
+  fixture="$TMP_ROOT/interleaved-path-ancestor.json"
+  mutate '.report.path = "evidence" | .artifacts[0].path = "evidence-archive" | .artifacts[1].path = "evidence/shot.png"' "$fixture"
+  expect_refusal duplicate-path "$fixture" "lexically interleaved path ancestor collision"
   pass "unsafe, duplicate, and segment-ancestor paths are refused"
 }
 
@@ -220,6 +225,63 @@ test_malformed_shapes_and_values() {
   pass "malformed JSON, shapes, hashes, heads, and opaque bindings are refused"
 }
 
+test_resource_boundaries() {
+  local exact_artifacts exact_envelope home over_artifacts over_envelope deep before after
+  exact_artifacts="$TMP_ROOT/exact-artifact-limit.json"
+  jq --argjson limit "$MAX_ARTIFACTS" '
+    .artifacts = [range(0; $limit) | {
+      path:("artifacts/shot-" + tostring + ".png"),
+      sha256:("f" * 64),
+      media_type:"image/png"
+    }]
+  ' "$BASE" > "$exact_artifacts"
+  "$SUBJECT" --file "$exact_artifacts" >/dev/null || fail "exact artifact limit was refused"
+
+  over_artifacts="$TMP_ROOT/over-artifact-limit.json"
+  jq '.artifacts += [{path:"artifacts/over.png",sha256:("f" * 64),media_type:"image/png"}]' \
+    "$exact_artifacts" > "$over_artifacts"
+
+  exact_envelope="$TMP_ROOT/exact-envelope-limit.json"
+  over_envelope="$TMP_ROOT/over-envelope-limit.json"
+  deep="$TMP_ROOT/deeply-nested.json"
+  python3 - "$BASE" "$exact_envelope" "$over_envelope" "$deep" "$MAX_JSON_BYTES" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+base_path, exact_path, over_path, deep_path, limit_raw = sys.argv[1:]
+limit = int(limit_raw)
+base = json.loads(Path(base_path).read_text())
+base["future_padding"] = ""
+empty = json.dumps(base, separators=(",", ":")).encode()
+base["future_padding"] = "x" * (limit - len(empty))
+exact = json.dumps(base, separators=(",", ":")).encode()
+if len(exact) != limit:
+    raise SystemExit("could not construct exact envelope boundary")
+Path(exact_path).write_bytes(exact)
+Path(over_path).write_bytes(exact + b" ")
+
+raw = Path(base_path).read_bytes().lstrip()
+deep = b'{"future_depth":' + (b"[" * 2048) + b"0" + (b"]" * 2048) + b"," + raw[1:]
+Path(deep_path).write_bytes(deep)
+PY
+  "$SUBJECT" --file "$exact_envelope" >/dev/null || fail "exact JSON envelope limit was refused"
+  expect_refusal invalid-json "$deep" "parser depth exhaustion"
+
+  home="$TMP_ROOT/resource-bound-home"
+  mkdir -p "$home/imports" "$home/publications"
+  printf 'keep\n' > "$home/imports/existing"
+  printf 'keep\n' > "$home/publications/existing"
+  before=$({ find "$home" -print; find "$home" -type f -exec cksum {} \;; } | LC_ALL=C sort)
+  NM_HOME="$home" NO_MISTAKES_HOME="$home" expect_refusal too-many-artifacts "$over_artifacts" \
+    "artifact count over limit"
+  NM_HOME="$home" NO_MISTAKES_HOME="$home" expect_refusal input-too-large "$over_envelope" \
+    "JSON envelope over limit"
+  after=$({ find "$home" -print; find "$home" -type f -exec cksum {} \;; } | LC_ALL=C sort)
+  [ "$before" = "$after" ] || fail "resource-bound refusal changed import or publication state"
+  pass "depth and exact resource boundaries refuse safely without state mutation"
+}
+
 test_refusal_is_side_effect_free() {
   local home fixture before after
   home="$TMP_ROOT/no-mistakes-home"
@@ -243,4 +305,5 @@ test_duplicate_object_keys
 test_path_refusals
 test_media_boundaries
 test_malformed_shapes_and_values
+test_resource_boundaries
 test_refusal_is_side_effect_free

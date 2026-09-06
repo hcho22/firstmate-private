@@ -24,6 +24,7 @@
 # character.
 # Paths must be unique across the report and all artifacts, and no path may be
 # an ancestor of another path.
+# The JSON envelope may contain at most 1048576 bytes and 256 artifacts.
 #
 # Unknown fields at any object level are optional extension data within schema
 # major 1 and are accepted but omitted from normalized output.
@@ -78,6 +79,9 @@ if [ -z "$SOURCE" ] && [ -t 0 ]; then
   refuse input-required "one JSON contract is required on stdin or with --file"
 fi
 
+MAX_JSON_BYTES=1048576
+MAX_ARTIFACTS=256
+
 PYTHON_PROGRAM=$(cat <<'PY'
 import json
 import re
@@ -98,13 +102,19 @@ def reject_constant(value):
     raise ValueError(value)
 
 try:
-    if len(sys.argv) == 2:
-        with open(sys.argv[1], "rb") as source:
-            raw = source.read()
+    limit = int(sys.argv[1])
+    if len(sys.argv) == 3:
+        with open(sys.argv[2], "rb") as source:
+            raw = source.read(limit + 1)
     else:
-        raw = sys.stdin.buffer.read()
+        raw = sys.stdin.buffer.read(limit + 1)
 except OSError:
     sys.exit(1)
+except (MemoryError, OverflowError):
+    sys.exit(2)
+
+if len(raw) > limit:
+    sys.exit(5)
 
 try:
     text = raw.decode("utf-8")
@@ -121,7 +131,7 @@ try:
         sys.exit(4)
 except DuplicateKeyError:
     sys.exit(3)
-except (UnicodeDecodeError, ValueError):
+except (UnicodeDecodeError, ValueError, RecursionError, MemoryError, OverflowError):
     sys.exit(2)
 
 sys.stdout.buffer.write(raw)
@@ -130,15 +140,16 @@ PY
 
 STRICT_JSON=
 if [ -n "$SOURCE" ]; then
-  STRICT_JSON=$(python3 -c "$PYTHON_PROGRAM" "$SOURCE")
+  STRICT_JSON=$(python3 -c "$PYTHON_PROGRAM" "$MAX_JSON_BYTES" "$SOURCE")
 else
-  STRICT_JSON=$(python3 -c "$PYTHON_PROGRAM")
+  STRICT_JSON=$(python3 -c "$PYTHON_PROGRAM" "$MAX_JSON_BYTES")
 fi
 case $? in
   0) ;;
   1) fail "could not read input" ;;
   3) refuse duplicate-key "input contains a duplicate object key" ;;
   4) refuse invalid-json-count "input must contain exactly one JSON value" ;;
+  5) refuse input-too-large "input exceeds the 1048576-byte JSON envelope" ;;
   *) refuse invalid-json "input is not valid JSON" ;;
 esac
 
@@ -208,13 +219,11 @@ def validate_version($value):
   else $value
   end;
 def paths_overlap($paths):
-  any(range(0; ($paths | length));
-    . as $left |
-    any(range($left + 1; ($paths | length));
-      . as $right |
-      ($paths[$left] == $paths[$right]) or
-      ($paths[$left] | startswith($paths[$right] + "/")) or
-      ($paths[$right] | startswith($paths[$left] + "/"))));
+  ($paths | sort_by(split("/"))) as $sorted |
+  any(range(1; ($sorted | length));
+    . as $index |
+    ($sorted[$index] == $sorted[$index - 1]) or
+    ($sorted[$index] | startswith($sorted[$index - 1] + "/")));
 def validate_contract($value):
   if ($value | type) != "object" then
     refuse("invalid-shape"; "contract must be a JSON object")
@@ -225,6 +234,8 @@ def validate_contract($value):
     (missing($value; "artifacts"; "contract")) as $artifact_input |
     if ($artifact_input | type) != "array" then
       refuse("invalid-shape"; "artifacts must be an array")
+    elif ($artifact_input | length) > $max_artifacts then
+      refuse("too-many-artifacts"; "artifacts must contain at most \($max_artifacts) entries")
     else
       ($artifact_input | to_entries | map(validate_artifact(.value; .key))) as $artifacts |
       ([$report.path] + ($artifacts | map(.path))) as $paths |
@@ -256,7 +267,7 @@ try (
 JQ
 )
 
-RESULT=$(printf '%s\n' "$STRICT_JSON" | jq -cs "$JQ_PROGRAM" 2>/dev/null) \
+RESULT=$(printf '%s\n' "$STRICT_JSON" | jq -cs --argjson max_artifacts "$MAX_ARTIFACTS" "$JQ_PROGRAM" 2>/dev/null) \
   || refuse invalid-json "input is not valid JSON"
 
 if [ "$(printf '%s\n' "$RESULT" | jq -r '.accepted')" = true ]; then
