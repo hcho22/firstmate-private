@@ -97,6 +97,22 @@ test_schema_boundaries() {
   pass "schema major, minor, optional-field, and malformed-version boundaries are deterministic"
 }
 
+test_duplicate_object_keys() {
+  local fixture
+  fixture="$TMP_ROOT/duplicate-reviewed-head.json"
+  {
+    printf '{"reviewed_head":"%040d",' 0
+    sed '1s/^[[:space:]]*{//' "$BASE"
+  } > "$fixture"
+  expect_refusal duplicate-key "$fixture" "duplicate required object key"
+
+  fixture="$TMP_ROOT/duplicate-optional-key.json"
+  jq '.optional = {future_binding:"one"}' "$BASE" |
+    sed 's/"future_binding": "one"/"future_binding": "one", "future_binding": "two"/' > "$fixture"
+  expect_refusal duplicate-key "$fixture" "duplicate optional object key"
+  pass "duplicate required and optional object keys are refused before normalization"
+}
+
 test_path_refusals() {
   local fixture path target
   for target in report artifact; do
@@ -117,7 +133,16 @@ test_path_refusals() {
   fixture="$TMP_ROOT/report-artifact-collision.json"
   mutate '.artifacts[0].path = .report.path' "$fixture"
   expect_refusal duplicate-path "$fixture" "report/artifact path collision"
-  pass "absolute, traversing, non-normalized, backslash, and duplicate paths are refused"
+  fixture="$TMP_ROOT/report-path-ancestor.json"
+  mutate '.report.path = "evidence" | .artifacts[0].path = "evidence/shot.png"' "$fixture"
+  expect_refusal duplicate-path "$fixture" "report path ancestor collision"
+  fixture="$TMP_ROOT/report-path-descendant.json"
+  mutate '.report.path = "evidence/report.md" | .artifacts[0].path = "evidence"' "$fixture"
+  expect_refusal duplicate-path "$fixture" "report path descendant collision"
+  fixture="$TMP_ROOT/artifact-path-ancestor.json"
+  mutate '.artifacts[0].path = "evidence" | .artifacts[1].path = "evidence/shot.png"' "$fixture"
+  expect_refusal duplicate-path "$fixture" "artifact path ancestor collision"
+  pass "unsafe, duplicate, and segment-ancestor paths are refused"
 }
 
 test_media_boundaries() {
@@ -214,6 +239,7 @@ test_refusal_is_side_effect_free() {
 test_producer_neutral_equivalence
 test_missing_required_fields
 test_schema_boundaries
+test_duplicate_object_keys
 test_path_refusals
 test_media_boundaries
 test_malformed_shapes_and_values

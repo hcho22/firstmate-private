@@ -22,7 +22,8 @@
 # Every report and artifact path is a normalized relative POSIX path: it has no
 # absolute root, backslash, empty segment, `.` segment, `..` segment, or control
 # character.
-# Paths must be unique across the report and all artifacts.
+# Paths must be unique across the report and all artifacts, and no path may be
+# an ancestor of another path.
 #
 # Unknown fields at any object level are optional extension data within schema
 # major 1 and are accepted but omitted from normalized output.
@@ -72,9 +73,74 @@ case "${1:-}" in
 esac
 
 command -v jq >/dev/null 2>&1 || fail "jq is required"
+command -v python3 >/dev/null 2>&1 || fail "python3 is required"
 if [ -z "$SOURCE" ] && [ -t 0 ]; then
   refuse input-required "one JSON contract is required on stdin or with --file"
 fi
+
+PYTHON_PROGRAM=$(cat <<'PY'
+import json
+import re
+import sys
+
+class DuplicateKeyError(ValueError):
+    pass
+
+def object_without_duplicates(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise DuplicateKeyError(key)
+        result[key] = value
+    return result
+
+def reject_constant(value):
+    raise ValueError(value)
+
+try:
+    if len(sys.argv) == 2:
+        with open(sys.argv[1], "rb") as source:
+            raw = source.read()
+    else:
+        raw = sys.stdin.buffer.read()
+except OSError:
+    sys.exit(1)
+
+try:
+    text = raw.decode("utf-8")
+    decoder = json.JSONDecoder(
+        object_pairs_hook=object_without_duplicates,
+        parse_constant=reject_constant,
+    )
+    whitespace = re.compile(r"[ \t\r\n]*")
+    start = whitespace.match(text, 0).end()
+    _, end = decoder.raw_decode(text, start)
+    end = whitespace.match(text, end).end()
+    if end != len(text):
+        decoder.raw_decode(text, end)
+        sys.exit(4)
+except DuplicateKeyError:
+    sys.exit(3)
+except (UnicodeDecodeError, ValueError):
+    sys.exit(2)
+
+sys.stdout.buffer.write(raw)
+PY
+)
+
+STRICT_JSON=
+if [ -n "$SOURCE" ]; then
+  STRICT_JSON=$(python3 -c "$PYTHON_PROGRAM" "$SOURCE")
+else
+  STRICT_JSON=$(python3 -c "$PYTHON_PROGRAM")
+fi
+case $? in
+  0) ;;
+  1) fail "could not read input" ;;
+  3) refuse duplicate-key "input contains a duplicate object key" ;;
+  4) refuse invalid-json-count "input must contain exactly one JSON value" ;;
+  *) refuse invalid-json "input is not valid JSON" ;;
+esac
 
 JQ_PROGRAM=$(cat <<'JQ'
 def refuse($code; $message): error({code: $code, message: $message});
@@ -141,6 +207,14 @@ def validate_version($value):
     refuse("unsupported-schema-version"; "unsupported evidence import schema major: \($value | split(".")[0])")
   else $value
   end;
+def paths_overlap($paths):
+  any(range(0; ($paths | length));
+    . as $left |
+    any(range($left + 1; ($paths | length));
+      . as $right |
+      ($paths[$left] == $paths[$right]) or
+      ($paths[$left] | startswith($paths[$right] + "/")) or
+      ($paths[$right] | startswith($paths[$left] + "/"))));
 def validate_contract($value):
   if ($value | type) != "object" then
     refuse("invalid-shape"; "contract must be a JSON object")
@@ -154,8 +228,8 @@ def validate_contract($value):
     else
       ($artifact_input | to_entries | map(validate_artifact(.value; .key))) as $artifacts |
       ([$report.path] + ($artifacts | map(.path))) as $paths |
-      if ($paths | unique | length) != ($paths | length) then
-        refuse("duplicate-path"; "report and artifact paths must be unique")
+      if paths_overlap($paths) then
+        refuse("duplicate-path"; "report and artifact paths must be distinct non-ancestor paths")
       else {
         schema_version: $schema_version,
         manifest_sha256: $manifest_sha256,
@@ -182,13 +256,8 @@ try (
 JQ
 )
 
-if [ -n "$SOURCE" ]; then
-  RESULT=$(jq -cs "$JQ_PROGRAM" -- "$SOURCE" 2>/dev/null) \
-    || refuse invalid-json "input is not valid JSON"
-else
-  RESULT=$(jq -cs "$JQ_PROGRAM" 2>/dev/null) \
-    || refuse invalid-json "input is not valid JSON"
-fi
+RESULT=$(printf '%s\n' "$STRICT_JSON" | jq -cs "$JQ_PROGRAM" 2>/dev/null) \
+  || refuse invalid-json "input is not valid JSON"
 
 if [ "$(printf '%s\n' "$RESULT" | jq -r '.accepted')" = true ]; then
   printf '%s\n' "$RESULT" | jq -c '.contract'
