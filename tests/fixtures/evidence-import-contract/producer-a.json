@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "report": {
+    "path": "report/evidence.md",
+    "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "media_type": "text/markdown",
+    "caption": "Optional report metadata"
+  },
+  "artifacts": [
+    {
+      "path": "artifacts/candidate.webp",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "media_type": "image/webp"
+    },
+    {
+      "path": "artifacts/baseline.png",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_type": "image/png"
+    }
+  ],
+  "approval_identity": "approval-9d0c4f",
+  "run_binding": "run-42",
+  "reviewed_head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "destination": "github-pr:hcho22/example#17",
+  "producer": {
+    "name": "producer-a"
+  },
+  "optional_future_field": {
+    "accepted": true
+  }
+}

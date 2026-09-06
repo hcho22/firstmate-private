@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "report": {
+    "path": "report/evidence.md",
+    "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "media_type": "text/markdown",
+    "producer_note": "Different optional data"
+  },
+  "artifacts": [
+    {
+      "path": "artifacts/baseline.png",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_type": "image/png"
+    },
+    {
+      "path": "artifacts/candidate.webp",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "media_type": "image/webp",
+      "producer_extension": 7
+    }
+  ],
+  "approval_identity": "approval-9d0c4f",
+  "run_binding": "run-42",
+  "reviewed_head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "destination": "github-pr:hcho22/example#17",
+  "producer": {
+    "name": "producer-b",
+    "release": "2026.9"
+  }
+}
