@@ -222,7 +222,26 @@ test_malformed_shapes_and_values() {
   fixture="$TMP_ROOT/control-binding.json"
   mutate '.destination = "destination\nother"' "$fixture"
   expect_refusal invalid-value "$fixture" "control character in destination"
-  pass "malformed JSON, shapes, hashes, heads, and opaque bindings are refused"
+  fixture="$TMP_ROOT/c1-binding.json"
+  mutate '.approval_identity = "reviewer\u0085admin"' "$fixture"
+  expect_refusal invalid-value "$fixture" "C1 control in approval identity"
+  fixture="$TMP_ROOT/line-separator-binding.json"
+  mutate '.approval_identity = "reviewer\u2028admin"' "$fixture"
+  expect_refusal invalid-value "$fixture" "Unicode line separator in approval identity"
+  fixture="$TMP_ROOT/paragraph-separator-binding.json"
+  mutate '.approval_identity = "reviewer\u2029admin"' "$fixture"
+  expect_refusal invalid-value "$fixture" "Unicode paragraph separator in approval identity"
+
+  fixture="$TMP_ROOT/c1-path.json"
+  mutate '.report.path = "report/\u009bevidence.md"' "$fixture"
+  expect_refusal unsafe-path "$fixture" "C1 control in report path"
+  fixture="$TMP_ROOT/line-separator-path.json"
+  mutate '.report.path = "report/line\u2028break.md"' "$fixture"
+  expect_refusal unsafe-path "$fixture" "Unicode line separator in report path"
+  fixture="$TMP_ROOT/paragraph-separator-path.json"
+  mutate '.report.path = "report/paragraph\u2029break.md"' "$fixture"
+  expect_refusal unsafe-path "$fixture" "Unicode paragraph separator in report path"
+  pass "malformed shapes, values, and Unicode controls are refused"
 }
 
 test_resource_boundaries() {

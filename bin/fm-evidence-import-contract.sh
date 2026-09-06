@@ -20,8 +20,8 @@
 # Supported artifact media types are `image/png`, `image/jpeg`, and
 # `image/webp`.
 # Every report and artifact path is a normalized relative POSIX path: it has no
-# absolute root, backslash, empty segment, `.` segment, `..` segment, or control
-# character.
+# absolute root, backslash, empty segment, `.` segment, `..` segment, C0 or C1
+# control, or Unicode line or paragraph separator.
 # Paths must be unique across the report and all artifacts, and no path may be
 # an ancestor of another path.
 # The JSON envelope may contain at most 1048576 bytes and 256 artifacts.
@@ -155,6 +155,12 @@ esac
 
 JQ_PROGRAM=$(cat <<'JQ'
 def refuse($code; $message): error({code: $code, message: $message});
+def has_forbidden_control:
+  any(explode[];
+    (. >= 0 and . <= 31) or
+    (. >= 127 and . <= 159) or
+    . == 8232 or
+    . == 8233);
 def missing($object; $field; $label):
   if $object | has($field) then $object[$field]
   else refuse("missing-field"; "missing required field: \($label).\($field)")
@@ -164,7 +170,7 @@ def opaque($value; $label):
     refuse("invalid-value"; "\($label) must be a string")
   elif ($value | length) == 0 or ($value | length) > 512 then
     refuse("invalid-value"; "\($label) must contain 1 to 512 characters")
-  elif $value | test("[\\x00-\\x1f\\x7f]") then
+  elif $value | has_forbidden_control then
     refuse("invalid-value"; "\($label) must not contain control characters")
   elif ($value | test("^\\s|\\s$")) then
     refuse("invalid-value"; "\($label) must not start or end with whitespace")
@@ -181,7 +187,7 @@ def relative_path($value; $label):
     refuse("invalid-path"; "\($label) must contain 1 to 512 characters")
   elif ($value | startswith("/")) or ($value | contains("\\")) then
     refuse("unsafe-path"; "\($label) must be a relative POSIX path")
-  elif $value | test("[\\x00-\\x1f\\x7f]") then
+  elif $value | has_forbidden_control then
     refuse("unsafe-path"; "\($label) must not contain control characters")
   elif any($value | split("/")[]; . == "" or . == "." or . == "..") then
     refuse("unsafe-path"; "\($label) must be normalized and must not traverse")
