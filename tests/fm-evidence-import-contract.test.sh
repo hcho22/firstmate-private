@@ -281,7 +281,8 @@ Path(exact_path).write_bytes(exact)
 Path(over_path).write_bytes(exact + b" ")
 
 raw = Path(base_path).read_bytes().lstrip()
-deep = b'{"future_depth":' + (b"[" * 2048) + b"0" + (b"]" * 2048) + b"," + raw[1:]
+deep_depth = sys.getrecursionlimit() * 10
+deep = b'{"future_depth":' + (b"[" * deep_depth) + b"0" + (b"]" * deep_depth) + b"," + raw[1:]
 Path(deep_path).write_bytes(deep)
 PY
   "$SUBJECT" --file "$exact_envelope" >/dev/null || fail "exact JSON envelope limit was refused"
