@@ -142,12 +142,23 @@ test_missing_required_fields() {
 }
 
 test_schema_boundaries() {
-  local fixture out
+  local fixture out large_integer
   fixture="$TMP_ROOT/schema-new-minor.json"
   mutate '.schema_version = "1.999" | .new_optional = {nested:[1,2,3]}' "$fixture"
   out=$("$SUBJECT" --file "$fixture") || fail "new schema 1 minor and optional field were refused"
   printf '%s\n' "$out" | jq -e '.schema_version == "1.999" and (has("new_optional") | not)' >/dev/null \
     || fail "supported newer minor was not normalized"
+
+  fixture="$TMP_ROOT/large-optional-integer.json"
+  large_integer=$(printf '1%04999d' 0)
+  {
+    printf '{"future_integer":%s,' "$large_integer"
+    sed '1s/^[[:space:]]*{//' "$BASE"
+  } > "$fixture"
+  out=$(PYTHONINTMAXSTRDIGITS=640 "$SUBJECT" --file "$fixture") \
+    || fail "large optional integer was refused"
+  printf '%s\n' "$out" | jq -e 'has("future_integer") | not' >/dev/null \
+    || fail "large optional integer was not omitted from normalized output"
 
   fixture="$TMP_ROOT/schema-zero-major.json"
   mutate '.schema_version = "0.9"' "$fixture"
@@ -237,6 +248,9 @@ test_media_boundaries() {
   fixture="$TMP_ROOT/report-media.json"
   mutate '.report.media_type = "text/plain"' "$fixture"
   expect_refusal unsupported-media-type "$fixture" "unsupported report media"
+  fixture="$TMP_ROOT/numeric-artifact-media.json"
+  mutate '.artifacts[0].media_type = 7' "$fixture"
+  expect_refusal unsupported-media-type "$fixture" "numeric artifact media"
   pass "the exact report and screenshot media allowlists are enforced"
 }
 

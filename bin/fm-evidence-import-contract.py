@@ -63,6 +63,13 @@ MAX_JSON_BYTES = 1048576
 MAX_ARTIFACTS = 256
 
 
+class JsonIntegerToken:
+    __slots__ = ("text",)
+
+    def __init__(self, text):
+        self.text = text
+
+
 class DuplicateKeyError(ValueError):
     """Signal a duplicate key while decoding any JSON object."""
 
@@ -141,6 +148,8 @@ def relative_path(value, label):
 
 
 def json_value(value):
+    if isinstance(value, JsonIntegerToken):
+        return value.text
     return json.dumps(value, ensure_ascii=True, separators=(",", ":"))
 
 
@@ -333,6 +342,7 @@ def decode_contract(raw):
     text = raw.decode("utf-8")
     decoder = json.JSONDecoder(
         object_pairs_hook=object_without_duplicates,
+        parse_int=JsonIntegerToken,
         parse_constant=reject_constant,
     )
     whitespace = re.compile(r"[ \t\r\n]*")
