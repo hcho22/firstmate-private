@@ -251,6 +251,9 @@ test_media_boundaries() {
   fixture="$TMP_ROOT/numeric-artifact-media.json"
   mutate '.artifacts[0].media_type = 7' "$fixture"
   expect_refusal unsupported-media-type "$fixture" "numeric artifact media"
+  fixture="$TMP_ROOT/nested-integer-report-media.json"
+  mutate '.report.media_type = {future:1}' "$fixture"
+  expect_refusal unsupported-media-type "$fixture" "nested integer report media"
   pass "the exact report and screenshot media allowlists are enforced"
 }
 

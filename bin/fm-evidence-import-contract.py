@@ -150,7 +150,25 @@ def relative_path(value, label):
 def json_value(value):
     if isinstance(value, JsonIntegerToken):
         return value.text
-    return json.dumps(value, ensure_ascii=True, separators=(",", ":"))
+    if value is None:
+        return "null"
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=True)
+    if isinstance(value, (int, float)):
+        return json.dumps(value, ensure_ascii=True, separators=(",", ":"))
+    if isinstance(value, list):
+        return "[{}]".format(",".join(json_value(item) for item in value))
+    if isinstance(value, dict):
+        members = (
+            "{}:{}".format(json.dumps(key, ensure_ascii=True), json_value(item))
+            for key, item in value.items()
+        )
+        return "{{{}}}".format(",".join(members))
+    raise TypeError("value is not JSON-serializable")
 
 
 def reject_lone_surrogates(value):
