@@ -28,6 +28,7 @@ test_python_syntax() {
 
 test_cli_contract() {
   local from_file from_stdin help_output rc=0 missing="$TMP_ROOT/does-not-exist.json"
+  local non_ascii_missing="$TMP_ROOT/révision.json"
   from_file=$("$SUBJECT" --file "$FIXTURES/producer-a.json") \
     || fail "file-input contract was refused"
   from_stdin=$("$SUBJECT" < "$FIXTURES/producer-a.json") \
@@ -55,6 +56,13 @@ test_cli_contract() {
   [ ! -s "$OUT" ] || fail "missing input file wrote stdout"
   [ "$(cat "$ERR")" = "fm-evidence-import-contract: input is not a regular file: $missing" ] \
     || fail "missing input file emitted an unstable diagnostic: $(cat "$ERR")"
+
+  rc=0
+  PYTHONIOENCODING=ascii "$SUBJECT" --file "$non_ascii_missing" > "$OUT" 2> "$ERR" || rc=$?
+  [ "$rc" -eq 1 ] || fail "non-ASCII missing input file must exit 1, got $rc"
+  [ ! -s "$OUT" ] || fail "non-ASCII missing input file wrote stdout"
+  [ "$(cat "$ERR")" = "fm-evidence-import-contract: input is not a regular file: $non_ascii_missing" ] \
+    || fail "non-ASCII missing input file emitted an unstable diagnostic: $(cat "$ERR")"
   pass "standalone CLI owns deterministic input, argument, help, and exit behavior"
 }
 

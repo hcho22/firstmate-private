@@ -281,7 +281,8 @@ def emit_refusal(code, message):
 
 
 def emit_failure(message):
-    print("fm-evidence-import-contract: {}".format(message), file=sys.stderr)
+    output = "fm-evidence-import-contract: {}\n".format(message)
+    sys.stderr.buffer.write(output.encode("utf-8", errors="backslashreplace"))
 
 
 def usage(stream):
