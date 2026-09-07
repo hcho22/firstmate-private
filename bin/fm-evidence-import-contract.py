@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Parse and validate one producer-neutral evidence import contract.
+HELP_TEXT = """Parse and validate one producer-neutral evidence import contract.
 
 Usage:
   fm-evidence-import-contract.py [--file <offer.json>]
@@ -286,7 +286,7 @@ def emit_failure(message):
 
 
 def usage(stream):
-    print(__doc__.strip(), file=stream)
+    print(HELP_TEXT.strip(), file=stream)
 
 
 def input_path(arguments):

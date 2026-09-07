@@ -27,7 +27,8 @@ test_python_syntax() {
 }
 
 test_cli_contract() {
-  local from_file from_stdin help_output rc=0 missing="$TMP_ROOT/does-not-exist.json"
+  local from_file from_stdin help_output optimized_help rc=0
+  local missing="$TMP_ROOT/does-not-exist.json"
   local non_ascii_missing="$TMP_ROOT/révision.json"
   from_file=$("$SUBJECT" --file "$FIXTURES/producer-a.json") \
     || fail "file-input contract was refused"
@@ -42,12 +43,26 @@ test_cli_contract() {
     *) fail "--help omitted the executable usage contract" ;;
   esac
 
+  optimized_help=$(PYTHONOPTIMIZE=2 "$SUBJECT" --help 2> "$ERR") \
+    || fail "optimized --help did not exit 0"
+  [ ! -s "$ERR" ] || fail "optimized --help wrote stderr"
+  [ "$optimized_help" = "$help_output" ] || fail "optimized --help changed help output"
+
   "$SUBJECT" unexpected > "$OUT" 2> "$ERR" || rc=$?
   [ "$rc" -eq 2 ] || fail "invalid arguments must exit 2, got $rc"
   [ ! -s "$OUT" ] || fail "invalid arguments wrote stdout"
   case "$(cat "$ERR")" in
     *"Usage:"*) ;;
     *) fail "invalid arguments omitted usage on stderr" ;;
+  esac
+
+  rc=0
+  PYTHONOPTIMIZE=2 "$SUBJECT" unexpected > "$OUT" 2> "$ERR" || rc=$?
+  [ "$rc" -eq 2 ] || fail "optimized invalid arguments must exit 2, got $rc"
+  [ ! -s "$OUT" ] || fail "optimized invalid arguments wrote stdout"
+  case "$(cat "$ERR")" in
+    *"Usage:"*) ;;
+    *) fail "optimized invalid arguments omitted usage on stderr" ;;
   esac
 
   rc=0
