@@ -72,13 +72,17 @@ mutate() { # <jq-filter> <destination>
 }
 
 test_producer_neutral_equivalence() {
-  local a b
-  a=$("$SUBJECT" --file "$FIXTURES/producer-a.json") \
+  local a="$TMP_ROOT/producer-a-normalized.json"
+  local b="$TMP_ROOT/producer-b-normalized.json"
+  local expected="$TMP_ROOT/expected-normalized.json"
+  "$SUBJECT" --file "$FIXTURES/producer-a.json" > "$a" \
     || fail "producer A fixture was refused"
-  b=$("$SUBJECT" --file "$FIXTURES/producer-b.json") \
+  "$SUBJECT" --file "$FIXTURES/producer-b.json" > "$b" \
     || fail "producer B fixture was refused"
-  [ "$a" = "$b" ] || fail "producer identity or optional field order changed accepted semantics"
-  printf '%s\n' "$a" | jq -e '
+  cmp -s "$a" "$b" || fail "producer identity or optional field order changed accepted semantics"
+  printf '%s\n' '{"schema_version":"1.0","manifest_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","report":{"path":"report/evidence.md","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","media_type":"text/markdown"},"artifacts":[{"path":"artifacts/baseline.png","sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","media_type":"image/png"},{"path":"artifacts/candidate.webp","sha256":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","media_type":"image/webp"}],"approval_identity":"approval-9d0c4f","run_binding":"run-42","reviewed_head":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","destination":"github-pr:hcho22/example#17"}' > "$expected"
+  cmp -s "$a" "$expected" || fail "normalized output bytes changed"
+  jq -e '
     .schema_version == "1.0" and
     .manifest_sha256 == ("a" * 64) and
     .report == {
@@ -92,8 +96,8 @@ test_producer_neutral_equivalence() {
     .reviewed_head == ("e" * 40) and
     .destination == "github-pr:hcho22/example#17" and
     (has("producer") | not)
-  ' >/dev/null || fail "normalized result did not preserve every required identity"
-  pass "differently named producers have identical semantics and preserved report identity"
+  ' "$a" >/dev/null || fail "normalized result did not preserve every required identity"
+  pass "producer-neutral output is exact, compact, sorted, and extension-free"
 }
 
 test_missing_required_fields() {
@@ -281,7 +285,25 @@ test_malformed_shapes_and_values() {
   fixture="$TMP_ROOT/paragraph-separator-path.json"
   mutate '.report.path = "report/paragraph\u2029break.md"' "$fixture"
   expect_refusal unsafe-path "$fixture" "Unicode paragraph separator in report path"
-  pass "malformed shapes, values, and Unicode controls are refused"
+
+  fixture="$TMP_ROOT/non-ascii-binding.json"
+  jq --arg identity 'réviseur' '.approval_identity = $identity' "$BASE" > "$fixture"
+  PYTHONIOENCODING=ascii "$SUBJECT" --file "$fixture" > "$OUT" 2> "$ERR" \
+    || fail "non-ASCII contract was refused under an ASCII output encoding"
+  [ ! -s "$ERR" ] || fail "non-ASCII acceptance wrote stderr: $(cat "$ERR")"
+  jq -e '.approval_identity == "réviseur"' "$OUT" >/dev/null \
+    || fail "non-ASCII approval identity was not preserved"
+
+  fixture="$TMP_ROOT/non-ascii-media-refusal.json"
+  jq --arg media 'image/révision' '.artifacts[0].media_type = $media' "$BASE" > "$fixture"
+  PYTHONIOENCODING=ascii expect_refusal unsupported-media-type "$fixture" \
+    "non-ASCII unsupported media type"
+
+  fixture="$TMP_ROOT/lone-surrogate.json"
+  sed 's/"approval_identity": "approval-9d0c4f"/"approval_identity": "\\ud800"/' \
+    "$BASE" > "$fixture"
+  expect_refusal invalid-json "$fixture" "lone Unicode surrogate"
+  pass "malformed shapes, values, Unicode controls, and surrogates are handled deterministically"
 }
 
 test_resource_boundaries() {

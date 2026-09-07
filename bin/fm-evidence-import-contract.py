@@ -141,7 +141,21 @@ def relative_path(value, label):
 
 
 def json_value(value):
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    return json.dumps(value, ensure_ascii=True, separators=(",", ":"))
+
+
+def reject_lone_surrogates(value):
+    pending = [value]
+    while pending:
+        current = pending.pop()
+        if isinstance(current, str):
+            if any(0xD800 <= ord(character) <= 0xDFFF for character in current):
+                refuse("invalid-json", "input contains a lone Unicode surrogate")
+        elif isinstance(current, dict):
+            pending.extend(current.keys())
+            pending.extend(current.values())
+        elif isinstance(current, list):
+            pending.extend(current)
 
 
 def report_media(value):
@@ -327,6 +341,7 @@ def decode_contract(raw):
     if end != len(text):
         decoder.raw_decode(text, end)
         refuse("invalid-json-count", "input must contain exactly one JSON value")
+    reject_lone_surrogates(value)
     return validate_contract(value)
 
 
