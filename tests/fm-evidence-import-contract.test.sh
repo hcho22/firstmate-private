@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Regression coverage for the side-effect-free producer-neutral evidence import
-# contract exposed by bin/fm-evidence-import-contract.sh.
+# contract exposed by bin/fm-evidence-import-contract.py.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=tests/lib.sh
 . "$SCRIPT_DIR/lib.sh"
 
-SUBJECT="$ROOT/bin/fm-evidence-import-contract.sh"
+SUBJECT="$ROOT/bin/fm-evidence-import-contract.py"
 FIXTURES="$ROOT/tests/fixtures/evidence-import-contract"
 TMP_ROOT=$(fm_test_tmproot evidence-import-contract)
 BASE="$TMP_ROOT/base.json"
@@ -17,6 +17,46 @@ MAX_JSON_BYTES=1048576
 MAX_ARTIFACTS=256
 
 cp "$FIXTURES/producer-a.json" "$BASE"
+
+test_python_syntax() {
+  python3 -c \
+    'import py_compile, sys; py_compile.compile(sys.argv[1], cfile=sys.argv[2], doraise=True)' \
+    "$SUBJECT" "$TMP_ROOT/fm-evidence-import-contract.pyc" \
+    || fail "evidence import CLI failed Python syntax compilation"
+  pass "evidence import CLI passes Python syntax compilation"
+}
+
+test_cli_contract() {
+  local from_file from_stdin help_output rc=0 missing="$TMP_ROOT/does-not-exist.json"
+  from_file=$("$SUBJECT" --file "$FIXTURES/producer-a.json") \
+    || fail "file-input contract was refused"
+  from_stdin=$("$SUBJECT" < "$FIXTURES/producer-a.json") \
+    || fail "stdin-input contract was refused"
+  [ "$from_file" = "$from_stdin" ] || fail "file and stdin inputs normalized differently"
+
+  help_output=$("$SUBJECT" --help 2> "$ERR") || fail "--help did not exit 0"
+  [ ! -s "$ERR" ] || fail "--help wrote stderr"
+  case "$help_output" in
+    *"Usage:"*"fm-evidence-import-contract.py"*) ;;
+    *) fail "--help omitted the executable usage contract" ;;
+  esac
+
+  "$SUBJECT" unexpected > "$OUT" 2> "$ERR" || rc=$?
+  [ "$rc" -eq 2 ] || fail "invalid arguments must exit 2, got $rc"
+  [ ! -s "$OUT" ] || fail "invalid arguments wrote stdout"
+  case "$(cat "$ERR")" in
+    *"Usage:"*) ;;
+    *) fail "invalid arguments omitted usage on stderr" ;;
+  esac
+
+  rc=0
+  "$SUBJECT" --file "$missing" > "$OUT" 2> "$ERR" || rc=$?
+  [ "$rc" -eq 1 ] || fail "missing input file must exit 1, got $rc"
+  [ ! -s "$OUT" ] || fail "missing input file wrote stdout"
+  [ "$(cat "$ERR")" = "fm-evidence-import-contract: input is not a regular file: $missing" ] \
+    || fail "missing input file emitted an unstable diagnostic: $(cat "$ERR")"
+  pass "standalone CLI owns deterministic input, argument, help, and exit behavior"
+}
 
 expect_refusal() { # <code> <fixture> [description]
   local code=$1 fixture=$2 description=${3:-$1} rc=0
@@ -318,6 +358,8 @@ test_refusal_is_side_effect_free() {
   pass "refusal creates no import or publication state"
 }
 
+test_python_syntax
+test_cli_contract
 test_producer_neutral_equivalence
 test_missing_required_fields
 test_schema_boundaries
