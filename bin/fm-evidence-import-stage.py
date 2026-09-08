@@ -2,7 +2,7 @@
 """Stage one producer-neutral evidence bundle in no-mistakes local state.
 
 Usage:
-  fm-evidence-import-stage.py stage --contract OFFER.json --bundle DIR \
+  fm-evidence-import-stage.py stage --contract OFFER.json --bundle DIR \\
       --manifest RELATIVE_PATH --worktree DIR
   fm-evidence-import-stage.py recover --worktree DIR
 
@@ -11,6 +11,13 @@ The contract schema and normalization are owned by
 report, and artifact files.  Final imports live below
 ``$NM_HOME/evidence-imports`` (or ``~/.no-mistakes/evidence-imports``), never
 below the named project worktree.
+``NM_HOME`` must be absolute and its protected ancestry must not be replaceable
+by another local principal.  The state root, evidence-import directory, and
+lock must be owned by the current user and must not be group or world writable;
+the lock also must be a regular file.  On macOS, grant-capable extended ACLs on
+the protected directory boundary are refused.  The state root must be outside
+the named worktree, and ``evidence-imports`` must not overlap it in either
+direction.  Atomic no-replace finalization requires supported macOS or Linux.
 
 Every source component is opened relative to the already-open bundle directory
 with symlink following disabled.  The command copies into one unique
