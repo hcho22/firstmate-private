@@ -311,6 +311,75 @@ test_collision_and_state_root_boundary() {
 }
 
 
+test_case_insensitive_state_boundary() {
+  local actual variant bundle contract home before after
+  actual="$TMP_ROOT/Case-Project"
+  variant="$TMP_ROOT/case-project"
+  mkdir -p "$actual"
+  if [ ! -d "$variant" ]; then
+    pass "case-insensitive state overlap regression is not applicable on this filesystem"
+    return
+  fi
+
+  bundle=$(copy_bundle case-insensitive-overlap)
+  contract="$TMP_ROOT/case-insensitive-overlap.json"
+  home="$variant/.import-state"
+  write_contract "$bundle" github-pr:hcho22/example#17 "$contract"
+  before=$(tree_snapshot "$actual")
+  expect_refusal unsafe-state-root "$home" "$contract" "$bundle" \
+    "case-insensitive state root inside worktree" manifest.json "$actual"
+  after=$(tree_snapshot "$actual")
+  [ "$before" = "$after" ] \
+    || fail "alternate-case state root spelling changed the project worktree"
+  pass "inode ancestry refuses alternate-case worktree and import overlap"
+}
+
+
+test_state_ancestor_substitution() {
+  local attacker before container home moved pid rc=0 replaceable_root result after
+  local substitution_worktree
+  replaceable_root="$TMP_ROOT/replaceable-root"
+  container="$replaceable_root/parent"
+  moved="$replaceable_root/parent.original"
+  home="$container/state"
+  substitution_worktree="$TMP_ROOT/substitution-worktree"
+  attacker="$substitution_worktree/substitution-target"
+  mkdir -p "$replaceable_root"
+  chmod 0770 "$replaceable_root"
+  mkdir -p "$home/evidence-imports/.incomplete-legitimate"
+  mkdir -p "$attacker/state/evidence-imports/.incomplete-project-owned"
+  chmod 0700 "$home" "$home/evidence-imports" "$home/evidence-imports/.incomplete-legitimate"
+  chmod 0700 "$attacker/state" "$attacker/state/evidence-imports" \
+    "$attacker/state/evidence-imports/.incomplete-project-owned"
+  printf 'legitimate incomplete bytes\n' > \
+    "$home/evidence-imports/.incomplete-legitimate/evidence.txt"
+  printf 'project-owned bytes\n' > \
+    "$attacker/state/evidence-imports/.incomplete-project-owned/tracked.txt"
+  before=$(tree_snapshot "$substitution_worktree")
+
+  NM_HOME="$home" FM_EVIDENCE_IMPORT_TEST_STOP=after-state-open \
+    "$SUBJECT" recover --worktree "$substitution_worktree" > "$OUT" 2> "$ERR" &
+  pid=$!
+  wait_stopped "$pid"
+  mv "$container" "$moved"
+  ln -s "$attacker" "$container"
+  kill -CONT "$pid"
+  wait "$pid" || rc=$?
+  [ "$rc" -eq 0 ] || fail "ancestor substitution recovery failed: $(cat "$ERR")"
+  result=$(cat "$OUT")
+  printf '%s\n' "$result" | jq -e '.status == "recovered" and .removed == 1' >/dev/null \
+    || fail "ancestor substitution recovery returned an unexpected result"
+  [ ! -e "$moved/state/evidence-imports/.incomplete-legitimate" ] \
+    || fail "descriptor-anchored recovery retained the legitimate incomplete import"
+  [ -f "$attacker/state/evidence-imports/.incomplete-project-owned/tracked.txt" ] \
+    || fail "ancestor substitution redirected recovery into the project worktree"
+  after=$(tree_snapshot "$substitution_worktree")
+  [ "$before" = "$after" ] \
+    || fail "ancestor substitution changed the project worktree"
+  pass "state operations remain anchored across ancestor substitution"
+}
+
+
 test_unsafe_state_permissions() {
   local bundle contract home lock mode target
   bundle=$(copy_bundle unsafe-permissions)
@@ -438,6 +507,8 @@ test_symlink_and_traversal_refusals
 test_mutation_races
 test_path_substitution_race
 test_collision_and_state_root_boundary
+test_case_insensitive_state_boundary
+test_state_ancestor_substitution
 test_unsafe_state_permissions
 test_fifo_substitution_refusals
 test_bounded_failure_state

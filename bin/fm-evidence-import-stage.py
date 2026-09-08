@@ -50,6 +50,8 @@ MAX_IMPORT_BYTES = 512 * 1024 * 1024
 LIBC = ctypes.CDLL(None, use_errno=True)
 LIBC.openat.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_int)
 LIBC.openat.restype = ctypes.c_int
+LIBC.mkdirat.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
+LIBC.mkdirat.restype = ctypes.c_int
 
 
 class Refusal(ValueError):
@@ -109,70 +111,161 @@ def group_or_world_writable(file_stat):
     return bool(file_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH))
 
 
-def resolve_state_root(worktree):
+def directory_flags():
+    flags = os.O_RDONLY
+    if hasattr(os, "O_DIRECTORY"):
+        flags |= os.O_DIRECTORY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    return flags
+
+
+def file_identity(file_stat):
+    return file_stat.st_dev, file_stat.st_ino
+
+
+def directory_contains(ancestor_fd, descendant_fd):
+    ancestor = file_identity(os.fstat(ancestor_fd))
+    current = os.dup(descendant_fd)
+    seen = set()
+    try:
+        while True:
+            current_identity = file_identity(os.fstat(current))
+            if current_identity == ancestor:
+                return True
+            if current_identity in seen:
+                return False
+            seen.add(current_identity)
+            parent = open_at(current, "..", directory_flags())
+            parent_identity = file_identity(os.fstat(parent))
+            if parent_identity == current_identity:
+                os.close(parent)
+                return False
+            os.close(current)
+            current = parent
+    finally:
+        os.close(current)
+
+
+def open_worktree(worktree):
     worktree_path = os.path.realpath(os.path.abspath(worktree))
-    if not os.path.isdir(worktree_path):
+    try:
+        descriptor = os.open(worktree_path, directory_flags())
+    except OSError as error:
+        raise Refusal("invalid-worktree", "worktree must name an existing directory") from error
+    if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
         refuse("invalid-worktree", "worktree must name an existing directory")
+    return worktree_path, descriptor
+
+
+def open_state_root(path, worktree_fd):
+    current = os.open(os.sep, directory_flags())
+    try:
+        for component in Path(path).parts[1:]:
+            try:
+                next_fd = open_at(current, component, directory_flags())
+            except FileNotFoundError:
+                if file_identity(os.fstat(current)) == file_identity(os.fstat(worktree_fd)):
+                    refuse("unsafe-state-root", "no-mistakes state must be outside the project worktree")
+                mkdir_at(current, component, 0o700)
+                next_fd = open_at(current, component, directory_flags())
+            if file_identity(os.fstat(next_fd)) == file_identity(os.fstat(worktree_fd)):
+                os.close(next_fd)
+                refuse("unsafe-state-root", "no-mistakes state must be outside the project worktree")
+            os.close(current)
+            current = next_fd
+        return current
+    except Refusal:
+        os.close(current)
+        raise
+    except OSError as error:
+        os.close(current)
+        raise RuntimeError("could not prepare no-mistakes state") from error
+
+
+def resolve_state_root(worktree):
+    worktree_path, worktree_fd = open_worktree(worktree)
 
     configured = os.environ.get("NM_HOME", os.path.expanduser("~/.no-mistakes"))
     if not os.path.isabs(configured):
+        os.close(worktree_fd)
         refuse("unsafe-state-root", "NM_HOME must resolve from an absolute path")
     state_root = os.path.realpath(configured)
     imports = os.path.join(state_root, "evidence-imports")
     imports_namespace = os.path.realpath(imports)
     if contained_by(state_root, worktree_path):
+        os.close(worktree_fd)
         refuse("unsafe-state-root", "no-mistakes state must be outside the project worktree")
     if contained_by(imports_namespace, worktree_path) or contained_by(
         worktree_path, imports_namespace
     ):
+        os.close(worktree_fd)
         refuse(
             "unsafe-state-root",
             "evidence import state must not overlap the project worktree",
         )
 
+    state_root_fd = None
+    imports_fd = None
     try:
-        os.makedirs(state_root, mode=0o700, exist_ok=True)
-        root_stat = os.stat(state_root, follow_symlinks=False)
-    except OSError as error:
-        raise RuntimeError("could not prepare no-mistakes state") from error
-    if (
-        not stat.S_ISDIR(root_stat.st_mode)
-        or root_stat.st_uid != os.geteuid()
-        or group_or_world_writable(root_stat)
-    ):
-        refuse(
-            "unsafe-state-root",
-            "no-mistakes state must be an owned directory without group or world write access",
-        )
+        state_root_fd = open_state_root(state_root, worktree_fd)
+        root_stat = os.fstat(state_root_fd)
+        if (
+            not stat.S_ISDIR(root_stat.st_mode)
+            or root_stat.st_uid != os.geteuid()
+            or group_or_world_writable(root_stat)
+        ):
+            refuse(
+                "unsafe-state-root",
+                "no-mistakes state must be an owned directory without group or world write access",
+            )
+        if directory_contains(worktree_fd, state_root_fd):
+            refuse("unsafe-state-root", "no-mistakes state must be outside the project worktree")
 
-    try:
-        os.mkdir(imports, 0o700)
-    except FileExistsError:
-        pass
+        try:
+            imports_fd = open_at(state_root_fd, "evidence-imports", directory_flags())
+        except FileNotFoundError:
+            mkdir_at(state_root_fd, "evidence-imports", 0o700)
+            imports_fd = open_at(state_root_fd, "evidence-imports", directory_flags())
+        imports_stat = os.fstat(imports_fd)
+        if (
+            not stat.S_ISDIR(imports_stat.st_mode)
+            or imports_stat.st_uid != os.geteuid()
+            or group_or_world_writable(imports_stat)
+        ):
+            refuse(
+                "unsafe-state-root",
+                "evidence import state must be an owned directory without group or world write access",
+            )
+        if directory_contains(imports_fd, worktree_fd) or directory_contains(
+            worktree_fd, imports_fd
+        ):
+            refuse(
+                "unsafe-state-root",
+                "evidence import state must not overlap the project worktree",
+            )
+        return state_root, imports, imports_fd
+    except Refusal:
+        if imports_fd is not None:
+            os.close(imports_fd)
+        raise
     except OSError as error:
+        if imports_fd is not None:
+            os.close(imports_fd)
         raise RuntimeError("could not prepare evidence import state") from error
-    try:
-        imports_stat = os.stat(imports, follow_symlinks=False)
-    except OSError as error:
-        raise RuntimeError("could not inspect evidence import state") from error
-    if (
-        not stat.S_ISDIR(imports_stat.st_mode)
-        or imports_stat.st_uid != os.geteuid()
-        or group_or_world_writable(imports_stat)
-    ):
-        refuse(
-            "unsafe-state-root",
-            "evidence import state must be an owned directory without group or world write access",
-        )
-    return state_root, imports
+    finally:
+        if state_root_fd is not None:
+            os.close(state_root_fd)
+        os.close(worktree_fd)
 
 
-def acquire_lock(imports):
+def acquire_lock(imports_fd):
     flags = os.O_RDWR | os.O_CREAT
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
     try:
-        descriptor = os.open(os.path.join(imports, ".lock"), flags, 0o600)
+        descriptor = open_at(imports_fd, ".lock", flags, 0o600)
         lock_stat = os.fstat(descriptor)
         if (
             not stat.S_ISREG(lock_stat.st_mode)
@@ -276,6 +369,13 @@ def open_at(directory_fd, name, flags, mode=0):
         error_number = ctypes.get_errno()
         raise OSError(error_number, os.strerror(error_number), name)
     return descriptor
+
+
+def mkdir_at(directory_fd, name, mode):
+    result = LIBC.mkdirat(directory_fd, os.fsencode(name), mode)
+    if result < 0:
+        error_number = ctypes.get_errno()
+        raise OSError(error_number, os.strerror(error_number), name)
 
 
 def open_regular_at(bundle_fd, relative_path):
@@ -450,12 +550,24 @@ def import_identity(contract):
     return hashlib.sha256(material).hexdigest()
 
 
-def rename_without_replace(source, destination):
-    if sys.platform == "darwin" and hasattr(LIBC, "renamex_np"):
-        function = LIBC.renamex_np
-        function.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
+def rename_without_replace(directory_fd, source, destination):
+    if sys.platform == "darwin" and hasattr(LIBC, "renameatx_np"):
+        function = LIBC.renameatx_np
+        function.argtypes = (
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        )
         function.restype = ctypes.c_int
-        result = function(os.fsencode(source), os.fsencode(destination), 0x00000004)
+        result = function(
+            directory_fd,
+            os.fsencode(source),
+            directory_fd,
+            os.fsencode(destination),
+            0x00000004,
+        )
     elif sys.platform.startswith("linux") and hasattr(LIBC, "renameat2"):
         function = LIBC.renameat2
         function.argtypes = (
@@ -466,7 +578,13 @@ def rename_without_replace(source, destination):
             ctypes.c_uint,
         )
         function.restype = ctypes.c_int
-        result = function(-100, os.fsencode(source), -100, os.fsencode(destination), 1)
+        result = function(
+            directory_fd,
+            os.fsencode(source),
+            directory_fd,
+            os.fsencode(destination),
+            1,
+        )
     else:
         refuse("unsupported-platform", "atomic no-replace finalization is unavailable")
     if result == 0:
@@ -490,16 +608,18 @@ def stage(arguments):
     if owner.paths_overlap([manifest_path] + declared_paths):
         refuse("duplicate-path", "manifest, report, and artifact paths must not overlap")
 
-    state_root, imports = resolve_state_root(arguments.worktree)
-    lock_fd = acquire_lock(imports)
+    bundle_fd = open_bundle(arguments.bundle)
+    state_root, imports, imports_fd = resolve_state_root(arguments.worktree)
+    test_stop("after-state-open")
+    lock_fd = acquire_lock(imports_fd)
+    cwd_fd = os.open(".", directory_flags())
     temp_path = None
-    bundle_fd = None
     try:
-        remove_incomplete(imports)
-        temp_path = tempfile.mkdtemp(prefix=INCOMPLETE_PREFIX, dir=imports)
+        os.fchdir(imports_fd)
+        remove_incomplete(".")
+        temp_path = tempfile.mkdtemp(prefix=INCOMPLETE_PREFIX, dir=".")
         write_bytes(os.path.join(temp_path, "contract.json"), normalized)
         entries = staged_files(contract, manifest_path)
-        bundle_fd = open_bundle(arguments.bundle)
         total_bytes = 0
         for source, destination, expected in entries:
             remaining = MAX_IMPORT_BYTES - total_bytes
@@ -518,10 +638,12 @@ def stage(arguments):
 
         identity = import_identity(contract)
         final_path = os.path.join(imports, identity)
-        if os.path.lexists(final_path):
+        if os.path.lexists(identity):
             try:
-                final_stat = os.lstat(final_path)
-                identical = stat.S_ISDIR(final_stat.st_mode) and tree_identity(final_path) == tree_identity(temp_path)
+                final_stat = os.lstat(identity)
+                identical = stat.S_ISDIR(final_stat.st_mode) and tree_identity(
+                    identity
+                ) == tree_identity(temp_path)
             except (OSError, Refusal):
                 identical = False
             if not identical:
@@ -534,7 +656,7 @@ def stage(arguments):
             status = "already-finalized"
         else:
             try:
-                rename_without_replace(temp_path, final_path)
+                rename_without_replace(imports_fd, temp_path, identity)
                 temp_path = None
                 status = "finalized"
             except FileExistsError:
@@ -556,25 +678,33 @@ def stage(arguments):
             pass
         return 0
     finally:
-        if bundle_fd is not None:
-            os.close(bundle_fd)
         if temp_path is not None:
             try:
                 remove_tree(temp_path)
             except OSError:
                 pass
+        os.fchdir(cwd_fd)
+        os.close(cwd_fd)
         os.close(lock_fd)
+        os.close(imports_fd)
+        os.close(bundle_fd)
 
 
 def recover(arguments):
-    state_root, imports = resolve_state_root(arguments.worktree)
-    lock_fd = acquire_lock(imports)
+    state_root, _imports, imports_fd = resolve_state_root(arguments.worktree)
+    test_stop("after-state-open")
+    lock_fd = acquire_lock(imports_fd)
+    cwd_fd = os.open(".", directory_flags())
     try:
-        removed = remove_incomplete(imports)
+        os.fchdir(imports_fd)
+        removed = remove_incomplete(".")
         emit_json(sys.stdout, {"status": "recovered", "removed": removed, "state_root": state_root})
         return 0
     finally:
+        os.fchdir(cwd_fd)
+        os.close(cwd_fd)
         os.close(lock_fd)
+        os.close(imports_fd)
 
 
 def parse_arguments(arguments):
