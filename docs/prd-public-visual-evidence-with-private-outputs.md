@@ -56,11 +56,11 @@ Version 1 is macOS-only, browser-first, screenshot-focused, private by default, 
 
 **Acceptance Criteria:**
 
-- [ ] The contract accepts an exact manifest hash, human-readable report relative path and hash, artifact paths and hashes, approval identity, run binding, reviewed-head binding, destination, and declared media types.
-- [ ] The contract rejects missing required fields, unknown major schema versions, absolute or traversing report or artifact paths, duplicate paths, and unsupported media types.
-- [ ] The contract accepts newer optional fields within a supported major schema version.
-- [ ] The contract contains no Firstmate, comparison-mode, behavior-mode, or **Visual Evidence** branching.
-- [ ] Contract parsing has positive, malformed, boundary, and producer-neutral regression tests.
+- [x] The contract accepts an exact manifest hash, human-readable report relative path and hash, artifact paths and hashes, approval identity, run binding, reviewed-head binding, destination, and declared media types.
+- [x] The contract rejects missing required fields, unknown major schema versions, absolute or traversing report or artifact paths, duplicate paths, and unsupported media types.
+- [x] The contract accepts newer optional fields within a supported major schema version.
+- [x] The contract contains no Firstmate, comparison-mode, behavior-mode, or **Visual Evidence** branching.
+- [x] Contract parsing has positive, malformed, boundary, and producer-neutral regression tests.
 
 **Validation Test:**
 
