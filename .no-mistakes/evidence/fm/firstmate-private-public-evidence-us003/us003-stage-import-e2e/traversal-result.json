@@ -1,0 +1,9 @@
+{
+  "exit_code": 2,
+  "stdout_bytes": 0,
+  "state_created": false,
+  "refusal": {
+    "code": "unsafe-path",
+    "message": "manifest path must be normalized and must not traverse"
+  }
+}

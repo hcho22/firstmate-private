@@ -1,0 +1,18 @@
+{
+  "stopped_immediately_before_finalization": true,
+  "killed_exit_code": 145,
+  "before_recovery": {
+    "incomplete_directories": 1,
+    "finalized_directories": 0
+  },
+  "recovery": {
+    "status": "recovered",
+    "removed": 1,
+    "state_root": "/Users/hcho/.no-mistakes/evidence/01M20X6RHYFQ1ZX57WE6JTKN7R/us003-stage-import-e2e/interrupted-state"
+  },
+  "after_recovery": {
+    "incomplete_directories": 0,
+    "finalized_directories": 0,
+    "publication_state_exists": false
+  }
+}

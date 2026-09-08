@@ -1,0 +1,87 @@
+{
+  "scenario": "US-003 end-to-end evidence staging",
+  "stable_import": {
+    "cli_response": {
+      "status": "finalized",
+      "import_id": "77bac79b81d20aef67364b0c5ac3c6300d8fb71d6ed1dcb85567318a5d90f246",
+      "path": "/Users/hcho/.no-mistakes/evidence/01M20X6RHYFQ1ZX57WE6JTKN7R/us003-stage-import-e2e/no-mistakes-state/evidence-imports/77bac79b81d20aef67364b0c5ac3c6300d8fb71d6ed1dcb85567318a5d90f246",
+      "state_root": "/Users/hcho/.no-mistakes/evidence/01M20X6RHYFQ1ZX57WE6JTKN7R/us003-stage-import-e2e/no-mistakes-state"
+    },
+    "final_path_is_outside_worktree": true,
+    "finalized_directory_count": 1,
+    "incomplete_directory_count": 0,
+    "publication_state_exists": false,
+    "hashes": {
+      "normalized_contract": {
+        "expected": "cb9e042ae00bdc215a03a2a9b88270f40729458f0c923204209503fd36d689ad",
+        "actual": "cb9e042ae00bdc215a03a2a9b88270f40729458f0c923204209503fd36d689ad",
+        "match": true
+      },
+      "manifest": {
+        "expected": "14ded7367726604d9a0112ae40fa1f0358977178856c2ce8fbe737006d5ea426",
+        "actual": "14ded7367726604d9a0112ae40fa1f0358977178856c2ce8fbe737006d5ea426",
+        "match": true
+      },
+      "report": {
+        "expected": "a967f7d9bea53aa6ab808fc3742152cd429112c8a686262e4af544868d5ccc1d",
+        "actual": "a967f7d9bea53aa6ab808fc3742152cd429112c8a686262e4af544868d5ccc1d",
+        "match": true
+      },
+      "artifacts": {
+        "artifacts/baseline.png": {
+          "expected": "1ce477ea22b6e85cf2d9625767bd4d72567e0fcba8a74e2cda5b82abf593f817",
+          "actual": "1ce477ea22b6e85cf2d9625767bd4d72567e0fcba8a74e2cda5b82abf593f817",
+          "match": true
+        },
+        "artifacts/candidate.webp": {
+          "expected": "2b47b45709b7cb9dbe3f7402061846b09271fb19aefa77c6e0e03826e4730c83",
+          "actual": "2b47b45709b7cb9dbe3f7402061846b09271fb19aefa77c6e0e03826e4730c83",
+          "match": true
+        }
+      }
+    }
+  },
+  "idempotent_reimport": {
+    "cli_response": {
+      "status": "already-finalized",
+      "import_id": "77bac79b81d20aef67364b0c5ac3c6300d8fb71d6ed1dcb85567318a5d90f246",
+      "path": "/Users/hcho/.no-mistakes/evidence/01M20X6RHYFQ1ZX57WE6JTKN7R/us003-stage-import-e2e/no-mistakes-state/evidence-imports/77bac79b81d20aef67364b0c5ac3c6300d8fb71d6ed1dcb85567318a5d90f246",
+      "state_root": "/Users/hcho/.no-mistakes/evidence/01M20X6RHYFQ1ZX57WE6JTKN7R/us003-stage-import-e2e/no-mistakes-state"
+    },
+    "same_import_id": true,
+    "same_final_path": true,
+    "still_one_finalized_directory": true
+  },
+  "unsafe_manifest_traversal": {
+    "exit_code": 2,
+    "stdout_bytes": 0,
+    "state_created": false,
+    "refusal": {
+      "code": "unsafe-path",
+      "message": "manifest path must be normalized and must not traverse"
+    }
+  },
+  "interruption_immediately_before_finalization": {
+    "stopped_immediately_before_finalization": true,
+    "killed_exit_code": 145,
+    "before_recovery": {
+      "incomplete_directories": 1,
+      "finalized_directories": 0
+    },
+    "recovery": {
+      "status": "recovered",
+      "removed": 1,
+      "state_root": "/Users/hcho/.no-mistakes/evidence/01M20X6RHYFQ1ZX57WE6JTKN7R/us003-stage-import-e2e/interrupted-state"
+    },
+    "after_recovery": {
+      "incomplete_directories": 0,
+      "finalized_directories": 0,
+      "publication_state_exists": false
+    }
+  },
+  "project_worktree": {
+    "before_sha256": "41130c9df18779529c564f4458f5c8d5fc17fd9ce50b482964da4fb3d20b23f0",
+    "after_sha256": "41130c9df18779529c564f4458f5c8d5fc17fd9ce50b482964da4fb3d20b23f0",
+    "byte_snapshot_unchanged": true
+  }
+}
