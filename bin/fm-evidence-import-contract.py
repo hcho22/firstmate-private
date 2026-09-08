@@ -303,17 +303,20 @@ def validate_contract(value):
     }
 
 
+def emit_line(stream, value):
+    stream.buffer.write((value + "\n").encode("utf-8", errors="backslashreplace"))
+
+
 def emit_refusal(code, message):
-    print(json_value({"code": code, "message": message}), file=sys.stderr)
+    emit_line(sys.stderr, json_value({"code": code, "message": message}))
 
 
 def emit_failure(message):
-    output = "fm-evidence-import-contract: {}\n".format(message)
-    sys.stderr.buffer.write(output.encode("utf-8", errors="backslashreplace"))
+    emit_line(sys.stderr, "fm-evidence-import-contract: {}".format(message))
 
 
 def usage(stream):
-    print(HELP_TEXT.strip(), file=stream)
+    emit_line(stream, HELP_TEXT.strip())
 
 
 def input_path(arguments):
@@ -389,7 +392,7 @@ def main(arguments):
         emit_refusal("invalid-json", "input is not valid JSON")
         return 2
 
-    print(json_value(normalized))
+    emit_line(sys.stdout, json_value(normalized))
     return 0
 
 

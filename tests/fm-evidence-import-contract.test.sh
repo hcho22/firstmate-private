@@ -27,7 +27,11 @@ test_python_syntax() {
 }
 
 test_cli_contract() {
-  local from_file from_stdin help_output optimized_help rc=0
+  local encoding from_file from_stdin help_output optimized_help rc=0
+  local encoding_fixture="$TMP_ROOT/encoding-refusal.json"
+  local expected_failure="$TMP_ROOT/expected-failure.txt"
+  local expected_refusal="$TMP_ROOT/expected-refusal.json"
+  local expected_success="$TMP_ROOT/expected-success.json"
   local missing="$TMP_ROOT/does-not-exist.json"
   local non_ascii_missing="$TMP_ROOT/révision.json"
   from_file=$("$SUBJECT" --file "$FIXTURES/producer-a.json") \
@@ -78,6 +82,38 @@ test_cli_contract() {
   [ ! -s "$OUT" ] || fail "non-ASCII missing input file wrote stdout"
   [ "$(cat "$ERR")" = "fm-evidence-import-contract: input is not a regular file: $non_ascii_missing" ] \
     || fail "non-ASCII missing input file emitted an unstable diagnostic: $(cat "$ERR")"
+
+  "$SUBJECT" --file "$FIXTURES/producer-a.json" > "$expected_success" \
+    || fail "could not capture canonical success bytes"
+  printf '{}\n' > "$encoding_fixture"
+  printf '%s\n' \
+    '{"code":"missing-field","message":"missing required field: contract.schema_version"}' \
+    > "$expected_refusal"
+  printf 'fm-evidence-import-contract: input is not a regular file: %s\n' \
+    "$non_ascii_missing" > "$expected_failure"
+  for encoding in utf-16 utf-8-sig; do
+    PYTHONIOENCODING=$encoding "$SUBJECT" --file "$FIXTURES/producer-a.json" \
+      > "$OUT" 2> "$ERR" || fail "$encoding changed success exit behavior"
+    cmp -s "$OUT" "$expected_success" \
+      || fail "$encoding changed exact success output bytes"
+    [ ! -s "$ERR" ] || fail "$encoding success wrote stderr"
+
+    rc=0
+    PYTHONIOENCODING=$encoding "$SUBJECT" --file "$encoding_fixture" \
+      > "$OUT" 2> "$ERR" || rc=$?
+    [ "$rc" -eq 2 ] || fail "$encoding structured refusal must exit 2, got $rc"
+    [ ! -s "$OUT" ] || fail "$encoding structured refusal wrote stdout"
+    cmp -s "$ERR" "$expected_refusal" \
+      || fail "$encoding changed exact structured refusal bytes"
+
+    rc=0
+    PYTHONIOENCODING=$encoding "$SUBJECT" --file "$non_ascii_missing" \
+      > "$OUT" 2> "$ERR" || rc=$?
+    [ "$rc" -eq 1 ] || fail "$encoding plain refusal must exit 1, got $rc"
+    [ ! -s "$OUT" ] || fail "$encoding plain refusal wrote stdout"
+    cmp -s "$ERR" "$expected_failure" \
+      || fail "$encoding changed exact plain refusal bytes"
+  done
   pass "standalone CLI owns deterministic input, argument, help, and exit behavior"
 }
 
