@@ -52,6 +52,8 @@ LIBC.openat.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_in
 LIBC.openat.restype = ctypes.c_int
 LIBC.mkdirat.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
 LIBC.mkdirat.restype = ctypes.c_int
+LIBC.readlinkat.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_void_p, ctypes.c_size_t)
+LIBC.readlinkat.restype = ctypes.c_ssize_t
 
 
 class Refusal(ValueError):
@@ -124,6 +126,25 @@ def file_identity(file_stat):
     return file_stat.st_dev, file_stat.st_ino
 
 
+def shared_write_and_execute(file_stat):
+    mode = file_stat.st_mode
+    return bool(
+        (mode & stat.S_IWGRP and mode & stat.S_IXGRP)
+        or (mode & stat.S_IWOTH and mode & stat.S_IXOTH)
+    )
+
+
+def ancestor_is_replaceable(parent_stat, child_stat=None):
+    trusted_owners = (0, os.geteuid())
+    if parent_stat.st_uid not in trusted_owners:
+        return True
+    if not shared_write_and_execute(parent_stat):
+        return False
+    if not parent_stat.st_mode & stat.S_ISVTX:
+        return True
+    return child_stat is not None and child_stat.st_uid not in trusted_owners
+
+
 def directory_contains(ancestor_fd, descendant_fd):
     ancestor = file_identity(os.fstat(ancestor_fd))
     current = os.dup(descendant_fd)
@@ -161,20 +182,71 @@ def open_worktree(worktree):
 
 def open_state_root(path, worktree_fd):
     current = os.open(os.sep, directory_flags())
+    components = path.split(os.sep)[1:]
+    followed = 0
     try:
-        for component in Path(path).parts[1:]:
+        while components:
+            component = components.pop(0)
+            if component in ("", "."):
+                continue
+            if component == "..":
+                next_fd = open_at(current, "..", directory_flags())
+                os.close(current)
+                current = next_fd
+                continue
+            parent_stat = os.fstat(current)
+            if ancestor_is_replaceable(parent_stat):
+                refuse(
+                    "unsafe-state-root",
+                    "NM_HOME ancestors must not permit replacement by another local principal",
+                )
             try:
                 next_fd = open_at(current, component, directory_flags())
             except FileNotFoundError:
                 if file_identity(os.fstat(current)) == file_identity(os.fstat(worktree_fd)):
                     refuse("unsafe-state-root", "no-mistakes state must be outside the project worktree")
-                mkdir_at(current, component, 0o700)
+                try:
+                    mkdir_at(current, component, 0o700)
+                except FileExistsError:
+                    components.insert(0, component)
+                    continue
                 next_fd = open_at(current, component, directory_flags())
-            if file_identity(os.fstat(next_fd)) == file_identity(os.fstat(worktree_fd)):
+            except OSError as error:
+                if error.errno not in (errno.ELOOP, errno.ENOTDIR):
+                    raise
+                if shared_write_and_execute(parent_stat):
+                    refuse(
+                        "unsafe-state-root",
+                        "NM_HOME ancestors must not permit replacement by another local principal",
+                    )
+                try:
+                    target = readlink_at(current, component)
+                except OSError:
+                    raise error
+                followed += 1
+                if followed > 40:
+                    refuse("unsafe-state-root", "NM_HOME contains too many symbolic links")
+                target_components = target.split(os.sep)
+                if os.path.isabs(target):
+                    os.close(current)
+                    current = os.open(os.sep, directory_flags())
+                    target_components = target_components[1:]
+                components = target_components + components
+                continue
+            next_stat = os.fstat(next_fd)
+            if ancestor_is_replaceable(parent_stat, next_stat):
+                os.close(next_fd)
+                refuse(
+                    "unsafe-state-root",
+                    "NM_HOME ancestors must not permit replacement by another local principal",
+                )
+            if file_identity(next_stat) == file_identity(os.fstat(worktree_fd)):
                 os.close(next_fd)
                 refuse("unsafe-state-root", "no-mistakes state must be outside the project worktree")
             os.close(current)
             current = next_fd
+        if file_identity(os.fstat(current)) == file_identity(os.fstat(worktree_fd)):
+            refuse("unsafe-state-root", "no-mistakes state must be outside the project worktree")
         return current
     except Refusal:
         os.close(current)
@@ -209,7 +281,19 @@ def resolve_state_root(worktree):
     state_root_fd = None
     imports_fd = None
     try:
-        state_root_fd = open_state_root(state_root, worktree_fd)
+        state_root_fd = open_state_root(configured, worktree_fd)
+        state_root = os.path.realpath(configured)
+        imports = os.path.join(state_root, "evidence-imports")
+        imports_namespace = os.path.realpath(imports)
+        if contained_by(state_root, worktree_path):
+            refuse("unsafe-state-root", "no-mistakes state must be outside the project worktree")
+        if contained_by(imports_namespace, worktree_path) or contained_by(
+            worktree_path, imports_namespace
+        ):
+            refuse(
+                "unsafe-state-root",
+                "evidence import state must not overlap the project worktree",
+            )
         root_stat = os.fstat(state_root_fd)
         if (
             not stat.S_ISDIR(root_stat.st_mode)
@@ -376,6 +460,20 @@ def mkdir_at(directory_fd, name, mode):
     if result < 0:
         error_number = ctypes.get_errno()
         raise OSError(error_number, os.strerror(error_number), name)
+
+
+def readlink_at(directory_fd, name):
+    size = 256
+    while size <= 65536:
+        buffer = ctypes.create_string_buffer(size)
+        result = LIBC.readlinkat(directory_fd, os.fsencode(name), buffer, size)
+        if result < 0:
+            error_number = ctypes.get_errno()
+            raise OSError(error_number, os.strerror(error_number), name)
+        if result < size:
+            return os.fsdecode(buffer.raw[:result])
+        size *= 2
+    raise OSError(errno.ENAMETOOLONG, os.strerror(errno.ENAMETOOLONG), name)
 
 
 def open_regular_at(bundle_fd, relative_path):

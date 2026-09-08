@@ -335,48 +335,25 @@ test_case_insensitive_state_boundary() {
 }
 
 
-test_state_ancestor_substitution() {
-  local attacker before container home moved pid rc=0 replaceable_root result after
-  local substitution_worktree
+test_replaceable_state_ancestor_refusal() {
+  local after before home rc=0 replaceable_root
   replaceable_root="$TMP_ROOT/replaceable-root"
-  container="$replaceable_root/parent"
-  moved="$replaceable_root/parent.original"
-  home="$container/state"
-  substitution_worktree="$TMP_ROOT/substitution-worktree"
-  attacker="$substitution_worktree/substitution-target"
+  home="$replaceable_root/parent/state"
   mkdir -p "$replaceable_root"
   chmod 0770 "$replaceable_root"
-  mkdir -p "$home/evidence-imports/.incomplete-legitimate"
-  mkdir -p "$attacker/state/evidence-imports/.incomplete-project-owned"
-  chmod 0700 "$home" "$home/evidence-imports" "$home/evidence-imports/.incomplete-legitimate"
-  chmod 0700 "$attacker/state" "$attacker/state/evidence-imports" \
-    "$attacker/state/evidence-imports/.incomplete-project-owned"
-  printf 'legitimate incomplete bytes\n' > \
-    "$home/evidence-imports/.incomplete-legitimate/evidence.txt"
-  printf 'project-owned bytes\n' > \
-    "$attacker/state/evidence-imports/.incomplete-project-owned/tracked.txt"
-  before=$(tree_snapshot "$substitution_worktree")
+  printf 'ancestor sentinel\n' > "$replaceable_root/sentinel.txt"
+  before=$(tree_snapshot "$replaceable_root")
 
-  NM_HOME="$home" FM_EVIDENCE_IMPORT_TEST_STOP=after-state-open \
-    "$SUBJECT" recover --worktree "$substitution_worktree" > "$OUT" 2> "$ERR" &
-  pid=$!
-  wait_stopped "$pid"
-  mv "$container" "$moved"
-  ln -s "$attacker" "$container"
-  kill -CONT "$pid"
-  wait "$pid" || rc=$?
-  [ "$rc" -eq 0 ] || fail "ancestor substitution recovery failed: $(cat "$ERR")"
-  result=$(cat "$OUT")
-  printf '%s\n' "$result" | jq -e '.status == "recovered" and .removed == 1' >/dev/null \
-    || fail "ancestor substitution recovery returned an unexpected result"
-  [ ! -e "$moved/state/evidence-imports/.incomplete-legitimate" ] \
-    || fail "descriptor-anchored recovery retained the legitimate incomplete import"
-  [ -f "$attacker/state/evidence-imports/.incomplete-project-owned/tracked.txt" ] \
-    || fail "ancestor substitution redirected recovery into the project worktree"
-  after=$(tree_snapshot "$substitution_worktree")
+  NM_HOME="$home" "$SUBJECT" recover --worktree "$WORKTREE" > "$OUT" 2> "$ERR" || rc=$?
+  [ "$rc" -eq 2 ] || fail "replaceable state ancestor: expected exit 2, got $rc: $(cat "$ERR")"
+  [ ! -s "$OUT" ] || fail "replaceable state ancestor wrote stdout"
+  jq -e '.code == "unsafe-state-root"' "$ERR" >/dev/null \
+    || fail "replaceable state ancestor did not return a structured refusal"
+  [ ! -e "$home" ] || fail "replaceable state ancestor created NM_HOME before refusal"
+  after=$(tree_snapshot "$replaceable_root")
   [ "$before" = "$after" ] \
-    || fail "ancestor substitution changed the project worktree"
-  pass "state operations remain anchored across ancestor substitution"
+    || fail "replaceable state ancestor changed before refusal"
+  pass "replaceable state ancestors refuse before mutation"
 }
 
 
@@ -508,7 +485,7 @@ test_mutation_races
 test_path_substitution_race
 test_collision_and_state_root_boundary
 test_case_insensitive_state_boundary
-test_state_ancestor_substitution
+test_replaceable_state_ancestor_refusal
 test_unsafe_state_permissions
 test_fifo_substitution_refusals
 test_bounded_failure_state
