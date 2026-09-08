@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib.sh"
 
 SUBJECT="$ROOT/bin/fm-evidence-import-stage.py"
+TEST_HOST="$ROOT/tests/fm-evidence-import-test-host.py"
 FIXTURE="$ROOT/tests/fixtures/evidence-import-stage/stable"
 TMP_ROOT=$(fm_test_tmproot evidence-import-authorization)
 WORKTREE="$TMP_ROOT/project-worktree"
@@ -73,7 +74,7 @@ write_control_payload() {
 
 admit() {
   local home=$1 name=$2 rc=0
-  NM_HOME="$home" "$SUBJECT" admit --control-record "$name" --worktree "$WORKTREE" \
+  "$TEST_HOST" "$home" "$WORKTREE" "$name" \
     > "$OUT" 2> "$ERR" || rc=$?
   return "$rc"
 }
@@ -238,6 +239,13 @@ test_project_configuration_and_automatic_forgery() {
     > "$OUT" 2> "$ERR" || rc=$?
   expect_refusal consent-missing "repository configuration forgery" "$rc"
 
+  write_control_record "$home" "$contract" project-forged forged.json
+  rc=0
+  NM_HOME="$home" "$SUBJECT" admit > "$OUT" 2> "$ERR" || rc=$?
+  expect_refusal host-capability-required "caller-selected state-root forgery" "$rc"
+  [ -f "$home/evidence-import-control/forged.json" ] \
+    || fail "caller-selected state-root forgery changed the control record"
+
   rc=0
   NM_HOME="$home" "$SUBJECT" stage --contract "$contract" --bundle "$BUNDLE" \
     --manifest manifest.json --batch project-forged --consent-id "$ZERO_CONSENT_ID" \
@@ -247,7 +255,7 @@ test_project_configuration_and_automatic_forgery() {
   rc=0
   NM_HOME="$home" "$SUBJECT" admit --control-record "$fake_approval" --worktree "$WORKTREE" \
     > "$OUT" 2> "$ERR" || rc=$?
-  expect_refusal invalid-control-record-name "project approval path admission" "$rc"
+  expect_refusal invalid-arguments "project approval path admission" "$rc"
   assert_no_final_import "$home" "configuration and automatic-approval forgery"
   pass "project code, project JSON, configuration, environment, and --yes grant no authority"
 }
@@ -287,16 +295,16 @@ test_protected_control_boundary() {
 }
 
 test_validation_gate_descendants_cannot_admit() {
-  local consent_id contract gate_home gate_worktree home rc=0
+  local consent_id contract fakebin gate_home gate_worktree home rc=0
   home="$TMP_ROOT/gate-refusal-home"
   contract="$TMP_ROOT/gate-refusal-contract.json"
   write_contract "$contract"
   write_control_record "$home" "$contract" batch-gate gate.json
 
   NO_MISTAKES_GATE=1 FM_GATE_REFUSE_BYPASS=1 NM_HOME="$home" \
-    "$SUBJECT" admit --control-record gate.json --worktree "$WORKTREE" \
+    "$SUBJECT" admit \
     > "$OUT" 2> "$ERR" || rc=$?
-  expect_refusal validation-descendant "validation marker descendant" "$rc"
+  expect_refusal host-capability-required "validation marker descendant" "$rc"
   [ -f "$home/evidence-import-control/gate.json" ] \
     || fail "validation descendant changed the protected control record"
   assert_no_final_import "$home" "validation marker descendant"
@@ -309,17 +317,30 @@ test_validation_gate_descendants_cannot_admit() {
   (
     cd "$gate_worktree" || exit 1
     env -u NO_MISTAKES_GATE FM_GATE_REFUSE_BYPASS=1 NM_HOME="$home" \
-      "$SUBJECT" admit --control-record gate.json --worktree "$WORKTREE"
+      "$SUBJECT" admit
   ) > "$OUT" 2> "$ERR" || rc=$?
-  expect_refusal validation-descendant "validation worktree descendant" "$rc"
+  expect_refusal host-capability-required "validation worktree descendant" "$rc"
   [ -f "$home/evidence-import-control/gate.json" ] \
     || fail "validation worktree descendant changed the protected control record"
+
+  fakebin="$TMP_ROOT/gate-fakebin"
+  mkdir -p "$fakebin"
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 1' > "$fakebin/bash"
+  chmod +x "$fakebin/bash"
+  rc=0
+  (
+    cd "$TMP_ROOT" || exit 1
+    env -u NO_MISTAKES_GATE PATH="$fakebin:$PATH" NM_HOME="$home" "$SUBJECT" admit
+  ) > "$OUT" 2> "$ERR" || rc=$?
+  expect_refusal host-capability-required "mutable gate signals" "$rc"
+  [ -f "$home/evidence-import-control/gate.json" ] \
+    || fail "mutable gate signals changed the protected control record"
 
   admit "$home" gate.json || fail "ordinary host could not admit consent after gate refusals"
   consent_id=$(jq -r .consent_id "$OUT")
   run_stage "$home" "$contract" batch-gate "$consent_id" \
     || fail "gate-refused consent could not later stage through the legitimate path"
-  pass "environment and filesystem gate descendants cannot use the consent interface"
+  pass "validation descendants cannot replace the trusted host capability"
 }
 
 test_concurrent_and_interrupted_consumption() {

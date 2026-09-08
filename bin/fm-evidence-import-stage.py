@@ -2,7 +2,7 @@
 """Stage one producer-neutral evidence bundle in no-mistakes local state.
 
 Usage:
-  fm-evidence-import-stage.py admit --control-record NAME --worktree DIR
+  fm-evidence-import-stage.py admit
   fm-evidence-import-stage.py stage --contract OFFER.json --bundle DIR \\
       --manifest RELATIVE_PATH --batch BATCH --consent-id SHA256 \\
       --worktree DIR
@@ -21,17 +21,19 @@ the protected directory boundary are refused.  The state root must be outside
 the named worktree, and ``evidence-imports`` must not overlap it in either
 direction.  Atomic no-replace finalization requires supported macOS or Linux.
 
-``admit`` is the only Evidence Import Consent intake.  It accepts one basename
-from ``$NM_HOME/evidence-import-control``, a protected local directory created
-and populated by the trusted host controller outside this command.  It never
-accepts a project path, stdin, repository or environment approval setting,
-``--yes``, or generic automatic approval.  The control record is one JSON
-object with ``schema_version`` ``1.0``, ``decision``
-``evidence-import-consent``, an opaque ``batch``, and ``contract`` containing
-the exact contract owned by ``fm-evidence-import-contract.py``.  Admission is
-refused from a no-mistakes validation-gate descendant.  Accepted consent is
-canonically stored below protected evidence-import state and identified by its
-SHA-256 digest.
+``admit`` is the only Evidence Import Consent intake.  It accepts no paths or
+approval data from its caller.  A trusted host controller must launch it with
+one private ``AF_UNIX`` stream capability on inherited descriptor 3;
+the kernel-authenticated peer must be the direct parent running as the same
+user.  The capability supplies the state root, worktree, and one control-record
+basename.  Without that exact host channel, including from a validation-step
+descendant, admission is refused.  ``NM_HOME``, stdin, repository or environment
+approval settings, ``--yes``, and generic automatic approval never select or
+replace the channel.  The named protected control record is one JSON object
+with ``schema_version`` ``1.0``, ``decision`` ``evidence-import-consent``, an
+opaque ``batch``, and ``contract`` containing the exact contract owned by
+``fm-evidence-import-contract.py``.  Accepted consent is canonically stored
+below protected evidence-import state and identified by its SHA-256 digest.
 
 Every source component is opened relative to the already-open bundle directory
 with symlink following disabled.  The command copies into one unique
@@ -40,9 +42,8 @@ regular file, verifies every hash from the staged bytes, and publishes the
 complete directory with one rename.  ``stage`` first requires the exact pending
 consent id and batch, revalidates every consent binding, and atomically consumes
 that one consent under the staging lock immediately before finalized staging
-can become visible.  A byte-identical finalized import remains a safe target
-for a newly admitted exact consent, but ordinary replay of consumed consent is
-refused.  Any other import resolving to the same run-and-manifest identity is
+can become visible.  Ordinary replay of consumed consent is refused.  Any
+import resolving to an already-finalized run-and-manifest identity is
 refused without replacing or merging the existing directory.  Consent
 authorizes protected staging only; this command never creates publication
 approval or mutates a pull request.
@@ -65,20 +66,22 @@ import os
 from pathlib import Path
 import re
 import signal
+import socket
 import stat
-import subprocess
+import struct
 import sys
 import tempfile
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 CONTRACT_SCRIPT = SCRIPT_DIR / "fm-evidence-import-contract.py"
-GATE_REFUSE_SCRIPT = SCRIPT_DIR / "fm-gate-refuse-lib.sh"
 INCOMPLETE_PREFIX = ".incomplete-"
 CONSENT_STATE_DIRECTORY = ".consents"
 CONSENT_PENDING_DIRECTORY = "pending"
 CONSENT_CONSUMED_DIRECTORY = "consumed"
 CONTROL_DIRECTORY = "evidence-import-control"
+HOST_CAPABILITY_FD = 3
+HOST_CAPABILITY_SCHEMA = "1.0"
 MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_IMPORT_BYTES = 512 * 1024 * 1024
 ACL_TYPE_EXTENDED = 0x00000100
@@ -187,7 +190,13 @@ def decode_one_json(raw, owner):
 
 def normalized_consent(raw):
     owner = load_contract_owner()
-    value = decode_one_json(raw, owner)
+    try:
+        value = decode_one_json(raw, owner)
+    except Refusal as error:
+        raise Refusal(
+            "host-capability-invalid",
+            "the host capability request is not valid JSON",
+        ) from error
     if not isinstance(value, dict):
         refuse("invalid-control-record", "consent control record must be a JSON object")
     expected = {"schema_version", "decision", "batch", "contract"}
@@ -234,34 +243,107 @@ def expected_consent(batch, contract):
     return consent, encoded
 
 
-def gate_context(anchor):
-    command = """
-unset FM_GATE_REFUSE_BYPASS
-. "$1" || exit 2
-if fm_is_gate_agent "$2"; then
-  exit 0
-fi
-exit 1
-"""
-    result = subprocess.run(
-        ["bash", "-c", command, "fm-evidence-import-stage", str(GATE_REFUSE_SCRIPT), anchor],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
+def host_peer_identity(channel):
+    try:
+        if sys.platform == "darwin":
+            peer_pid = struct.unpack("i", channel.getsockopt(0, 0x002, 4))[0]
+            credentials = channel.getsockopt(0, 0x001, 12)
+            _version, peer_uid = struct.unpack("II", credentials[:8])
+            return peer_pid, peer_uid
+        if sys.platform.startswith("linux") and hasattr(socket, "SO_PEERCRED"):
+            credentials = channel.getsockopt(
+                socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")
+            )
+            peer_pid, peer_uid, _peer_gid = struct.unpack("3i", credentials)
+            return peer_pid, peer_uid
+    except (OSError, struct.error) as error:
+        raise Refusal(
+            "host-capability-invalid",
+            "the Evidence Import Consent host capability could not be authenticated",
+        ) from error
+    refuse(
+        "host-capability-unavailable",
+        "this platform cannot authenticate the Evidence Import Consent host capability",
     )
-    if result.returncode == 0:
-        return True
-    if result.returncode == 1:
-        return False
-    raise RuntimeError("validation-gate context could not be inspected safely")
 
 
-def refuse_validation_descendant(worktree):
-    if gate_context(".") or gate_context(worktree):
+def host_authority():
+    try:
+        descriptor = os.dup(HOST_CAPABILITY_FD)
+    except OSError as error:
+        raise Refusal(
+            "host-capability-required",
+            "Evidence Import Consent requires a trusted host-controller capability",
+        ) from error
+    try:
+        channel = socket.socket(fileno=descriptor)
+    except OSError as error:
+        os.close(descriptor)
+        raise Refusal(
+            "host-capability-required",
+            "Evidence Import Consent requires a trusted host-controller capability",
+        ) from error
+    try:
+        try:
+            family = channel.family
+            socket_type = channel.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE)
+        except OSError as error:
+            raise Refusal(
+                "host-capability-invalid",
+                "the Evidence Import Consent host capability is invalid",
+            ) from error
+        if family != socket.AF_UNIX or socket_type != socket.SOCK_STREAM:
+            refuse(
+                "host-capability-invalid",
+                "the Evidence Import Consent host capability has the wrong transport",
+            )
+        peer_pid, peer_uid = host_peer_identity(channel)
+        if peer_pid != os.getppid() or peer_uid != os.geteuid():
+            refuse(
+                "host-capability-invalid",
+                "the Evidence Import Consent host capability is not owned by the launching controller",
+            )
+        chunks = []
+        size = 0
+        while True:
+            chunk = channel.recv(min(65536, 1048577 - size))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            size += len(chunk)
+            if size > 1048576:
+                refuse(
+                    "host-capability-invalid",
+                    "the host capability request exceeds 1048576 bytes",
+                )
+        raw = b"".join(chunks)
+    finally:
+        channel.close()
+
+    owner = load_contract_owner()
+    value = decode_one_json(raw, owner)
+    expected = {"schema_version", "operation", "state_root", "worktree", "control_record"}
+    if not isinstance(value, dict) or set(value) != expected:
         refuse(
-            "validation-descendant",
-            "a no-mistakes validation-step descendant cannot admit Evidence Import Consent",
+            "host-capability-invalid",
+            "the host capability request has an invalid shape",
         )
+    if value["schema_version"] != HOST_CAPABILITY_SCHEMA or value["operation"] != "admit":
+        refuse(
+            "host-capability-invalid",
+            "the host capability request has an unsupported operation",
+        )
+    if not isinstance(value["state_root"], str) or not os.path.isabs(value["state_root"]):
+        refuse(
+            "host-capability-invalid",
+            "the host capability must supply an absolute no-mistakes state root",
+        )
+    if not isinstance(value["worktree"], str) or not value["worktree"]:
+        refuse(
+            "host-capability-invalid",
+            "the host capability must supply the reviewed worktree",
+        )
+    return value
 
 
 def contained_by(path, directory):
@@ -467,10 +549,11 @@ def open_state_root(path, worktree_fd):
         raise RuntimeError("could not prepare no-mistakes state") from error
 
 
-def resolve_state_root(worktree):
+def resolve_state_root(worktree, configured=None):
     worktree_path, worktree_fd = open_worktree(worktree)
 
-    configured = os.environ.get("NM_HOME", os.path.expanduser("~/.no-mistakes"))
+    if configured is None:
+        configured = os.environ.get("NM_HOME", os.path.expanduser("~/.no-mistakes"))
     if not os.path.isabs(configured):
         os.close(worktree_fd)
         refuse("unsafe-state-root", "NM_HOME must resolve from an absolute path")
@@ -1058,29 +1141,6 @@ def verify_staged(temp_path, entries):
             refuse("hash-mismatch", "staged file hash does not match contract: {}".format(destination))
 
 
-def tree_identity(path):
-    identity = []
-    for directory, directories, files in os.walk(path, topdown=True, followlinks=False):
-        directories.sort()
-        files.sort()
-        relative_directory = os.path.relpath(directory, path)
-        for name in list(directories):
-            member = os.path.join(directory, name)
-            member_stat = os.lstat(member)
-            if not stat.S_ISDIR(member_stat.st_mode):
-                refuse("destination-collision", "final import contains an unsafe path")
-            relative = os.path.normpath(os.path.join(relative_directory, name))
-            identity.append(("directory", relative))
-        for name in files:
-            member = os.path.join(directory, name)
-            member_stat = os.lstat(member)
-            if not stat.S_ISREG(member_stat.st_mode):
-                refuse("destination-collision", "final import contains an unsafe path")
-            relative = os.path.normpath(os.path.join(relative_directory, name))
-            identity.append(("file", relative, member_stat.st_size, sha256_file(member)))
-    return identity
-
-
 def protect_tree(path):
     directories = []
     for directory, child_directories, files in os.walk(path, topdown=True):
@@ -1143,9 +1203,11 @@ def rename_without_replace(source_directory_fd, source, destination_directory_fd
 
 
 def admit(arguments):
-    refuse_validation_descendant(arguments.worktree)
-    record_name = control_record_name(arguments.control_record)
-    state_root, _imports, state_root_fd, imports_fd = resolve_state_root(arguments.worktree)
+    authority = host_authority()
+    record_name = control_record_name(authority["control_record"])
+    state_root, _imports, state_root_fd, imports_fd = resolve_state_root(
+        authority["worktree"], authority["state_root"]
+    )
     control_fd = None
     lock_fd = None
     consent_root_fd = None
@@ -1273,39 +1335,25 @@ def stage(arguments):
         identity = import_identity(contract)
         final_path = os.path.join(imports, identity)
         if os.path.lexists(identity):
-            try:
-                final_stat = os.lstat(identity)
-                identical = stat.S_ISDIR(final_stat.st_mode) and tree_identity(
-                    identity
-                ) == tree_identity(temp_path)
-            except (OSError, Refusal):
-                identical = False
-            if not identical:
-                refuse(
-                    "destination-collision",
-                    "a non-identical finalized import already exists for this run and manifest",
-                )
-            remove_tree(temp_path)
+            refuse(
+                "destination-collision",
+                "a finalized import already exists for this run and manifest",
+            )
+        consume_consent(pending_fd, consumed_fd, consent_id)
+        test_stop("after-consume-before-finalize")
+        try:
+            rename_without_replace(imports_fd, temp_path, imports_fd, identity)
             temp_path = None
-            status = "already-finalized"
-            consume_consent(pending_fd, consumed_fd, consent_id)
-        else:
-            consume_consent(pending_fd, consumed_fd, consent_id)
-            test_stop("after-consume-before-finalize")
-            try:
-                rename_without_replace(imports_fd, temp_path, imports_fd, identity)
-                temp_path = None
-                status = "finalized"
-            except FileExistsError:
-                refuse(
-                    "destination-collision",
-                    "a finalized import appeared before atomic finalization",
-                )
+        except FileExistsError:
+            refuse(
+                "destination-collision",
+                "a finalized import appeared before atomic finalization",
+            )
         try:
             emit_json(
                 sys.stdout,
                 {
-                    "status": status,
+                    "status": "finalized",
                     "import_id": identity,
                     "path": final_path,
                     "state_root": state_root,
@@ -1368,10 +1416,8 @@ def parse_arguments(arguments):
     )
     commands = parser.add_subparsers(dest="command", required=True)
     admit_parser = commands.add_parser(
-        "admit", help="admit one controller-written protected consent record"
+        "admit", help="admit consent from an inherited trusted-host capability"
     )
-    admit_parser.add_argument("--control-record", required=True)
-    admit_parser.add_argument("--worktree", required=True)
     stage_parser = commands.add_parser("stage", help="stage and atomically finalize one bundle")
     stage_parser.add_argument("--contract", required=True)
     stage_parser.add_argument("--bundle", required=True)

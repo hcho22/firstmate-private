@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib.sh"
 
 SUBJECT="$ROOT/bin/fm-evidence-import-stage.py"
+TEST_HOST="$ROOT/tests/fm-evidence-import-test-host.py"
 FIXTURE="$ROOT/tests/fixtures/evidence-import-stage/stable"
 TMP_ROOT=$(fm_test_tmproot evidence-import-stage)
 WORKTREE="$TMP_ROOT/project-worktree"
@@ -70,8 +71,8 @@ admit_consent() {
     contract:$contract[0]
   }' > "$home/evidence-import-control/$record"
   chmod 0600 "$home/evidence-import-control/$record"
-  admitted=$(NM_HOME="$home" "$SUBJECT" admit --control-record "$record" \
-    --worktree "$WORKTREE" 2> "$ERR") || fail "consent admission failed: $(cat "$ERR")"
+  admitted=$("$TEST_HOST" "$home" "$WORKTREE" "$record" 2> "$ERR") \
+    || fail "consent admission failed: $(cat "$ERR")"
   printf '%s\n' "$admitted" | jq -r .consent_id
 }
 
