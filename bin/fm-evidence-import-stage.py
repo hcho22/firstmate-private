@@ -47,6 +47,10 @@ CONTRACT_SCRIPT = SCRIPT_DIR / "fm-evidence-import-contract.py"
 INCOMPLETE_PREFIX = ".incomplete-"
 MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_IMPORT_BYTES = 512 * 1024 * 1024
+ACL_TYPE_EXTENDED = 0x00000100
+ACL_FIRST_ENTRY = 0
+ACL_NEXT_ENTRY = -1
+ACL_EXTENDED_ALLOW = 1
 LIBC = ctypes.CDLL(None, use_errno=True)
 LIBC.openat.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_int)
 LIBC.openat.restype = ctypes.c_int
@@ -54,6 +58,19 @@ LIBC.mkdirat.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
 LIBC.mkdirat.restype = ctypes.c_int
 LIBC.readlinkat.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_void_p, ctypes.c_size_t)
 LIBC.readlinkat.restype = ctypes.c_ssize_t
+if sys.platform == "darwin":
+    LIBC.acl_get_fd_np.argtypes = (ctypes.c_int, ctypes.c_int)
+    LIBC.acl_get_fd_np.restype = ctypes.c_void_p
+    LIBC.acl_get_entry.argtypes = (
+        ctypes.c_void_p,
+        ctypes.c_int,
+        ctypes.POINTER(ctypes.c_void_p),
+    )
+    LIBC.acl_get_entry.restype = ctypes.c_int
+    LIBC.acl_get_tag_type.argtypes = (ctypes.c_void_p, ctypes.POINTER(ctypes.c_int))
+    LIBC.acl_get_tag_type.restype = ctypes.c_int
+    LIBC.acl_free.argtypes = (ctypes.c_void_p,)
+    LIBC.acl_free.restype = ctypes.c_int
 
 
 class Refusal(ValueError):
@@ -145,6 +162,53 @@ def ancestor_is_replaceable(parent_stat, child_stat=None):
     return child_stat is not None and child_stat.st_uid not in trusted_owners
 
 
+def descriptor_has_grant_acl(descriptor):
+    if sys.platform != "darwin":
+        return False
+    ctypes.set_errno(0)
+    acl = LIBC.acl_get_fd_np(descriptor, ACL_TYPE_EXTENDED)
+    if not acl:
+        error_number = ctypes.get_errno()
+        if error_number in (errno.ENOENT, errno.EOPNOTSUPP):
+            return False
+        raise OSError(error_number, os.strerror(error_number))
+    try:
+        entry_id = ACL_FIRST_ENTRY
+        while True:
+            entry = ctypes.c_void_p()
+            ctypes.set_errno(0)
+            result = LIBC.acl_get_entry(acl, entry_id, ctypes.byref(entry))
+            if result < 0:
+                error_number = ctypes.get_errno()
+                if error_number == errno.EINVAL:
+                    return False
+                raise OSError(error_number, os.strerror(error_number))
+            tag_type = ctypes.c_int()
+            if LIBC.acl_get_tag_type(entry, ctypes.byref(tag_type)) < 0:
+                error_number = ctypes.get_errno()
+                raise OSError(error_number, os.strerror(error_number))
+            if tag_type.value == ACL_EXTENDED_ALLOW:
+                return True
+            entry_id = ACL_NEXT_ENTRY
+    finally:
+        LIBC.acl_free(acl)
+
+
+def refuse_grant_acl(descriptor):
+    try:
+        has_grant = descriptor_has_grant_acl(descriptor)
+    except OSError as error:
+        raise Refusal(
+            "unsafe-state-root",
+            "NM_HOME extended ACLs could not be inspected safely",
+        ) from error
+    if has_grant:
+        refuse(
+            "unsafe-state-root",
+            "NM_HOME state directories must not grant access through extended ACLs",
+        )
+
+
 def directory_contains(ancestor_fd, descendant_fd):
     ancestor = file_identity(os.fstat(ancestor_fd))
     current = os.dup(descendant_fd)
@@ -189,6 +253,7 @@ def open_state_root(path, worktree_fd):
             component = components.pop(0)
             if component in ("", "."):
                 continue
+            refuse_grant_acl(current)
             if component == "..":
                 next_fd = open_at(current, "..", directory_flags())
                 os.close(current)
@@ -245,6 +310,7 @@ def open_state_root(path, worktree_fd):
                 refuse("unsafe-state-root", "no-mistakes state must be outside the project worktree")
             os.close(current)
             current = next_fd
+        refuse_grant_acl(current)
         if file_identity(os.fstat(current)) == file_identity(os.fstat(worktree_fd)):
             refuse("unsafe-state-root", "no-mistakes state must be outside the project worktree")
         return current
@@ -312,6 +378,7 @@ def resolve_state_root(worktree):
         except FileNotFoundError:
             mkdir_at(state_root_fd, "evidence-imports", 0o700)
             imports_fd = open_at(state_root_fd, "evidence-imports", directory_flags())
+        refuse_grant_acl(imports_fd)
         imports_stat = os.fstat(imports_fd)
         if (
             not stat.S_ISDIR(imports_stat.st_mode)

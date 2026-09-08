@@ -357,6 +357,51 @@ test_replaceable_state_ancestor_refusal() {
 }
 
 
+test_extended_acl_state_refusals() {
+  local acl_target boundary forbidden home mode rc
+  if [ "$(uname -s)" != Darwin ]; then
+    pass "extended ACL state regressions are not applicable on this platform"
+    return
+  fi
+
+  for boundary in ancestor root imports; do
+    rc=0
+    home="$TMP_ROOT/acl-$boundary-home"
+    case "$boundary" in
+      ancestor)
+        acl_target="$TMP_ROOT/acl-ancestor"
+        home="$acl_target/parent/state"
+        forbidden="$acl_target/parent"
+        mkdir -p "$acl_target"
+        ;;
+      root)
+        acl_target="$home"
+        forbidden="$home/evidence-imports"
+        mkdir -p "$home"
+        ;;
+      imports)
+        acl_target="$home/evidence-imports"
+        forbidden="$acl_target/.lock"
+        mkdir -p "$acl_target"
+        ;;
+    esac
+    chmod 0700 "$acl_target"
+    chmod +a "everyone allow search,add_subdirectory,delete_child" "$acl_target" \
+      || fail "could not prepare $boundary extended ACL fixture"
+    mode=$(stat -f '%Lp' "$acl_target")
+    [ "$mode" = 700 ] || fail "$boundary extended ACL changed POSIX mode to $mode"
+
+    NM_HOME="$home" "$SUBJECT" recover --worktree "$WORKTREE" > "$OUT" 2> "$ERR" || rc=$?
+    [ "$rc" -eq 2 ] || fail "$boundary extended ACL: expected exit 2, got $rc: $(cat "$ERR")"
+    [ ! -s "$OUT" ] || fail "$boundary extended ACL wrote stdout"
+    jq -e '.code == "unsafe-state-root"' "$ERR" >/dev/null \
+      || fail "$boundary extended ACL did not return a structured refusal"
+    [ ! -e "$forbidden" ] || fail "$boundary extended ACL allowed state mutation"
+  done
+  pass "grant-capable extended ACLs refuse before state mutation"
+}
+
+
 test_unsafe_state_permissions() {
   local bundle contract home lock mode target
   bundle=$(copy_bundle unsafe-permissions)
@@ -486,6 +531,7 @@ test_path_substitution_race
 test_collision_and_state_root_boundary
 test_case_insensitive_state_boundary
 test_replaceable_state_ancestor_refusal
+test_extended_acl_state_refusals
 test_unsafe_state_permissions
 test_fifo_substitution_refusals
 test_bounded_failure_state
