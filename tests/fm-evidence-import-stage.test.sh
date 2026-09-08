@@ -12,6 +12,7 @@ TMP_ROOT=$(fm_test_tmproot evidence-import-stage)
 WORKTREE="$TMP_ROOT/project-worktree"
 OUT="$TMP_ROOT/out.json"
 ERR="$TMP_ROOT/err.json"
+ZERO_CONSENT_ID=$(printf '%064d' 0)
 
 mkdir -p "$WORKTREE"
 printf 'project bytes stay fixed\n' > "$WORKTREE/tracked.txt"
@@ -58,17 +59,42 @@ write_contract() {
     }' > "$output"
 }
 
+admit_consent() {
+  local home=$1 contract=$2 batch=$3 record=${4:-consent.json} admitted
+  mkdir -p "$home/evidence-import-control"
+  chmod 0700 "$home" "$home/evidence-import-control"
+  jq -n --slurpfile contract "$contract" --arg batch "$batch" '{
+    schema_version:"1.0",
+    decision:"evidence-import-consent",
+    batch:$batch,
+    contract:$contract[0]
+  }' > "$home/evidence-import-control/$record"
+  chmod 0600 "$home/evidence-import-control/$record"
+  admitted=$(NM_HOME="$home" "$SUBJECT" admit --control-record "$record" \
+    --worktree "$WORKTREE" 2> "$ERR") || fail "consent admission failed: $(cat "$ERR")"
+  printf '%s\n' "$admitted" | jq -r .consent_id
+}
+
 run_stage() {
-  local home=$1 contract=$2 bundle=$3 manifest=${4:-manifest.json} worktree=${5:-$WORKTREE} rc=0
-  NM_HOME="$home" "$SUBJECT" stage --contract "$contract" --bundle "$bundle" \
-    --manifest "$manifest" --worktree "$worktree" > "$OUT" 2> "$ERR" || rc=$?
+  local home=$1 contract=$2 bundle=$3 manifest=${4:-manifest.json} worktree=${5:-$WORKTREE}
+  local batch=${6:-batch-fixture} consent_id=${7:-} rc=0
+  if [ -n "$consent_id" ]; then
+    NM_HOME="$home" "$SUBJECT" stage --contract "$contract" --bundle "$bundle" \
+      --manifest "$manifest" --batch "$batch" --consent-id "$consent_id" \
+      --worktree "$worktree" > "$OUT" 2> "$ERR" || rc=$?
+  else
+    NM_HOME="$home" "$SUBJECT" stage --contract "$contract" --bundle "$bundle" \
+      --manifest "$manifest" --batch "$batch" --worktree "$worktree" \
+      > "$OUT" 2> "$ERR" || rc=$?
+  fi
   return "$rc"
 }
 
 expect_refusal() {
   local code=$1 home=$2 contract=$3 bundle=$4 description=$5
-  local manifest=${6:-manifest.json} worktree=${7:-$WORKTREE} rc=0
-  run_stage "$home" "$contract" "$bundle" "$manifest" "$worktree" || rc=$?
+  local manifest=${6:-manifest.json} worktree=${7:-$WORKTREE} consent_id=${8:-}
+  local batch=${9:-batch-fixture} rc=0
+  run_stage "$home" "$contract" "$bundle" "$manifest" "$worktree" "$batch" "$consent_id" || rc=$?
   [ "$rc" -eq 2 ] || fail "$description: expected exit 2, got $rc: $(cat "$ERR")"
   [ ! -s "$OUT" ] || fail "$description: refusal wrote stdout"
   jq -e --arg code "$code" '.code == $code' "$ERR" >/dev/null \
@@ -109,19 +135,21 @@ wait_stopped() {
 assert_no_final_import() {
   local home=$1 description=$2 count=0
   if [ -d "$home/evidence-imports" ]; then
-    count=$(find "$home/evidence-imports" -mindepth 1 -maxdepth 1 -type d ! -name '.incomplete-*' | wc -l | tr -d ' ')
+    count=$(find "$home/evidence-imports" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | wc -l | tr -d ' ')
   fi
   [ "$count" -eq 0 ] || fail "$description: failed import published a final directory"
   [ ! -e "$home/publications" ] || fail "$description: import created publication state"
 }
 
-test_stable_bundle_and_idempotency() {
-  local bundle contract home final first second
+test_stable_bundle_and_consumed_replay() {
+  local bundle consent_id contract home final first rc=0
   bundle=$(copy_bundle stable-valid)
   contract="$TMP_ROOT/stable-contract.json"
   home="$TMP_ROOT/stable-home"
   write_contract "$bundle" github-pr:hcho22/example#17 "$contract"
-  run_stage "$home" "$contract" "$bundle" || fail "stable bundle was refused: $(cat "$ERR")"
+  consent_id=$(admit_consent "$home" "$contract" batch-stable)
+  run_stage "$home" "$contract" "$bundle" manifest.json "$WORKTREE" batch-stable "$consent_id" \
+    || fail "stable bundle was refused: $(cat "$ERR")"
   first=$(cat "$OUT")
   jq -e '.status == "finalized" and (.import_id | length == 64)' "$OUT" >/dev/null \
     || fail "stable import did not report atomic finalization"
@@ -143,19 +171,17 @@ test_stable_bundle_and_idempotency() {
   done < <(jq -r '.artifacts[] | [.path,.sha256] | @tsv' "$contract")
   [ ! -e "$home/publications" ] || fail "staging a stable import created publication state"
 
-  run_stage "$home" "$contract" "$bundle" \
-    || fail "identical finalized import was refused: $(cat "$ERR")"
-  second=$(cat "$OUT")
-  printf '%s\n' "$second" | jq -e --arg path "$final" \
-    '.status == "already-finalized" and .path == $path' >/dev/null \
-    || fail "identical finalized import was not deterministic and idempotent"
-  [ "$(printf '%s\n' "$first" | jq -r .import_id)" = "$(printf '%s\n' "$second" | jq -r .import_id)" ] \
-    || fail "identical import changed its final identity"
-  pass "stable evidence finalizes outside the worktree with manifest-bound bytes and idempotency"
+  run_stage "$home" "$contract" "$bundle" manifest.json "$WORKTREE" batch-stable "$consent_id" || rc=$?
+  [ "$rc" -eq 2 ] || fail "consumed consent replay: expected exit 2, got $rc"
+  jq -e '.code == "consent-already-consumed"' "$ERR" >/dev/null \
+    || fail "consumed consent replay was not refused deterministically"
+  [ "$(printf '%s\n' "$first" | jq -r .import_id)" = "$(basename "$final")" ] \
+    || fail "stable import identity changed after replay refusal"
+  pass "stable evidence finalizes outside the worktree and consumed consent cannot replay"
 }
 
 test_symlink_and_traversal_refusals() {
-  local bundle contract home outside traversal
+  local bundle consent_id contract home outside traversal
   outside="$TMP_ROOT/outside.md"
   printf 'outside bytes\n' > "$outside"
 
@@ -167,7 +193,9 @@ test_symlink_and_traversal_refusals() {
   jq --arg hash "$(digest "$outside")" '.report.sha256 = $hash' "$contract" > "$contract.tmp"
   mv "$contract.tmp" "$contract"
   home="$TMP_ROOT/report-symlink-home"
-  expect_refusal unsafe-source "$home" "$contract" "$bundle" "report symlink escape"
+  consent_id=$(admit_consent "$home" "$contract" batch-report-symlink)
+  expect_refusal unsafe-source "$home" "$contract" "$bundle" "report symlink escape" \
+    manifest.json "$WORKTREE" "$consent_id" batch-report-symlink
   assert_no_final_import "$home" "report symlink escape"
 
   bundle=$(copy_bundle artifact-symlink)
@@ -179,7 +207,9 @@ test_symlink_and_traversal_refusals() {
     "$contract" > "$contract.tmp"
   mv "$contract.tmp" "$contract"
   home="$TMP_ROOT/artifact-symlink-home"
-  expect_refusal unsafe-source "$home" "$contract" "$bundle" "artifact symlink escape"
+  consent_id=$(admit_consent "$home" "$contract" batch-artifact-symlink)
+  expect_refusal unsafe-source "$home" "$contract" "$bundle" "artifact symlink escape" \
+    manifest.json "$WORKTREE" "$consent_id" batch-artifact-symlink
   assert_no_final_import "$home" "artifact symlink escape"
 
   bundle=$(copy_bundle traversal)
@@ -198,15 +228,17 @@ test_symlink_and_traversal_refusals() {
 }
 
 test_mutation_races() {
-  local bundle contract home pid rc=0
+  local bundle consent_id contract home pid rc=0
 
   bundle=$(copy_bundle report-mutation)
   contract="$TMP_ROOT/report-mutation.json"
   home="$TMP_ROOT/report-mutation-home"
   write_contract "$bundle" github-pr:hcho22/example#17 "$contract"
+  consent_id=$(admit_consent "$home" "$contract" batch-report-mutation)
   NM_HOME="$home" FM_EVIDENCE_IMPORT_TEST_STOP='after-copy:report/evidence.md' \
     "$SUBJECT" stage --contract "$contract" --bundle "$bundle" --manifest manifest.json \
-    --worktree "$WORKTREE" > "$OUT" 2> "$ERR" &
+    --batch batch-report-mutation --consent-id "$consent_id" --worktree "$WORKTREE" \
+    > "$OUT" 2> "$ERR" &
   pid=$!
   wait_stopped "$pid"
   printf 'mutation\n' >> "$bundle/report/evidence.md"
@@ -222,9 +254,11 @@ test_mutation_races() {
   contract="$TMP_ROOT/artifact-mutation.json"
   home="$TMP_ROOT/artifact-mutation-home"
   write_contract "$bundle" github-pr:hcho22/example#17 "$contract"
+  consent_id=$(admit_consent "$home" "$contract" batch-artifact-mutation)
   NM_HOME="$home" FM_EVIDENCE_IMPORT_TEST_STOP='after-copy:artifacts/baseline.png' \
     "$SUBJECT" stage --contract "$contract" --bundle "$bundle" --manifest manifest.json \
-    --worktree "$WORKTREE" > "$OUT" 2> "$ERR" &
+    --batch batch-artifact-mutation --consent-id "$consent_id" --worktree "$WORKTREE" \
+    > "$OUT" 2> "$ERR" &
   pid=$!
   wait_stopped "$pid"
   printf 'mutation\n' >> "$bundle/artifacts/baseline.png"
@@ -238,14 +272,16 @@ test_mutation_races() {
 }
 
 test_path_substitution_race() {
-  local bundle contract home pid rc=0
+  local bundle consent_id contract home pid rc=0
   bundle=$(copy_bundle path-substitution)
   contract="$TMP_ROOT/path-substitution.json"
   home="$TMP_ROOT/path-substitution-home"
   write_contract "$bundle" github-pr:hcho22/example#17 "$contract"
+  consent_id=$(admit_consent "$home" "$contract" batch-path-substitution)
   NM_HOME="$home" FM_EVIDENCE_IMPORT_TEST_STOP='after-copy:artifacts/candidate.webp' \
     "$SUBJECT" stage --contract "$contract" --bundle "$bundle" --manifest manifest.json \
-    --worktree "$WORKTREE" > "$OUT" 2> "$ERR" &
+    --batch batch-path-substitution --consent-id "$consent_id" --worktree "$WORKTREE" \
+    > "$OUT" 2> "$ERR" &
   pid=$!
   wait_stopped "$pid"
   mv "$bundle/artifacts/candidate.webp" "$bundle/artifacts/candidate.original"
@@ -260,24 +296,30 @@ test_path_substitution_race() {
 }
 
 test_collision_and_state_root_boundary() {
-  local bundle contract changed home final_before final_after inside_contract inside_home
+  local bundle consent_id contract changed final home final_before final_after inside_contract inside_home
   local overlap_before overlap_after overlap_contract overlap_home overlap_worktree rc=0
   bundle=$(copy_bundle collision)
   contract="$TMP_ROOT/collision.json"
   changed="$TMP_ROOT/collision-changed.json"
   home="$TMP_ROOT/collision-home"
   write_contract "$bundle" github-pr:hcho22/example#17 "$contract"
-  run_stage "$home" "$contract" "$bundle" || fail "collision setup import failed"
-  final_before=$(tree_snapshot "$home/evidence-imports")
+  consent_id=$(admit_consent "$home" "$contract" batch-collision-original)
+  run_stage "$home" "$contract" "$bundle" manifest.json "$WORKTREE" \
+    batch-collision-original "$consent_id" || fail "collision setup import failed"
+  final=$(jq -r .path "$OUT")
+  final_before=$(tree_snapshot "$final")
   jq '.destination = "github-pr:hcho22/example#99"' "$contract" > "$changed"
-  expect_refusal destination-collision "$home" "$changed" "$bundle" "non-identical destination collision"
-  final_after=$(tree_snapshot "$home/evidence-imports")
+  consent_id=$(admit_consent "$home" "$changed" batch-collision-changed changed.json)
+  expect_refusal destination-collision "$home" "$changed" "$bundle" "non-identical destination collision" \
+    manifest.json "$WORKTREE" "$consent_id" batch-collision-changed
+  final_after=$(tree_snapshot "$final")
   [ "$final_before" = "$final_after" ] || fail "destination collision overwrote or merged final evidence"
 
   inside_home="$WORKTREE/.no-mistakes"
   inside_contract="$TMP_ROOT/inside-state.json"
   write_contract "$bundle" github-pr:hcho22/example#17 "$inside_contract"
-  expect_refusal unsafe-state-root "$inside_home" "$inside_contract" "$bundle" "state root inside worktree"
+  expect_refusal unsafe-state-root "$inside_home" "$inside_contract" "$bundle" \
+    "state root inside worktree" manifest.json "$WORKTREE" "$ZERO_CONSENT_ID"
   [ ! -e "$inside_home" ] || fail "unsafe in-worktree state root was created before refusal"
 
   overlap_home="$TMP_ROOT/overlap-home"
@@ -288,7 +330,8 @@ test_collision_and_state_root_boundary() {
   printf 'project-owned bytes\n' > "$overlap_worktree/.incomplete-project-owned/tracked.txt"
   write_contract "$bundle" github-pr:hcho22/example#17 "$overlap_contract"
   overlap_before=$(tree_snapshot "$overlap_home")
-  run_stage "$overlap_home" "$overlap_contract" "$bundle" manifest.json "$overlap_worktree" || rc=$?
+  run_stage "$overlap_home" "$overlap_contract" "$bundle" manifest.json "$overlap_worktree" \
+    batch-overlap "$ZERO_CONSENT_ID" || rc=$?
   [ "$rc" -eq 2 ] || fail "overlapping stage: expected exit 2, got $rc: $(cat "$ERR")"
   [ ! -s "$OUT" ] || fail "overlapping stage wrote stdout"
   jq -e '.code == "unsafe-state-root"' "$ERR" >/dev/null \
@@ -327,7 +370,7 @@ test_case_insensitive_state_boundary() {
   write_contract "$bundle" github-pr:hcho22/example#17 "$contract"
   before=$(tree_snapshot "$actual")
   expect_refusal unsafe-state-root "$home" "$contract" "$bundle" \
-    "case-insensitive state root inside worktree" manifest.json "$actual"
+    "case-insensitive state root inside worktree" manifest.json "$actual" "$ZERO_CONSENT_ID"
   after=$(tree_snapshot "$actual")
   [ "$before" = "$after" ] \
     || fail "alternate-case state root spelling changed the project worktree"
@@ -412,7 +455,8 @@ test_unsafe_state_permissions() {
     home="$TMP_ROOT/unsafe-root-$mode"
     mkdir -p "$home"
     chmod "$mode" "$home"
-    expect_refusal unsafe-state-root "$home" "$contract" "$bundle" "writable state root mode $mode"
+    expect_refusal unsafe-state-root "$home" "$contract" "$bundle" \
+      "writable state root mode $mode" manifest.json "$WORKTREE" "$ZERO_CONSENT_ID"
     [ ! -e "$home/evidence-imports" ] \
       || fail "writable state root mode $mode created evidence import state"
   done
@@ -424,7 +468,7 @@ test_unsafe_state_permissions() {
     chmod 0700 "$home"
     chmod "$mode" "$target"
     expect_refusal unsafe-state-root "$home" "$contract" "$bundle" \
-      "writable evidence import directory mode $mode"
+      "writable evidence import directory mode $mode" manifest.json "$WORKTREE" "$ZERO_CONSENT_ID"
     [ ! -e "$target/.lock" ] \
       || fail "writable evidence import directory mode $mode created the lock"
   done
@@ -437,7 +481,7 @@ test_unsafe_state_permissions() {
     : > "$lock"
     chmod "$mode" "$lock"
     expect_refusal unsafe-state-root "$home" "$contract" "$bundle" \
-      "writable evidence import lock mode $mode"
+      "writable evidence import lock mode $mode" manifest.json "$WORKTREE" "$ZERO_CONSENT_ID"
     assert_no_final_import "$home" "writable evidence import lock mode $mode"
   done
   pass "group- and world-writable import state and locks are refused"
@@ -445,7 +489,7 @@ test_unsafe_state_permissions() {
 
 
 test_fifo_substitution_refusals() {
-  local bundle contract description fifo home pid rc recovery
+  local batch bundle consent_id contract description fifo home pid rc recovery
   for description in report artifact; do
     bundle=$(copy_bundle "$description-fifo")
     contract="$TMP_ROOT/$description-fifo.json"
@@ -458,9 +502,12 @@ test_fifo_substitution_refusals() {
     rm "$fifo"
     mkfifo "$fifo"
     write_contract "$FIXTURE" github-pr:hcho22/example#17 "$contract"
+    batch="batch-$description-fifo"
+    consent_id=$(admit_consent "$home" "$contract" "$batch")
     rc=0
     NM_HOME="$home" "$SUBJECT" stage --contract "$contract" --bundle "$bundle" \
-      --manifest manifest.json --worktree "$WORKTREE" > "$OUT" 2> "$ERR" &
+      --manifest manifest.json --batch "$batch" --consent-id "$consent_id" \
+      --worktree "$WORKTREE" > "$OUT" 2> "$ERR" &
     pid=$!
     if ! wait_exited "$pid"; then
       kill -KILL "$pid" 2>/dev/null || true
@@ -482,28 +529,32 @@ test_fifo_substitution_refusals() {
 
 
 test_bounded_failure_state() {
-  local bundle contract home
+  local bundle consent_id contract home
   bundle=$(copy_bundle oversized)
   contract="$TMP_ROOT/oversized.json"
   home="$TMP_ROOT/oversized-home"
   dd if=/dev/zero of="$bundle/artifacts/baseline.png" bs=1 count=0 seek=67108865 2>/dev/null \
     || fail "could not prepare oversized regular-file fixture"
   write_contract "$FIXTURE" github-pr:hcho22/example#17 "$contract"
-  expect_refusal source-too-large "$home" "$contract" "$bundle" "oversized regular bundle member"
+  consent_id=$(admit_consent "$home" "$contract" batch-oversized)
+  expect_refusal source-too-large "$home" "$contract" "$bundle" "oversized regular bundle member" \
+    manifest.json "$WORKTREE" "$consent_id" batch-oversized
   assert_no_final_import "$home" "oversized regular bundle member"
   pass "handled failures retain no unbounded staged or publication state"
 }
 
 
 test_interruption_and_recovery() {
-  local bundle contract home pid recovery rc=0
+  local bundle consent_id contract home pid recovery rc=0
   bundle=$(copy_bundle interrupted)
   contract="$TMP_ROOT/interrupted.json"
   home="$TMP_ROOT/interrupted-home"
   write_contract "$bundle" github-pr:hcho22/example#17 "$contract"
+  consent_id=$(admit_consent "$home" "$contract" batch-interrupted)
   NM_HOME="$home" FM_EVIDENCE_IMPORT_TEST_STOP=before-finalize \
     "$SUBJECT" stage --contract "$contract" --bundle "$bundle" --manifest manifest.json \
-    --worktree "$WORKTREE" > "$OUT" 2> "$ERR" &
+    --batch batch-interrupted --consent-id "$consent_id" --worktree "$WORKTREE" \
+    > "$OUT" 2> "$ERR" &
   pid=$!
   wait_stopped "$pid"
   [ -n "$(find "$home/evidence-imports" -maxdepth 1 -name '.incomplete-*' -type d -print)" ] \
@@ -524,7 +575,7 @@ test_interruption_and_recovery() {
 }
 
 before_worktree=$(tree_snapshot "$WORKTREE")
-test_stable_bundle_and_idempotency
+test_stable_bundle_and_consumed_replay
 test_symlink_and_traversal_refusals
 test_mutation_races
 test_path_substitution_race

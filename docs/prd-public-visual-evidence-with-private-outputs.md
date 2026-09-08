@@ -101,12 +101,12 @@ Version 1 is macOS-only, browser-first, screenshot-focused, private by default, 
 
 **Acceptance Criteria:**
 
-- [ ] **Evidence Import Consent** binds one exact batch, manifest hash, report relative path and hash, artifact hashes, named destination, run, and reviewed head.
-- [ ] Project-controlled manifests, JSON, repository configuration, and environment configuration cannot grant consent.
-- [ ] `--yes` and generic automatic approval cannot grant consent.
-- [ ] An active validation-step descendant cannot use the import-control interface to grant consent.
-- [ ] Missing, mismatched, replayed, or already-consumed consent fails before protected staging becomes eligible for publication.
-- [ ] Security regressions exercise project-code forgery and nested-gate attempts.
+- [x] **Evidence Import Consent** binds one exact batch, manifest hash, report relative path and hash, artifact hashes, named destination, run, and reviewed head.
+- [x] Project-controlled manifests, JSON, repository configuration, and environment configuration cannot grant consent.
+- [x] `--yes` and generic automatic approval cannot grant consent.
+- [x] An active validation-step descendant cannot use the import-control interface to grant consent.
+- [x] Missing, mismatched, replayed, or already-consumed consent fails before protected staging becomes eligible for publication.
+- [x] Security regressions exercise project-code forgery and nested-gate attempts.
 
 **Validation Test:**
 

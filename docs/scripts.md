@@ -12,7 +12,7 @@ The shared no-mistakes gate refusal for fleet lifecycle entrypoints is summarize
 | `fm-sessionstart-run.sh` | Route a native session-open hook to the full digest, a context re-emit, or the nudge |
 | `fm-operational-input.sh` | Construct and parse the canonical cross-language operational-input protocol |
 | `fm-evidence-import-contract.py` | Parse and validate one side-effect-free producer-neutral evidence import offer |
-| `fm-evidence-import-stage.py` | Stage and recover producer-neutral evidence imports outside project worktrees |
+| `fm-evidence-import-stage.py` | Admit and consume protected one-time consent while staging or recovering producer-neutral evidence imports outside project worktrees |
 | `fm-bootstrap.sh`        | Detect toolchain and fleet problems, run the locked session-start sweeps, and install approved tools |
 | `fm-startup-network.sh`  | Run session start's network checks and inactive-outcome scan off its blocking path, retaining reports and durable findings |
 | `fm-fleet-sync.sh`       | Refresh project clones with safe fast-forwards, self-heals, `STUCK:` reports, branch pruning, and bounded recovery from an orphaned `.git/packed-refs.lock` |
