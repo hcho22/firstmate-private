@@ -1,0 +1,15 @@
+Scenario: invoke the public staging CLI with a valid project-controlled offer but no trusted-host consent record or capability.
+protected_consent_before=absent
+command=NM_HOME=<isolated-state> bin/fm-evidence-import-stage.py stage --contract <offer.json> --bundle <offered-bundle> --manifest manifest.json --worktree <project-worktree>
+exit_code=0
+cli_output={"status":"finalized","import_id":"ecfbd45b457a742197902400b7f63afeb46aca72503582b155d16b501877d117","path":"/Users/hcho/.no-mistakes/worktrees/de5a338f174f/01M21C3PZXRSPVX6EFJ2627SYM/.test-consent-e2e.VXZuOB/no-mistakes-state/evidence-imports/ecfbd45b457a742197902400b7f63afeb46aca72503582b155d16b501877d117","state_root":"/Users/hcho/.no-mistakes/worktrees/de5a338f174f/01M21C3PZXRSPVX6EFJ2627SYM/.test-consent-e2e.VXZuOB/no-mistakes-state"}
+finalized_protected_staging=present
+staged_file=bundle/artifacts/baseline.png
+staged_file=bundle/artifacts/candidate.webp
+staged_file=bundle/report/evidence.md
+staged_file=contract.json
+staged_file=manifest.json
+publication_state=absent
+protected_consent_after=absent
+project_worktree_unchanged=yes
+acceptance_verdict=FAIL: protected staging finalized despite missing Evidence Import Consent
