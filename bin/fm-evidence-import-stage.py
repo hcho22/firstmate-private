@@ -105,6 +105,10 @@ def contained_by(path, directory):
         return False
 
 
+def group_or_world_writable(file_stat):
+    return bool(file_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH))
+
+
 def resolve_state_root(worktree):
     worktree_path = os.path.realpath(os.path.abspath(worktree))
     if not os.path.isdir(worktree_path):
@@ -114,18 +118,33 @@ def resolve_state_root(worktree):
     if not os.path.isabs(configured):
         refuse("unsafe-state-root", "NM_HOME must resolve from an absolute path")
     state_root = os.path.realpath(configured)
+    imports = os.path.join(state_root, "evidence-imports")
+    imports_namespace = os.path.realpath(imports)
     if contained_by(state_root, worktree_path):
         refuse("unsafe-state-root", "no-mistakes state must be outside the project worktree")
+    if contained_by(imports_namespace, worktree_path) or contained_by(
+        worktree_path, imports_namespace
+    ):
+        refuse(
+            "unsafe-state-root",
+            "evidence import state must not overlap the project worktree",
+        )
 
     try:
         os.makedirs(state_root, mode=0o700, exist_ok=True)
         root_stat = os.stat(state_root, follow_symlinks=False)
     except OSError as error:
         raise RuntimeError("could not prepare no-mistakes state") from error
-    if not stat.S_ISDIR(root_stat.st_mode) or root_stat.st_uid != os.geteuid():
-        refuse("unsafe-state-root", "no-mistakes state must be an owned directory")
+    if (
+        not stat.S_ISDIR(root_stat.st_mode)
+        or root_stat.st_uid != os.geteuid()
+        or group_or_world_writable(root_stat)
+    ):
+        refuse(
+            "unsafe-state-root",
+            "no-mistakes state must be an owned directory without group or world write access",
+        )
 
-    imports = os.path.join(state_root, "evidence-imports")
     try:
         os.mkdir(imports, 0o700)
     except FileExistsError:
@@ -136,8 +155,15 @@ def resolve_state_root(worktree):
         imports_stat = os.stat(imports, follow_symlinks=False)
     except OSError as error:
         raise RuntimeError("could not inspect evidence import state") from error
-    if not stat.S_ISDIR(imports_stat.st_mode) or imports_stat.st_uid != os.geteuid():
-        refuse("unsafe-state-root", "evidence import state must be an owned directory")
+    if (
+        not stat.S_ISDIR(imports_stat.st_mode)
+        or imports_stat.st_uid != os.geteuid()
+        or group_or_world_writable(imports_stat)
+    ):
+        refuse(
+            "unsafe-state-root",
+            "evidence import state must be an owned directory without group or world write access",
+        )
     return state_root, imports
 
 
@@ -148,9 +174,16 @@ def acquire_lock(imports):
     try:
         descriptor = os.open(os.path.join(imports, ".lock"), flags, 0o600)
         lock_stat = os.fstat(descriptor)
-        if not stat.S_ISREG(lock_stat.st_mode) or lock_stat.st_uid != os.geteuid():
+        if (
+            not stat.S_ISREG(lock_stat.st_mode)
+            or lock_stat.st_uid != os.geteuid()
+            or group_or_world_writable(lock_stat)
+        ):
             os.close(descriptor)
-            refuse("unsafe-state-root", "evidence import lock must be an owned regular file")
+            refuse(
+                "unsafe-state-root",
+                "evidence import lock must be an owned regular file without group or world write access",
+            )
         fcntl.flock(descriptor, fcntl.LOCK_EX)
         return descriptor
     except Refusal:
@@ -247,7 +280,7 @@ def open_at(directory_fd, name, flags, mode=0):
 
 def open_regular_at(bundle_fd, relative_path):
     current = os.dup(bundle_fd)
-    flags = os.O_RDONLY
+    flags = os.O_RDONLY | os.O_NONBLOCK
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
     try:
@@ -447,7 +480,10 @@ def rename_without_replace(source, destination):
 def stage(arguments):
     contract, normalized = normalized_contract(arguments.contract)
     owner = load_contract_owner()
-    manifest_path = owner.relative_path(arguments.manifest, "manifest path")
+    try:
+        manifest_path = owner.relative_path(arguments.manifest, "manifest path")
+    except owner.Refusal as error:
+        raise Refusal(error.code, error.message) from error
     declared_paths = [contract["report"]["path"]] + [
         artifact["path"] for artifact in contract["artifacts"]
     ]

@@ -59,15 +59,16 @@ write_contract() {
 }
 
 run_stage() {
-  local home=$1 contract=$2 bundle=$3 rc=0
+  local home=$1 contract=$2 bundle=$3 manifest=${4:-manifest.json} worktree=${5:-$WORKTREE} rc=0
   NM_HOME="$home" "$SUBJECT" stage --contract "$contract" --bundle "$bundle" \
-    --manifest manifest.json --worktree "$WORKTREE" > "$OUT" 2> "$ERR" || rc=$?
+    --manifest "$manifest" --worktree "$worktree" > "$OUT" 2> "$ERR" || rc=$?
   return "$rc"
 }
 
 expect_refusal() {
-  local code=$1 home=$2 contract=$3 bundle=$4 description=$5 rc=0
-  run_stage "$home" "$contract" "$bundle" || rc=$?
+  local code=$1 home=$2 contract=$3 bundle=$4 description=$5
+  local manifest=${6:-manifest.json} worktree=${7:-$WORKTREE} rc=0
+  run_stage "$home" "$contract" "$bundle" "$manifest" "$worktree" || rc=$?
   [ "$rc" -eq 2 ] || fail "$description: expected exit 2, got $rc: $(cat "$ERR")"
   [ ! -s "$OUT" ] || fail "$description: refusal wrote stdout"
   jq -e --arg code "$code" '.code == $code' "$ERR" >/dev/null \
@@ -76,6 +77,19 @@ expect_refusal() {
     [ -z "$(find "$home/evidence-imports" -maxdepth 1 -name '.incomplete-*' -print)" ] \
       || fail "$description: handled refusal retained incomplete evidence"
   fi
+}
+
+wait_exited() {
+  local pid=$1 state attempts=0
+  while [ "$attempts" -lt 500 ]; do
+    state=$(ps -o state= -p "$pid" 2>/dev/null | tr -d ' ') || true
+    case "$state" in
+      '' | Z*) return 0 ;;
+    esac
+    attempts=$((attempts + 1))
+    sleep 0.01
+  done
+  return 1
 }
 
 wait_stopped() {
@@ -176,6 +190,10 @@ test_symlink_and_traversal_refusals() {
   home="$TMP_ROOT/traversal-home"
   expect_refusal unsafe-path "$home" "$traversal" "$bundle" "report traversal"
   assert_no_final_import "$home" "report traversal"
+
+  home="$TMP_ROOT/manifest-traversal-home"
+  expect_refusal unsafe-path "$home" "$contract" "$bundle" "manifest traversal" ../escape
+  [ ! -e "$home" ] || fail "manifest traversal prepared import state before refusal"
   pass "report and artifact symlink escapes and traversal are refused without publication"
 }
 
@@ -243,6 +261,7 @@ test_path_substitution_race() {
 
 test_collision_and_state_root_boundary() {
   local bundle contract changed home final_before final_after inside_contract inside_home
+  local overlap_before overlap_after overlap_contract overlap_home overlap_worktree rc=0
   bundle=$(copy_bundle collision)
   contract="$TMP_ROOT/collision.json"
   changed="$TMP_ROOT/collision-changed.json"
@@ -260,7 +279,114 @@ test_collision_and_state_root_boundary() {
   write_contract "$bundle" github-pr:hcho22/example#17 "$inside_contract"
   expect_refusal unsafe-state-root "$inside_home" "$inside_contract" "$bundle" "state root inside worktree"
   [ ! -e "$inside_home" ] || fail "unsafe in-worktree state root was created before refusal"
-  pass "non-identical destinations and in-worktree state roots fail without overwrite"
+
+  overlap_home="$TMP_ROOT/overlap-home"
+  overlap_worktree="$overlap_home/evidence-imports"
+  overlap_contract="$TMP_ROOT/overlap-state.json"
+  mkdir -p "$overlap_worktree/.incomplete-project-owned"
+  chmod 0700 "$overlap_home" "$overlap_worktree" "$overlap_worktree/.incomplete-project-owned"
+  printf 'project-owned bytes\n' > "$overlap_worktree/.incomplete-project-owned/tracked.txt"
+  write_contract "$bundle" github-pr:hcho22/example#17 "$overlap_contract"
+  overlap_before=$(tree_snapshot "$overlap_home")
+  run_stage "$overlap_home" "$overlap_contract" "$bundle" manifest.json "$overlap_worktree" || rc=$?
+  [ "$rc" -eq 2 ] || fail "overlapping stage: expected exit 2, got $rc: $(cat "$ERR")"
+  [ ! -s "$OUT" ] || fail "overlapping stage wrote stdout"
+  jq -e '.code == "unsafe-state-root"' "$ERR" >/dev/null \
+    || fail "overlapping stage did not return a structured unsafe-state-root refusal"
+  overlap_after=$(tree_snapshot "$overlap_home")
+  [ "$overlap_before" = "$overlap_after" ] \
+    || fail "overlapping evidence import state changed the project worktree"
+
+  rc=0
+  NM_HOME="$overlap_home" "$SUBJECT" recover --worktree "$overlap_worktree" \
+    > "$OUT" 2> "$ERR" || rc=$?
+  [ "$rc" -eq 2 ] || fail "overlapping recovery: expected exit 2, got $rc: $(cat "$ERR")"
+  [ ! -s "$OUT" ] || fail "overlapping recovery wrote stdout"
+  jq -e '.code == "unsafe-state-root"' "$ERR" >/dev/null \
+    || fail "overlapping recovery did not return a structured unsafe-state-root refusal"
+  overlap_after=$(tree_snapshot "$overlap_home")
+  [ "$overlap_before" = "$overlap_after" ] \
+    || fail "overlapping recovery removed project-owned incomplete state"
+  pass "destination collisions and either-direction state overlap refuse before mutation"
+}
+
+
+test_unsafe_state_permissions() {
+  local bundle contract home lock mode target
+  bundle=$(copy_bundle unsafe-permissions)
+  contract="$TMP_ROOT/unsafe-permissions.json"
+  write_contract "$bundle" github-pr:hcho22/example#17 "$contract"
+
+  for mode in 0730 0703; do
+    home="$TMP_ROOT/unsafe-root-$mode"
+    mkdir -p "$home"
+    chmod "$mode" "$home"
+    expect_refusal unsafe-state-root "$home" "$contract" "$bundle" "writable state root mode $mode"
+    [ ! -e "$home/evidence-imports" ] \
+      || fail "writable state root mode $mode created evidence import state"
+  done
+
+  for mode in 0730 0703; do
+    home="$TMP_ROOT/unsafe-imports-$mode"
+    target="$home/evidence-imports"
+    mkdir -p "$target"
+    chmod 0700 "$home"
+    chmod "$mode" "$target"
+    expect_refusal unsafe-state-root "$home" "$contract" "$bundle" \
+      "writable evidence import directory mode $mode"
+    [ ! -e "$target/.lock" ] \
+      || fail "writable evidence import directory mode $mode created the lock"
+  done
+
+  for mode in 0620 0602; do
+    home="$TMP_ROOT/unsafe-lock-$mode"
+    lock="$home/evidence-imports/.lock"
+    mkdir -p "$home/evidence-imports"
+    chmod 0700 "$home" "$home/evidence-imports"
+    : > "$lock"
+    chmod "$mode" "$lock"
+    expect_refusal unsafe-state-root "$home" "$contract" "$bundle" \
+      "writable evidence import lock mode $mode"
+    assert_no_final_import "$home" "writable evidence import lock mode $mode"
+  done
+  pass "group- and world-writable import state and locks are refused"
+}
+
+
+test_fifo_substitution_refusals() {
+  local bundle contract description fifo home pid rc recovery
+  for description in report artifact; do
+    bundle=$(copy_bundle "$description-fifo")
+    contract="$TMP_ROOT/$description-fifo.json"
+    home="$TMP_ROOT/$description-fifo-home"
+    if [ "$description" = report ]; then
+      fifo="$bundle/report/evidence.md"
+    else
+      fifo="$bundle/artifacts/baseline.png"
+    fi
+    rm "$fifo"
+    mkfifo "$fifo"
+    write_contract "$FIXTURE" github-pr:hcho22/example#17 "$contract"
+    rc=0
+    NM_HOME="$home" "$SUBJECT" stage --contract "$contract" --bundle "$bundle" \
+      --manifest manifest.json --worktree "$WORKTREE" > "$OUT" 2> "$ERR" &
+    pid=$!
+    if ! wait_exited "$pid"; then
+      kill -KILL "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+      fail "$description FIFO substitution blocked while holding the import lock"
+    fi
+    wait "$pid" || rc=$?
+    [ "$rc" -eq 2 ] || fail "$description FIFO: expected exit 2, got $rc: $(cat "$ERR")"
+    jq -e '.code == "unsafe-source"' "$ERR" >/dev/null \
+      || fail "$description FIFO did not return a structured unsafe-source refusal"
+    assert_no_final_import "$home" "$description FIFO substitution"
+    recovery=$(NM_HOME="$home" "$SUBJECT" recover --worktree "$WORKTREE") \
+      || fail "$description FIFO left recovery blocked"
+    printf '%s\n' "$recovery" | jq -e '.status == "recovered" and .removed == 0' >/dev/null \
+      || fail "$description FIFO recovery returned an unexpected result"
+  done
+  pass "report and artifact FIFO substitutions fail promptly without retaining the lock"
 }
 
 
@@ -312,6 +438,8 @@ test_symlink_and_traversal_refusals
 test_mutation_races
 test_path_substitution_race
 test_collision_and_state_root_boundary
+test_unsafe_state_permissions
+test_fifo_substitution_refusals
 test_bounded_failure_state
 test_interruption_and_recovery
 after_worktree=$(tree_snapshot "$WORKTREE")
