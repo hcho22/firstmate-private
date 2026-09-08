@@ -78,12 +78,12 @@ Version 1 is macOS-only, browser-first, screenshot-focused, private by default, 
 
 **Acceptance Criteria:**
 
-- [ ] Import staging is outside the project worktree and inside no-mistakes-owned local state.
-- [ ] The importer accepts only regular files contained by the offered bundle and refuses symlinks, traversal, and path substitution.
-- [ ] The importer copies into a unique incomplete location, verifies the manifest, report, and artifact hashes from the staged copy, and finalizes atomically.
-- [ ] An existing non-identical import destination is never overwritten or merged.
-- [ ] A failed import publishes nothing and retains only bounded diagnostic state required for recovery.
-- [ ] Focused filesystem, race, and interrupted-import tests pass.
+- [x] Import staging is outside the project worktree and inside no-mistakes-owned local state.
+- [x] The importer accepts only regular files contained by the offered bundle and refuses symlinks, traversal, and path substitution.
+- [x] The importer copies into a unique incomplete location, verifies the manifest, report, and artifact hashes from the staged copy, and finalizes atomically.
+- [x] An existing non-identical import destination is never overwritten or merged.
+- [x] A failed import publishes nothing and retains only bounded diagnostic state required for recovery.
+- [x] Focused filesystem, race, and interrupted-import tests pass.
 
 **Validation Test:**
 
