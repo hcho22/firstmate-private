@@ -2,10 +2,8 @@
 """Stage one producer-neutral evidence bundle in no-mistakes local state.
 
 Usage:
-  fm-evidence-import-stage.py admit
   fm-evidence-import-stage.py stage --contract OFFER.json --bundle DIR \\
-      --manifest RELATIVE_PATH --batch BATCH --consent-id SHA256 \\
-      --worktree DIR
+      --manifest RELATIVE_PATH --worktree DIR
   fm-evidence-import-stage.py recover --worktree DIR
 
 The contract schema and normalization are owned by
@@ -21,32 +19,13 @@ the protected directory boundary are refused.  The state root must be outside
 the named worktree, and ``evidence-imports`` must not overlap it in either
 direction.  Atomic no-replace finalization requires supported macOS or Linux.
 
-``admit`` is the only Evidence Import Consent intake.  It accepts no paths or
-approval data from its caller.  A trusted host controller must launch it with
-one private ``AF_UNIX`` stream capability on inherited descriptor 3;
-the kernel-authenticated peer must be the direct parent running as the same
-user.  The capability supplies the state root, worktree, and one control-record
-basename.  Without that exact host channel, including from a validation-step
-descendant, admission is refused.  ``NM_HOME``, stdin, repository or environment
-approval settings, ``--yes``, and generic automatic approval never select or
-replace the channel.  The named protected control record is one JSON object
-with ``schema_version`` ``1.0``, ``decision`` ``evidence-import-consent``, an
-opaque ``batch``, and ``contract`` containing the exact contract owned by
-``fm-evidence-import-contract.py``.  Accepted consent is canonically stored
-below protected evidence-import state and identified by its SHA-256 digest.
-
 Every source component is opened relative to the already-open bundle directory
 with symlink following disabled.  The command copies into one unique
 ``.incomplete-*`` directory, proves each source path remained bound to the same
 regular file, verifies every hash from the staged bytes, and publishes the
-complete directory with one rename.  ``stage`` first requires the exact pending
-consent id and batch, revalidates every consent binding, and atomically consumes
-that one consent under the staging lock immediately before finalized staging
-can become visible.  Ordinary replay of consumed consent is refused.  Any
-import resolving to an already-finalized run-and-manifest identity is
-refused without replacing or merging the existing directory.  Consent
-authorizes protected staging only; this command never creates publication
-approval or mutates a pull request.
+complete directory with one rename.  A repeated byte-identical import is
+idempotent.  Any other import resolving to the same run-and-manifest identity
+is refused without replacing or merging the existing directory.
 
 ``recover`` removes abandoned incomplete directories while holding the same
 per-state-root lock used by ``stage``.  Incomplete names are never import
@@ -64,11 +43,8 @@ import importlib.util
 import json
 import os
 from pathlib import Path
-import re
 import signal
-import socket
 import stat
-import struct
 import sys
 import tempfile
 
@@ -76,12 +52,6 @@ import tempfile
 SCRIPT_DIR = Path(__file__).resolve().parent
 CONTRACT_SCRIPT = SCRIPT_DIR / "fm-evidence-import-contract.py"
 INCOMPLETE_PREFIX = ".incomplete-"
-CONSENT_STATE_DIRECTORY = ".consents"
-CONSENT_PENDING_DIRECTORY = "pending"
-CONSENT_CONSUMED_DIRECTORY = "consumed"
-CONTROL_DIRECTORY = "evidence-import-control"
-HOST_CAPABILITY_FD = 3
-HOST_CAPABILITY_SCHEMA = "1.0"
 MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_IMPORT_BYTES = 512 * 1024 * 1024
 ACL_TYPE_EXTENDED = 0x00000100
@@ -93,8 +63,6 @@ LIBC.openat.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_in
 LIBC.openat.restype = ctypes.c_int
 LIBC.mkdirat.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
 LIBC.mkdirat.restype = ctypes.c_int
-LIBC.unlinkat.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int)
-LIBC.unlinkat.restype = ctypes.c_int
 LIBC.readlinkat.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_void_p, ctypes.c_size_t)
 LIBC.readlinkat.restype = ctypes.c_ssize_t
 if sys.platform == "darwin":
@@ -156,194 +124,6 @@ def normalized_contract(path):
     except (UnicodeDecodeError, ValueError, RecursionError, MemoryError, OverflowError) as error:
         raise Refusal("invalid-json", "input is not valid JSON") from error
     return contract, (owner.json_value(contract) + "\n").encode("utf-8")
-
-
-def decode_one_json(raw, owner):
-    if len(raw) > owner.MAX_JSON_BYTES:
-        refuse("control-record-too-large", "consent control record exceeds 1048576 bytes")
-    try:
-        text = raw.decode("utf-8")
-        decoder = json.JSONDecoder(
-            object_pairs_hook=owner.object_without_duplicates,
-            parse_int=owner.JsonIntegerToken,
-            parse_constant=owner.reject_constant,
-        )
-        whitespace = re.compile(r"[ \t\r\n]*")
-        start = whitespace.match(text, 0).end()
-        value, end = decoder.raw_decode(text, start)
-        end = whitespace.match(text, end).end()
-        if end != len(text):
-            refuse("invalid-control-record", "consent control record must contain one JSON value")
-        owner.reject_lone_surrogates(value)
-        return value
-    except owner.DuplicateKeyError as error:
-        raise Refusal(
-            "duplicate-control-key", "consent control record contains a duplicate object key"
-        ) from error
-    except Refusal:
-        raise
-    except (UnicodeDecodeError, ValueError, RecursionError, MemoryError, OverflowError) as error:
-        raise Refusal(
-            "invalid-control-record", "consent control record is not valid JSON"
-        ) from error
-
-
-def normalized_consent(raw):
-    owner = load_contract_owner()
-    try:
-        value = decode_one_json(raw, owner)
-    except Refusal as error:
-        raise Refusal(
-            "host-capability-invalid",
-            "the host capability request is not valid JSON",
-        ) from error
-    if not isinstance(value, dict):
-        refuse("invalid-control-record", "consent control record must be a JSON object")
-    expected = {"schema_version", "decision", "batch", "contract"}
-    if set(value) != expected:
-        refuse(
-            "invalid-control-record",
-            "consent control record must contain exactly schema_version, decision, batch, and contract",
-        )
-    if value["schema_version"] != "1.0":
-        refuse("unsupported-consent-schema", "consent control schema_version must be 1.0")
-    if value["decision"] != "evidence-import-consent":
-        refuse(
-            "invalid-control-record",
-            "consent control decision must be evidence-import-consent",
-        )
-    try:
-        batch = owner.opaque(value["batch"], "batch")
-        contract = owner.validate_contract(value["contract"])
-    except owner.Refusal as error:
-        raise Refusal(error.code, error.message) from error
-    consent = {
-        "schema_version": "1.0",
-        "decision": "evidence-import-consent",
-        "batch": batch,
-        "contract": contract,
-    }
-    encoded = (owner.json_value(consent) + "\n").encode("utf-8")
-    return consent, encoded, hashlib.sha256(encoded).hexdigest()
-
-
-def expected_consent(batch, contract):
-    owner = load_contract_owner()
-    try:
-        normalized_batch = owner.opaque(batch, "batch")
-    except owner.Refusal as error:
-        raise Refusal(error.code, error.message) from error
-    consent = {
-        "schema_version": "1.0",
-        "decision": "evidence-import-consent",
-        "batch": normalized_batch,
-        "contract": contract,
-    }
-    encoded = (owner.json_value(consent) + "\n").encode("utf-8")
-    return consent, encoded
-
-
-def host_peer_identity(channel):
-    try:
-        if sys.platform == "darwin":
-            peer_pid = struct.unpack("i", channel.getsockopt(0, 0x002, 4))[0]
-            credentials = channel.getsockopt(0, 0x001, 12)
-            _version, peer_uid = struct.unpack("II", credentials[:8])
-            return peer_pid, peer_uid
-        if sys.platform.startswith("linux") and hasattr(socket, "SO_PEERCRED"):
-            credentials = channel.getsockopt(
-                socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")
-            )
-            peer_pid, peer_uid, _peer_gid = struct.unpack("3i", credentials)
-            return peer_pid, peer_uid
-    except (OSError, struct.error) as error:
-        raise Refusal(
-            "host-capability-invalid",
-            "the Evidence Import Consent host capability could not be authenticated",
-        ) from error
-    refuse(
-        "host-capability-unavailable",
-        "this platform cannot authenticate the Evidence Import Consent host capability",
-    )
-
-
-def host_authority():
-    try:
-        descriptor = os.dup(HOST_CAPABILITY_FD)
-    except OSError as error:
-        raise Refusal(
-            "host-capability-required",
-            "Evidence Import Consent requires a trusted host-controller capability",
-        ) from error
-    try:
-        channel = socket.socket(fileno=descriptor)
-    except OSError as error:
-        os.close(descriptor)
-        raise Refusal(
-            "host-capability-required",
-            "Evidence Import Consent requires a trusted host-controller capability",
-        ) from error
-    try:
-        try:
-            family = channel.family
-            socket_type = channel.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE)
-        except OSError as error:
-            raise Refusal(
-                "host-capability-invalid",
-                "the Evidence Import Consent host capability is invalid",
-            ) from error
-        if family != socket.AF_UNIX or socket_type != socket.SOCK_STREAM:
-            refuse(
-                "host-capability-invalid",
-                "the Evidence Import Consent host capability has the wrong transport",
-            )
-        peer_pid, peer_uid = host_peer_identity(channel)
-        if peer_pid != os.getppid() or peer_uid != os.geteuid():
-            refuse(
-                "host-capability-invalid",
-                "the Evidence Import Consent host capability is not owned by the launching controller",
-            )
-        chunks = []
-        size = 0
-        while True:
-            chunk = channel.recv(min(65536, 1048577 - size))
-            if not chunk:
-                break
-            chunks.append(chunk)
-            size += len(chunk)
-            if size > 1048576:
-                refuse(
-                    "host-capability-invalid",
-                    "the host capability request exceeds 1048576 bytes",
-                )
-        raw = b"".join(chunks)
-    finally:
-        channel.close()
-
-    owner = load_contract_owner()
-    value = decode_one_json(raw, owner)
-    expected = {"schema_version", "operation", "state_root", "worktree", "control_record"}
-    if not isinstance(value, dict) or set(value) != expected:
-        refuse(
-            "host-capability-invalid",
-            "the host capability request has an invalid shape",
-        )
-    if value["schema_version"] != HOST_CAPABILITY_SCHEMA or value["operation"] != "admit":
-        refuse(
-            "host-capability-invalid",
-            "the host capability request has an unsupported operation",
-        )
-    if not isinstance(value["state_root"], str) or not os.path.isabs(value["state_root"]):
-        refuse(
-            "host-capability-invalid",
-            "the host capability must supply an absolute no-mistakes state root",
-        )
-    if not isinstance(value["worktree"], str) or not value["worktree"]:
-        refuse(
-            "host-capability-invalid",
-            "the host capability must supply the reviewed worktree",
-        )
-    return value
 
 
 def contained_by(path, directory):
@@ -549,11 +329,10 @@ def open_state_root(path, worktree_fd):
         raise RuntimeError("could not prepare no-mistakes state") from error
 
 
-def resolve_state_root(worktree, configured=None):
+def resolve_state_root(worktree):
     worktree_path, worktree_fd = open_worktree(worktree)
 
-    if configured is None:
-        configured = os.environ.get("NM_HOME", os.path.expanduser("~/.no-mistakes"))
+    configured = os.environ.get("NM_HOME", os.path.expanduser("~/.no-mistakes"))
     if not os.path.isabs(configured):
         os.close(worktree_fd)
         refuse("unsafe-state-root", "NM_HOME must resolve from an absolute path")
@@ -624,9 +403,7 @@ def resolve_state_root(worktree, configured=None):
                 "unsafe-state-root",
                 "evidence import state must not overlap the project worktree",
             )
-        result_root_fd = state_root_fd
-        state_root_fd = None
-        return state_root, imports, result_root_fd, imports_fd
+        return state_root, imports, imports_fd
     except Refusal:
         if imports_fd is not None:
             os.close(imports_fd)
@@ -664,234 +441,6 @@ def acquire_lock(imports_fd):
         raise
     except OSError as error:
         raise RuntimeError("could not lock evidence import state") from error
-
-
-def open_owned_directory_at(parent_fd, name, label, create):
-    try:
-        descriptor = open_at(parent_fd, name, directory_flags())
-    except FileNotFoundError:
-        if not create:
-            refuse("control-state-missing", "protected evidence import control state is unavailable")
-        try:
-            mkdir_at(parent_fd, name, 0o700)
-        except FileExistsError:
-            pass
-        except OSError as error:
-            raise Refusal(
-                "unsafe-control-state", "{} could not be prepared safely".format(label)
-            ) from error
-        try:
-            descriptor = open_at(parent_fd, name, directory_flags())
-        except OSError as error:
-            raise Refusal(
-                "unsafe-control-state", "{} could not be opened safely".format(label)
-            ) from error
-    except OSError as error:
-        raise Refusal("unsafe-control-state", "{} could not be opened safely".format(label)) from error
-    try:
-        refuse_grant_acl(descriptor)
-        entry_stat = os.fstat(descriptor)
-        if (
-            not stat.S_ISDIR(entry_stat.st_mode)
-            or entry_stat.st_uid != os.geteuid()
-            or group_or_world_writable(entry_stat)
-        ):
-            refuse(
-                "unsafe-control-state",
-                "{} must be an owned directory without group or world write access".format(label),
-            )
-        return descriptor
-    except Exception:
-        os.close(descriptor)
-        raise
-
-
-def consent_state(imports_fd):
-    root_fd = open_owned_directory_at(
-        imports_fd, CONSENT_STATE_DIRECTORY, "evidence import consent state", True
-    )
-    pending_fd = None
-    consumed_fd = None
-    try:
-        pending_fd = open_owned_directory_at(
-            root_fd, CONSENT_PENDING_DIRECTORY, "pending consent state", True
-        )
-        consumed_fd = open_owned_directory_at(
-            root_fd, CONSENT_CONSUMED_DIRECTORY, "consumed consent state", True
-        )
-        return root_fd, pending_fd, consumed_fd
-    except Exception:
-        if pending_fd is not None:
-            os.close(pending_fd)
-        if consumed_fd is not None:
-            os.close(consumed_fd)
-        os.close(root_fd)
-        raise
-
-
-def control_record_name(value):
-    if not isinstance(value, str) or not value:
-        refuse("invalid-control-record-name", "control record name is required")
-    if len(value) > 128 or value[0] == "." or any(
-        character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
-        for character in value
-    ):
-        refuse(
-            "invalid-control-record-name",
-            "control record must be one non-hidden basename of at most 128 safe characters",
-        )
-    return value
-
-
-def validate_consent_id(value):
-    if value is None:
-        refuse("consent-missing", "one exact pending consent id is required before staging")
-    if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
-        refuse("invalid-consent-id", "consent id must be a lowercase SHA-256 digest")
-    return value
-
-
-def read_regular_record_at(directory_fd, name, label, missing_ok=False):
-    flags = os.O_RDONLY | os.O_NONBLOCK
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
-    try:
-        descriptor = open_at(directory_fd, name, flags)
-    except FileNotFoundError:
-        if missing_ok:
-            return None
-        refuse("control-record-missing", "protected consent control record is unavailable")
-    except OSError as error:
-        raise Refusal("unsafe-control-state", "{} could not be opened safely".format(label)) from error
-    try:
-        before_stat = os.fstat(descriptor)
-        if (
-            not stat.S_ISREG(before_stat.st_mode)
-            or before_stat.st_uid != os.geteuid()
-            or group_or_world_writable(before_stat)
-            or before_stat.st_nlink != 1
-        ):
-            refuse(
-                "unsafe-control-state",
-                "{} must be one owned regular file without shared write access or hard links".format(label),
-            )
-        chunks = []
-        size = 0
-        while True:
-            chunk = os.read(descriptor, min(65536, 1048577 - size))
-            if not chunk:
-                break
-            chunks.append(chunk)
-            size += len(chunk)
-            if size > 1048576:
-                refuse("control-record-too-large", "{} exceeds 1048576 bytes".format(label))
-        after_stat = os.fstat(descriptor)
-    finally:
-        os.close(descriptor)
-
-    rebound_fd = None
-    try:
-        rebound_fd = open_at(directory_fd, name, flags)
-        rebound_stat = os.fstat(rebound_fd)
-        if (
-            source_fingerprint(before_stat) != source_fingerprint(after_stat)
-            or source_fingerprint(before_stat) != source_fingerprint(rebound_stat)
-        ):
-            refuse("control-state-changed", "{} changed while it was read".format(label))
-    except FileNotFoundError as error:
-        raise Refusal("control-state-changed", "{} changed while it was read".format(label)) from error
-    except OSError as error:
-        raise Refusal("control-state-changed", "{} changed while it was read".format(label)) from error
-    finally:
-        if rebound_fd is not None:
-            os.close(rebound_fd)
-    return b"".join(chunks), source_fingerprint(before_stat)
-
-
-def write_all(descriptor, content):
-    view = memoryview(content)
-    while view:
-        written = os.write(descriptor, view)
-        view = view[written:]
-
-
-def write_atomic_record(directory_fd, name, content):
-    temporary = ".incomplete-consent-" + os.urandom(16).hex()
-    descriptor = None
-    try:
-        descriptor = open_at(
-            directory_fd,
-            temporary,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
-            0o600,
-        )
-        write_all(descriptor, content)
-        os.fchmod(descriptor, 0o400)
-        os.fsync(descriptor)
-        os.close(descriptor)
-        descriptor = None
-        rename_without_replace(directory_fd, temporary, directory_fd, name)
-        os.fsync(directory_fd)
-    finally:
-        if descriptor is not None:
-            os.close(descriptor)
-        try:
-            unlink_at(directory_fd, temporary)
-        except FileNotFoundError:
-            pass
-
-
-def read_stored_consent(directory_fd, consent_id, state, missing_ok=False):
-    name = consent_id + ".json"
-    record = read_regular_record_at(
-        directory_fd, name, "{} consent record".format(state), missing_ok
-    )
-    if record is None:
-        return None
-    raw, _fingerprint = record
-    try:
-        consent, encoded, actual_id = normalized_consent(raw)
-    except Refusal as error:
-        raise Refusal(
-            "consent-state-invalid",
-            "{} consent record is invalid: {}".format(state, error.code),
-        ) from error
-    if encoded != raw or actual_id != consent_id:
-        refuse(
-            "consent-state-invalid",
-            "{} consent record does not match its protected identity".format(state),
-        )
-    return consent, encoded
-
-
-def pending_consent(pending_fd, consumed_fd, consent_id, expected):
-    if read_stored_consent(consumed_fd, consent_id, "consumed", True) is not None:
-        refuse("consent-already-consumed", "Evidence Import Consent was already consumed")
-    stored = read_stored_consent(pending_fd, consent_id, "pending", True)
-    if stored is None:
-        refuse("consent-missing", "matching pending Evidence Import Consent was not found")
-    consent, encoded = stored
-    if consent != expected:
-        refuse("consent-mismatch", "pending Evidence Import Consent does not match the offered batch")
-    return encoded
-
-
-def consume_consent(pending_fd, consumed_fd, consent_id):
-    try:
-        rename_without_replace(
-            pending_fd,
-            consent_id + ".json",
-            consumed_fd,
-            consent_id + ".json",
-        )
-    except FileExistsError:
-        refuse("consent-already-consumed", "Evidence Import Consent was already consumed")
-    except OSError as error:
-        raise Refusal(
-            "consent-state-changed", "pending Evidence Import Consent changed before consumption"
-        ) from error
-    os.fsync(pending_fd)
-    os.fsync(consumed_fd)
 
 
 def remove_incomplete(imports):
@@ -982,13 +531,6 @@ def open_at(directory_fd, name, flags, mode=0):
 
 def mkdir_at(directory_fd, name, mode):
     result = LIBC.mkdirat(directory_fd, os.fsencode(name), mode)
-    if result < 0:
-        error_number = ctypes.get_errno()
-        raise OSError(error_number, os.strerror(error_number), name)
-
-
-def unlink_at(directory_fd, name):
-    result = LIBC.unlinkat(directory_fd, os.fsencode(name), 0)
     if result < 0:
         error_number = ctypes.get_errno()
         raise OSError(error_number, os.strerror(error_number), name)
@@ -1141,6 +683,29 @@ def verify_staged(temp_path, entries):
             refuse("hash-mismatch", "staged file hash does not match contract: {}".format(destination))
 
 
+def tree_identity(path):
+    identity = []
+    for directory, directories, files in os.walk(path, topdown=True, followlinks=False):
+        directories.sort()
+        files.sort()
+        relative_directory = os.path.relpath(directory, path)
+        for name in list(directories):
+            member = os.path.join(directory, name)
+            member_stat = os.lstat(member)
+            if not stat.S_ISDIR(member_stat.st_mode):
+                refuse("destination-collision", "final import contains an unsafe path")
+            relative = os.path.normpath(os.path.join(relative_directory, name))
+            identity.append(("directory", relative))
+        for name in files:
+            member = os.path.join(directory, name)
+            member_stat = os.lstat(member)
+            if not stat.S_ISREG(member_stat.st_mode):
+                refuse("destination-collision", "final import contains an unsafe path")
+            relative = os.path.normpath(os.path.join(relative_directory, name))
+            identity.append(("file", relative, member_stat.st_size, sha256_file(member)))
+    return identity
+
+
 def protect_tree(path):
     directories = []
     for directory, child_directories, files in os.walk(path, topdown=True):
@@ -1157,7 +722,7 @@ def import_identity(contract):
     return hashlib.sha256(material).hexdigest()
 
 
-def rename_without_replace(source_directory_fd, source, destination_directory_fd, destination):
+def rename_without_replace(directory_fd, source, destination):
     if sys.platform == "darwin" and hasattr(LIBC, "renameatx_np"):
         function = LIBC.renameatx_np
         function.argtypes = (
@@ -1169,9 +734,9 @@ def rename_without_replace(source_directory_fd, source, destination_directory_fd
         )
         function.restype = ctypes.c_int
         result = function(
-            source_directory_fd,
+            directory_fd,
             os.fsencode(source),
-            destination_directory_fd,
+            directory_fd,
             os.fsencode(destination),
             0x00000004,
         )
@@ -1186,9 +751,9 @@ def rename_without_replace(source_directory_fd, source, destination_directory_fd
         )
         function.restype = ctypes.c_int
         result = function(
-            source_directory_fd,
+            directory_fd,
             os.fsencode(source),
-            destination_directory_fd,
+            directory_fd,
             os.fsencode(destination),
             1,
         )
@@ -1202,85 +767,8 @@ def rename_without_replace(source_directory_fd, source, destination_directory_fd
     raise OSError(error_number, os.strerror(error_number), destination)
 
 
-def admit(arguments):
-    authority = host_authority()
-    record_name = control_record_name(authority["control_record"])
-    state_root, _imports, state_root_fd, imports_fd = resolve_state_root(
-        authority["worktree"], authority["state_root"]
-    )
-    control_fd = None
-    lock_fd = None
-    consent_root_fd = None
-    pending_fd = None
-    consumed_fd = None
-    try:
-        control_fd = open_owned_directory_at(
-            state_root_fd,
-            CONTROL_DIRECTORY,
-            "evidence import control directory",
-            False,
-        )
-        lock_fd = acquire_lock(imports_fd)
-        raw, fingerprint = read_regular_record_at(
-            control_fd, record_name, "consent control record"
-        )
-        consent, encoded, consent_id = normalized_consent(raw)
-        rebound, rebound_fingerprint = read_regular_record_at(
-            control_fd, record_name, "consent control record"
-        )
-        if rebound != raw or rebound_fingerprint != fingerprint:
-            refuse("control-state-changed", "consent control record changed during admission")
-        consent_root_fd, pending_fd, consumed_fd = consent_state(imports_fd)
-        if read_stored_consent(consumed_fd, consent_id, "consumed", True) is not None:
-            refuse("consent-replayed", "Evidence Import Consent control record was already consumed")
-        stored = read_stored_consent(pending_fd, consent_id, "pending", True)
-        if stored is None:
-            try:
-                write_atomic_record(pending_fd, consent_id + ".json", encoded)
-            except FileExistsError as error:
-                raise Refusal(
-                    "consent-replayed", "Evidence Import Consent control record was already admitted"
-                ) from error
-            status = "admitted"
-        else:
-            _stored_consent, stored_bytes = stored
-            if stored_bytes != encoded:
-                refuse(
-                    "consent-state-invalid",
-                    "pending consent identity collides with different protected bytes",
-                )
-            refuse("consent-replayed", "Evidence Import Consent control record was already admitted")
-
-        unlink_at(control_fd, record_name)
-        os.fsync(control_fd)
-        emit_json(
-            sys.stdout,
-            {
-                "status": status,
-                "consent_id": consent_id,
-                "batch": consent["batch"],
-                "state_root": state_root,
-            },
-        )
-        return 0
-    finally:
-        if consumed_fd is not None:
-            os.close(consumed_fd)
-        if pending_fd is not None:
-            os.close(pending_fd)
-        if consent_root_fd is not None:
-            os.close(consent_root_fd)
-        if lock_fd is not None:
-            os.close(lock_fd)
-        if control_fd is not None:
-            os.close(control_fd)
-        os.close(imports_fd)
-        os.close(state_root_fd)
-
-
 def stage(arguments):
     contract, normalized = normalized_contract(arguments.contract)
-    expected_authority, consent_bytes = expected_consent(arguments.batch, contract)
     owner = load_contract_owner()
     try:
         manifest_path = owner.relative_path(arguments.manifest, "manifest path")
@@ -1291,30 +779,18 @@ def stage(arguments):
     ]
     if owner.paths_overlap([manifest_path] + declared_paths):
         refuse("duplicate-path", "manifest, report, and artifact paths must not overlap")
-    consent_id = validate_consent_id(arguments.consent_id)
 
-    state_root, imports, state_root_fd, imports_fd = resolve_state_root(arguments.worktree)
+    bundle_fd = open_bundle(arguments.bundle)
+    state_root, imports, imports_fd = resolve_state_root(arguments.worktree)
     test_stop("after-state-open")
     lock_fd = acquire_lock(imports_fd)
-    consent_root_fd = None
-    pending_fd = None
-    consumed_fd = None
-    bundle_fd = None
     cwd_fd = os.open(".", directory_flags())
     temp_path = None
     try:
-        consent_root_fd, pending_fd, consumed_fd = consent_state(imports_fd)
-        pending_bytes = pending_consent(
-            pending_fd, consumed_fd, consent_id, expected_authority
-        )
-        if pending_bytes != consent_bytes:
-            refuse("consent-mismatch", "pending Evidence Import Consent bindings changed")
-        bundle_fd = open_bundle(arguments.bundle)
         os.fchdir(imports_fd)
         remove_incomplete(".")
         temp_path = tempfile.mkdtemp(prefix=INCOMPLETE_PREFIX, dir=".")
         write_bytes(os.path.join(temp_path, "contract.json"), normalized)
-        write_bytes(os.path.join(temp_path, "consent.json"), consent_bytes)
         entries = staged_files(contract, manifest_path)
         total_bytes = 0
         for source, destination, expected in entries:
@@ -1335,32 +811,39 @@ def stage(arguments):
         identity = import_identity(contract)
         final_path = os.path.join(imports, identity)
         if os.path.lexists(identity):
-            refuse(
-                "destination-collision",
-                "a finalized import already exists for this run and manifest",
-            )
-        consume_consent(pending_fd, consumed_fd, consent_id)
-        test_stop("after-consume-before-finalize")
-        try:
-            rename_without_replace(imports_fd, temp_path, imports_fd, identity)
+            try:
+                final_stat = os.lstat(identity)
+                identical = stat.S_ISDIR(final_stat.st_mode) and tree_identity(
+                    identity
+                ) == tree_identity(temp_path)
+            except (OSError, Refusal):
+                identical = False
+            if not identical:
+                refuse(
+                    "destination-collision",
+                    "a non-identical finalized import already exists for this run and manifest",
+                )
+            remove_tree(temp_path)
             temp_path = None
-        except FileExistsError:
-            refuse(
-                "destination-collision",
-                "a finalized import appeared before atomic finalization",
-            )
+            status = "already-finalized"
+        else:
+            try:
+                rename_without_replace(imports_fd, temp_path, identity)
+                temp_path = None
+                status = "finalized"
+            except FileExistsError:
+                refuse(
+                    "destination-collision",
+                    "a finalized import appeared before atomic finalization",
+                )
         try:
             emit_json(
                 sys.stdout,
                 {
-                    "status": "finalized",
+                    "status": status,
                     "import_id": identity,
                     "path": final_path,
                     "state_root": state_root,
-                    "batch": expected_authority["batch"],
-                    "consent_id": consent_id,
-                    "consent_status": "consumed",
-                    "publication_authorized": False,
                 },
             )
         except OSError:
@@ -1375,20 +858,12 @@ def stage(arguments):
         os.fchdir(cwd_fd)
         os.close(cwd_fd)
         os.close(lock_fd)
-        if consumed_fd is not None:
-            os.close(consumed_fd)
-        if pending_fd is not None:
-            os.close(pending_fd)
-        if consent_root_fd is not None:
-            os.close(consent_root_fd)
         os.close(imports_fd)
-        os.close(state_root_fd)
-        if bundle_fd is not None:
-            os.close(bundle_fd)
+        os.close(bundle_fd)
 
 
 def recover(arguments):
-    state_root, _imports, state_root_fd, imports_fd = resolve_state_root(arguments.worktree)
+    state_root, _imports, imports_fd = resolve_state_root(arguments.worktree)
     test_stop("after-state-open")
     lock_fd = acquire_lock(imports_fd)
     cwd_fd = os.open(".", directory_flags())
@@ -1402,28 +877,15 @@ def recover(arguments):
         os.close(cwd_fd)
         os.close(lock_fd)
         os.close(imports_fd)
-        os.close(state_root_fd)
-
-
-class StructuredArgumentParser(argparse.ArgumentParser):
-    def error(self, message):
-        raise Refusal("invalid-arguments", message)
 
 
 def parse_arguments(arguments):
-    parser = StructuredArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
-    admit_parser = commands.add_parser(
-        "admit", help="admit consent from an inherited trusted-host capability"
-    )
     stage_parser = commands.add_parser("stage", help="stage and atomically finalize one bundle")
     stage_parser.add_argument("--contract", required=True)
     stage_parser.add_argument("--bundle", required=True)
     stage_parser.add_argument("--manifest", required=True)
-    stage_parser.add_argument("--batch", required=True)
-    stage_parser.add_argument("--consent-id")
     stage_parser.add_argument("--worktree", required=True)
     recover_parser = commands.add_parser("recover", help="remove abandoned incomplete imports")
     recover_parser.add_argument("--worktree", required=True)
@@ -1433,8 +895,6 @@ def parse_arguments(arguments):
 def main(arguments):
     try:
         parsed = parse_arguments(arguments)
-        if parsed.command == "admit":
-            return admit(parsed)
         if parsed.command == "stage":
             return stage(parsed)
         return recover(parsed)
