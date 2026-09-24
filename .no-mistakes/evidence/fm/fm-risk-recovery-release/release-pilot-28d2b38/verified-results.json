@@ -1,0 +1,304 @@
+{
+  "candidate_commit": "28d2b382c929c75ef1acc4aa7dc2dee2e6db0f40",
+  "workload": {
+    "candidate": "c7a57f366720ae59ebadfb7b1c9ef21d62648b4e8857a9569b4ad59b659a03ff",
+    "source": "c7a57f366720ae59ebadfb7b1c9ef21d62648b4e8857a9569b4ad59b659a03ff",
+    "configuration": "gated-v1",
+    "environment": "loopback",
+    "dependencies": "python-stdlib"
+  },
+  "actions": [
+    {
+      "id": "deploy-1",
+      "operation": "deploy",
+      "target": "disabled",
+      "effect_at": 1790228408.3418298
+    },
+    {
+      "id": "expose-1",
+      "operation": "expose",
+      "target": "internal",
+      "effect_at": 1790228408.952265
+    },
+    {
+      "id": "expand-1",
+      "operation": "advance",
+      "target": "all-local",
+      "effect_at": 1790228415.634491
+    },
+    {
+      "id": "contain-1",
+      "operation": "contain",
+      "target": "none",
+      "effect_at": 1790228418.115746
+    },
+    {
+      "id": "success-internal",
+      "operation": "expose",
+      "target": "internal",
+      "effect_at": 1790228421.568929
+    },
+    {
+      "id": "success-expand",
+      "operation": "advance",
+      "target": "all-local",
+      "effect_at": 1790228424.8611462
+    }
+  ],
+  "persisted_requests": 15,
+  "persisted_writes": 9,
+  "cancelled_environment": "offline",
+  "cancelled_exposure": "none",
+  "cancelled_actions": 0,
+  "registered_checks_retired": true,
+  "wake_queue_empty": true,
+  "deferred_obligation_retained": true,
+  "release_checker_responses": [
+    {
+      "operation": "advance",
+      "exit": 1,
+      "output": {
+        "assessment": "blocked",
+        "health": "unknown",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": [
+          "evidence times stale, future, unordered, or missing"
+        ]
+      }
+    },
+    {
+      "operation": "advance",
+      "exit": 1,
+      "output": {
+        "assessment": "blocked",
+        "health": "unknown",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": [
+          "evidence binding missing or mismatched",
+          "evidence reference missing",
+          "evidence times stale, future, unordered, or missing",
+          "evidence does not reference latest external effect",
+          "evidence predates latest external effect",
+          "current exposure attempt missing, malformed, or mismatched",
+          "observation source mismatch",
+          "observation identity/exposure missing or mismatched",
+          "invalid observation samples"
+        ]
+      }
+    },
+    {
+      "operation": "advance",
+      "exit": 1,
+      "output": {
+        "assessment": "blocked",
+        "health": "healthy",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": [
+          "resource reserved by conflicting"
+        ]
+      }
+    },
+    {
+      "operation": "advance",
+      "exit": 1,
+      "output": {
+        "assessment": "blocked",
+        "health": "unknown",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": [
+          "ambiguous action: reconcile actual external state before continuation",
+          "unreconciled effect: reconcile actual external state before continuation"
+        ]
+      }
+    },
+    {
+      "operation": "complete",
+      "exit": 1,
+      "output": {
+        "assessment": "blocked",
+        "health": "unknown",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": [
+          "recovery disposition unresolved or failed",
+          "watch retirement or captain-call disposition unresolved",
+          "final exposure missing",
+          "evidence binding missing or mismatched",
+          "evidence reference missing",
+          "evidence times stale, future, unordered, or missing",
+          "evidence does not reference latest external effect",
+          "evidence predates latest external effect",
+          "nonterminal or failed recovery disposition"
+        ]
+      }
+    },
+    {
+      "operation": "complete",
+      "exit": 1,
+      "output": {
+        "assessment": "blocked",
+        "health": "unknown",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": [
+          "recovery disposition unresolved or failed",
+          "watch retirement or captain-call disposition unresolved",
+          "final exposure missing",
+          "evidence binding missing or mismatched",
+          "evidence reference missing",
+          "evidence times stale, future, unordered, or missing",
+          "evidence does not reference latest external effect",
+          "evidence predates latest external effect",
+          "nonterminal or failed recovery disposition"
+        ]
+      }
+    },
+    {
+      "operation": "complete",
+      "exit": 1,
+      "output": {
+        "assessment": "blocked",
+        "health": "unknown",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": [
+          "evidence binding missing or mismatched"
+        ]
+      }
+    },
+    {
+      "operation": "complete",
+      "exit": 1,
+      "output": {
+        "assessment": "blocked",
+        "health": "unknown",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": [
+          "evidence binding missing or mismatched"
+        ]
+      }
+    },
+    {
+      "operation": "complete",
+      "exit": 1,
+      "output": {
+        "assessment": "blocked",
+        "health": "unknown",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": [
+          "ambiguous action: reconcile actual external state before continuation",
+          "pending action remains unresolved",
+          "unreconciled effect: reconcile actual external state before continuation"
+        ]
+      }
+    },
+    {
+      "operation": "complete",
+      "exit": 0,
+      "output": {
+        "assessment": "consistent",
+        "health": "unknown",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": []
+      }
+    },
+    {
+      "operation": "complete",
+      "exit": 0,
+      "output": {
+        "assessment": "consistent",
+        "health": "unknown",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": []
+      }
+    },
+    {
+      "operation": "complete",
+      "exit": 1,
+      "output": {
+        "assessment": "blocked",
+        "health": "unknown",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": [
+          "evidence does not reference latest external effect",
+          "evidence predates latest external effect"
+        ]
+      }
+    },
+    {
+      "operation": "complete",
+      "exit": 1,
+      "output": {
+        "assessment": "blocked",
+        "health": "unknown",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": [
+          "evidence predates latest external effect"
+        ]
+      }
+    },
+    {
+      "operation": "advance",
+      "exit": 1,
+      "output": {
+        "assessment": "blocked",
+        "health": "unknown",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": [
+          "evidence does not reference latest external effect",
+          "evidence predates latest external effect",
+          "current exposure attempt missing, malformed, or mismatched"
+        ]
+      }
+    },
+    {
+      "operation": "complete",
+      "exit": 0,
+      "output": {
+        "assessment": "consistent",
+        "health": "healthy",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": []
+      }
+    },
+    {
+      "operation": "complete",
+      "exit": 0,
+      "output": {
+        "assessment": "consistent",
+        "health": "unknown",
+        "limitations": [
+          "Consistency only; verify evidence, instruction provenance, complete peer inventory and existing locks/leases before any action."
+        ],
+        "reasons": []
+      }
+    }
+  ]
+}

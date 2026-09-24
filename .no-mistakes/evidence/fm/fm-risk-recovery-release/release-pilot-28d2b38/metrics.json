@@ -1,0 +1,66 @@
+{
+  "started_at": 1790228401.711704,
+  "finished_at": 1790228427.735713,
+  "brief_scaffold_render_seconds": {
+    "contained": 0.06534194946289062,
+    "shared": 0.061102867126464844
+  },
+  "phase1_seconds": 0.29846763610839844,
+  "phase2_seconds": 1.6768031120300293,
+  "phase3_seconds": 23.462830066680908,
+  "validation_seconds": 26.024009943008423,
+  "captain_interruptions": 0,
+  "unauthorized_actions": 0,
+  "duplicate_actions": 0,
+  "unknown_advanced_actions": 0,
+  "action_journal": [
+    {
+      "id": "deploy-1",
+      "operation": "deploy",
+      "target": "disabled",
+      "effect_at": 1790228408.3418298
+    },
+    {
+      "id": "expose-1",
+      "operation": "expose",
+      "target": "internal",
+      "effect_at": 1790228408.952265
+    },
+    {
+      "id": "expand-1",
+      "operation": "advance",
+      "target": "all-local",
+      "effect_at": 1790228415.634491
+    },
+    {
+      "id": "contain-1",
+      "operation": "contain",
+      "target": "none",
+      "effect_at": 1790228418.115746
+    },
+    {
+      "id": "success-internal",
+      "operation": "expose",
+      "target": "internal",
+      "effect_at": 1790228421.568929
+    },
+    {
+      "id": "success-expand",
+      "operation": "advance",
+      "target": "all-local",
+      "effect_at": 1790228424.8611462
+    }
+  ],
+  "retained_writes": 9,
+  "gaps": [
+    "hidden disabled write",
+    "containment acknowledgement without recovery",
+    "monitoring unavailable",
+    "ambiguous post-action restart"
+  ],
+  "limits": [
+    "device unavailable",
+    "checker validates consistency, not evidence truth",
+    "no production performance or defect-reduction claim"
+  ]
+}
