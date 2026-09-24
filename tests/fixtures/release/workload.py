@@ -31,7 +31,7 @@ def serve(database, address, manifest):
     db.execute('CREATE TABLE IF NOT EXISTS actions (id TEXT PRIMARY KEY, operation TEXT, target TEXT)')
     defaults = dict(gate='disabled', leak=False, monitoring=True, fail_restore=False, exposure='none',
                     candidate='local-build-v1', source='source-v1', configuration='gated-v1',
-                    environment='loopback', dependencies='python-stdlib', since=time.time())
+                    environment='loopback', dependencies='python-stdlib', since=time.time(), exposure_attempt='')
     defaults.update(json.loads(Path(manifest).read_text()))
     for key,value in defaults.items():
         db.execute('INSERT OR IGNORE INTO state VALUES (?,?)',(key,json.dumps(value)))
@@ -80,7 +80,7 @@ def serve(database, address, manifest):
             if op=='restore' and state()['fail_restore']:
                 self.reply({'accepted':False,'recovery':'failed'},503); return
             if op=='deploy': update(dict(exposure='none',gate='disabled'))
-            elif op in ('expose','advance'): update(dict(exposure=target,gate='enabled',since=time.time()))
+            elif op in ('expose','advance'): update(dict(exposure=target,gate='enabled',since=time.time(),exposure_attempt=key))
             elif op=='contain': update(dict(exposure='none',gate='disabled'))
             elif op!='restore': self.reply({'error':'unknown operation'},400); return
             db.execute('INSERT INTO actions VALUES (?,?,?)',(key,op,target)); db.commit()

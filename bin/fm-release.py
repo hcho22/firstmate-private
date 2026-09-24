@@ -17,11 +17,17 @@ Stages name exact target plus window_seconds and min_samples. Health declares
 sources, baseline, max_age_seconds and stop_condition. Recovery declares actor,
 containment, restoration, limitations and verification. Authority entries bind
 operation/target/instruction/expires_at to the same binding; never credentials.
-Progress holds phase/stage, deployment, observation, pending_action,
+Progress holds phase/stage, deployment, exposure_attempt, observation, pending_action,
 completed_actions and last_notified_condition. Deployment includes source,
-artifact, binding and evidence. Observation includes binding, id, signal_source,
+artifact, binding and evidence. Exposure_attempt is null until exposure is
+verified, then contains id (the expose/advance action identity), target, and
+started_at (the verified external exposure start, epoch seconds). Each exposure
+or advancement starts a new attempt; restart preserves a reconciled attempt.
+Observation includes binding, id, signal_source, exposure_attempt (the attempt id),
 started_at/ended_at/observed_at epoch seconds, samples, health, stop, exposure and
 evidence. Freshness is measured from ended_at, not the reporting time observed_at.
+Its measurement window must start at or after the current attempt's started_at;
+missing or mismatched attempt evidence is unknown, including in older records.
 Optional accepted manual alternative: stage.manual_alternative names
 instruction/scenarios; observation.manual has instruction/scenarios/evidence.
 Pending/completed actions hold id/operation/target/status/evidence. Pending is
@@ -66,7 +72,7 @@ def template(task):
         "recovery": {"actor": "", "containment": "", "restoration": "", "limitations": "", "verification": ""},
         "authority": [],
         "progress": {"phase": "Preparing", "stage": "", "deployment": None,
-                     "observation": None, "pending_action": None,
+                     "exposure_attempt": None, "observation": None, "pending_action": None,
                      "completed_actions": [], "last_notified_condition": ""},
         "watches": [],
         "outcome": {"disposition": "pending", "exposure": "", "evidence": "",
@@ -180,7 +186,13 @@ def health(r, now):
     if not isinstance(o, dict) or len(stages) != 1:
         return 'unknown', ['observation or unique current stage missing']
     s, h = stages[0], r['health']
+    attempt = r['progress'].get('exposure_attempt')
     errors = []
+    if (not isinstance(attempt, dict) or not nonempty(attempt.get('id')) or
+            attempt.get('target') != s.get('target') or
+            not number(attempt.get('started_at')) or not 0 <= attempt['started_at'] <= now or
+            o.get('exposure_attempt') != attempt['id']):
+        errors.append('current exposure attempt missing, malformed, or mismatched')
     if not bound(o, r) or o.get('signal_source') not in h['sources']:
         errors.append('observation binding/source mismatch')
     if not nonempty(o.get('id')) or not nonempty(o.get('evidence')) or o.get('exposure') != s.get('target'):
@@ -194,6 +206,8 @@ def health(r, now):
             errors.append('invalid health criterion ' + key)
     if errors:
         return 'unknown', errors
+    if o['started_at'] < attempt['started_at']:
+        return 'unknown', ['measurement window precedes current exposure attempt']
     if not (o['started_at'] <= o['ended_at'] <= o['observed_at'] <= now) or now - o['ended_at'] > h['max_age_seconds']:
         return 'unknown', ['stale, future, or unordered observation']
     if type(o.get('stop')) is not bool or o.get('health') not in ('healthy', 'unhealthy', 'unknown'):

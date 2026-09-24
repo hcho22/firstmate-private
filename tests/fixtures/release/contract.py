@@ -26,8 +26,9 @@ def record(cli, now=1000):
                       for op, target in [('deploy', 'disabled'), ('expose', 'internal'), ('advance', 'all-local'),
                                          ('contain', 'none'), ('restore', 'retained-data')]]
     r['progress'].update(phase='Expansion ready', stage='initial',
+                         exposure_attempt=dict(id='expose-1',target='internal',started_at=now-5),
                          deployment=dict(b, artifact='local-build-v1', evidence='observed HTTP deployment'),
-                         observation=dict(b, id='observation-1', signal_source='loopback-http', started_at=now-5,
+                         observation=dict(b, id='observation-1', exposure_attempt='expose-1', signal_source='loopback-http', started_at=now-5,
                                           ended_at=now-1, observed_at=now-1, samples=2, health='healthy',
                                           stop=False, exposure='internal', evidence='observed HTTP response'))
     r['outcome']['recovery'] = 'not-needed'

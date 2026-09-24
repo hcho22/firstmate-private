@@ -15,11 +15,11 @@ base = record(cli)
 base_binding = stamp(cli, base)
 count = 0
 
-def check(r, status=0, *args, contains=None):
+def check(r, status=0, *args, contains=None, now=1000):
     global count
     file = temp/'task.md'; file.write_text(body(r) if isinstance(r, dict) else r)
     before = file.read_bytes()
-    p = subprocess.run([str(cli), 'check', str(file), '--now', '1000', *args], text=True, capture_output=True)
+    p = subprocess.run([str(cli), 'check', str(file), '--now', str(now), *args], text=True, capture_output=True)
     assert p.returncode == status, (p.returncode, status, p.stdout, p.stderr)
     assert file.read_bytes() == before, 'checker mutated task'
     result = json.loads(p.stdout)
@@ -45,10 +45,43 @@ for key,value,health in [('observed_at',900,'unknown'), ('environment','wrong','
     result=check(r,1,*advance); assert result['health']==health, result
 for ended_at,status in [(200,1),(939.9,1),(940,0),(999,0)]:
     r=copy.deepcopy(base)
+    r['progress']['exposure_attempt']['started_at']=100
     r['progress']['observation'].update(started_at=100,ended_at=ended_at,observed_at=1000)
     result=check(r,status,*advance)
     assert result['health']==('unknown' if status else 'healthy'),result
     assert check(r)['health']==result['health']
+r=record(cli,156); r['stages'][0]['window_seconds']=40
+r['progress']['exposure_attempt'].update(started_at=100)
+r['progress']['observation'].update(started_at=100,ended_at=140,observed_at=140)
+stamp(cli,r)
+check(r,0,*advance,now=156)
+r['progress']['exposure_attempt'].update(id='expose-2',started_at=155)
+assert check(r,1,*advance,now=156)['health']=='unknown'
+assert check(r,now=156)['health']=='unknown'
+r['progress']['observation']['exposure_attempt']='expose-2'
+assert check(r,1,*advance,now=156)['health']=='unknown'
+r['progress']['observation'].update(started_at=155,ended_at=156,observed_at=156)
+assert check(r,1,*advance,now=156)['health']=='insufficient'
+r['progress']['observation'].update(ended_at=195,observed_at=195)
+check(r,0,*advance,now=195)
+saved=temp/'restart.md'; saved.write_text(body(r))
+check(saved.read_text(),0,*advance,now=195)
+r['progress']['pending_action']=dict(id='expand-1',operation='advance',target='all-local',status='ambiguous')
+check(r,1,*advance,now=195,contains='reconcile')
+for value in (None,{},'expose-1',dict(id='',target='internal',started_at=995),
+              dict(id='expose-1',target='wrong',started_at=995)):
+    r=copy.deepcopy(base); r['progress']['exposure_attempt']=value
+    assert check(r,1,*advance)['health']=='unknown'
+for value in (None,True,'995',-1,1001):
+    r=copy.deepcopy(base); r['progress']['exposure_attempt']['started_at']=value
+    assert check(r,1,*advance)['health']=='unknown'
+for group,key in [('progress','exposure_attempt'),('observation','exposure_attempt')]:
+    r=copy.deepcopy(base)
+    del (r['progress'] if group=='progress' else r['progress']['observation'])[key]
+    assert check(r)['health']=='unknown'
+    check(r,1,*advance)
+r=copy.deepcopy(base); r['progress'].update(phase='Ready',exposure_attempt=None,observation=None)
+check(r,0,'--operation','deploy','--target','disabled','--operation-id','deploy-1')
 for group,key in [('candidate','artifact'), ('candidate','configuration'), ('candidate','source'), ('candidate','dependencies'), ('target','environment')]:
     r=copy.deepcopy(base); r[group][key]='changed'; check(r,1,*advance)
 r=copy.deepcopy(base); r['stages'][0]['min_samples']=1; check(r,1,*advance,contains='stale')
@@ -80,12 +113,15 @@ manual=copy.deepcopy(r)
 r['progress']['observation'].update(started_at=999,ended_at=999.5,observed_at=1000)
 assert check(r,1,*advance)['health']=='insufficient'
 r['progress']['observation'].update(started_at=100,ended_at=200,observed_at=1000)
+r['progress']['exposure_attempt']['started_at']=100
 assert check(r,1,*advance)['health']=='unknown'
 r=manual
 r['progress']['observation']['manual']['instruction']='new silent waiver'; check(r,1,*advance)
 # Distinct accurate terminal outcomes and failures.
 for disposition in ('released','cancelled','withdrawn'):
     r=copy.deepcopy(base); r['progress'].update(phase='Released' if disposition=='released' else 'Stopped',stage='final')
+    r['progress']['exposure_attempt'].update(id='final-1',target='all-local')
+    r['progress']['observation']['exposure_attempt']='final-1'
     r['progress']['observation']['exposure']='all-local'
     r['outcome'].update(disposition=disposition, exposure='all-local' if disposition=='released' else 'none',
                         health='healthy' if disposition=='released' else 'safe', evidence='final state', watches_retired=True,
@@ -93,7 +129,7 @@ for disposition in ('released','cancelled','withdrawn'):
     if disposition!='released':
         r['progress']['observation']=None
         r['outcome']['recovery']='contained' if disposition=='withdrawn' else 'not-needed'
-    if disposition=='cancelled': r['progress'].update(stage='',deployment=None)
+    if disposition=='cancelled': r['progress'].update(stage='',deployment=None,exposure_attempt=None)
     check(r,0,'--operation','complete')
     for key,value in [('watches_retired',False),('recovery','failed'),('unresolved_calls',['captain-call']),
                       ('evidence',''),('health','unknown'),('observed_at',900),('observed_at',1001),
@@ -109,6 +145,11 @@ for disposition in ('released','cancelled','withdrawn'):
         check(bad,1,'--operation','complete')
     if disposition=='released':
         bad=copy.deepcopy(r); bad['progress']['observation'].update(started_at=100,ended_at=200,observed_at=1000)
+        bad['progress']['exposure_attempt']['started_at']=100
+        assert check(bad,1,'--operation','complete')['health']=='unknown'
+        bad=copy.deepcopy(r); bad['progress']['exposure_attempt'].update(id='final-2',started_at=999)
+        assert check(bad,1,'--operation','complete')['health']=='unknown'
+        bad['progress']['observation']['exposure_attempt']='final-2'
         assert check(bad,1,'--operation','complete')['health']=='unknown'
 r=copy.deepcopy(base); r['progress']['phase']='Recovering'; r['outcome']['disposition']='failed-recovery'; check(r,1,'--operation','complete')
 private=copy.deepcopy(base)

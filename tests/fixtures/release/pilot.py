@@ -78,8 +78,11 @@ def launch():
     return p,address.read_text()
 
 def observation(raw):
-    keys=('candidate','source','configuration','environment','dependencies','id','signal_source','started_at','ended_at','observed_at','samples','health','stop','exposure')
+    keys=('candidate','source','configuration','environment','dependencies','id','signal_source','exposure_attempt','started_at','ended_at','observed_at','samples','health','stop','exposure')
     return dict({k:raw[k] for k in keys},evidence=str(log),plan=plan_binding['plan'])
+
+def exposure_attempt(raw):
+    return dict(id=raw['exposure_attempt'],target=raw['exposure'],started_at=raw['since'])
 
 def acknowledge_wakes():
     run(root/'bin/fm-wake-drain.sh')
@@ -96,6 +99,10 @@ def action(r,op,target,key):
     http('/action',dict(id=key,operation=op,target=target))
     actual=http('/state')
     assert sum(a['id']==key for a in actual['actions'])==1
+    if op in ('expose','advance'):
+        assert actual['exposure_attempt']==key and actual['exposure']==target
+        r['progress']['exposure_attempt']=exposure_attempt(actual)
+        r['progress']['observation']=None
     r['progress']['completed_actions'].append(dict(id=key,operation=op,target=target,status='verified',evidence=str(log)))
     r['progress']['pending_action']=None
     save(r)
@@ -105,6 +112,7 @@ plan='''# Authorized disposable local pilot
 Candidate: exact SHA-256 of the workload program; environment: loopback HTTP and isolated SQLite under this directory.
 Permitted actions: local deploy, internal exposure, all-local exposure, disable, representative failed restoration, and retained-data inspection; never production or live fleet mutation.
 Stages: internal then all-local; each needs at least 2 real requests over a 1-second window ending within 60 seconds of assessment.
+Measurements identify the current exposure action and start no earlier than its verified external start time; restart retains that attempt after reconciliation.
 Stop: any leaked write, unhealthy response, or unavailable monitoring stops expansion.
 Recovery: disable gate, issue fresh requests, compare persisted write counts, and retain earlier writes; an acknowledged request alone is insufficient.
 Real commands: brief/promotion outputs, installed tasks-axi markdown lifecycle, fm-release consistency check, authenticated fm-check registration, fm-watch, generation-bound wake drain/ack, and owner retirement.
@@ -184,7 +192,7 @@ try:
         elif row['category']=='security/privacy': row.update(expected='loopback only, synthetic data, existing protective control retained',observed='127.0.0.1 listener; request protective_control=true; no live credentials used')
         else: row.update(status='not-applicable',expected='no '+row['category']+' acceptance criterion for coordination-only local workload',observed='not applicable',limitation='API-only synthetic pilot; no UI or production performance claim')
     for authority in r['authority']: authority.update(candidate=digest,source=digest)
-    r['progress'].update(phase='Ready',stage='initial',deployment=None,observation=None)
+    r['progress'].update(phase='Ready',stage='initial',deployment=None,exposure_attempt=None,observation=None)
     r['watches']=['custom-check:release-local']
     plan_binding=stamp(cli,r)
     impl=dest/'implementation-body.md'; impl.write_text('Accepted implementation.\nRelease tasks: '+str(home)+'#local-release ('+digest+'/loopback); '+str(home)+'#deferred-release ('+digest+'/offline).\n')
@@ -224,6 +232,7 @@ try:
     cached=copy.deepcopy(r)
     cached['progress']['observation'].update(started_at=captured['started_at']-120,
                                            ended_at=captured['ended_at']-120,observed_at=time.time())
+    cached['progress']['exposure_attempt']['started_at']=captured['started_at']-120
     assert check(cached,'advance','all-local','expand-1',1)['health']=='unknown'
     assert http('/state')['exposure']=='internal'
     result('REL-06 cached-window','fresh reporting cannot renew stale measurements',
@@ -260,6 +269,9 @@ try:
     restart=task('show','local-release','--full'); assert 'ambiguous' in restart and digest in restart
     check(r,'advance','all-local','expand-1',1)
     actual=http('/state'); assert actual['exposure']=='all-local' and sum(a['id']=='expand-1' for a in actual['actions'])==1
+    assert actual['exposure_attempt']=='expand-1'
+    r['progress']['exposure_attempt']=exposure_attempt(actual)
+    r['progress']['observation']=None
     r['progress']['pending_action']=None
     r['progress']['completed_actions'].append(dict(id='expand-1',operation='advance',target='all-local',status='verified',evidence=str(log)))
     save(r); verdict=check(r,'advance','all-local','expand-1'); assert verdict['assessment']=='already-observed'
@@ -298,15 +310,33 @@ try:
     finished['outcome'].update(disposition='pending',recovery='not-needed')
     save(finished)
     action(finished,'expose','internal','success-internal')
+    replayed=copy.deepcopy(finished)
+    replayed['progress'].update(phase='Expansion ready',observation=observation(captured))
+    actions_before=http('/state')['actions']
+    assert time.time()-captured['ended_at'] < replayed['health']['max_age_seconds']
+    assert check(replayed,'advance','all-local','success-expand',1)['health']=='unknown'
+    assert http('/state')['actions']==actions_before
+    result('REL-07 prior-attempt-replay','fresh prior-attempt measurements cannot advance a new exposure',
+           dict(prior_attempt=captured['exposure_attempt'],current_attempt=finished['progress']['exposure_attempt'],actions_unchanged=True))
     http('/request'); http('/request'); time.sleep(1.05)
     finished['progress'].update(phase='Expansion ready',stage='initial',observation=observation(http('/health')))
+    save(finished)
+    prior_attempt=copy.deepcopy(finished['progress']['exposure_attempt'])
+    server.terminate(); server.wait(timeout=5); server,url=launch()
+    restored=task('show','local-release','--full')
+    restored_body=json.loads(next(line[len('  body: '):] for line in restored.splitlines() if line.startswith('  body: ')))
+    finished=json.loads(restored_body.split('```firstmate-release\n')[1].split('\n```')[0])
+    assert finished['progress']['exposure_attempt']==prior_attempt==exposure_attempt(http('/state'))
+    assert check(finished,'advance','all-local','success-expand')['health']=='healthy'
+    result('REL-10 REL-12 same-attempt-restart','restart preserves reconciled exposure and eligible measurements',
+           dict(attempt=prior_attempt,observation_attempt=finished['progress']['observation']['exposure_attempt']))
     save(finished); action(finished,'advance','all-local','success-expand')
     http('/request'); http('/request'); time.sleep(1.05); raw=http('/health')
     finished['progress'].update(phase='Released',stage='final',observation=observation(raw))
     finished['outcome'].update(plan_binding,disposition='released',exposure='all-local',health='healthy',recovery='not-needed',evidence=str(log),observed_at=raw['observed_at'])
     check(finished,'complete'); save(finished); task('done','local-release','--report',str(log),'--json')
     cancelled=copy.deepcopy(finished); cancelled['identity']['task']='cancelled-offline-release'; cancelled['target']['environment']='offline'
-    cancelled['progress'].update(phase='Stopped',deployment=None,observation=None)
+    cancelled['progress'].update(phase='Stopped',deployment=None,observation=None,exposure_attempt=None)
     cancelled['outcome'].update(disposition='cancelled',exposure='none',health='safe',evidence='offline environment inspected; no deployment occurred')
     final=dest/'cancelled-body.md'; final.write_text(body(cancelled))
     cancelled['outcome'].update(json.loads(run(cli,'fingerprint',final)),observed_at=time.time())
