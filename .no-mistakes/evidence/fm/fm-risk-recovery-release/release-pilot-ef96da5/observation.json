@@ -1,0 +1,39 @@
+{
+  "gate": "enabled",
+  "leak": false,
+  "monitoring": true,
+  "fail_restore": false,
+  "exposure": "internal",
+  "candidate": "ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241",
+  "source": "ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241",
+  "configuration": "gated-v1",
+  "environment": "loopback",
+  "dependencies": "python-stdlib",
+  "since": 1790254161.919457,
+  "exposure_attempt": "expose-1",
+  "requests": 8,
+  "writes": 4,
+  "actions": [
+    {
+      "id": "deploy-1",
+      "operation": "deploy",
+      "target": "disabled",
+      "effect_at": 1790254161.238818
+    },
+    {
+      "id": "expose-1",
+      "operation": "expose",
+      "target": "internal",
+      "effect_at": 1790254161.919457
+    }
+  ],
+  "samples": 2,
+  "effect": "expose-1",
+  "id": "obs-1790254165.059921",
+  "signal_source": "loopback-http",
+  "started_at": 1790254161.919457,
+  "ended_at": 1790254165.0599208,
+  "observed_at": 1790254165.0599208,
+  "health": "healthy",
+  "stop": false
+}

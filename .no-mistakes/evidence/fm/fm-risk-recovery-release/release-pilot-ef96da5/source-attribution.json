@@ -1,0 +1,15 @@
+{
+  "head": "ef96da5e4f4b8e8d15af242a0e0d249dd0d938c2",
+  "dirty": false,
+  "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "files": {
+    "bin/fm-release.py": "d4fe9b38901ac0ef68d30a4f54e3d981e5d7d124cf9abb3953880fef27196803",
+    "bin/fm-release.sh": "5cad38eb0fad3d2af7e0e5325b140887432bd151c35009d55ac134ea06047b29",
+    ".agents/skills/risk-recovery/SKILL.md": "fdda29db50a86ebc79e9ca2860737e7d84db2c9e3507e5825ed99ddb6aaacaa6",
+    "tests/fm-release.test.sh": "fa1fad917f797d2da6b03d18ee9228d468a77a598ad1e9f52252db9225d62381",
+    "tests/fm-release-local-pilot.test.sh": "f181b59065e82136dfc2ba79bccb3ece067f23bdf14a9637ea1497f3d96cb75a",
+    "tests/fixtures/release/contract.py": "4b277f2c49986b38e3baa64af2393c7ed1d6847e3d290caa228d8b24a4175ff8",
+    "tests/fixtures/release/pilot.py": "59868af7e5527832676dae42eac641e1e5e219fd3d28f684693a5d877c416604",
+    "tests/fixtures/release/workload.py": "ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241"
+  }
+}

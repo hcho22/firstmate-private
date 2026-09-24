@@ -1,0 +1,496 @@
+[
+  {
+    "requirement": "session-isolation",
+    "expected": "own synthetic lock",
+    "observed": "lock acquired: harness pid 51347\n",
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254154.522013
+  },
+  {
+    "requirement": "accepted-amendment",
+    "expected": "replace superseded criterion and retain preservation constraint",
+    "observed": "amended emitted brief contains current criterion and original preservation constraint",
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254154.660023
+  },
+  {
+    "requirement": "phase1-assessments",
+    "expected": "seven useful fields, unchanged local-only mode, no risk-only approval",
+    "observed": {
+      "contained": [
+        "Correct a help label.",
+        "Preserve command behavior.",
+        "Only help output; no shared state.",
+        "low - text only; revert is straightforward.",
+        "Inspect rendered help.",
+        "Revert wording; no persistent effects.",
+        "not applicable - code-only wording."
+      ],
+      "shared": [
+        "Bound shared retry attempts.",
+        "Preserve authorization and duplicate-operation safety.",
+        "Shared callers and persistent retry journal; small diff has broad reach.",
+        "high - shared state and duplicate writes; human attention: replay and authority boundaries.",
+        "Observe enabled/disabled requests, duplicate retries and recovery writes.",
+        "Stop new attempts; retain earlier writes pending inspection.",
+        "deferred - local-release retains obligations."
+      ]
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254154.660257
+  },
+  {
+    "requirement": "impact-evaluation",
+    "expected": "small shared-state change recognized as high reach; wording stays contained",
+    "observed": "operator evaluation in emitted briefs; independent interpretation is for selected validation owner",
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "authored assessments, not proof of model compliance",
+    "observed_at": 1790254154.660473
+  },
+  {
+    "requirement": "disabled",
+    "expected": "hidden with no new writes and protective control intact",
+    "observed": {
+      "before": 0,
+      "after": 0,
+      "response": {
+        "visible": false,
+        "wrote": false,
+        "protective_control": true
+      }
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254155.072482
+  },
+  {
+    "requirement": "disabled-leak",
+    "expected": "intentional hidden background write must fail containment",
+    "observed": {
+      "before": 0,
+      "after": 1,
+      "response": {
+        "visible": false,
+        "wrote": true,
+        "protective_control": true
+      }
+    },
+    "status": "fail",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "intentional defect detected; fixed below before readiness",
+    "observed_at": 1790254155.490462
+  },
+  {
+    "requirement": "enabled",
+    "expected": "feature writes when enabled",
+    "observed": {
+      "visible": true,
+      "wrote": true,
+      "protective_control": true
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254155.691902
+  },
+  {
+    "requirement": "enable-disable",
+    "expected": "no new writes; earlier persistent effects retained",
+    "observed": {
+      "before": 2,
+      "after": 2,
+      "response": {
+        "visible": false,
+        "wrote": false,
+        "protective_control": true
+      }
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254156.098735
+  },
+  {
+    "requirement": "gate-invalid",
+    "expected": "safe default with protection preserved",
+    "observed": {
+      "visible": false,
+      "wrote": false,
+      "protective_control": true
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254156.313298
+  },
+  {
+    "requirement": "gate-unavailable",
+    "expected": "safe default with protection preserved",
+    "observed": {
+      "visible": false,
+      "wrote": false,
+      "protective_control": true
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254156.520589
+  },
+  {
+    "requirement": "device-capability",
+    "expected": "device reconnection check",
+    "observed": "no device or device integration in local workload",
+    "status": "untested",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "no capability; no device-readiness claim",
+    "observed_at": 1790254156.5210729
+  },
+  {
+    "requirement": "monitor-readiness",
+    "expected": "actual registered probe can observe candidate",
+    "observed": {
+      "gate": "unavailable",
+      "leak": false,
+      "monitoring": true,
+      "fail_restore": false,
+      "exposure": "none",
+      "candidate": "ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241",
+      "source": "ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241",
+      "configuration": "gated-v1",
+      "environment": "loopback",
+      "dependencies": "python-stdlib",
+      "since": 1790254154.754264,
+      "exposure_attempt": "",
+      "requests": 6,
+      "writes": 2,
+      "actions": [],
+      "samples": 6,
+      "effect": null,
+      "id": "obs-1790254157.908167",
+      "signal_source": "loopback-http",
+      "started_at": 1790254154.754264,
+      "ended_at": 1790254157.908167,
+      "observed_at": 1790254157.908167,
+      "health": "healthy",
+      "stop": false
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254158.3517172
+  },
+  {
+    "requirement": "release-continuity",
+    "expected": "release retained after implementation completion; many-to-many links",
+    "observed": "task:\n  id: local-release\n  title: Local release obligation\n  state: queued\n  blocked: no\n  blocked_by: none\n  held: no\n  hold_reason: \"-\"\n  hold_kind: \"-\"\n  hold_until: \"-\"\n  kind: ship\n  repo: \"-\"\n  priority: \"-\"\n  created: 2026-09-24\n  closed: \"-\"\n  deps: none\n  links: none\n  body: \"Preserved ordinary task notes.\\n\\n## Release readiness\\n\\n```firstmate-release\\n{\\n  \\\"schema\\\": 1,\\n  \\\"identity\\\": {\\n    \\\"task\\\": \\\"local-release\\\",\\n    \\\"project\\\": \\\"synthetic\\\",\\n    \\\"home\\\": \\\"/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/home\\\",\\n    \\\"actor\\\": \\\"local-pilot-owner\\\"\\n  },\\n  \\\"implementations\\\": [\\n    {\\n      \\\"home\\\": \\\"local-pilot\\\",\\n      \\\"id\\\": \\\"implementation\\\",\\n      \\\"revision\\\": \\\"source-v1\\\"\\n    },\\n    {\\n      \\\"home\\\": \\\"local-pilot\\\",\\n      \\\"id\\\": \\\"second-implementation\\\",\\n      \\\"revision\\\": \\\"source-v1\\\"\\n    }\\n  ],\\n  \\\"candidate\\\": {\\n    \\\"source\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n    \\\"artifact\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n    \\\"configuration\\\": \\\"gated-v1\\\",\\n    \\\"dependencies\\\": \\\"python-stdlib\\\"\\n  },\\n  \\\"target\\\": {\\n    \\\"environment\\\": \\\"loopback\\\",\\n    \\\"resources\\\": [\\n      \\\"loopback/gate\\\"\\n    ]\\n  },\\n  \\\"readiness\\\": [\\n    {\\n      \\\"category\\\": \\\"UX\\\",\\n      \\\"requirement\\\": \\\"UX\\\",\\n      \\\"expected\\\": \\\"no UX acceptance criterion for coordination-only local workload\\\",\\n      \\\"observed\\\": \\\"not applicable\\\",\\n      \\\"status\\\": \\\"not-applicable\\\",\\n      \\\"evidence\\\": \\\"/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl\\\",\\n      \\\"limitation\\\": \\\"API-only synthetic pilot; no UI or production performance claim\\\",\\n      \\\"observed_at\\\": 1790254159.674658,\\n      \\\"candidate\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"configuration\\\": \\\"gated-v1\\\",\\n      \\\"environment\\\": \\\"loopback\\\",\\n      \\\"source\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"dependencies\\\": \\\"python-stdlib\\\",\\n      \\\"plan\\\": \\\"0b7a8c3579b513dae7752675892eeb75f534c8ac6cc704ce58f6c40d581bb457\\\"\\n    },\\n    {\\n      \\\"category\\\": \\\"functional\\\",\\n      \\\"requirement\\\": \\\"functional\\\",\\n      \\\"expected\\\": \\\"enabled writes, disabled containment, invalid-gate safe default\\\",\\n      \\\"observed\\\": \\\"real HTTP responses and persisted write counts verified\\\",\\n      \\\"status\\\": \\\"pass\\\",\\n      \\\"evidence\\\": \\\"/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl\\\",\\n      \\\"limitation\\\": \\\"local only\\\",\\n      \\\"observed_at\\\": 1790254159.6746671,\\n      \\\"candidate\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"configuration\\\": \\\"gated-v1\\\",\\n      \\\"environment\\\": \\\"loopback\\\",\\n      \\\"source\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"dependencies\\\": \\\"python-stdlib\\\",\\n      \\\"plan\\\": \\\"0b7a8c3579b513dae7752675892eeb75f534c8ac6cc704ce58f6c40d581bb457\\\"\\n    },\\n    {\\n      \\\"category\\\": \\\"monitoring\\\",\\n      \\\"requirement\\\": \\\"monitoring\\\",\\n      \\\"expected\\\": \\\"registered check captures actual candidate health\\\",\\n      \\\"observed\\\": \\\"native watcher captured healthy loopback response\\\",\\n      \\\"status\\\": \\\"pass\\\",\\n      \\\"evidence\\\": \\\"/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/monitor-readiness.json\\\",\\n      \\\"limitation\\\": \\\"local only\\\",\\n      \\\"observed_at\\\": 1790254159.6746712,\\n      \\\"candidate\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"configuration\\\": \\\"gated-v1\\\",\\n      \\\"environment\\\": \\\"loopback\\\",\\n      \\\"source\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"dependencies\\\": \\\"python-stdlib\\\",\\n      \\\"plan\\\": \\\"0b7a8c3579b513dae7752675892eeb75f534c8ac6cc704ce58f6c40d581bb457\\\"\\n    },\\n    {\\n      \\\"category\\\": \\\"performance\\\",\\n      \\\"requirement\\\": \\\"performance\\\",\\n      \\\"expected\\\": \\\"no performance acceptance criterion for coordination-only local workload\\\",\\n      \\\"observed\\\": \\\"not applicable\\\",\\n      \\\"status\\\": \\\"not-applicable\\\",\\n      \\\"evidence\\\": \\\"/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl\\\",\\n      \\\"limitation\\\": \\\"API-only synthetic pilot; no UI or production performance claim\\\",\\n      \\\"observed_at\\\": 1790254159.674674,\\n      \\\"candidate\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"configuration\\\": \\\"gated-v1\\\",\\n      \\\"environment\\\": \\\"loopback\\\",\\n      \\\"source\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"dependencies\\\": \\\"python-stdlib\\\",\\n      \\\"plan\\\": \\\"0b7a8c3579b513dae7752675892eeb75f534c8ac6cc704ce58f6c40d581bb457\\\"\\n    },\\n    {\\n      \\\"category\\\": \\\"recovery\\\",\\n      \\\"requirement\\\": \\\"recovery\\\",\\n      \\\"expected\\\": \\\"disable prevents subsequent writes while retaining prior data\\\",\\n      \\\"observed\\\": \\\"write count unchanged after disable and remains nonzero\\\",\\n      \\\"status\\\": \\\"pass\\\",\\n      \\\"evidence\\\": \\\"/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl\\\",\\n      \\\"limitation\\\": \\\"local only\\\",\\n      \\\"observed_at\\\": 1790254159.674676,\\n      \\\"candidate\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"configuration\\\": \\\"gated-v1\\\",\\n      \\\"environment\\\": \\\"loopback\\\",\\n      \\\"source\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"dependencies\\\": \\\"python-stdlib\\\",\\n      \\\"plan\\\": \\\"0b7a8c3579b513dae7752675892eeb75f534c8ac6cc704ce58f6c40d581bb457\\\"\\n    },\\n    {\\n      \\\"category\\\": \\\"security/privacy\\\",\\n      \\\"requirement\\\": \\\"security/privacy\\\",\\n      \\\"expected\\\": \\\"loopback only, synthetic data, existing protective control retained\\\",\\n      \\\"observed\\\": \\\"127.0.0.1 listener; request protective_control=true; no live credentials used\\\",\\n      \\\"status\\\": \\\"pass\\\",\\n      \\\"evidence\\\": \\\"/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl\\\",\\n      \\\"limitation\\\": \\\"local only\\\",\\n      \\\"observed_at\\\": 1790254159.674677,\\n      \\\"candidate\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"configuration\\\": \\\"gated-v1\\\",\\n      \\\"environment\\\": \\\"loopback\\\",\\n      \\\"source\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"dependencies\\\": \\\"python-stdlib\\\",\\n      \\\"plan\\\": \\\"0b7a8c3579b513dae7752675892eeb75f534c8ac6cc704ce58f6c40d581bb457\\\"\\n    }\\n  ],\\n  \\\"stages\\\": [\\n    {\\n      \\\"name\\\": \\\"initial\\\",\\n      \\\"target\\\": \\\"internal\\\",\\n      \\\"window_seconds\\\": 1,\\n      \\\"min_samples\\\": 2\\n    },\\n    {\\n      \\\"name\\\": \\\"final\\\",\\n      \\\"target\\\": \\\"all-local\\\",\\n      \\\"window_seconds\\\": 1,\\n      \\\"min_samples\\\": 2\\n    }\\n  ],\\n  \\\"health\\\": {\\n    \\\"sources\\\": [\\n      \\\"loopback-http\\\"\\n    ],\\n    \\\"baseline\\\": \\\"no errors\\\",\\n    \\\"max_age_seconds\\\": 60,\\n    \\\"stop_condition\\\": \\\"any error or leaked write\\\"\\n  },\\n  \\\"recovery\\\": {\\n    \\\"actor\\\": \\\"local-pilot-owner\\\",\\n    \\\"containment\\\": \\\"disable gate\\\",\\n    \\\"restoration\\\": \\\"no deletion; retain writes for investigation\\\",\\n    \\\"limitations\\\": \\\"disable preserves existing data\\\",\\n    \\\"verification\\\": \\\"new requests produce zero writes\\\"\\n  },\\n  \\\"authority\\\": [\\n    {\\n      \\\"candidate\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"configuration\\\": \\\"gated-v1\\\",\\n      \\\"environment\\\": \\\"loopback\\\",\\n      \\\"source\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"dependencies\\\": \\\"python-stdlib\\\",\\n      \\\"operation\\\": \\\"deploy\\\",\\n      \\\"target\\\": \\\"disabled\\\",\\n      \\\"instruction\\\": \\\"accepted disposable local pilot\\\",\\n      \\\"expires_at\\\": 1790254759.527958,\\n      \\\"plan\\\": \\\"0b7a8c3579b513dae7752675892eeb75f534c8ac6cc704ce58f6c40d581bb457\\\"\\n    },\\n    {\\n      \\\"candidate\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"configuration\\\": \\\"gated-v1\\\",\\n      \\\"environment\\\": \\\"loopback\\\",\\n      \\\"source\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"dependencies\\\": \\\"python-stdlib\\\",\\n      \\\"operation\\\": \\\"expose\\\",\\n      \\\"target\\\": \\\"internal\\\",\\n      \\\"instruction\\\": \\\"accepted disposable local pilot\\\",\\n      \\\"expires_at\\\": 1790254759.527958,\\n      \\\"plan\\\": \\\"0b7a8c3579b513dae7752675892eeb75f534c8ac6cc704ce58f6c40d581bb457\\\"\\n    },\\n    {\\n      \\\"candidate\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"configuration\\\": \\\"gated-v1\\\",\\n      \\\"environment\\\": \\\"loopback\\\",\\n      \\\"source\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"dependencies\\\": \\\"python-stdlib\\\",\\n      \\\"operation\\\": \\\"advance\\\",\\n      \\\"target\\\": \\\"all-local\\\",\\n      \\\"instruction\\\": \\\"accepted disposable local pilot\\\",\\n      \\\"expires_at\\\": 1790254759.527958,\\n      \\\"plan\\\": \\\"0b7a8c3579b513dae7752675892eeb75f534c8ac6cc704ce58f6c40d581bb457\\\"\\n    },\\n    {\\n      \\\"candidate\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"configuration\\\": \\\"gated-v1\\\",\\n      \\\"environment\\\": \\\"loopback\\\",\\n      \\\"source\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"dependencies\\\": \\\"python-stdlib\\\",\\n      \\\"operation\\\": \\\"contain\\\",\\n      \\\"target\\\": \\\"none\\\",\\n      \\\"instruction\\\": \\\"accepted disposable local pilot\\\",\\n      \\\"expires_at\\\": 1790254759.527958,\\n      \\\"plan\\\": \\\"0b7a8c3579b513dae7752675892eeb75f534c8ac6cc704ce58f6c40d581bb457\\\"\\n    },\\n    {\\n      \\\"candidate\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"configuration\\\": \\\"gated-v1\\\",\\n      \\\"environment\\\": \\\"loopback\\\",\\n      \\\"source\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"dependencies\\\": \\\"python-stdlib\\\",\\n      \\\"operation\\\": \\\"restore\\\",\\n      \\\"target\\\": \\\"retained-data\\\",\\n      \\\"instruction\\\": \\\"accepted disposable local pilot\\\",\\n      \\\"expires_at\\\": 1790254759.527958,\\n      \\\"plan\\\": \\\"0b7a8c3579b513dae7752675892eeb75f534c8ac6cc704ce58f6c40d581bb457\\\"\\n    },\\n    {\\n      \\\"candidate\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"configuration\\\": \\\"gated-v1\\\",\\n      \\\"environment\\\": \\\"loopback\\\",\\n      \\\"source\\\": \\\"ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241\\\",\\n      \\\"dependencies\\\": \\\"python-stdlib\\\",\\n      \\\"operation\\\": \\\"deploy\\\",\\n      \\\"target\\\": \\\"internal\\\",\\n      \\\"instruction\\\": \\\"accepted disposable combined deployment to internal cohort\\\",\\n      \\\"expires_at\\\": 1790254759.527958,\\n      \\\"plan\\\": \\\"0b7a8c3579b513dae7752675892eeb75f534c8ac6cc704ce58f6c40d581bb457\\\"\\n    }\\n  ],\\n  \\\"progress\\\": {\\n    \\\"phase\\\": \\\"Ready\\\",\\n    \\\"stage\\\": \\\"initial\\\",\\n    \\\"deployment\\\": null,\\n    \\\"exposure_attempt\\\": null,\\n    \\\"observation\\\": null,\\n    \\\"pending_action\\\": null,\\n    \\\"completed_actions\\\": [],\\n    \\\"last_notified_condition\\\": \\\"\\\"\\n  },\\n  \\\"watches\\\": [\\n    \\\"custom-check:release-local\\\"\\n  ],\\n  \\\"outcome\\\": {\\n    \\\"disposition\\\": \\\"pending\\\",\\n    \\\"exposure\\\": \\\"\\\",\\n    \\\"evidence\\\": \\\"\\\",\\n    \\\"health\\\": \\\"unknown\\\",\\n    \\\"recovery\\\": \\\"not-needed\\\",\\n    \\\"watches_retired\\\": false,\\n    \\\"unresolved_calls\\\": [],\\n    \\\"observed_at\\\": 0,\\n    \\\"effect\\\": \\\"\\\",\\n    \\\"candidate\\\": \\\"\\\",\\n    \\\"configuration\\\": \\\"\\\",\\n    \\\"environment\\\": \\\"\\\",\\n    \\\"source\\\": \\\"\\\",\\n    \\\"dependencies\\\": \\\"\\\",\\n    \\\"plan\\\": \\\"\\\"\\n  }\\n}\\n```\"\n",
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254160.401097
+  },
+  {
+    "requirement": "duplicate-linkage",
+    "expected": "repeat identity reuses existing task",
+    "observed": "duplicate rejected, no duplicate task created",
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254160.579695
+  },
+  {
+    "requirement": "merge-authority",
+    "expected": "zero deployment from merge permission",
+    "observed": {
+      "actions_before": 0,
+      "actions_after": 0
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254160.920138
+  },
+  {
+    "requirement": "REL-06 cached-window",
+    "expected": "fresh reporting cannot renew stale measurements",
+    "observed": "captured probe with deliberately aged measurement window blocks expansion as unknown",
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "timestamp fault injected into a copy of the real registered probe",
+    "observed_at": 1790254167.373457
+  },
+  {
+    "requirement": "monitoring-loss",
+    "expected": "unknown cannot expand; current exposure retained",
+    "observed": {
+      "health": "unknown",
+      "reason": "HTTP Error 503: Service Unavailable",
+      "observed_at": 1790254167.5749881
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254167.757527
+  },
+  {
+    "requirement": "resource-coordination",
+    "expected": "same artifact with distinct configuration: conflict blocks; independent resource proceeds",
+    "observed": "verified against both peer records and actual task dependencies",
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254168.520113
+  },
+  {
+    "requirement": "restart-replay",
+    "expected": "ambiguous effect reconciled once, replay makes no repeat action",
+    "observed": {
+      "gate": "enabled",
+      "leak": false,
+      "monitoring": true,
+      "fail_restore": false,
+      "exposure": "all-local",
+      "candidate": "ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241",
+      "source": "ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241",
+      "configuration": "gated-v1",
+      "environment": "loopback",
+      "dependencies": "python-stdlib",
+      "since": 1790254168.796552,
+      "exposure_attempt": "expand-1",
+      "requests": 8,
+      "writes": 4,
+      "actions": [
+        {
+          "id": "deploy-1",
+          "operation": "deploy",
+          "target": "disabled",
+          "effect_at": 1790254161.238818
+        },
+        {
+          "id": "expose-1",
+          "operation": "expose",
+          "target": "internal",
+          "effect_at": 1790254161.919457
+        },
+        {
+          "id": "expand-1",
+          "operation": "advance",
+          "target": "all-local",
+          "effect_at": 1790254168.796552
+        }
+      ],
+      "samples": 0,
+      "effect": "expand-1",
+      "id": "obs-1790254169.277641",
+      "signal_source": "loopback-http",
+      "started_at": 1790254168.796552,
+      "ended_at": 1790254169.277641,
+      "observed_at": 1790254169.277641,
+      "health": "healthy",
+      "stop": false
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254169.565535
+  },
+  {
+    "requirement": "durable-wake",
+    "expected": "replay retained until generation-bound acknowledgement",
+    "observed": "registered check, two drains, persisted effect, owner ack",
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254170.624212
+  },
+  {
+    "requirement": "failed-containment",
+    "expected": "acknowledged disable with continuing writes is failed recovery",
+    "observed": {
+      "before": 4,
+      "after": 5
+    },
+    "status": "fail",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "intentional defect; contained below",
+    "observed_at": 1790254171.689864
+  },
+  {
+    "requirement": "failed-restoration",
+    "expected": "failed attempt remains unresolved Recovering",
+    "observed": "HTTP 503 and terminal refusal",
+    "status": "fail",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "intentional representative restoration failure",
+    "observed_at": 1790254172.03145
+  },
+  {
+    "requirement": "PROOF-04 REL-03 REL-14 terminal-binding",
+    "expected": "changed candidate or environment requires new final verification",
+    "observed": "retained withdrawal evidence refused for each changed identity",
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254172.837991
+  },
+  {
+    "requirement": "REL-12 REL-14 terminal-restart",
+    "expected": "current withdrawal survives restart; ambiguity blocks completion",
+    "observed": {
+      "effect": "contain-1",
+      "verification_time": 1790254172.626965
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254173.649659
+  },
+  {
+    "requirement": "verified-withdrawal",
+    "expected": "Stopped after observable containment, not data restoration",
+    "observed": {
+      "writes_retained": 5,
+      "final_exposure": "none"
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254173.7539258
+  },
+  {
+    "requirement": "REL-02 REL-07 combined-deployment",
+    "expected": "one verified deployment exposes initial cohort; zero samples cannot pass; replay makes no new action",
+    "observed": {
+      "action": {
+        "id": "success-internal",
+        "operation": "deploy",
+        "target": "internal",
+        "effect_at": 1790254174.332174
+      },
+      "attempt": {
+        "id": "success-internal",
+        "target": "internal",
+        "started_at": 1790254174.332174
+      },
+      "deployment": {
+        "candidate": "ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241",
+        "configuration": "gated-v1",
+        "dependencies": "python-stdlib",
+        "environment": "loopback",
+        "plan": "0b7a8c3579b513dae7752675892eeb75f534c8ac6cc704ce58f6c40d581bb457",
+        "source": "ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241",
+        "artifact": "ac1143e5dc2cbe2444cdf0f3289a1343ea26172d544963a7049e1aa31ce67241",
+        "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl"
+      }
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254174.99125
+  },
+  {
+    "requirement": "PROOF-04 REL-14 stale-withdrawal",
+    "expected": "re-exposure invalidates old terminal proof, including a relabeled reference",
+    "observed": {
+      "old_verification": 1790254172.626965,
+      "latest_effect": {
+        "id": "success-internal",
+        "operation": "deploy",
+        "target": "internal",
+        "effect_at": 1790254174.332174,
+        "status": "verified",
+        "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl"
+      }
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254175.225159
+  },
+  {
+    "requirement": "REL-07 prior-attempt-replay",
+    "expected": "fresh prior-attempt measurements cannot advance a new exposure",
+    "observed": {
+      "prior_attempt": "expose-1",
+      "current_attempt": {
+        "id": "success-internal",
+        "target": "internal",
+        "started_at": 1790254174.332174
+      },
+      "actions_unchanged": true
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254175.509021
+  },
+  {
+    "requirement": "REL-10 REL-12 same-attempt-restart",
+    "expected": "restart preserves reconciled exposure and eligible measurements",
+    "observed": {
+      "attempt": {
+        "id": "success-internal",
+        "target": "internal",
+        "started_at": 1790254174.332174
+      },
+      "observation_attempt": "success-internal"
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254177.411456
+  },
+  {
+    "requirement": "REL-14 combined-deployment-completion",
+    "expected": "combined initial deployment advances after sufficient observation and completes with current final evidence",
+    "observed": {
+      "initial_effect": "success-internal",
+      "final_effect": {
+        "id": "success-expand",
+        "operation": "advance",
+        "target": "all-local",
+        "effect_at": 1790254177.778989
+      },
+      "exposure": "all-local",
+      "samples": 2
+    },
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254179.620577
+  },
+  {
+    "requirement": "terminal-outcomes",
+    "expected": "released, withdrawn, cancelled, failed recovery remain distinct",
+    "observed": "actual task lifecycle and observed states recorded",
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254180.158039
+  },
+  {
+    "requirement": "manual-backend",
+    "expected": "existing manual contract preserves linked obligations",
+    "observed": "inspect/archive/edit/read confirmed; no task-tool write after opt-out",
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254180.17011
+  },
+  {
+    "requirement": "privacy",
+    "expected": "public projection omits private home, candidate and evidence paths",
+    "observed": "{\"evidence\": \"See the approved validation summary; private references omitted.\", \"phase\": \"Released\", \"readiness\": {\"fail\": 0, \"not-applicable\": 2, \"pass\": 4, \"untested\": 0}, \"recorded_health\": \"healthy\"}\n",
+    "status": "pass",
+    "evidence": "/Users/hcho/.no-mistakes/evidence/01M39P7TC1FK05MRSE9Z6QGRY7/release-pilot-ef96da5/transcript.jsonl",
+    "limitation": "local representative environment only",
+    "observed_at": 1790254180.3323698
+  }
+]
