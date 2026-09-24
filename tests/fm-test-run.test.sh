@@ -15,6 +15,102 @@ RUNNER="$ROOT/bin/fm-test-run.sh"
 assert_present "$RUNNER" "bin/fm-test-run.sh is missing"
 [ -x "$RUNNER" ] || fail "bin/fm-test-run.sh must be executable"
 
+test_runtime_selection() {
+  local tmp repo support tool real_python real_node out rc jobs
+  tmp=$(fm_test_tmproot fm-test-runtime)
+  repo="$tmp/repo"
+  support="$tmp/support"
+  real_python=$(command -v python3)
+  real_node=$(command -v node)
+  mkdir -p "$repo/bin" "$repo/tests" "$support" "$tmp/old" \
+    "$tmp/installed runtimes" "$tmp/caller" "$tmp/run-tmp"
+  cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+  cp "$ROOT/bin/fm-timeout-lib.sh" "$repo/bin/fm-timeout-lib.sh"
+  # A closed PATH proves discovery cannot borrow the host's fallback runtimes.
+  for tool in bash dirname basename date mktemp cat mkdir chmod rm ln sort \
+    awk sed grep getconf sysctl sleep stat tee head tail wc tr uniq comm git touch mv; do
+    if command -v "$tool" >/dev/null 2>&1; then
+      ln -s "$(command -v "$tool")" "$support/$tool"
+    fi
+  done
+  cat >"$tmp/old/python3" <<'SH'
+#!/bin/bash
+case "$*" in *tomllib*) exit 91 ;; esac
+exec "$FM_RUNTIME_TEST_PYTHON" "$@"
+SH
+  printf '#!/bin/bash\nexit 92\n' >"$tmp/old/node"
+  chmod +x "$tmp/old/python3" "$tmp/old/node"
+  ln -s "$real_python" "$tmp/installed runtimes/python3.99"
+  ln -s "$real_node" "$tmp/installed runtimes/node"
+  ln -s "$real_python" "$tmp/caller/python3"
+  ln -s "$real_node" "$tmp/caller/node"
+  printf 'const value: number = 42; console.log(value);\n' >"$repo/value.ts"
+  cat >"$repo/tests/fm-brief.test.sh" <<'SH'
+#!/usr/bin/env bash
+set -eu
+python3 -c 'import tomllib; assert tomllib.loads("value = 42")["value"] == 42'
+[ "$(node value.ts)" = 42 ]
+printf '%s\n' "$(command -v python3)" "$(command -v node)" >"$0.runtimes"
+touch "$0.executed"
+SH
+  cp "$repo/tests/fm-brief.test.sh" "$repo/tests/fm-release.test.sh"
+  git -C "$repo" init -q
+  git -C "$repo" add .
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm baseline
+  git -C "$repo" update-ref refs/remotes/origin/main HEAD
+  printf '\n' >>"$repo/tests/fm-brief.test.sh"
+  printf '\n' >>"$repo/tests/fm-release.test.sh"
+  # Cover both dispatch paths, preserving the runner's real child environment.
+  for jobs in 1 2; do
+    out=$(PATH="$tmp/old:$support:$tmp/installed runtimes" \
+      FM_RUNTIME_TEST_PYTHON="$real_python" TMPDIR="$tmp/run-tmp" \
+      "$repo/bin/fm-test-run.sh" --jobs "$jobs" \
+      tests/fm-brief.test.sh tests/fm-release.test.sh 2>&1) \
+      || fail "runtime fallback failed (jobs=$jobs): $out"
+    assert_contains "$out" 'total=2 failed=0' "capable runtimes must reach both children"
+    [ -f "$repo/tests/fm-brief.test.sh.executed" ] \
+      && [ -f "$repo/tests/fm-release.test.sh.executed" ] || fail "child checks never ran"
+    [ -z "$(ls -A "$tmp/run-tmp")" ] || fail "runtime staging survived runner exit"
+    rm "$repo/tests/"*.executed "$repo/tests/"*.runtimes
+  done
+  out=$(PATH="$tmp/old:$support:$tmp/installed runtimes" \
+    FM_RUNTIME_TEST_PYTHON="$real_python" TMPDIR="$tmp/run-tmp" \
+    "$repo/bin/fm-test-run.sh" --changed --exclude-family real-herdr-gated 2>&1) \
+    || fail "configured changed entry did not select capable child runtimes: $out"
+  assert_contains "$out" 'total=2 failed=0' "configured changed command must execute both checks"
+  rm "$repo/tests/"*.executed
+  out=$(PATH="$tmp/caller:$support:$tmp/installed runtimes" \
+    "$repo/bin/fm-test-run.sh" tests/fm-brief.test.sh 2>&1) \
+    || fail "compatible caller selection failed: $out"
+  [ "$(cat "$repo/tests/fm-brief.test.sh.runtimes")" = \
+    "$(printf '%s\n' "$tmp/caller/python3" "$tmp/caller/node")" ] \
+    || fail "compatible caller executables were replaced"
+  rm "$repo/tests/fm-brief.test.sh.executed"
+
+  for tool in python3 node; do
+    # Keep one capability available and remove every candidate for the other.
+    mkdir "$tmp/only-$tool"
+    case "$tool" in
+      python3) ln -s "$real_node" "$tmp/only-$tool/node" ;;
+      node) ln -s "$real_python" "$tmp/only-$tool/python3" ;;
+    esac
+    rc=0
+    out=$(PATH="$tmp/only-$tool:$tmp/old:$support" \
+      FM_RUNTIME_TEST_PYTHON="$real_python" TMPDIR="$tmp/run-tmp" \
+      "$repo/bin/fm-test-run.sh" tests/fm-brief.test.sh 2>&1) || rc=$?
+    [ "$rc" -eq 2 ] || fail "missing $tool capability must fail explicitly: $out"
+    assert_contains "$out" "test runtime unavailable: $tool" "missing capability diagnostic"
+    [ ! -e "$repo/tests/fm-brief.test.sh.executed" ] || fail "test ran without required capability"
+    [ -z "$(ls -A "$tmp/run-tmp")" ] || fail "failed preflight leaked staging files"
+    out=$(PATH="$tmp/only-$tool:$tmp/old:$support" FM_RUNTIME_TEST_PYTHON="$real_python" \
+      "$repo/bin/fm-test-run.sh" --list tests/fm-brief.test.sh 2>&1) \
+      || fail "inspection incorrectly requires $tool capability: $out"
+    [ "$out" = tests/fm-brief.test.sh ] || fail "inspection unexpectedly ran a preflight: $out"
+  done
+  rm -rf "$tmp"
+  pass "runtime selection preserves callers, finds installed capabilities, fails closed, and cleans up"
+}
+
 test_list_all_exact_suite_coverage() {
   local listed expected missing extra f
   listed=$("$RUNNER" --list --all | LC_ALL=C sort)
@@ -1389,6 +1485,7 @@ assert len(doc["scripts"])==3
   pass "aggregate-json merges lane timing artifacts"
 }
 
+test_runtime_selection
 test_list_all_exact_suite_coverage
 test_family_selection
 test_single_script_selection
