@@ -35,6 +35,7 @@ set -u
 . "$ROOT/bin/fm-marker-lib.sh"
 # shellcheck source=bin/fm-pending-reply-lib.sh
 . "$ROOT/bin/fm-pending-reply-lib.sh"
+TEST_FROMFIRST_MARK=$FM_FROMFIRST_MARK
 
 SEND="$ROOT/bin/fm-send.sh"
 REPORT="$ROOT/bin/fm-secondmate-report.sh"
@@ -782,20 +783,17 @@ test_restart_preserves_expectation_and_parent_destination() {
   rec=$(fm_pending_reply_path "$state" "$corr")
   parent_status=$(fm_pending_reply_get "$rec" parent_status)
   parent_home=$(fm_pending_reply_get "$rec" parent_home)
-  # Simulate process restart: re-source library and re-read the same record.
-  # shellcheck source=bin/fm-pending-reply-lib.sh
-  . "$ROOT/bin/fm-pending-reply-lib.sh"
-  [ -f "$rec" ] || fail "record must survive restart"
-  [ "$(fm_pending_reply_get "$rec" parent_status)" = "$parent_status" ] \
-    || fail "parent_status must be stable across restart"
-  [ "$(fm_pending_reply_get "$rec" parent_home)" = "$parent_home" ] \
-    || fail "parent_home must be stable across restart"
-  [ "$(phase_of "$state" "$corr")" = awaiting_report ] || fail "phase preserved"
-  # Compaction-safe: destination is absolute path fields, not chat memory.
-  case "$parent_status" in
-    /*.status) : ;;
-    *) fail "parent_status should be an absolute status path, got $parent_status" ;;
-  esac
+  # A fresh process re-sources the library and reconstructs the expectation
+  # from the durable record without retaining any functions from this test.
+  bash -c '
+    . "$1"
+    [ -f "$2" ] || exit 1
+    [ "$(fm_pending_reply_get "$2" parent_status)" = "$3" ] || exit 2
+    [ "$(fm_pending_reply_get "$2" parent_home)" = "$4" ] || exit 3
+    [ "$(fm_pending_reply_get "$2" phase)" = awaiting_report ] || exit 4
+    case "$3" in /*.status) ;; *) exit 5 ;; esac
+  ' _ "$ROOT/bin/fm-pending-reply-lib.sh" "$rec" "$parent_status" "$parent_home" \
+    || fail "restart must preserve the expectation and exact parent destination"
   pass "restart preserves expectation and exact parent destination"
 }
 
@@ -864,7 +862,7 @@ test_fm_send_marked_secondmate_creates_pending_and_embeds_corr() {
   expect_code 0 "$rc" "secondmate send should succeed"
   got=$(latest_record_body "$home" hibit)
   case "$got" in
-    "$FM_FROMFIRST_MARK"corr=*) : ;;
+    "$TEST_FROMFIRST_MARK"corr=*) : ;;
     *) fail "secondmate steer record must embed marker+corr"$'\n'"$(printf '%s' "$got" | od -An -c)" ;;
   esac
   corr=$(fm_pending_reply_extract_corr "$got")
@@ -1113,7 +1111,7 @@ test_correlations_reuse_only_for_matching_open_task() {
     || fail "cross-task expectation must belong to the new target"
   printf 'done [corr=%s]: complete\n' "$corr1" > "$state/domain.status"
   fm_pending_reply_try_resolve "$state" "$corr1" || fail "first expectation should resolve"
-  run_send "$fb" "$home" "$log" domain "${FM_FROMFIRST_MARK}corr=${corr1} follow-up" \
+  run_send "$fb" "$home" "$log" domain "${TEST_FROMFIRST_MARK}corr=${corr1} follow-up" \
     || fail "resolved-correlation follow-up failed"
   corr3=$(fm_pending_reply_extract_corr "$(latest_record_body "$home" domain)")
   [ -n "$corr3" ] && [ "$corr3" != "$corr1" ] \

@@ -174,6 +174,50 @@ fm_ask_user_escalation_block() {  # <data-dir> <task-id>
 EOF
 }
 
+# One generated seven-field interface for fresh and promoted ship tasks.
+# An existing assessment is carried verbatim; absence is legacy/unassessed,
+# never evidence of low risk. The risk-recovery skill owns interpretation.
+fm_risk_recovery_block() {  # [<existing-brief>]
+  local assessment=
+  if [ -n "${1:-}" ] && fm_brief_heading_present "$1" '# Risk and recovery'; then
+    assessment=$(fm_brief_heading_body "$1" '# Risk and recovery')
+  fi
+  if [ -n "$assessment" ]; then
+    printf '# Risk and recovery\n%s\n' "$assessment"
+    # Preserve an older partial assessment and append only missing generated
+    # fields. This is interface completion, never a semantic quality verdict.
+    fm_risk_recovery_template | FM_RISK_ASSESSMENT="$assessment" awk '
+      BEGIN { old=ENVIRON["FM_RISK_ASSESSMENT"] }
+      /^- [^:]+:/ {
+        field=$0; sub(/:.*/, ":", field)
+        n=split(old, lines, "\n"); found=0; fenced=0
+        for (i=1; i<=n; i++) {
+          if (lines[i] ~ /^[[:space:]]*(```|~~~)/) { fenced=!fenced; continue }
+          if (!fenced && index(lines[i], field)==1) found=1
+        }
+        if (!found) print
+      }
+    '
+  else
+    fm_risk_recovery_template
+  fi
+}
+
+fm_risk_recovery_template() {
+  cat <<'EOF'
+# Risk and recovery
+Firstmate fills these seven fields before dispatch; the worker verifies them against the implementation surface.
+Load `.agents/skills/risk-recovery/SKILL.md` from the Firstmate code root for assessment and validation policy.
+- Intended behavior: unassessed - describe the requested outcome.
+- Preserved behavior: unassessed - name existing behavior and accepted changes.
+- Impact and dependencies: unassessed - identify affected callers, state, data, services, and environments.
+- Risk and rationale: unknown, provisionally high - resolve reach, consequences, reversibility, and uncertainty through bounded discovery; name human judgment areas.
+- Validation scenarios: unassessed - name observable success/failure cases and evidence, with concrete reasons for omissions.
+- Recovery approach: unassessed - name containment, restoration, limitations, and observable verification, or explain non-applicability.
+- Release applicability: unassessed - state planned, deferred, or not applicable with a reason; link retained obligations when applicable.
+EOF
+}
+
 fm_dod_block() {  # <mode> <task-id>
   local mode=$1 id=$2
   case "$mode" in
@@ -230,4 +274,8 @@ EOF
       echo "error: fm_dod_block: unknown delivery mode '$mode'" >&2
       return 1 ;;
   esac
+  cat <<'EOF'
+
+Follow the Firstmate `risk-recovery` skill for the accepted contract and evidence handoff to this selected delivery owner, including a proportionate public-safe impact, evidence-gap, recovery, and human-judgment summary.
+EOF
 }

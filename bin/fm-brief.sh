@@ -12,6 +12,8 @@
 # charters still use a single `{TASK}` charter fill. Firstmate may adjust other
 # sections when the task genuinely deviates (e.g. working an existing external
 # PR instead of shipping a new one).
+# Ship briefs also render the shared risk/recovery interface from bin/fm-dod-lib.sh;
+# .agents/skills/risk-recovery/SKILL.md owns its assessment and evidence policy.
 # Usage: fm-brief.sh <task-id> <repo-name> --mode <no-mistakes|direct-PR|local-only> [--herdr-lab]
 #        fm-brief.sh <task-id> <repo-name> --scout [--herdr-lab]
 #        fm-brief.sh <task-id> --secondmate {<project>...|--no-projects}
@@ -425,11 +427,14 @@ case "$MODE" in
     ;;
 esac
 DOD=$(fm_dod_block "$MODE" "$ID") || exit 1
+RISK_RECOVERY=$(fm_risk_recovery_block "")
 
 cat > "$BRIEF" <<EOF
 You are a crewmate: an autonomous worker agent managed by firstmate. Work on your own; do not wait for a human.
 
 $TASK_SECTION
+
+$RISK_RECOVERY
 
 $HERDR_SECTION
 

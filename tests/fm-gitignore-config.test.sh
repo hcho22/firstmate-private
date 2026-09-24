@@ -82,8 +82,23 @@ test_scratchpad2_does_not_dirty_porcelain() {
   pass "scratchpad2/ does not make git status --porcelain dirty"
 }
 
+test_ci_evidence_families_are_ignored() {
+  local sample
+  for sample in \
+    .fm-lint-final.output \
+    .fm-lint-causal-next/manifest.0 \
+    .fm-pending-reply-next.txt; do
+    git -C "$ROOT" check-ignore --no-index -q "$sample" \
+      || fail "git does not ignore generated CI evidence $sample"
+  done
+  git -C "$ROOT" check-ignore --no-index -q docs/.fm-lint-policy.md \
+    && fail "git unexpectedly ignores a nested maintained surface"
+  pass "root CI measurement artifacts stay private without hiding nested maintained surfaces"
+}
+
 test_config_dir_ignored_as_category
 test_unrelated_path_stays_visible
 test_scratchpad_prefix_is_ignored
 test_scratchpad_prefix_ignores_no_tracked_path
 test_scratchpad2_does_not_dirty_porcelain
+test_ci_evidence_families_are_ignored

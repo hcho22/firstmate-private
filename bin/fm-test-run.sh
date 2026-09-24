@@ -27,6 +27,17 @@
 # Aggregation (no suite execution):
 #   fm-test-run.sh --aggregate-json <out.json> <lane.json> [more lane.json...]
 #
+# Test runtimes (execution only, including --changed):
+#   Require python3 with tomllib and node that can import typed .ts modules.
+#   Preserve compatible caller executables; otherwise probe same-name binaries
+#   in PATH order, then python3.<minor> executables in PATH directories.
+#   Only installed executables on PATH are considered. If none is capable,
+#   fail before running tests; put compatible installed runtimes on PATH.
+#   Temporary command symlinks affect this runner and its children only and
+#   are removed on exit. No installations, shell profiles, or production
+#   runtime settings are changed. Other commands retain their PATH ordering.
+#   Inspection, aggregation, and empty selections need no runtime preflight.
+#
 # Options:
 #   --json <path>   write a deterministic timing artifact after the run
 #   --list          print selected script paths (one per line) and exit 0
@@ -215,7 +226,7 @@ family_for_basename() {
   case "$1" in
     fm-arm-pretool-check.test.sh|fm-ask-user-authority.test.sh|\
     fm-bearings-board.test.sh|\
-    fm-brief.test.sh|fm-vendor-auth-probe.test.sh|\
+    fm-brief.test.sh|fm-release.test.sh|fm-vendor-auth-probe.test.sh|\
     fm-calm-pi-extension.test.sh|fm-cd-pretool-check.test.sh|\
     fm-classify-decision-key.test.sh|\
     fm-composer-ghost.test.sh|fm-composer-lib.test.sh|\
@@ -278,7 +289,7 @@ family_for_basename() {
     fm-cmux-claude-composer-live-e2e.test.sh|\
     fm-composer-matrix-live-e2e.test.sh|\
     fm-codex-continuity-live-e2e.test.sh|fm-grok-continuity-live-e2e.test.sh|\
-    fm-cursor-primary-live-e2e.test.sh|\
+    fm-cursor-primary-live-e2e.test.sh|fm-release-local-pilot.test.sh|\
     fm-grok-stop-live-e2e.test.sh|fm-harness-adapter-instructions-live-e2e.test.sh|\
     fm-structural-review-guidance-live-e2e.test.sh|\
     fm-harness-liveness-drift-live-e2e.test.sh|\
@@ -1319,7 +1330,7 @@ families_for_changed_path() {
       ;;
     bin/fm-lint.sh|bin/fm-lint-workflows.sh|bin/fm-install-shellcheck.sh|\
     bin/fm-install-actionlint.sh|\
-    bin/fm-brief.sh|bin/fm-ensure-agents-md.sh|bin/fm-crew-state.sh|\
+    bin/fm-brief.sh|bin/fm-dod-lib.sh|bin/fm-release.sh|bin/fm-release.py|bin/fm-ensure-agents-md.sh|bin/fm-crew-state.sh|\
     bin/fm-captain-hold.sh|bin/fm-decision-hold.sh|bin/fm-supervision*|bin/fm-transition-lib.sh|\
     bin/fm-tmux-lib.sh|bin/fm-marker-lib.sh|bin/fm-operational-input.sh|bin/fm-tasks-axi-lib.sh|\
     bin/fm-vendor-auth-probe.sh|\
@@ -1992,6 +2003,70 @@ cleanup_run() {
 }
 
 trap cleanup_run EXIT
+
+runtime_works() {
+  local name=$1 executable=$2
+  [ -f "$executable" ] && [ -x "$executable" ] || return 1
+  case "$name" in
+    python3) "$executable" -c 'import tomllib; assert tomllib.loads("value = 42")["value"] == 42' ;;
+    node) "$executable" "$RUN_TMP/runtime-probe/check.mjs" ;;
+  esac </dev/null >/dev/null 2>&1
+}
+
+select_test_runtime() {
+  local name=$1 dir candidate minor
+  local -a path_dirs
+  IFS=: read -r -a path_dirs <<<"$PATH"
+  for dir in "${path_dirs[@]}"; do
+    dir=${dir:-.}
+    case "$dir" in /*) ;; *) dir="$ROOT/$dir" ;; esac
+    candidate="$dir/$name"
+    if runtime_works "$name" "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  if [ "$name" = python3 ]; then
+    for dir in "${path_dirs[@]}"; do
+      dir=${dir:-.}
+      case "$dir" in /*) ;; *) dir="$ROOT/$dir" ;; esac
+      for candidate in "$dir"/python3.[0-9]*; do
+        minor=${candidate##*/python3.}
+        case "$minor" in ''|*[!0-9]*) continue ;; esac
+        if runtime_works "$name" "$candidate"; then
+          printf '%s\n' "$candidate"
+          return 0
+        fi
+      done
+    done
+  fi
+  return 1
+}
+
+prepare_test_runtimes() {
+  local name selected current requirement
+  mkdir -p "$RUN_TMP/runtime-probe" "$RUN_TMP/runtime-bin"
+  printf '{"type":"module"}\n' >"$RUN_TMP/runtime-probe/package.json"
+  printf 'export const value: number = 42;\n' >"$RUN_TMP/runtime-probe/value.ts"
+  printf 'import { value } from "./value.ts"; if (value !== 42) process.exit(1);\n' \
+    >"$RUN_TMP/runtime-probe/check.mjs"
+  for name in python3 node; do
+    case "$name" in
+      python3) requirement='python3 with tomllib' ;;
+      node) requirement='node with typed .ts module import support' ;;
+    esac
+    selected=$(select_test_runtime "$name") \
+      || die "test runtime unavailable: $requirement; put a compatible installed executable on PATH"
+    current=$(command -v "$name" || true)
+    if [ "$selected" != "$current" ]; then
+      ln -s "$selected" "$RUN_TMP/runtime-bin/$name"
+    fi
+    log "test runtime $name=$selected"
+  done
+  export PATH="$RUN_TMP/runtime-bin:$PATH"
+}
+
+[ "${#SCRIPTS[@]}" -eq 0 ] || prepare_test_runtimes
 
 RUN_ID="fm-test-run-${RUN_STARTED_MS}-$$"
 TOTAL=0

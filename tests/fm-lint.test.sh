@@ -259,6 +259,9 @@ if [ -n "\${FM_TEST_MODE_LOG:-}" ]; then
   printf '%s\n' "\$mode" >> "\$FM_TEST_MODE_LOG"
 fi
 [ "\$#" -eq 0 ] || shift
+if [ -n "\${FM_TEST_INVOCATION_LOG:-}" ]; then
+  printf '%s\n' "\$#" >> "\$FM_TEST_INVOCATION_LOG"
+fi
 printf '%s\n' "\$@" >> "$log"
 exit 0
 SH
@@ -769,6 +772,44 @@ SH
   pass "fm-lint.sh passes a clean fixture"
 }
 
+test_default_full_analysis_is_serially_sharded() {
+  local tmp fakebin log invocation_log telemetry out expected actual i fixture
+  local -a roots
+  tmp=$(fm_test_tmproot fm-lint-default-shards)
+  fakebin=$(fm_fakebin "$tmp")
+  log="$tmp/shellcheck.log"
+  invocation_log="$tmp/invocations.log"
+  telemetry="$tmp/telemetry.tsv"
+  roots=()
+  i=1
+  while [ "$i" -le 16 ]; do
+    fixture="$tmp/equal-$i.sh"
+    cat > "$fixture" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "${1:-ok}"
+SH
+    roots+=("$fixture")
+    i=$((i + 1))
+  done
+  fm_lint_stub_shellcheck "$fakebin" "$log"
+  : > "$invocation_log"
+
+  out=$(PATH="$fakebin:$PATH" GITHUB_ACTIONS='' CI='' \
+    FM_TEST_INVOCATION_LOG="$invocation_log" FM_LINT_TELEMETRY="$telemetry" \
+    "$LINT" "${roots[@]}" 2>&1) \
+    || fail "default serially sharded lint failed"$'\n'"$out"
+  awk '$1 != 1 { bad=1 } END { exit !bad && NR == 16 ? 0 : 1 }' "$invocation_log" \
+    || fail "default lint did not divide sixteen equal roots into sixteen bounded invocations"
+  expected=$(printf '%s\n' "${roots[@]}" | LC_ALL=C sort)
+  actual=$(LC_ALL=C sort "$log")
+  [ "$actual" = "$expected" ] \
+    || fail "serial sharding did not analyze every requested root exactly once"
+  assert_grep $'jobs\t1' "$telemetry" "default lint did not use one bounded worker"
+  awk -F '\t' '$1 ~ /^shard_[0-9]+_weight_bytes$/ && $2 > 0 { count++ } END { exit count == 16 ? 0 : 1 }' \
+    "$telemetry" || fail "telemetry did not report sixteen nonempty stable shards"
+  pass "default lint analyzes each root once across sixteen serial resource-bounded shards"
+}
+
 test_jobs_are_deterministic_and_complete() {
   if ! pinned_ready; then
     pass "SKIP (ShellCheck $REQUIRED not resolved): deterministic bounded jobs check"
@@ -1012,6 +1053,7 @@ test_rejects_wrong_shellcheck_version
 test_catches_a_real_lint_defect
 test_ignores_ambient_shellcheck_opts
 test_clean_fixture_passes
+test_default_full_analysis_is_serially_sharded
 test_jobs_are_deterministic_and_complete
 test_worker_trees_stop_on_signal
 test_seeded_module_boundary_parity

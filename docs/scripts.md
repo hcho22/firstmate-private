@@ -10,6 +10,7 @@ The shared no-mistakes gate refusal for fleet lifecycle entrypoints is summarize
 | `fm-session-start.sh`    | Compose lock, bootstrap, and wake drain into the single ordered session-start digest |
 | `fm-sessionstart-nudge.sh` | Print the native session-start hook nudge when the primary has not already run the digest |
 | `fm-sessionstart-run.sh` | Route a native session-open hook to the full digest, a context re-emit, or the nudge |
+| [`fm-release.sh`](../bin/fm-release.sh) | Render and check release sections in ordinary task bodies without executing actions |
 | `fm-operational-input.sh` | Construct and parse the canonical cross-language operational-input protocol |
 | `fm-evidence-import-contract.py` | Parse and validate one side-effect-free producer-neutral evidence import offer |
 | `fm-evidence-import-stage.py` | Stage and recover producer-neutral evidence imports outside project worktrees |
