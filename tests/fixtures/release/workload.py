@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Disposable loopback workload for the opt-in release pilot; never production.
 
-serve DATABASE ADDRESS_FILE persists requests, writes and idempotent action IDs.
+serve DATABASE ADDRESS_FILE MANIFEST_FILE loads candidate/environment identity
+and persists requests, writes and idempotent action IDs.
 request URL PATH [JSON] performs an actual HTTP request and prints its response.
 observe URL EVIDENCE_FILE captures health (including a failed HTTP probe) then
 prints a bounded notification for an existing registered Firstmate check.

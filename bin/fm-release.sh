@@ -12,7 +12,9 @@
 # The task body's single ```firstmate-release JSON fence is authoritative.
 # template prints its schema with deliberately unassessed values. check accepts
 # surrounding prose; no fence means legacy/unassessed, never low risk or ready.
-# Exit 0: recorded preconditions consistent (or already-observed operation).
+# With --operation, exit 0 means consistent recorded preconditions or an
+# already-observed operation. Without it, check returns a record-only assessment
+# and may exit 0 with unknown health; it does not assess action readiness.
 # Exit 1: blocked/legacy; exit 2: malformed input/usage. JSON output is a private
 # projection, not authorization, authenticated evidence, or a public summary.
 # Nothing writes a task, executes an action, schedules a watch, acquires a lease,

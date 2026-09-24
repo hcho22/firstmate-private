@@ -15,6 +15,9 @@
 # is not relabeled as the ship spec. Promotion refuses leftover `{TASK}` /
 # `{FIRSTMATE_SPEC}` placeholders (bin/fm-dod-lib.sh). A pre-subsection scout
 # brief contributes only Task lines explicitly marked as captain words to intent.
+# The shared risk/recovery renderer in bin/fm-dod-lib.sh carries the scout's
+# assessment into ship instructions and supplies any missing fields as unassessed;
+# .agents/skills/risk-recovery/SKILL.md owns interpretation and scope reconciliation.
 # A scout records no delivery posture, so promotion is where this task's delivery
 # contract is decided: --mode and --yolo are REQUIRED and written into the meta
 # alongside the kind= flip. Firstmate resolves both at promotion time, having just
