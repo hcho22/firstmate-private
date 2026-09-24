@@ -82,7 +82,10 @@ def serve(database, address, manifest):
             if op=='restore' and state()['fail_restore']:
                 self.reply({'accepted':False,'recovery':'failed'},503); return
             at=time.time()
-            if op=='deploy': update(dict(exposure='none',gate='disabled'))
+            if op=='deploy':
+                if target=='internal': update(dict(exposure=target,gate='enabled',since=at,exposure_attempt=key))
+                elif target=='disabled': update(dict(exposure='none',gate='disabled'))
+                else: self.reply({'error':'unknown deployment target'},400); return
             elif op in ('expose','advance'): update(dict(exposure=target,gate='enabled',since=at,exposure_attempt=key))
             elif op=='contain': update(dict(exposure='none',gate='disabled'))
             elif op!='restore': self.reply({'error':'unknown operation'},400); return

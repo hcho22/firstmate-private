@@ -70,7 +70,7 @@ PR and local landing summaries state material impact, evidence gaps, recovery, a
 
 Before closing implementation whose accepted scope includes production release, create or link the ordinary release task for its coherent candidate and environment, even when exposure is deferred.
 Add relevant records before newly authorized exposure on older work.
-Inspect existing tasks, including retained completed task references, before creating a task; reuse the same release identity on replay.
+Inspect existing tasks, including retained completed task references, before creating a task; reuse the same release identity on replay, comparing the material candidate (source, artifact, configuration and dependencies) within its project and environment rather than volatile progress or the rollout plan.
 A release body contains all included implementation links; each implementation body records all participating release links as `home + task ID + candidate/environment`, not just a one-to-one blocker.
 Keep links in the durable task bodies and completion history; they survive implementation teardown and archive pruning independently of a live worker.
 Code-only work without a release obligation gets no release task.
@@ -107,7 +107,7 @@ Phases are facts inside the body, separate from the ordinary queued/in-flight/bl
 | Released | Final planned exposure verified and final observation criteria met. |
 | Stopped | Cancelled or withdrawn with verified final condition and accurate disposition. |
 
-Platforms that deploy and expose together go from Ready to Observing after the authorized action.
+Platforms that deploy and expose together go from Ready to Observing after one deployment authorized for the initial cohort, recording its verified mapping and exposure as the same external effect through the shared interpretation in `bin/fm-release.py`.
 Merge authority, including yolo, never grants deployment, expansion, destructive recovery, or irreversible data operations.
 A bounded approved plan can cover several stages without asking again, but its candidate, environment, actions, targets, expiration/conditions, and limitations must still match.
 Before an external action record a stable operation identity, intended target, resource reservation, and pending outcome in the ordinary body.
@@ -124,7 +124,7 @@ Missing, stale, wrong-candidate/environment/configuration, future-dated, or malf
 Measure freshness from the end of the measurement window; reporting cached measurements again does not renew their validity.
 Apply the same evidence-applicability rule to health and terminal proof: the material plan must match, the proof must reference the latest reconciled external effect, and its measurement window or verification must not predate that effect.
 Use the existing completed-action history and retained exposure attempt, with the fields owned by `bin/fm-release.py`; ambiguous effects prevent reliance on either kind of proof until reconciled.
-Every exposure or stage advancement starts a distinct attempt identified by its action and verified external start time, even when the candidate and cohort repeat.
+Every exposure, including a combined deployment, or stage advancement starts a distinct attempt identified by its action and verified external start time, even when the candidate and cohort repeat.
 Containment and restoration also invalidate proof that predates their effects; never relabel old proof to renew its applicability.
 Restart alone preserves the reconciled attempt and its eligible observations; an uncertain action result still requires external-state reconciliation before continuation.
 An incomplete window or insufficient usage cannot pass; an accepted manual-scenario alternative must be recorded before use and cannot lower criteria mid-release.

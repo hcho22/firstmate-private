@@ -20,7 +20,7 @@ operation/target/instruction/expires_at to the same binding; never credentials.
 Progress holds phase/stage, deployment, exposure_attempt, observation, pending_action,
 completed_actions and last_notified_condition. Deployment includes source,
 artifact, binding and evidence. Exposure_attempt is null until exposure is
-verified, then contains id (the expose/advance action identity), target, and
+verified, then contains id (the exposing action identity), target, and
 started_at (the verified external exposure start, epoch seconds). Each exposure
 or advancement starts a new attempt; restart preserves a reconciled attempt.
 Observation includes binding, id, signal_source, exposure_attempt (the attempt id),
@@ -35,7 +35,11 @@ Pending/completed actions hold id/operation/target/status/evidence. Pending is
 null or planned/ambiguous; only verified actions belong in completed_actions.
 Completed actions are in external-effect order and additionally hold effect_at,
 the verified external effect time (epoch seconds), not request acknowledgement.
-For expose/advance it equals exposure_attempt.started_at. Retain the most recent
+An expose/advance action, or a deploy explicitly targeting a planned cohort,
+establishes exposure; a combined deploy must target the initial cohort and have
+verified deployment mapping. Its effect_at equals exposure_attempt.started_at.
+An unexposed deploy uses a target distinct from every planned cohort.
+Retain the most recent
 exposure_attempt through containment and restoration; do not clear action history.
 Watches lists registered owner references. Outcome includes disposition,
 exposure, evidence, health, recovery, watches_retired and unresolved_calls, plus
@@ -181,14 +185,28 @@ def plan_fingerprint(r):
     return hashlib.sha256(json.dumps(material, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
 
 
-def binding(r):
+def candidate_identity(r):
     return {'candidate': r['candidate']['artifact'], 'configuration': r['candidate']['configuration'],
-            'environment': r['target']['environment'], 'source': r['candidate']['source'],
-            'dependencies': r['candidate']['dependencies'], 'plan': plan_fingerprint(r)}
+            'source': r['candidate']['source'], 'dependencies': r['candidate']['dependencies']}
+
+
+def binding(r):
+    return dict(candidate_identity(r), environment=r['target']['environment'], plan=plan_fingerprint(r))
 
 
 def bound(row, r):
     return all(nonempty(v) and row.get(k) == v for k, v in binding(r).items())
+
+
+def exposes(r, operation, target):
+    return operation in ('expose', 'advance') or (
+        operation == 'deploy' and any(target == s.get('target') for s in r['stages']))
+
+
+def deployment_verified(r):
+    d = r['progress']['deployment']
+    return (isinstance(d, dict) and bound(d, r) and d.get('source') == r['candidate']['source']
+            and d.get('artifact') == r['candidate']['artifact'] and nonempty(d.get('evidence')))
 
 
 def evidence_applicability(row, r, now, start, end):
@@ -216,9 +234,13 @@ def evidence_applicability(row, r, now, start, end):
     if (len({a['id'] for a in effects}) != len(effects) or
             any(a['effect_at'] > b['effect_at'] for a, b in zip(effects, effects[1:]))):
         return errors + ['external effect history duplicated or unordered']
-    exposure = next((a for a in reversed(effects) if a['operation'] in ('expose', 'advance')), None)
+    exposure = next((a for a in reversed(effects) if exposes(r, a['operation'], a['target'])), None)
     attempt = r['progress'].get('exposure_attempt')
     if exposure:
+        if not deployment_verified(r):
+            errors.append('actual deployed artifact/source mapping unverified')
+        if exposure['operation'] == 'deploy' and exposure['target'] != r['stages'][0].get('target'):
+            errors.append('combined deployment must target initial cohort')
         if (not isinstance(attempt, dict) or attempt.get('id') != exposure['id'] or
                 attempt.get('target') != exposure['target'] or
                 not number(attempt.get('started_at')) or attempt['started_at'] != exposure['effect_at']):
@@ -312,7 +334,7 @@ def assess(r, operation, target, op_id, peers, now):
         shape(peer)
         if (peer['identity']['home'], peer['identity']['task']) == (r['identity']['home'], r['identity']['task']):
             continue
-        if (peer['identity']['project'], peer['candidate']['artifact'], peer['target']['environment']) == (r['identity']['project'], r['candidate']['artifact'], r['target']['environment']):
+        if (peer['identity']['project'], candidate_identity(peer), peer['target']['environment']) == (r['identity']['project'], candidate_identity(r), r['target']['environment']):
             errors.append('duplicate release identity: reuse ' + peer['identity']['task'])
         if peer['target']['environment'] == r['target']['environment'] and peer['progress']['pending_action']:
             if set(peer['target']['resources']) & set(r['target']['resources']):
@@ -343,10 +365,10 @@ def assess(r, operation, target, op_id, peers, now):
                     errors.append('required criterion ' + str(status) + ': ' + label)
         if operation == 'deploy' and r['progress']['phase'] != 'Ready':
             errors.append('deployment requires Ready assessment')
+        if operation == 'deploy' and exposes(r, operation, target) and target != r['stages'][0].get('target'):
+            errors.append('combined deployment must target initial cohort')
         if operation in ('expose', 'advance'):
-            d = r['progress']['deployment']
-            if not (isinstance(d, dict) and bound(d, r) and d.get('source') == r['candidate']['source']
-                    and d.get('artifact') == r['candidate']['artifact'] and nonempty(d.get('evidence'))):
+            if not deployment_verified(r):
                 errors.append('actual deployed artifact/source mapping unverified')
             names = [s.get('name') for s in r['stages']]
             if operation == 'expose':

@@ -110,6 +110,90 @@ peer['progress']['pending_action']=dict(id='other',status='planned')
 f=temp/'peer.md'; f.write_text(body(peer)); check(base,1,*advance,'--peer',str(f),contains='reserved')
 peer['target']['resources']=['loopback/independent']; f.write_text(body(peer)); check(base,0,*advance,'--peer',str(f))
 peer['candidate']['artifact']=base['candidate']['artifact']; f.write_text(body(peer)); check(base,1,*advance,'--peer',str(f),contains='duplicate release')
+for field in ('configuration','source','dependencies','artifact'):
+    independent=copy.deepcopy(peer); independent['candidate'][field]='distinct-material-value'
+    f.write_text(body(independent)); check(base,0,*advance,'--peer',str(f))
+    independent['target']['resources']=base['target']['resources']
+    f.write_text(body(independent)); check(base,1,*advance,'--peer',str(f),contains='reserved')
+for group,field,value in [('identity','project','other-project'),('target','environment','other-environment')]:
+    independent=copy.deepcopy(peer); independent[group][field]=value
+    f.write_text(body(independent)); check(base,0,*advance,'--peer',str(f))
+for group,field,value in [('progress','phase','Stopped'),('progress','observation',None),
+                         ('health','baseline','different-plan'),('candidate','extra_note','not-material')]:
+    duplicate=copy.deepcopy(peer); duplicate[group][field]=value
+    duplicate['progress']['pending_action']=None
+    f.write_text(body(duplicate)); check(base,1,*advance,'--peer',str(f),contains='duplicate release')
+for final_in_deploy in (False,True):
+    combined=copy.deepcopy(base)
+    if final_in_deploy: combined['stages']=combined['stages'][:1]
+    combined['authority'].append(dict(base_binding,operation='deploy',target='internal',
+                                     instruction='combined deployment to internal cohort',expires_at=1600))
+    combined_binding=stamp(cli,combined)
+    combined['progress'].update(phase='Ready',stage='initial',deployment=None,exposure_attempt=None,
+                                observation=None,completed_actions=[])
+    deploy=('--operation','deploy','--target','internal','--operation-id','combined-1')
+    check(combined,0,*deploy)
+    denied=copy.deepcopy(combined); denied['authority']=denied['authority'][:-1]
+    check(denied,1,*deploy,contains='authority')
+    denied=copy.deepcopy(combined); denied['authority'][-1]['expires_at']=999
+    check(denied,1,*deploy,contains='authority')
+    denied=copy.deepcopy(combined); denied['authority'][-1]['target']='disabled'
+    check(denied,1,*deploy,contains='authority')
+    check(combined,1,'--operation','expose','--target','internal','--operation-id','expose-1',contains='mapping')
+    combined['progress'].update(phase='Observing',
+        deployment=dict(combined_binding,artifact=combined['candidate']['artifact'],evidence='verified combined deployment'),
+        exposure_attempt=dict(id='combined-1',target='internal',started_at=995),
+        completed_actions=[dict(id='combined-1',operation='deploy',target='internal',status='verified',effect_at=995,evidence='observed combined effect')],
+        observation=dict(base['progress']['observation'],**combined_binding))
+    combined['progress']['observation'].update(exposure_attempt='combined-1',effect='combined-1')
+    assert check(combined)['health']=='healthy'
+    assert check(combined,0,*deploy)['assessment']=='already-observed'
+    if final_in_deploy:
+        combined['progress']['phase']='Released'
+        combined['outcome'].update(combined_binding,disposition='released',exposure='internal',health='healthy',
+                                  evidence='final combined state',effect='combined-1',observed_at=999,watches_retired=True)
+        operation=('--operation','complete')
+    else:
+        combined['progress']['phase']='Expansion ready'
+        operation=advance
+    check(combined,0,*operation)
+    saved.write_text(body(combined)); check(saved.read_text(),0,*operation)
+    for key,value,verdict in [('samples',0,'insufficient'),('ended_at',995.5,'insufficient'),
+                             ('started_at',994,'unknown'),('exposure_attempt','earlier','unknown'),
+                             ('effect','earlier','unknown'),('environment','elsewhere','unknown')]:
+        bad=copy.deepcopy(combined); bad['progress']['observation'][key]=value
+        assert check(bad,1,*operation)['health']==verdict
+    bad=copy.deepcopy(combined)
+    bad['progress']['exposure_attempt']['started_at']=100
+    bad['progress']['completed_actions'][0]['effect_at']=100
+    bad['progress']['observation'].update(started_at=100,ended_at=200,observed_at=1000)
+    assert check(bad,1,*operation)['health']=='unknown'
+    for field,value in [('deployment',None),('exposure_attempt',None),
+                        ('pending_action',dict(id='combined-1',operation='deploy',target='internal',status='ambiguous'))]:
+        bad=copy.deepcopy(combined); bad['progress'][field]=value
+        check(bad,1,*operation)
+    bad=copy.deepcopy(combined); bad['progress']['deployment']['artifact']='wrong-build'
+    check(bad,1,*operation,contains='mapping')
+    bad=copy.deepcopy(combined); bad['progress']['completed_actions'][0]['target']='disabled'
+    check(bad,1,*operation)
+    withdrawn=copy.deepcopy(combined)
+    withdrawn['progress'].update(phase='Stopped',observation=None)
+    withdrawn['progress']['completed_actions'].append(dict(id='combined-contain',operation='contain',target='none',status='verified',effect_at=999,evidence='safe state'))
+    withdrawn['outcome'].update(combined_binding,disposition='withdrawn',exposure='none',health='safe',recovery='contained',
+                               evidence='verified withdrawal',effect='combined-contain',observed_at=999,watches_retired=True)
+    check(withdrawn,0,'--operation','complete')
+    withdrawn['progress']['exposure_attempt'].update(id='combined-2',started_at=1000)
+    withdrawn['progress']['completed_actions'].append(dict(id='combined-2',operation='deploy',target='internal',status='verified',effect_at=1000,evidence='new combined deployment'))
+    check(withdrawn,1,'--operation','complete',contains='latest external effect')
+    withdrawn['outcome']['effect']='combined-2'
+    check(withdrawn,1,'--operation','complete',contains='predates')
+r=copy.deepcopy(base); r['progress'].update(phase='Ready',deployment=None,exposure_attempt=None,observation=None,completed_actions=[])
+r['authority'].append(dict(base_binding,operation='deploy',target='all-local',instruction='deployment',expires_at=1600))
+check(r,1,'--operation','deploy','--target','all-local','--operation-id','skip-stage',contains='initial cohort')
+r['progress'].update(phase='Deployed, unexposed',deployment=copy.deepcopy(base['progress']['deployment']),
+                     completed_actions=[dict(id='unexposed',operation='deploy',target='disabled',status='verified',effect_at=995,evidence='unexposed state')])
+assert check(r)['health']=='unknown'
+check(r,0,'--operation','expose','--target','internal','--operation-id','expose-after-deploy')
 # The previously accepted manual alternative can satisfy usage, never time.
 r=copy.deepcopy(base); r['progress']['observation']['samples']=0
 r['stages'][0]['manual_alternative']=dict(instruction='accepted before exposure', scenarios='two named interactions')

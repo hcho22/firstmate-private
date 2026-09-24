@@ -102,7 +102,10 @@ def action(r,op,target,key):
     http('/action',dict(id=key,operation=op,target=target))
     actual=http('/state')
     assert sum(a['id']==key for a in actual['actions'])==1
-    if op in ('expose','advance'):
+    if op=='deploy':
+        assert actual['candidate']==r['candidate']['artifact'] and actual['source']==r['candidate']['source']
+        r['progress']['deployment']=dict(plan_binding,artifact=actual['candidate'],evidence=str(log))
+    if op in ('expose','advance') or (op=='deploy' and target=='internal'):
         assert actual['exposure_attempt']==key and actual['exposure']==target
         r['progress']['exposure_attempt']=exposure_attempt(actual)
         r['progress']['observation']=None
@@ -113,7 +116,7 @@ def action(r,op,target,key):
 
 plan='''# Authorized disposable local pilot
 Candidate: exact SHA-256 of the workload program; environment: loopback HTTP and isolated SQLite under this directory.
-Permitted actions: local deploy, internal exposure, all-local exposure, disable, representative failed restoration, and retained-data inspection; never production or live fleet mutation.
+Permitted actions: local unexposed deploy, combined deployment to the internal cohort, internal exposure, all-local exposure, disable, representative failed restoration, and retained-data inspection; never production or live fleet mutation.
 Stages: internal then all-local; each needs at least 2 real requests over a 1-second window ending within 60 seconds of assessment.
 Measurements identify the current exposure action and start no earlier than its verified external start time; restart retains that attempt after reconciliation.
 Health and terminal evidence must match the current plan and latest reconciled effect; measurements and final verification cannot predate that effect.
@@ -124,6 +127,15 @@ The operator verifies authorization from the accepted test scope; the checker on
 '''
 (dest/'plan.md').write_text(plan)
 try:
+    head=run('git','-C',root,'rev-parse','HEAD').strip()
+    patch=run('git','-C',root,'diff','--binary','HEAD')
+    (dest/'source.patch').write_text(patch)
+    paths=['bin/fm-release.py','bin/fm-release.sh','.agents/skills/risk-recovery/SKILL.md',
+           'tests/fm-release.test.sh','tests/fm-release-local-pilot.test.sh',
+           'tests/fixtures/release/contract.py','tests/fixtures/release/pilot.py','tests/fixtures/release/workload.py']
+    (dest/'source-attribution.json').write_text(json.dumps(dict(head=head,dirty=bool(patch),
+        patch_sha256=hashlib.sha256(patch.encode()).hexdigest(),
+        files={p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in paths}),indent=2)+'\n')
     # Installed capabilities, real home isolation, and the actual session lock.
     run('tasks-axi','--version')
     run('bash','-c','. "$1/bin/fm-tasks-axi-lib.sh"; fm_tasks_axi_compatible', '_', root)
@@ -196,6 +208,7 @@ try:
         elif row['category']=='security/privacy': row.update(expected='loopback only, synthetic data, existing protective control retained',observed='127.0.0.1 listener; request protective_control=true; no live credentials used')
         else: row.update(status='not-applicable',expected='no '+row['category']+' acceptance criterion for coordination-only local workload',observed='not applicable',limitation='API-only synthetic pilot; no UI or production performance claim')
     for authority in r['authority']: authority.update(candidate=digest,source=digest)
+    r['authority'].append(dict(r['authority'][0],target='internal',instruction='accepted disposable combined deployment to internal cohort'))
     r['progress'].update(phase='Ready',stage='initial',deployment=None,exposure_attempt=None,observation=None,completed_actions=[])
     r['watches']=['custom-check:release-local']
     plan_binding=stamp(cli,r)
@@ -252,7 +265,7 @@ try:
     result('monitoring-loss','unknown cannot expand; current exposure retained',missing)
     http('/control',dict(monitoring=True))
     # Resource reservation survives task writes; independent resources remain usable.
-    peer_record=copy.deepcopy(r); peer_record['identity']['task']='conflicting'; peer_record['candidate']['artifact']='other-build'
+    peer_record=copy.deepcopy(r); peer_record['identity']['task']='conflicting'; peer_record['candidate']['configuration']='independent-gated-configuration'
     peer_record['progress']['pending_action']=dict(id='other-op',operation='advance',target='other',status='planned')
     peer.write_text(body(peer_record))
     task('add','conflicting','Resource reservation','--body-file',peer,'--start','--json')
@@ -264,7 +277,7 @@ try:
     task('unblock','local-release','--by','conflicting','--json')
     task('start','local-release','--json')
     check(r,'advance','all-local','expand-1',0,peer)
-    result('resource-coordination','conflict blocks; independent resource proceeds','verified against both peer records')
+    result('resource-coordination','same artifact with distinct configuration: conflict blocks; independent resource proceeds','verified against both peer records and actual task dependencies')
     # Crash window: effect happened, task still says ambiguous. New server/process
     # reconstructs persisted effects before any retry, never from request exit.
     r['progress']['pending_action']=dict(id='expand-1',operation='advance',target='all-local',status='planned'); save(r)
@@ -325,7 +338,16 @@ try:
     finished['progress'].update(phase='Ready', stage='initial', observation=None, pending_action=None)
     finished['outcome'].update(disposition='pending',recovery='not-needed')
     save(finished)
-    action(finished,'expose','internal','success-internal')
+    prior_action_count=len(http('/state')['actions'])
+    combined=action(finished,'deploy','internal','success-internal')
+    assert len(combined['actions'])==prior_action_count+1 and combined['actions'][-1]['operation']=='deploy'
+    finished['progress'].update(phase='Observing',observation=observation(http('/health')))
+    save(finished)
+    assert check(finished)['health']=='insufficient'
+    assert check(finished,'deploy','internal','success-internal')['assessment']=='already-observed'
+    assert len(http('/state')['actions'])==prior_action_count+1
+    result('REL-02 REL-07 combined-deployment','one verified deployment exposes initial cohort; zero samples cannot pass; replay makes no new action',
+           dict(action=combined['actions'][-1],attempt=finished['progress']['exposure_attempt'],deployment=finished['progress']['deployment']))
     stale_withdrawal=copy.deepcopy(finished)
     stale_withdrawal['progress']['phase']='Stopped'
     stale_withdrawal['outcome']=copy.deepcopy(r['outcome'])
@@ -361,6 +383,8 @@ try:
     finished['progress'].update(phase='Released',stage='final',observation=observation(raw))
     finished['outcome'].update(plan_binding,disposition='released',exposure='all-local',health='healthy',recovery='not-needed',evidence=str(log),observed_at=raw['observed_at'],effect=raw['actions'][-1]['id'])
     check(finished,'complete'); save(finished); task('done','local-release','--report',str(log),'--json')
+    result('REL-14 combined-deployment-completion','combined initial deployment advances after sufficient observation and completes with current final evidence',
+           dict(initial_effect='success-internal',final_effect=raw['actions'][-1],exposure=raw['exposure'],samples=raw['samples']))
     cancelled=copy.deepcopy(finished); cancelled['identity']['task']='cancelled-offline-release'; cancelled['target']['environment']='offline'
     cancel_manifest=dest/'cancelled-manifest.json'; cancel_manifest.write_text(json.dumps(dict(manifest,environment='offline')))
     _,cancel_url=launch('cancelled',cancel_manifest)
