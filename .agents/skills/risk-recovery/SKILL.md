@@ -112,7 +112,7 @@ Merge authority, including yolo, never grants deployment, expansion, destructive
 A bounded approved plan can cover several stages without asking again, but its candidate, environment, actions, targets, expiration/conditions, and limitations must still match.
 Before an external action record a stable operation identity, intended target, resource reservation, and pending outcome in the ordinary body.
 Then use project-owned commands/providers; this checker executes nothing and cannot authenticate external evidence.
-After the action, observe actual external state and durably record the result before releasing the reservation or acknowledging the wake.
+After the action, observe actual external state and durably record its identity and verified effect time in the existing completed-action history before releasing the reservation or acknowledging the wake.
 On restart reconstruct candidate, configuration, phase, authority, current exposure attempt, last observation, and pending action from the body and reverify volatile external facts.
 If the command result is ambiguous, keep the reservation and reconcile actual state before any retry; retry only when provider semantics establish idempotency or observation proves the action never occurred.
 Duplicate observations/wakes and completed operation identities are no-ops for effects; do not mistake wake acknowledgement for exactly-once external execution.
@@ -122,17 +122,19 @@ Register the source under the release obligation rather than the implementation 
 A bounded observation has a deadline; arrange an existing registered check to surface silence/monitoring loss as unknown by that deadline.
 Missing, stale, wrong-candidate/environment/configuration, future-dated, or malformed observations are unknown and prevent advancement, never automatically authorize destructive rollback.
 Measure freshness from the end of the measurement window; reporting cached measurements again does not renew their validity.
-Bind each health observation to the verified exposure attempt recorded in the task using the fields owned by `bin/fm-release.py`.
+Apply the same evidence-applicability rule to health and terminal proof: the material plan must match, the proof must reference the latest reconciled external effect, and its measurement window or verification must not predate that effect.
+Use the existing completed-action history and retained exposure attempt, with the fields owned by `bin/fm-release.py`; ambiguous effects prevent reliance on either kind of proof until reconciled.
 Every exposure or stage advancement starts a distinct attempt identified by its action and verified external start time, even when the candidate and cohort repeat.
-Measurements must cover only that attempt; never relabel a prior observation to renew its applicability.
+Containment and restoration also invalidate proof that predates their effects; never relabel old proof to renew its applicability.
 Restart alone preserves the reconciled attempt and its eligible observations; an uncertain action result still requires external-state reconciliation before continuation.
 An incomplete window or insufficient usage cannot pass; an accepted manual-scenario alternative must be recorded before use and cannot lower criteria mid-release.
 Stop conditions halt expansion and notify the changed condition, consequence, and needed action; execute containment only if that exact action is authorized and safe under existing boundaries.
 Unchanged healthy observations stay quiet unless periodic reporting was requested; record the last notified condition in the body for restart/replay suppression.
 
 Before terminal completion verify final exposure, final health evidence (or the observed safe withdrawn/cancelled state), recovery disposition, and watch retirement through its owner.
-Bind final-state evidence to the current candidate and material plan, including the environment, and record the actual verification time using the outcome fields owned by `bin/fm-release.py`.
-Cancellation before exposure needs current safe-state verification but does not require a rollout-stage observation; older outcomes remain readable and need verification before completion.
+Cancellation before exposure needs positively observed safe-state evidence under the shared applicability rule, including explicit verification of no external effects when none occurred; absent history alone is not proof.
+It does not require a rollout-stage observation, and a deployed but unexposed cancellation references the verified deployment effect.
+Older records remain readable but missing effect references or times require reconciliation and new applicable evidence before progression or completion.
 A failed recovery remains Recovering or Paused; attempted rollback is not Stopped or Released.
 Distinguish successful release, cancellation before exposure, and verified withdrawal explicitly in the outcome.
 Load `captain-hold-lifecycle` for genuine unresolved captain calls; preserve them through completion, never close them merely because implementation finished.

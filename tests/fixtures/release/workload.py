@@ -28,7 +28,7 @@ def serve(database, address, manifest):
     db = sqlite3.connect(database)
     db.execute('CREATE TABLE IF NOT EXISTS state (key TEXT PRIMARY KEY, value TEXT)')
     db.execute('CREATE TABLE IF NOT EXISTS requests (at REAL, wrote INTEGER)')
-    db.execute('CREATE TABLE IF NOT EXISTS actions (id TEXT PRIMARY KEY, operation TEXT, target TEXT)')
+    db.execute('CREATE TABLE IF NOT EXISTS actions (id TEXT PRIMARY KEY, operation TEXT, target TEXT, effect_at REAL)')
     defaults = dict(gate='disabled', leak=False, monitoring=True, fail_restore=False, exposure='none',
                     candidate='local-build-v1', source='source-v1', configuration='gated-v1',
                     environment='loopback', dependencies='python-stdlib', since=time.time(), exposure_attempt='')
@@ -63,9 +63,10 @@ def serve(database, address, manifest):
                 self.reply({'health':'unknown','reason':'monitor unavailable'},503); return
             rows=db.execute('SELECT COUNT(*),COALESCE(SUM(wrote),0) FROM requests').fetchone()
             samples=db.execute('SELECT COUNT(*) FROM requests WHERE at>=?',(s['since'],)).fetchone()[0]
-            actions=[dict(id=i,operation=o,target=t) for i,o,t in db.execute('SELECT * FROM actions')]
+            actions=[dict(id=i,operation=o,target=t,effect_at=at) for i,o,t,at in db.execute('SELECT * FROM actions ORDER BY rowid')]
             now=time.time()
             self.reply(dict(s,requests=rows[0],writes=rows[1],actions=actions,samples=samples,
+                            effect=actions[-1]['id'] if actions else None,
                             id='obs-%.6f'%now,signal_source='loopback-http',started_at=s['since'],ended_at=now,
                             observed_at=now,health='unhealthy' if s['leak'] else 'healthy',stop=bool(s['leak'])))
         def do_POST(self):
@@ -79,11 +80,12 @@ def serve(database, address, manifest):
                 self.reply({'replay':True,'id':key},200 if found==(op,target) else 409); return
             if op=='restore' and state()['fail_restore']:
                 self.reply({'accepted':False,'recovery':'failed'},503); return
+            at=time.time()
             if op=='deploy': update(dict(exposure='none',gate='disabled'))
-            elif op in ('expose','advance'): update(dict(exposure=target,gate='enabled',since=time.time(),exposure_attempt=key))
+            elif op in ('expose','advance'): update(dict(exposure=target,gate='enabled',since=at,exposure_attempt=key))
             elif op=='contain': update(dict(exposure='none',gate='disabled'))
             elif op!='restore': self.reply({'error':'unknown operation'},400); return
-            db.execute('INSERT INTO actions VALUES (?,?,?)',(key,op,target)); db.commit()
+            db.execute('INSERT INTO actions VALUES (?,?,?,?)',(key,op,target,at)); db.commit()
             self.reply({'accepted':True,'id':key})
 
     class LoopbackServer(http.server.HTTPServer):

@@ -24,6 +24,7 @@ verified, then contains id (the expose/advance action identity), target, and
 started_at (the verified external exposure start, epoch seconds). Each exposure
 or advancement starts a new attempt; restart preserves a reconciled attempt.
 Observation includes binding, id, signal_source, exposure_attempt (the attempt id),
+effect (latest completed action id),
 started_at/ended_at/observed_at epoch seconds, samples, health, stop, exposure and
 evidence. Freshness is measured from ended_at, not the reporting time observed_at.
 Its measurement window must start at or after the current attempt's started_at;
@@ -32,11 +33,21 @@ Optional accepted manual alternative: stage.manual_alternative names
 instruction/scenarios; observation.manual has instruction/scenarios/evidence.
 Pending/completed actions hold id/operation/target/status/evidence. Pending is
 null or planned/ambiguous; only verified actions belong in completed_actions.
+Completed actions are in external-effect order and additionally hold effect_at,
+the verified external effect time (epoch seconds), not request acknowledgement.
+For expose/advance it equals exposure_attempt.started_at. Retain the most recent
+exposure_attempt through containment and restoration; do not clear action history.
 Watches lists registered owner references. Outcome includes disposition,
 exposure, evidence, health, recovery, watches_retired and unresolved_calls, plus
-the same binding and observed_at (epoch time of actual final-state verification,
-not reporting time). Completion requires current bound outcome evidence within
-max_age_seconds, including cancellation before exposure without a stage observation.
+the same binding, effect (latest completed action id), and observed_at (epoch time
+of actual final-state verification, not reporting time). An explicit null effect
+records positively verified absence of external effects, requiring empty action
+history, null deployment and null exposure_attempt; empty/missing is unassessed.
+Health and terminal evidence share applicability checks: current material binding,
+latest reconciled effect identity, no ambiguous effect, and measurement/verification
+at or after that effect, fresh within max_age_seconds. Cancellation before exposure
+needs safe-state evidence but no stage observation; deployed-unexposed cancellation
+references the deployment effect. Planned actions do not establish an effect.
 Older outcomes remain readable but require verification before completion.
 
 The checker checks recorded consistency only. It cannot prove source truth,
@@ -77,7 +88,7 @@ def template(task):
         "watches": [],
         "outcome": {"disposition": "pending", "exposure": "", "evidence": "",
                     "health": "unknown", "recovery": "unresolved", "watches_retired": False,
-                    "unresolved_calls": [], "observed_at": 0, **binding},
+                    "unresolved_calls": [], "observed_at": 0, "effect": "", **binding},
     }
 
 
@@ -180,6 +191,51 @@ def bound(row, r):
     return all(nonempty(v) and row.get(k) == v for k, v in binding(r).items())
 
 
+def evidence_applicability(row, r, now, start, end):
+    errors = []
+    if not bound(row, r):
+        errors.append('evidence binding missing or mismatched')
+    if not nonempty(row.get('evidence')):
+        errors.append('evidence reference missing')
+    observed = row.get('observed_at')
+    age = r['health'].get('max_age_seconds')
+    if (not all(number(t) for t in (start, end, observed, age)) or
+            not 0 <= start <= end <= observed <= now or observed <= 0 or
+            age <= 0 or now - end > age):
+        errors.append('evidence times stale, future, unordered, or missing')
+    pending = r['progress']['pending_action']
+    if pending and pending.get('status') != 'planned':
+        errors.append('unreconciled effect: reconcile actual external state before continuation')
+    effects = r['progress']['completed_actions']
+    effect_id = row.get('effect', '')
+    if any(not nonempty(a.get('id')) or a.get('operation') not in ('deploy', 'expose', 'advance', 'contain', 'restore') or
+           not nonempty(a.get('target')) or a.get('status') != 'verified' or
+           not nonempty(a.get('evidence')) or not number(a.get('effect_at')) or
+           not 0 <= a['effect_at'] <= now for a in effects):
+        return errors + ['external effect history missing verified identity/time']
+    if (len({a['id'] for a in effects}) != len(effects) or
+            any(a['effect_at'] > b['effect_at'] for a, b in zip(effects, effects[1:]))):
+        return errors + ['external effect history duplicated or unordered']
+    exposure = next((a for a in reversed(effects) if a['operation'] in ('expose', 'advance')), None)
+    attempt = r['progress'].get('exposure_attempt')
+    if exposure:
+        if (not isinstance(attempt, dict) or attempt.get('id') != exposure['id'] or
+                attempt.get('target') != exposure['target'] or
+                not number(attempt.get('started_at')) or attempt['started_at'] != exposure['effect_at']):
+            errors.append('exposure attempt does not match reconciled effect history')
+    elif 'exposure_attempt' not in r['progress'] or attempt is not None:
+        errors.append('absence of exposure not established by effect history')
+    if effects:
+        latest = effects[-1]
+        if effect_id != latest['id']:
+            errors.append('evidence does not reference latest external effect')
+        if not number(start) or start < latest['effect_at']:
+            errors.append('evidence predates latest external effect')
+    elif effect_id is not None or r['progress']['deployment'] is not None:
+        errors.append('absence of external effects not verified')
+    return errors
+
+
 def health(r, now):
     o = r['progress']['observation']
     stages = [s for s in r['stages'] if s.get('name') == r['progress']['stage']]
@@ -187,29 +243,22 @@ def health(r, now):
         return 'unknown', ['observation or unique current stage missing']
     s, h = stages[0], r['health']
     attempt = r['progress'].get('exposure_attempt')
-    errors = []
+    errors = evidence_applicability(o, r, now, o.get('started_at'), o.get('ended_at'))
     if (not isinstance(attempt, dict) or not nonempty(attempt.get('id')) or
             attempt.get('target') != s.get('target') or
-            not number(attempt.get('started_at')) or not 0 <= attempt['started_at'] <= now or
             o.get('exposure_attempt') != attempt['id']):
         errors.append('current exposure attempt missing, malformed, or mismatched')
-    if not bound(o, r) or o.get('signal_source') not in h['sources']:
-        errors.append('observation binding/source mismatch')
-    if not nonempty(o.get('id')) or not nonempty(o.get('evidence')) or o.get('exposure') != s.get('target'):
-        errors.append('observation identity/evidence/exposure missing or mismatched')
-    for key in ('started_at', 'ended_at', 'observed_at', 'samples'):
-        if not number(o.get(key)) or o[key] < 0:
-            errors.append('invalid observation ' + key)
-    for key, value in [('max_age_seconds', h.get('max_age_seconds')),
-                       ('window_seconds', s.get('window_seconds')), ('min_samples', s.get('min_samples'))]:
+    if o.get('signal_source') not in h['sources']:
+        errors.append('observation source mismatch')
+    if not nonempty(o.get('id')) or o.get('exposure') != s.get('target'):
+        errors.append('observation identity/exposure missing or mismatched')
+    if not number(o.get('samples')) or o['samples'] < 0:
+        errors.append('invalid observation samples')
+    for key, value in [('window_seconds', s.get('window_seconds')), ('min_samples', s.get('min_samples'))]:
         if not number(value) or value <= 0:
             errors.append('invalid health criterion ' + key)
     if errors:
         return 'unknown', errors
-    if o['started_at'] < attempt['started_at']:
-        return 'unknown', ['measurement window precedes current exposure attempt']
-    if not (o['started_at'] <= o['ended_at'] <= o['observed_at'] <= now) or now - o['ended_at'] > h['max_age_seconds']:
-        return 'unknown', ['stale, future, or unordered observation']
     if type(o.get('stop')) is not bool or o.get('health') not in ('healthy', 'unhealthy', 'unknown'):
         return 'unknown', ['malformed health/stop verdict']
     if o['stop'] or o['health'] == 'unhealthy':
@@ -270,7 +319,7 @@ def assess(r, operation, target, op_id, peers, now):
                 errors.append('resource reserved by ' + peer['identity']['task'])
     completed = [a for a in r['progress']['completed_actions'] if a.get('id') == op_id and op_id]
     if completed:
-        if len(completed) == 1 and completed[0].get('operation') == operation and completed[0].get('target') == target and completed[0].get('status') == 'verified' and nonempty(completed[0].get('evidence')):
+        if not errors and len(completed) == 1 and completed[0].get('operation') == operation and completed[0].get('target') == target and completed[0].get('status') == 'verified' and nonempty(completed[0].get('evidence')):
             return {'assessment': 'already-observed', 'health': verdict, 'reasons': ['Do not repeat the external action; reverify volatile state.']}
         errors.append('operation identity reused or unverified')
     if operation in ('deploy', 'expose', 'advance'):
@@ -326,14 +375,9 @@ def assess(r, operation, target, op_id, peers, now):
             errors.append('recovery disposition unresolved or failed')
         if not o['watches_retired'] or o['unresolved_calls']:
             errors.append('watch retirement or captain-call disposition unresolved')
-        if not nonempty(o['evidence']) or not nonempty(o['exposure']):
-            errors.append('final exposure/outcome evidence missing')
-        if not bound(o, r):
-            errors.append('final outcome binding missing or mismatched')
-        if (not number(o.get('observed_at')) or not 0 < o['observed_at'] <= now or
-                not number(r['health'].get('max_age_seconds')) or
-                now - o['observed_at'] > r['health']['max_age_seconds']):
-            errors.append('final outcome verification stale, future, or missing')
+        if not nonempty(o['exposure']):
+            errors.append('final exposure missing')
+        errors.extend(evidence_applicability(o, r, now, o.get('observed_at'), o.get('observed_at')))
         if o['disposition'] == 'released':
             if (r['progress']['phase'] != 'Released' or not r['stages'] or
                     r['progress']['stage'] != r['stages'][-1].get('name') or

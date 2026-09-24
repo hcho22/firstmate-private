@@ -65,10 +65,10 @@ def http(path,data=None,code=0):
     out=run(*args,code=code)
     return json.loads(out) if code==0 else out
 
-def launch():
-    address=dest/'address'
+def launch(name='workload',manifest=None):
+    address=dest/(name+'-address')
     if address.exists(): address.unlink()
-    p=subprocess.Popen([sys.executable,str(workload),'serve',str(dest/'workload.sqlite'),str(address),str(dest/'manifest.json')],env=env,
+    p=subprocess.Popen([sys.executable,str(workload),'serve',str(dest/(name+'.sqlite')),str(address),str(manifest or dest/'manifest.json')],env=env,
                         stdout=(dest/'server.stdout').open('a'),stderr=(dest/'server.stderr').open('a'))
     processes.append(p)
     deadline=time.time()+5
@@ -78,11 +78,14 @@ def launch():
     return p,address.read_text()
 
 def observation(raw):
-    keys=('candidate','source','configuration','environment','dependencies','id','signal_source','exposure_attempt','started_at','ended_at','observed_at','samples','health','stop','exposure')
+    keys=('candidate','source','configuration','environment','dependencies','id','signal_source','exposure_attempt','effect','started_at','ended_at','observed_at','samples','health','stop','exposure')
     return dict({k:raw[k] for k in keys},evidence=str(log),plan=plan_binding['plan'])
 
 def exposure_attempt(raw):
     return dict(id=raw['exposure_attempt'],target=raw['exposure'],started_at=raw['since'])
+
+def completed_action(raw,key):
+    return dict(next(a for a in raw['actions'] if a['id']==key),status='verified',evidence=str(log))
 
 def acknowledge_wakes():
     run(root/'bin/fm-wake-drain.sh')
@@ -103,7 +106,7 @@ def action(r,op,target,key):
         assert actual['exposure_attempt']==key and actual['exposure']==target
         r['progress']['exposure_attempt']=exposure_attempt(actual)
         r['progress']['observation']=None
-    r['progress']['completed_actions'].append(dict(id=key,operation=op,target=target,status='verified',evidence=str(log)))
+    r['progress']['completed_actions'].append(completed_action(actual,key))
     r['progress']['pending_action']=None
     save(r)
     return actual
@@ -113,6 +116,7 @@ Candidate: exact SHA-256 of the workload program; environment: loopback HTTP and
 Permitted actions: local deploy, internal exposure, all-local exposure, disable, representative failed restoration, and retained-data inspection; never production or live fleet mutation.
 Stages: internal then all-local; each needs at least 2 real requests over a 1-second window ending within 60 seconds of assessment.
 Measurements identify the current exposure action and start no earlier than its verified external start time; restart retains that attempt after reconciliation.
+Health and terminal evidence must match the current plan and latest reconciled effect; measurements and final verification cannot predate that effect.
 Stop: any leaked write, unhealthy response, or unavailable monitoring stops expansion.
 Recovery: disable gate, issue fresh requests, compare persisted write counts, and retain earlier writes; an acknowledged request alone is insufficient.
 Real commands: brief/promotion outputs, installed tasks-axi markdown lifecycle, fm-release consistency check, authenticated fm-check registration, fm-watch, generation-bound wake drain/ack, and owner retirement.
@@ -192,7 +196,7 @@ try:
         elif row['category']=='security/privacy': row.update(expected='loopback only, synthetic data, existing protective control retained',observed='127.0.0.1 listener; request protective_control=true; no live credentials used')
         else: row.update(status='not-applicable',expected='no '+row['category']+' acceptance criterion for coordination-only local workload',observed='not applicable',limitation='API-only synthetic pilot; no UI or production performance claim')
     for authority in r['authority']: authority.update(candidate=digest,source=digest)
-    r['progress'].update(phase='Ready',stage='initial',deployment=None,exposure_attempt=None,observation=None)
+    r['progress'].update(phase='Ready',stage='initial',deployment=None,exposure_attempt=None,observation=None,completed_actions=[])
     r['watches']=['custom-check:release-local']
     plan_binding=stamp(cli,r)
     impl=dest/'implementation-body.md'; impl.write_text('Accepted implementation.\nRelease tasks: '+str(home)+'#local-release ('+digest+'/loopback); '+str(home)+'#deferred-release ('+digest+'/offline).\n')
@@ -233,6 +237,7 @@ try:
     cached['progress']['observation'].update(started_at=captured['started_at']-120,
                                            ended_at=captured['ended_at']-120,observed_at=time.time())
     cached['progress']['exposure_attempt']['started_at']=captured['started_at']-120
+    for effect in cached['progress']['completed_actions']: effect['effect_at']-=120
     assert check(cached,'advance','all-local','expand-1',1)['health']=='unknown'
     assert http('/state')['exposure']=='internal'
     result('REL-06 cached-window','fresh reporting cannot renew stale measurements',
@@ -273,7 +278,7 @@ try:
     r['progress']['exposure_attempt']=exposure_attempt(actual)
     r['progress']['observation']=None
     r['progress']['pending_action']=None
-    r['progress']['completed_actions'].append(dict(id='expand-1',operation='advance',target='all-local',status='verified',evidence=str(log)))
+    r['progress']['completed_actions'].append(completed_action(actual,'expand-1'))
     save(r); verdict=check(r,'advance','all-local','expand-1'); assert verdict['assessment']=='already-observed'
     assert sum(a['id']=='expand-1' for a in http('/state')['actions'])==1
     result('restart-replay','ambiguous effect reconciled once, replay makes no repeat action',actual)
@@ -292,15 +297,26 @@ try:
     # Repair the representative defect without deleting earlier persistent data.
     http('/control',dict(leak=False)); before=http('/state')['writes']; http('/request'); http('/request'); after=http('/state')['writes']; assert before==after and after>0
     final_state=http('/state'); assert final_state['exposure']=='none' and final_state['health']=='healthy'
-    r['progress']['phase']='Stopped'; r['outcome'].update(plan_binding,disposition='withdrawn',exposure='none',health='safe',evidence=str(log),recovery='contained',observed_at=final_state['observed_at'])
+    r['progress']['phase']='Stopped'; r['outcome'].update(plan_binding,disposition='withdrawn',exposure='none',health='safe',evidence=str(log),recovery='contained',observed_at=final_state['observed_at'],effect=final_state['actions'][-1]['id'])
     run(root/'bin/fm-check-unregister.sh','release-local'); r['outcome']['watches_retired']=True
     for group,key in [('candidate','artifact'),('target','environment')]:
         changed=copy.deepcopy(r); changed[group][key]='changed-after-verification'
         verdict=check(changed,'complete',code=1)
-        assert 'final outcome binding missing or mismatched' in verdict['reasons']
+        assert 'evidence binding missing or mismatched' in verdict['reasons']
     result('PROOF-04 REL-03 REL-14 terminal-binding','changed candidate or environment requires new final verification',
            'retained withdrawal evidence refused for each changed identity')
-    check(r,'complete'); save(r); task('done','local-release','--report',str(log),'--json')
+    ambiguous=copy.deepcopy(r)
+    ambiguous['progress']['pending_action']=dict(id='unknown-effect',operation='restore',target='retained-data',status='ambiguous')
+    check(ambiguous,'complete',code=1)
+    check(r,'complete'); save(r)
+    server.terminate(); server.wait(timeout=5); server,url=launch()
+    restored=task('show','local-release','--full')
+    restored_body=json.loads(next(line[len('  body: '):] for line in restored.splitlines() if line.startswith('  body: ')))
+    r=json.loads(restored_body.split('```firstmate-release\n')[1].split('\n```')[0])
+    assert r['outcome']['effect']==http('/state')['actions'][-1]['id']
+    check(r,'complete'); task('done','local-release','--report',str(log),'--json')
+    result('REL-12 REL-14 terminal-restart','current withdrawal survives restart; ambiguity blocks completion',
+           dict(effect=r['outcome']['effect'],verification_time=r['outcome']['observed_at']))
     result('verified-withdrawal','Stopped after observable containment, not data restoration',dict(writes_retained=after,final_exposure=http('/state')['exposure']))
     # A second authorized local attempt reopens the same coherent release,
     # preserving the withdrawn attempt in archived body history.
@@ -310,6 +326,16 @@ try:
     finished['outcome'].update(disposition='pending',recovery='not-needed')
     save(finished)
     action(finished,'expose','internal','success-internal')
+    stale_withdrawal=copy.deepcopy(finished)
+    stale_withdrawal['progress']['phase']='Stopped'
+    stale_withdrawal['outcome']=copy.deepcopy(r['outcome'])
+    assert time.time()-stale_withdrawal['outcome']['observed_at'] < stale_withdrawal['health']['max_age_seconds']
+    check(stale_withdrawal,'complete',code=1)
+    stale_withdrawal['outcome']['effect']='success-internal'
+    check(stale_withdrawal,'complete',code=1)
+    assert http('/state')['exposure']=='internal'
+    result('PROOF-04 REL-14 stale-withdrawal','re-exposure invalidates old terminal proof, including a relabeled reference',
+           dict(old_verification=r['outcome']['observed_at'],latest_effect=finished['progress']['completed_actions'][-1]))
     replayed=copy.deepcopy(finished)
     replayed['progress'].update(phase='Expansion ready',observation=observation(captured))
     actions_before=http('/state')['actions']
@@ -333,13 +359,18 @@ try:
     save(finished); action(finished,'advance','all-local','success-expand')
     http('/request'); http('/request'); time.sleep(1.05); raw=http('/health')
     finished['progress'].update(phase='Released',stage='final',observation=observation(raw))
-    finished['outcome'].update(plan_binding,disposition='released',exposure='all-local',health='healthy',recovery='not-needed',evidence=str(log),observed_at=raw['observed_at'])
+    finished['outcome'].update(plan_binding,disposition='released',exposure='all-local',health='healthy',recovery='not-needed',evidence=str(log),observed_at=raw['observed_at'],effect=raw['actions'][-1]['id'])
     check(finished,'complete'); save(finished); task('done','local-release','--report',str(log),'--json')
     cancelled=copy.deepcopy(finished); cancelled['identity']['task']='cancelled-offline-release'; cancelled['target']['environment']='offline'
-    cancelled['progress'].update(phase='Stopped',deployment=None,observation=None,exposure_attempt=None)
-    cancelled['outcome'].update(disposition='cancelled',exposure='none',health='safe',evidence='offline environment inspected; no deployment occurred')
+    cancel_manifest=dest/'cancelled-manifest.json'; cancel_manifest.write_text(json.dumps(dict(manifest,environment='offline')))
+    _,cancel_url=launch('cancelled',cancel_manifest)
+    unexposed=json.loads(run(sys.executable,workload,'request',cancel_url,'/state'))
+    assert unexposed['candidate']==digest and unexposed['environment']=='offline'
+    assert unexposed['exposure']=='none' and unexposed['gate']=='disabled' and unexposed['health']=='healthy' and not unexposed['actions'] and not unexposed['exposure_attempt']
+    cancelled['progress'].update(phase='Stopped',deployment=None,observation=None,exposure_attempt=None,completed_actions=[])
+    cancelled['outcome'].update(disposition='cancelled',exposure='none',health='safe',evidence=str(log),effect=None)
     final=dest/'cancelled-body.md'; final.write_text(body(cancelled))
-    cancelled['outcome'].update(json.loads(run(cli,'fingerprint',final)),observed_at=time.time())
+    cancelled['outcome'].update(json.loads(run(cli,'fingerprint',final)),observed_at=unexposed['observed_at'])
     check(cancelled,'complete'); final=dest/'cancelled-body.md'; final.write_text(body(cancelled)); task('add','cancelled-offline-release','Cancelled offline outcome','--body-file',final,'--json'); task('done','cancelled-offline-release','--report',str(log),'--json')
     result('terminal-outcomes','released, withdrawn, cancelled, failed recovery remain distinct','actual task lifecycle and observed states recorded')
     # Manual mode uses inspect-then-edit, never silently calling tasks-axi.

@@ -46,19 +46,23 @@ for key,value,health in [('observed_at',900,'unknown'), ('environment','wrong','
 for ended_at,status in [(200,1),(939.9,1),(940,0),(999,0)]:
     r=copy.deepcopy(base)
     r['progress']['exposure_attempt']['started_at']=100
+    r['progress']['completed_actions'][0]['effect_at']=100
     r['progress']['observation'].update(started_at=100,ended_at=ended_at,observed_at=1000)
     result=check(r,status,*advance)
     assert result['health']==('unknown' if status else 'healthy'),result
     assert check(r)['health']==result['health']
 r=record(cli,156); r['stages'][0]['window_seconds']=40
 r['progress']['exposure_attempt'].update(started_at=100)
+r['progress']['completed_actions'][0]['effect_at']=100
 r['progress']['observation'].update(started_at=100,ended_at=140,observed_at=140)
 stamp(cli,r)
 check(r,0,*advance,now=156)
 r['progress']['exposure_attempt'].update(id='expose-2',started_at=155)
+r['progress']['completed_actions'].append(dict(id='expose-2',operation='expose',target='internal',status='verified',evidence='re-exposure observed',effect_at=155))
 assert check(r,1,*advance,now=156)['health']=='unknown'
 assert check(r,now=156)['health']=='unknown'
 r['progress']['observation']['exposure_attempt']='expose-2'
+r['progress']['observation']['effect']='expose-2'
 assert check(r,1,*advance,now=156)['health']=='unknown'
 r['progress']['observation'].update(started_at=155,ended_at=156,observed_at=156)
 assert check(r,1,*advance,now=156)['health']=='insufficient'
@@ -75,12 +79,12 @@ for value in (None,{},'expose-1',dict(id='',target='internal',started_at=995),
 for value in (None,True,'995',-1,1001):
     r=copy.deepcopy(base); r['progress']['exposure_attempt']['started_at']=value
     assert check(r,1,*advance)['health']=='unknown'
-for group,key in [('progress','exposure_attempt'),('observation','exposure_attempt')]:
+for group,key in [('progress','exposure_attempt'),('observation','exposure_attempt'),('observation','effect')]:
     r=copy.deepcopy(base)
     del (r['progress'] if group=='progress' else r['progress']['observation'])[key]
     assert check(r)['health']=='unknown'
     check(r,1,*advance)
-r=copy.deepcopy(base); r['progress'].update(phase='Ready',exposure_attempt=None,observation=None)
+r=copy.deepcopy(base); r['progress'].update(phase='Ready',exposure_attempt=None,observation=None,completed_actions=[])
 check(r,0,'--operation','deploy','--target','disabled','--operation-id','deploy-1')
 for group,key in [('candidate','artifact'), ('candidate','configuration'), ('candidate','source'), ('candidate','dependencies'), ('target','environment')]:
     r=copy.deepcopy(base); r[group][key]='changed'; check(r,1,*advance)
@@ -96,6 +100,9 @@ r['progress']['pending_action']['status']='planned'; check(r,0,*advance)
 r['progress']['pending_action']['id']='other'; check(r,1,*advance)
 r=copy.deepcopy(base); r['progress']['completed_actions']=[dict(id='expand-1',operation='advance',target='all-local',status='verified',evidence='external state read')]
 assert check(r,0,*advance)['assessment']=='already-observed'
+r['progress']['pending_action']=dict(id='expand-1',operation='advance',target='all-local',status='ambiguous')
+check(r,1,*advance,contains='reconcile')
+r['progress']['pending_action']=None
 r['progress']['completed_actions'][0]['target']='different'; check(r,1,*advance)
 # Resource conflicts block, independent resources remain concurrent.
 peer=copy.deepcopy(base); peer['identity']['task']='other'; peer['candidate']['artifact']='other-build'
@@ -114,6 +121,7 @@ r['progress']['observation'].update(started_at=999,ended_at=999.5,observed_at=10
 assert check(r,1,*advance)['health']=='insufficient'
 r['progress']['observation'].update(started_at=100,ended_at=200,observed_at=1000)
 r['progress']['exposure_attempt']['started_at']=100
+r['progress']['completed_actions'][0]['effect_at']=100
 assert check(r,1,*advance)['health']=='unknown'
 r=manual
 r['progress']['observation']['manual']['instruction']='new silent waiver'; check(r,1,*advance)
@@ -121,15 +129,22 @@ r['progress']['observation']['manual']['instruction']='new silent waiver'; check
 for disposition in ('released','cancelled','withdrawn'):
     r=copy.deepcopy(base); r['progress'].update(phase='Released' if disposition=='released' else 'Stopped',stage='final')
     r['progress']['exposure_attempt'].update(id='final-1',target='all-local')
+    r['progress']['completed_actions'][0].update(id='final-1',operation='advance',target='all-local')
     r['progress']['observation']['exposure_attempt']='final-1'
+    r['progress']['observation']['effect']='final-1'
     r['progress']['observation']['exposure']='all-local'
     r['outcome'].update(disposition=disposition, exposure='all-local' if disposition=='released' else 'none',
                         health='healthy' if disposition=='released' else 'safe', evidence='final state', watches_retired=True,
-                        observed_at=999, **base_binding)
+                        observed_at=999, effect='final-1', **base_binding)
     if disposition!='released':
         r['progress']['observation']=None
         r['outcome']['recovery']='contained' if disposition=='withdrawn' else 'not-needed'
-    if disposition=='cancelled': r['progress'].update(stage='',deployment=None,exposure_attempt=None)
+    if disposition=='cancelled':
+        r['progress'].update(stage='',deployment=None,exposure_attempt=None,completed_actions=[])
+        r['outcome']['effect']=None
+    if disposition=='withdrawn':
+        r['progress']['completed_actions'].append(dict(id='contain-1',operation='contain',target='none',status='verified',evidence='disabled state',effect_at=998))
+        r['outcome']['effect']='contain-1'
     check(r,0,'--operation','complete')
     for key,value in [('watches_retired',False),('recovery','failed'),('unresolved_calls',['captain-call']),
                       ('evidence',''),('health','unknown'),('observed_at',900),('observed_at',1001),
@@ -138,19 +153,79 @@ for disposition in ('released','cancelled','withdrawn'):
     for group,key in [('candidate','artifact'),('candidate','source'),('candidate','configuration'),
                       ('candidate','dependencies'),('target','environment'),('health','baseline')]:
         bad=copy.deepcopy(r); bad[group][key]='changed'
-        check(bad,1,'--operation','complete',contains='outcome binding')
-    for key in (*base_binding,'observed_at'):
+        check(bad,1,'--operation','complete',contains='evidence binding')
+    for key in (*base_binding,'observed_at','effect'):
         bad=copy.deepcopy(r); del bad['outcome'][key]
         check(bad)
         check(bad,1,'--operation','complete')
     if disposition=='released':
         bad=copy.deepcopy(r); bad['progress']['observation'].update(started_at=100,ended_at=200,observed_at=1000)
         bad['progress']['exposure_attempt']['started_at']=100
+        bad['progress']['completed_actions'][0]['effect_at']=100
         assert check(bad,1,'--operation','complete')['health']=='unknown'
         bad=copy.deepcopy(r); bad['progress']['exposure_attempt'].update(id='final-2',started_at=999)
+        bad['progress']['completed_actions'].append(dict(id='final-2',operation='advance',target='all-local',status='verified',evidence='new final exposure',effect_at=999))
         assert check(bad,1,'--operation','complete')['health']=='unknown'
         bad['progress']['observation']['exposure_attempt']='final-2'
+        bad['progress']['observation']['effect']='final-2'
         assert check(bad,1,'--operation','complete')['health']=='unknown'
+    if disposition=='withdrawn':
+        current_withdrawal=copy.deepcopy(r)
+    for pending_status in ('planned','ambiguous'):
+        bad=copy.deepcopy(r); bad['progress']['pending_action']=dict(id='new-effect',operation='contain',target='none',status=pending_status)
+        check(bad,1,'--operation','complete')
+r=copy.deepcopy(current_withdrawal)
+r['outcome']['observed_at']=1000
+check(r,0,'--operation','complete',now=1011)
+r['progress']['exposure_attempt'].update(id='expose-new',target='internal',started_at=1010)
+r['progress']['completed_actions'].append(dict(id='expose-new',operation='expose',target='internal',status='verified',evidence='new exposure',effect_at=1010))
+check(r,1,'--operation','complete',now=1011,contains='latest external effect')
+r['outcome']['observed_at']=1011
+check(r,1,'--operation','complete',now=1011,contains='latest external effect')
+r['outcome'].update(effect='expose-new',observed_at=1000)
+check(r,1,'--operation','complete',now=1011,contains='predates')
+r['progress']['completed_actions'].append(dict(id='contain-new',operation='contain',target='none',status='verified',evidence='current safe state',effect_at=1011))
+r['outcome'].update(effect='contain-new',observed_at=1011)
+check(r,0,'--operation','complete',now=1011)
+saved.write_text(body(r)); check(saved.read_text(),0,'--operation','complete',now=1012)
+r['progress']['completed_actions'].append(dict(id='restore-new',operation='restore',target='retained-data',status='verified',evidence='repair verified',effect_at=1012))
+check(r,1,'--operation','complete',now=1012,contains='latest external effect')
+for consumer in ('health','terminal'):
+    original=base if consumer=='health' else current_withdrawal
+    args=advance if consumer=='health' else ('--operation','complete')
+    for field,value in [('effect_at',None),('effect_at',True),('effect_at','998'),('effect_at',1001),
+                        ('status','ambiguous'),('evidence',''),('id','')]:
+        bad=copy.deepcopy(original); bad['progress']['completed_actions'][-1][field]=value
+        check(bad,1,*args)
+    bad=copy.deepcopy(original); del bad['progress']['completed_actions'][-1]['effect_at']
+    check(bad); check(bad,1,*args)
+    bad=copy.deepcopy(original); bad['progress']['completed_actions'].append(copy.deepcopy(bad['progress']['completed_actions'][-1]))
+    check(bad,1,*args)
+    bad=copy.deepcopy(original)
+    bad['progress']['completed_actions'].append(dict(id='earlier',operation='restore',target='retained-data',status='verified',evidence='state',effect_at=990))
+    check(bad,1,*args,contains='unordered')
+r=copy.deepcopy(base)
+r['progress']['completed_actions'].append(dict(id='contain-latest',operation='contain',target='none',status='verified',evidence='containment',effect_at=999.5))
+assert check(r,1,*advance)['health']=='unknown'
+r=copy.deepcopy(base)
+r['progress']['completed_actions'].append(dict(id='repair-latest',operation='restore',target='retained-data',status='verified',evidence='repair',effect_at=998))
+assert check(r,1,*advance)['health']=='unknown'
+r['progress']['observation'].update(effect='repair-latest')
+assert check(r,1,*advance)['health']=='unknown'
+r['progress']['observation'].update(started_at=998,ended_at=999,observed_at=999)
+check(r,0,*advance)
+r=copy.deepcopy(base); r['progress'].update(phase='Stopped',deployment=None,observation=None,exposure_attempt=None,completed_actions=[])
+r['outcome'].update(base_binding,disposition='cancelled',exposure='none',health='safe',recovery='not-needed',effect=None,observed_at=999,evidence='environment inspected, no effects',watches_retired=True)
+check(r,0,'--operation','complete')
+for value in ('', 'old-effect'):
+    bad=copy.deepcopy(r); bad['outcome']['effect']=value; check(bad,1,'--operation','complete')
+bad=copy.deepcopy(r); bad['progress']['completed_actions']=copy.deepcopy(base['progress']['completed_actions'])
+check(bad,1,'--operation','complete')
+r['progress']['deployment']=copy.deepcopy(base['progress']['deployment'])
+check(r,1,'--operation','complete')
+r['progress']['completed_actions']=[dict(id='deploy-only',operation='deploy',target='disabled',status='verified',evidence='disabled deployment',effect_at=998)]
+r['outcome']['effect']='deploy-only'
+check(r,0,'--operation','complete')
 r=copy.deepcopy(base); r['progress']['phase']='Recovering'; r['outcome']['disposition']='failed-recovery'; check(r,1,'--operation','complete')
 private=copy.deepcopy(base)
 private['identity']['home']='PRIVATE_SENTINEL'; private['readiness'][0]['evidence']='PRIVATE_SENTINEL'
