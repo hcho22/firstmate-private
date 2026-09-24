@@ -366,6 +366,11 @@ STUB
     awk '/^# Definition of done$/ { emit=1 } emit' "$payload" > "$delivered_dod"
     cmp -s "$brief_dod" "$delivered_dod" \
       || fail "$mode: promotion and ordinary brief generation delivered different Definitions of done"
+    awk '/^# Risk and recovery$/ { emit=1; next } /^# / { emit=0 } emit && NF' "$home/data/$id/brief.md" > "$brief_dod"
+    awk '/^# Risk and recovery$/ { emit=1; next } /^# / { emit=0 } emit && NF' "$payload" > "$delivered_dod"
+    [ -s "$brief_dod" ] || fail "$mode: risk contract absent"
+    cmp -s "$brief_dod" "$delivered_dod" || fail "$mode: different promoted risk contract"
+
   done
 
   payload="$TMP_ROOT/promote-dod/payload-promote-dod-no-mistakes"
@@ -746,6 +751,23 @@ EOF
     "legacy promotion copied the scout Setup section into Firstmate spec"
   pass "fm-spawn/fm-promote: leftover Task placeholders are refused until both subsections are filled"
 }
+
+test_promotion_preserves_assessment() {
+  local home id
+  home="$TMP_ROOT/preserve-risk"
+  id=risk-preserved
+  mkdir -p "$home/state"
+  write_brief "$home" "$id"
+  printf '\n# Risk and recovery\n- Risk and rationale: low - wording only.\n- Recovery approach: revert wording.\n' >> "$home/data/$id/brief.md"
+  printf 'kind=scout\nwindow=fm-risk-preserved\n' > "$home/state/$id.meta"
+  FM_HOME="$home" "$PROMOTE" "$id" --mode local-only --yolo off >/dev/null 2>&1 || fail "promotion failed"
+  assert_grep 'low - wording only.' "$home/data/$id/ship-instructions.md" 'promotion lost assessment'
+  assert_grep 'Exercise the delivery contract.' "$home/data/$id/ship-instructions.md" 'promotion lost accepted intent'
+  assert_grep 'Intended behavior: unassessed' "$home/data/$id/ship-instructions.md" 'promotion did not complete partial assessment'
+  assert_no_grep 'Risk and rationale: unknown' "$home/data/$id/ship-instructions.md" 'promotion replaced existing assessment'
+  pass 'promotion preserves accepted assessment and intent'
+}
+test_promotion_preserves_assessment
 
 test_ship_spawn_requires_a_valid_delivery_contract
 test_scout_and_secondmate_refuse_delivery_flags

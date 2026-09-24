@@ -185,7 +185,10 @@ EOF
 6. These ship instructions supersede the scout delivery rules and report-based Definition of done. Everything else in your original instructions carries over unchanged: the status protocol; the instruction inbox and its acknowledgement; the escalation rules, including ask-user; and every safety rule.
 $PROMOTION_ASK_USER_BLOCK
 7. Treat the scout-time Firstmate spec and any unmarked legacy \`# Task\` text as investigation context, not captain intent or ship-time instructions.
+8. Reconcile the accepted requirements from that context and later instructions before implementing; retain unrelated constraints and replace only explicitly superseded criteria.
 EOF
+  printf '\n'
+  fm_risk_recovery_block "$SCOUT_BRIEF"
   printf '\n'
   fm_dod_block "$MODE" "$ID"
 } > "$TMP" || { echo "error: could not render ship instructions for mode=$MODE" >&2; exit 1; }

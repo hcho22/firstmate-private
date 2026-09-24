@@ -425,11 +425,14 @@ case "$MODE" in
     ;;
 esac
 DOD=$(fm_dod_block "$MODE" "$ID") || exit 1
+RISK_RECOVERY=$(fm_risk_recovery_block "")
 
 cat > "$BRIEF" <<EOF
 You are a crewmate: an autonomous worker agent managed by firstmate. Work on your own; do not wait for a human.
 
 $TASK_SECTION
+
+$RISK_RECOVERY
 
 $HERDR_SECTION
 

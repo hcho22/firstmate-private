@@ -195,7 +195,7 @@ EOF
 # one of these DOD blocks, since a broken heredoc corrupts or empties the
 # generated brief content, not just the script's own syntax.
 test_ship_modes_generate_clean_briefs() {
-  local home id mode brief status
+  local home id mode brief status field
   home="$TMP_ROOT/ship-home"
   write_registry "$home"
 
@@ -207,6 +207,13 @@ test_ship_modes_generate_clean_briefs() {
     brief="$home/data/$id/brief.md"
     assert_present "$brief" "$id: brief was not scaffolded"
     assert_grep "# Definition of done" "$brief" "$id: brief missing Definition of done section"
+    for field in 'Intended behavior' 'Preserved behavior' 'Impact and dependencies' 'Risk and rationale' 'Validation scenarios' 'Recovery approach' 'Release applicability'; do
+      assert_grep "- $field:" "$brief" "$mode: missing risk field $field"
+    done
+    cp "$brief" "$brief.saved"
+    FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" some-proj --mode "$mode" >/dev/null 2>&1
+    cmp -s "$brief" "$brief.saved" || fail "$mode: existing brief overwritten"
+
     grep -qx "Delivery contract: mode=$mode" "$brief" \
       || fail "$id: brief did not record its machine-readable delivery contract line"
     assert_grep "{TASK}" "$brief" "$id: brief missing the {TASK} placeholder"
