@@ -25,6 +25,19 @@ TEARDOWN="$ROOT/bin/fm-teardown.sh"
 HARNESS="$ROOT/bin/fm-harness.sh"
 TMP_ROOT=$(fm_test_tmproot fm-muse-harness)
 
+# Keep a real renamed process for ancestry detection. Apple's system Bash
+# carries a restricted signature that makes macOS kill a relocated copy.
+# Replace it with an ad-hoc signature only on the disposable fixture, never
+# the installed executable.
+copy_process_shell() {
+  local source_shell
+  source_shell=$(command -v bash)
+  cp "$source_shell" "$1" || fail "could not copy the process fixture shell"
+  if [ "$(uname -s)" = Darwin ] && [ "$source_shell" = /bin/bash ]; then
+    codesign --force --sign - "$1" || fail "could not prepare the relocated system Bash fixture"
+  fi
+}
+
 # --- session-log fixtures ---------------------------------------------------
 
 # muse_log_metadata <workspace-root>: the first record of every session log,
@@ -104,7 +117,7 @@ esac
 exit 0
 SH
   chmod +x "$fakebin/tmux"
-  cp "$(command -v bash)" "$fakebin/muse-bin-test-version"
+  copy_process_shell "$fakebin/muse-bin-test-version"
   cat > "$fakebin/muse" <<'SH'
 #!/usr/bin/env bash
 set -u
@@ -181,7 +194,7 @@ test_detects_versioned_process_ancestor() {
   dir="$TMP_ROOT/detect"
   mkdir -p "$dir"
   for bin in muse-bin-0.1.0-R708.1 muse-bin-9.9.9-RZZZ.9 muse; do
-    cp "$(command -v bash)" "$dir/$bin"
+    copy_process_shell "$dir/$bin"
     out=$(env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
       -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI \
       "$dir/$bin" -c "r=\$(\"$HARNESS\"); printf '%s' \"\$r\"")
@@ -197,7 +210,7 @@ test_detection_is_anchored() {
   dir="$TMP_ROOT/detect-neg"
   mkdir -p "$dir"
   for bin in musescore amuse notmuse-bin muse-binary muse-bind; do
-    cp "$(command -v bash)" "$dir/$bin"
+    copy_process_shell "$dir/$bin"
     out=$(env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
       -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI \
       "$dir/$bin" -c "r=\$(\"$HARNESS\"); printf '%s' \"\$r\"")
