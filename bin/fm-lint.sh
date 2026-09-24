@@ -27,10 +27,12 @@
 # Explicit paths always bypass this file-set selection and lint exactly the
 # given paths, matching the same config, without the workflow YAML check.
 #
-# Canonical lint defaults to two bounded workers over two stable logical shards.
-# Each shard writes separate diagnostics, and the parent replays those outputs in
-# deterministic shard and root order after every worker finishes. FM_LINT_JOBS=1
-# runs the same shards serially with byte-identical diagnostics and exit selection.
+# Canonical lint uses sixteen stable logical shards and defaults to one bounded
+# worker to reduce full extended analysis peak memory on the standard CI runner.
+# Each shard writes separate diagnostics, and the parent replays those outputs
+# in deterministic shard and root order after every worker finishes.
+# FM_LINT_JOBS=2 runs the same shards two at a time with byte-identical
+# diagnostics and exit selection.
 #
 # Optional quiet telemetry writes one bounded TSV snapshot of content and source
 # graph identity, wall/CPU/RSS, shard load, and competing ShellCheck processes.
@@ -122,7 +124,7 @@ fm_lint_run_workflows() {
   "$SELF_DIR/fm-lint-workflows.sh"
 }
 
-JOBS=${FM_LINT_JOBS:-2}
+JOBS=${FM_LINT_JOBS:-1}
 TELEMETRY=${FM_LINT_TELEMETRY:-}
 FAST=0
 ANALYSIS_MODE=full
@@ -321,10 +323,12 @@ TAB=$(printf '\t')
 WEIGHTS="$TMP_ROOT/weights"
 OUTPUT_DIR="$TMP_ROOT/output"
 mkdir -p "$OUTPUT_DIR"
-SHARD_COUNT=2
+SHARD_COUNT=16
 worker=0
+WORKER_LOADS=()
 while [ "$worker" -lt "$SHARD_COUNT" ]; do
   : > "$TMP_ROOT/manifest.$worker"
+  WORKER_LOADS[worker]=0
   worker=$((worker + 1))
 done
 
@@ -347,16 +351,19 @@ for path in "${ROOTS[@]}"; do
   index=$((index + 1))
 done
 
-# Largest-first deterministic greedy assignment keeps the two bounded workers
+# Largest-first deterministic greedy assignment keeps the bounded shards
 # balanced without affecting replay order. Direct bytes are a stable portable
 # proxy after the expensive dynamic adapter source fan-out is cut.
-WORKER_LOADS=(0 0)
 LC_ALL=C sort -t "$TAB" -k1,1nr -k2,2n "$WEIGHTS" > "$WEIGHTS.sorted"
 while IFS="$TAB" read -r weight index path; do
   worker=0
-  if [ "${WORKER_LOADS[1]}" -lt "${WORKER_LOADS[0]}" ]; then
-    worker=1
-  fi
+  candidate=1
+  while [ "$candidate" -lt "$SHARD_COUNT" ]; do
+    if [ "${WORKER_LOADS[candidate]}" -lt "${WORKER_LOADS[worker]}" ]; then
+      worker=$candidate
+    fi
+    candidate=$((candidate + 1))
+  done
   printf '%s\t%s\n' "$index" "$path" >> "$TMP_ROOT/manifest.$worker"
   WORKER_LOADS[worker]=$((WORKER_LOADS[worker] + weight))
 done < "$WEIGHTS.sorted"
@@ -438,23 +445,17 @@ fm_lint_wait_workers() {
   done
 }
 
-if [ "$JOBS" -eq 1 ]; then
-  worker=0
-  while [ "$worker" -lt "$SHARD_COUNT" ]; do
-    fm_lint_start_worker "$worker"
+worker=0
+while [ "$worker" -lt "$SHARD_COUNT" ]; do
+  fm_lint_start_worker "$worker"
+  if [ "${#ACTIVE_PIDS[@]}" -ge "$JOBS" ]; then
     fm_lint_wait_workers
-    worker=$((worker + 1))
-  done
-else
-  worker=0
-  while [ "$worker" -lt "$SHARD_COUNT" ]; do
-    fm_lint_start_worker "$worker"
-    worker=$((worker + 1))
-  done
-  fm_lint_wait_workers
-fi
+  fi
+  worker=$((worker + 1))
+done
+fm_lint_wait_workers
 
-# Replay both stable shards in deterministic order and select the first nonzero
+# Replay all stable shards in deterministic order and select the first nonzero
 # shard status. ShellCheck processes every root in a shard after earlier findings.
 overall_rc=0
 worker=0
@@ -559,8 +560,11 @@ EOF
     printf 'source_boundary_directives\t%s\n' "$source_boundaries"
     printf 'source_followed_directives\t%s\n' "$source_followed"
     printf 'source_target_count\t%s\n' "$source_targets"
-    printf 'shard_1_weight_bytes\t%s\n' "${WORKER_LOADS[0]}"
-    printf 'shard_2_weight_bytes\t%s\n' "${WORKER_LOADS[1]:-0}"
+    worker=0
+    while [ "$worker" -lt "$SHARD_COUNT" ]; do
+      printf 'shard_%s_weight_bytes\t%s\n' "$((worker + 1))" "${WORKER_LOADS[worker]}"
+      worker=$((worker + 1))
+    done
     printf 'wall_seconds\t%s\n' "$((TELEMETRY_END_EPOCH - TELEMETRY_START_EPOCH))"
     printf 'worker_wall_sum_seconds\t%s\n' "$timing_worker_wall"
     printf 'max_worker_wall_seconds\t%s\n' "$max_worker_wall"

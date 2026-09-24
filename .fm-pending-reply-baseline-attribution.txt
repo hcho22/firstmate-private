@@ -1,0 +1,14 @@
+comparison_utc	2026-09-24
+baseline_commit	ef96da5e4f4b8e8d15af242a0e0d249dd0d938c2
+baseline_command	/usr/bin/time -l bash tests/fm-pending-reply.test.sh (from git archive of baseline commit)
+baseline_exit	1
+baseline_exact_failure	not ok - confirmation and reconciliation raced through 2 delivery commits
+baseline_suite_result	not ok - delivery confirmation serialization regression failed
+retained_head	ef96da5e4f4b8e8d15af242a0e0d249dd0d938c2 plus patch a895ca3aaec6c1bcd8f2f7cad67d03c21f50563c5926a67065f3921d41705856
+retained_command	/usr/bin/time -lp bash tests/fm-pending-reply.test.sh
+retained_exit	1
+retained_exact_failure	mv temporary record rename: No such file or directory; not ok - reconciliation should observe committed delivery
+retained_suite_result	not ok - delivery confirmation serialization regression failed
+shared_observation	Both runs passed concurrent resolution closes one keyed escalation exactly once before the same later serialization test failed with different race manifestations.
+attribution	The retained diff changes only the later restart case and preserves the original marker across an earlier subshell re-source; it does not change pending-reply production code or the failing serialization test.
+limitation	Neither local full suite passed. Do not waive the remote current-head behavior suite or call this local suite green.

@@ -1,0 +1,1 @@
+shellcheck: Most RTS options are disabled. Link with -rtsopts to enable them.
