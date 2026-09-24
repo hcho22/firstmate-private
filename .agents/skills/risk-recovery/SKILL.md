@@ -121,11 +121,14 @@ Use existing registered checks or process-event sources for observation; load `p
 Register the source under the release obligation rather than the implementation worker, so teardown cannot remove its monitor.
 A bounded observation has a deadline; arrange an existing registered check to surface silence/monitoring loss as unknown by that deadline.
 Missing, stale, wrong-candidate/environment/configuration, future-dated, or malformed observations are unknown and prevent advancement, never automatically authorize destructive rollback.
+Measure freshness from the end of the measurement window; reporting cached measurements again does not renew their validity.
 An incomplete window or insufficient usage cannot pass; an accepted manual-scenario alternative must be recorded before use and cannot lower criteria mid-release.
 Stop conditions halt expansion and notify the changed condition, consequence, and needed action; execute containment only if that exact action is authorized and safe under existing boundaries.
 Unchanged healthy observations stay quiet unless periodic reporting was requested; record the last notified condition in the body for restart/replay suppression.
 
 Before terminal completion verify final exposure, final health evidence (or the observed safe withdrawn/cancelled state), recovery disposition, and watch retirement through its owner.
+Bind final-state evidence to the current candidate and material plan, including the environment, and record the actual verification time using the outcome fields owned by `bin/fm-release.py`.
+Cancellation before exposure needs current safe-state verification but does not require a rollout-stage observation; older outcomes remain readable and need verification before completion.
 A failed recovery remains Recovering or Paused; attempted rollback is not Stopped or Released.
 Distinguish successful release, cancellation before exposure, and verified withdrawal explicitly in the outcome.
 Load `captain-hold-lifecycle` for genuine unresolved captain calls; preserve them through completion, never close them merely because implementation finished.

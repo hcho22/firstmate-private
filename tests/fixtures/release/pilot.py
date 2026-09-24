@@ -104,7 +104,7 @@ def action(r,op,target,key):
 plan='''# Authorized disposable local pilot
 Candidate: exact SHA-256 of the workload program; environment: loopback HTTP and isolated SQLite under this directory.
 Permitted actions: local deploy, internal exposure, all-local exposure, disable, representative failed restoration, and retained-data inspection; never production or live fleet mutation.
-Stages: internal then all-local; each needs at least 2 real requests over a 1-second window, observed within 60 seconds.
+Stages: internal then all-local; each needs at least 2 real requests over a 1-second window ending within 60 seconds of assessment.
 Stop: any leaked write, unhealthy response, or unavailable monitoring stops expansion.
 Recovery: disable gate, issue fresh requests, compare persisted write counts, and retain earlier writes; an acknowledged request alone is insufficient.
 Real commands: brief/promotion outputs, installed tasks-axi markdown lifecycle, fm-release consistency check, authenticated fm-check registration, fm-watch, generation-bound wake drain/ack, and owner retirement.
@@ -221,6 +221,14 @@ try:
     # No acknowledgement until effects and task records have been reconciled.
     replay=run(root/'bin/fm-wake-drain.sh'); assert queue.read_text()==queued
     r['progress']['observation']=observation(captured); r['progress']['phase']='Expansion ready'; save(r)
+    cached=copy.deepcopy(r)
+    cached['progress']['observation'].update(started_at=captured['started_at']-120,
+                                           ended_at=captured['ended_at']-120,observed_at=time.time())
+    assert check(cached,'advance','all-local','expand-1',1)['health']=='unknown'
+    assert http('/state')['exposure']=='internal'
+    result('REL-06 cached-window','fresh reporting cannot renew stale measurements',
+           'captured probe with deliberately aged measurement window blocks expansion as unknown',
+           limitation='timestamp fault injected into a copy of the real registered probe')
     # Monitoring loss via a real 503 prevents advancement, without exposure change.
     http('/control',dict(monitoring=False)); missing_capture=dest/'monitoring-loss.json'
     run(sys.executable,workload,'observe',url,missing_capture)
@@ -271,8 +279,15 @@ try:
     result('failed-restoration','failed attempt remains unresolved Recovering','HTTP 503 and terminal refusal','fail','intentional representative restoration failure')
     # Repair the representative defect without deleting earlier persistent data.
     http('/control',dict(leak=False)); before=http('/state')['writes']; http('/request'); http('/request'); after=http('/state')['writes']; assert before==after and after>0
-    r['progress']['phase']='Stopped'; r['outcome'].update(disposition='withdrawn',exposure='none',health='safe',evidence=str(log),recovery='contained')
+    final_state=http('/state'); assert final_state['exposure']=='none' and final_state['health']=='healthy'
+    r['progress']['phase']='Stopped'; r['outcome'].update(plan_binding,disposition='withdrawn',exposure='none',health='safe',evidence=str(log),recovery='contained',observed_at=final_state['observed_at'])
     run(root/'bin/fm-check-unregister.sh','release-local'); r['outcome']['watches_retired']=True
+    for group,key in [('candidate','artifact'),('target','environment')]:
+        changed=copy.deepcopy(r); changed[group][key]='changed-after-verification'
+        verdict=check(changed,'complete',code=1)
+        assert 'final outcome binding missing or mismatched' in verdict['reasons']
+    result('PROOF-04 REL-03 REL-14 terminal-binding','changed candidate or environment requires new final verification',
+           'retained withdrawal evidence refused for each changed identity')
     check(r,'complete'); save(r); task('done','local-release','--report',str(log),'--json')
     result('verified-withdrawal','Stopped after observable containment, not data restoration',dict(writes_retained=after,final_exposure=http('/state')['exposure']))
     # A second authorized local attempt reopens the same coherent release,
@@ -288,11 +303,13 @@ try:
     save(finished); action(finished,'advance','all-local','success-expand')
     http('/request'); http('/request'); time.sleep(1.05); raw=http('/health')
     finished['progress'].update(phase='Released',stage='final',observation=observation(raw))
-    finished['outcome'].update(disposition='released',exposure='all-local',health='healthy',recovery='not-needed',evidence=str(log))
+    finished['outcome'].update(plan_binding,disposition='released',exposure='all-local',health='healthy',recovery='not-needed',evidence=str(log),observed_at=raw['observed_at'])
     check(finished,'complete'); save(finished); task('done','local-release','--report',str(log),'--json')
     cancelled=copy.deepcopy(finished); cancelled['identity']['task']='cancelled-offline-release'; cancelled['target']['environment']='offline'
     cancelled['progress'].update(phase='Stopped',deployment=None,observation=None)
     cancelled['outcome'].update(disposition='cancelled',exposure='none',health='safe',evidence='offline environment inspected; no deployment occurred')
+    final=dest/'cancelled-body.md'; final.write_text(body(cancelled))
+    cancelled['outcome'].update(json.loads(run(cli,'fingerprint',final)),observed_at=time.time())
     check(cancelled,'complete'); final=dest/'cancelled-body.md'; final.write_text(body(cancelled)); task('add','cancelled-offline-release','Cancelled offline outcome','--body-file',final,'--json'); task('done','cancelled-offline-release','--report',str(log),'--json')
     result('terminal-outcomes','released, withdrawn, cancelled, failed recovery remain distinct','actual task lifecycle and observed states recorded')
     # Manual mode uses inspect-then-edit, never silently calling tasks-axi.

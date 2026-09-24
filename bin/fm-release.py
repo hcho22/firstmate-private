@@ -21,12 +21,17 @@ Progress holds phase/stage, deployment, observation, pending_action,
 completed_actions and last_notified_condition. Deployment includes source,
 artifact, binding and evidence. Observation includes binding, id, signal_source,
 started_at/ended_at/observed_at epoch seconds, samples, health, stop, exposure and
-evidence. Optional accepted manual alternative: stage.manual_alternative names
+evidence. Freshness is measured from ended_at, not the reporting time observed_at.
+Optional accepted manual alternative: stage.manual_alternative names
 instruction/scenarios; observation.manual has instruction/scenarios/evidence.
 Pending/completed actions hold id/operation/target/status/evidence. Pending is
 null or planned/ambiguous; only verified actions belong in completed_actions.
 Watches lists registered owner references. Outcome includes disposition,
-exposure, evidence, health, watches_retired and unresolved_calls.
+exposure, evidence, health, recovery, watches_retired and unresolved_calls, plus
+the same binding and observed_at (epoch time of actual final-state verification,
+not reporting time). Completion requires current bound outcome evidence within
+max_age_seconds, including cancellation before exposure without a stage observation.
+Older outcomes remain readable but require verification before completion.
 
 The checker checks recorded consistency only. It cannot prove source truth,
 completeness of peer inventory, instruction provenance, or task/lease ownership.
@@ -65,7 +70,8 @@ def template(task):
                      "completed_actions": [], "last_notified_condition": ""},
         "watches": [],
         "outcome": {"disposition": "pending", "exposure": "", "evidence": "",
-                    "health": "unknown", "recovery": "unresolved", "watches_retired": False, "unresolved_calls": []},
+                    "health": "unknown", "recovery": "unresolved", "watches_retired": False,
+                    "unresolved_calls": [], "observed_at": 0, **binding},
     }
 
 
@@ -188,7 +194,7 @@ def health(r, now):
             errors.append('invalid health criterion ' + key)
     if errors:
         return 'unknown', errors
-    if not (o['started_at'] <= o['ended_at'] <= o['observed_at'] <= now) or now - o['observed_at'] > h['max_age_seconds']:
+    if not (o['started_at'] <= o['ended_at'] <= o['observed_at'] <= now) or now - o['ended_at'] > h['max_age_seconds']:
         return 'unknown', ['stale, future, or unordered observation']
     if type(o.get('stop')) is not bool or o.get('health') not in ('healthy', 'unhealthy', 'unknown'):
         return 'unknown', ['malformed health/stop verdict']
@@ -308,6 +314,12 @@ def assess(r, operation, target, op_id, peers, now):
             errors.append('watch retirement or captain-call disposition unresolved')
         if not nonempty(o['evidence']) or not nonempty(o['exposure']):
             errors.append('final exposure/outcome evidence missing')
+        if not bound(o, r):
+            errors.append('final outcome binding missing or mismatched')
+        if (not number(o.get('observed_at')) or not 0 < o['observed_at'] <= now or
+                not number(r['health'].get('max_age_seconds')) or
+                now - o['observed_at'] > r['health']['max_age_seconds']):
+            errors.append('final outcome verification stale, future, or missing')
         if o['disposition'] == 'released':
             if (r['progress']['phase'] != 'Released' or not r['stages'] or
                     r['progress']['stage'] != r['stages'][-1].get('name') or

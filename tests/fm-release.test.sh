@@ -12,6 +12,7 @@ sys.path.insert(0, str(root/'tests/fixtures/release'))
 from contract import record, body, stamp
 cli = root/'bin/fm-release.sh'
 base = record(cli)
+base_binding = stamp(cli, base)
 count = 0
 
 def check(r, status=0, *args, contains=None):
@@ -42,6 +43,12 @@ for key,value,health in [('observed_at',900,'unknown'), ('environment','wrong','
                          ('stop',True,'unhealthy')]:
     r=copy.deepcopy(base); r['progress']['observation'][key]=value
     result=check(r,1,*advance); assert result['health']==health, result
+for ended_at,status in [(200,1),(939.9,1),(940,0),(999,0)]:
+    r=copy.deepcopy(base)
+    r['progress']['observation'].update(started_at=100,ended_at=ended_at,observed_at=1000)
+    result=check(r,status,*advance)
+    assert result['health']==('unknown' if status else 'healthy'),result
+    assert check(r)['health']==result['health']
 for group,key in [('candidate','artifact'), ('candidate','configuration'), ('candidate','source'), ('candidate','dependencies'), ('target','environment')]:
     r=copy.deepcopy(base); r[group][key]='changed'; check(r,1,*advance)
 r=copy.deepcopy(base); r['stages'][0]['min_samples']=1; check(r,1,*advance,contains='stale')
@@ -69,16 +76,40 @@ r['stages'][0]['manual_alternative']=dict(instruction='accepted before exposure'
 r['progress']['observation']['manual']=dict(r['stages'][0]['manual_alternative'],evidence='interaction-log')
 stamp(cli,r)
 check(r,0,*advance)
+manual=copy.deepcopy(r)
+r['progress']['observation'].update(started_at=999,ended_at=999.5,observed_at=1000)
+assert check(r,1,*advance)['health']=='insufficient'
+r['progress']['observation'].update(started_at=100,ended_at=200,observed_at=1000)
+assert check(r,1,*advance)['health']=='unknown'
+r=manual
 r['progress']['observation']['manual']['instruction']='new silent waiver'; check(r,1,*advance)
 # Distinct accurate terminal outcomes and failures.
 for disposition in ('released','cancelled','withdrawn'):
     r=copy.deepcopy(base); r['progress'].update(phase='Released' if disposition=='released' else 'Stopped',stage='final')
     r['progress']['observation']['exposure']='all-local'
     r['outcome'].update(disposition=disposition, exposure='all-local' if disposition=='released' else 'none',
-                        health='healthy' if disposition=='released' else 'safe', evidence='final state', watches_retired=True)
+                        health='healthy' if disposition=='released' else 'safe', evidence='final state', watches_retired=True,
+                        observed_at=999, **base_binding)
+    if disposition!='released':
+        r['progress']['observation']=None
+        r['outcome']['recovery']='contained' if disposition=='withdrawn' else 'not-needed'
+    if disposition=='cancelled': r['progress'].update(stage='',deployment=None)
     check(r,0,'--operation','complete')
-    for key,value in [('watches_retired',False),('recovery','failed'),('unresolved_calls',['captain-call'])]:
+    for key,value in [('watches_retired',False),('recovery','failed'),('unresolved_calls',['captain-call']),
+                      ('evidence',''),('health','unknown'),('observed_at',900),('observed_at',1001),
+                      ('observed_at',None),('observed_at',True),('observed_at','999'),('observed_at',0)]:
         bad=copy.deepcopy(r); bad['outcome'][key]=value; check(bad,1,'--operation','complete')
+    for group,key in [('candidate','artifact'),('candidate','source'),('candidate','configuration'),
+                      ('candidate','dependencies'),('target','environment'),('health','baseline')]:
+        bad=copy.deepcopy(r); bad[group][key]='changed'
+        check(bad,1,'--operation','complete',contains='outcome binding')
+    for key in (*base_binding,'observed_at'):
+        bad=copy.deepcopy(r); del bad['outcome'][key]
+        check(bad)
+        check(bad,1,'--operation','complete')
+    if disposition=='released':
+        bad=copy.deepcopy(r); bad['progress']['observation'].update(started_at=100,ended_at=200,observed_at=1000)
+        assert check(bad,1,'--operation','complete')['health']=='unknown'
 r=copy.deepcopy(base); r['progress']['phase']='Recovering'; r['outcome']['disposition']='failed-recovery'; check(r,1,'--operation','complete')
 private=copy.deepcopy(base)
 private['identity']['home']='PRIVATE_SENTINEL'; private['readiness'][0]['evidence']='PRIVATE_SENTINEL'
