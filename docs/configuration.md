@@ -18,9 +18,10 @@ Untracked files and directories whose names begin with `scratchpad` are also git
 ### Per-project task data
 
 A task's private documents (brief, launch brief, ship instructions, scout report, review findings, evidence, and review pages) live in `data/<ProjectDir>/<task-id>/`, never flat under `data/`.
-`<ProjectDir>` is the project's name exactly as `data/projects.md` spells it, so it matches the clone under `projects/`.
-Three reserved folders begin with an underscore, which no project name can, so they never collide with one:
-`_firstmate` holds tasks whose subject is the firstmate repo itself, `_secondmates` holds persistent secondmate charter briefs, and `_unassigned` holds work with no registered project or whose name cannot be a folder name.
+`<ProjectDir>` is the project's name: its `data/projects.md` spelling when the project is registered, so it matches the clone under `projects/`, and otherwise the repo name the task was created for.
+The firstmate repo itself is an ordinary project and gets its folder the same way.
+Two reserved folders begin with an underscore, which no project name can, so they never collide with one:
+`_secondmates` holds persistent secondmate charter briefs, and `_unassigned` holds work created with no project or with a project name that cannot be a folder name.
 A project name that differs only in case from an existing folder adopts that folder's spelling, so a case-insensitive disk never holds two.
 The fleet-wide files stay at the `data/` root: the backlog and its archives, `projects.md`, `secondmates.md`, `captain.md`, `captain-shared.md`, `learnings.md`, and a secondmate home's `charter.md`, alongside the non-task folders `handoff/`, `extensions/`, and `remote-secondmates/`.
 Each home, including every secondmate home, keeps its own `data/` in this layout; nothing is shared across homes.
@@ -29,6 +30,7 @@ Each home, including every secondmate home, keeps its own `data/` in this layout
 Only a creator (`bin/fm-brief.sh` and the two secondmate seed scripts) maps a project to a folder.
 Everything else finds an existing task folder by its id, so no script re-derives a project and none can disagree with the brief that created the folder.
 An id that exists under more than one project folder is refused rather than guessed.
+A new task is also refused when its id equals a project name, or when its project's folder name is still held by a flat pre-layout task folder, until the migration moves that folder.
 Recorded report links in the backlog name the folder they were written from, for example `data/<ProjectDir>/<task-id>/report.md`.
 
 The pre-layout flat folders `data/<task-id>/` are still read, and never created, until a home runs the migration; the read lives in one function of the library and is removable once every home reports `legacy_remaining=0`.

@@ -21,7 +21,7 @@
 # registry (charter briefs go to _secondmates); the repo named in its brief
 # ("disposable git worktree of <repo>"); the (repo: <name>) annotation on its
 # backlog or archive line. The name then maps to a folder exactly as a new brief
-# would (registry spelling, _firstmate for this repo). A folder with no answer
+# would (the registry spelling for a registered project). A folder with no answer
 # is reported as unresolved and left flat; it stays readable through the legacy
 # lookup until --assign places it.
 #
@@ -103,6 +103,7 @@ echo "mode: $MODE home=$FM_HOME data=$DATA"
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/fm-data-migrate.XXXXXX") || { echo "error: cannot create a scratch directory" >&2; exit 1; }
 LOCKDIR=
+# shellcheck disable=SC2329 # Invoked by the EXIT trap below.
 cleanup() {
   [ -z "$LOCKDIR" ] || fm_lock_release "$LOCKDIR" 2>/dev/null || true
   rm -rf -- "$WORK"
@@ -110,9 +111,9 @@ cleanup() {
 trap cleanup EXIT
 MANIFEST="$DATA/.layout-migration.tsv"   # id <TAB> ProjectDir, one line per folder this command moved
 PLAN="$WORK/plan.tsv"        # id <TAB> source dir <TAB> destination dir <TAB> why
-MAPFILE="$WORK/map.tsv"      # rewrite map, see build_rewrite_map
+REWRITE_MAP="$WORK/map.tsv"  # rewrite map, see build_rewrite_map
 PLANNED="$WORK/planned.tsv"  # lowercase <TAB> spelling of project folders this run creates
-: > "$PLAN"; : > "$MAPFILE"; : > "$PLANNED"
+: > "$PLAN"; : > "$REWRITE_MAP"; : > "$PLANNED"
 UNRESOLVED=0
 SKIPPED=0
 CONFLICTS=0
@@ -197,7 +198,7 @@ plan_forward() {
     case "$name" in _*|.*) continue ;; esac
     fm_task_data_root_reserved "$name" && continue
     id=$name
-    if fm_task_data_registered_name "$DATA" "$name" >/dev/null 2>&1; then
+    if ! fm_task_data_has_marker "$entry" && fm_task_data_registered_name "$DATA" "$name" >/dev/null 2>&1; then
       PROJECT_FOLDERS="$PROJECT_FOLDERS $name"
       continue
     fi
@@ -234,7 +235,7 @@ plan_forward() {
       CONFLICTS=$((CONFLICTS + 1))
       continue
     fi
-    if [ -e "$DATA/$dirname" ] && ! fm_task_data_is_project_folder "$DATA" "$dirname"; then
+    if ! fm_task_data_project_folder_usable "$DATA" "$dirname"; then
       echo "conflict: data/$dirname exists but is not a project folder; leaving data/$id where it is"
       CONFLICTS=$((CONFLICTS + 1))
       continue
@@ -275,34 +276,34 @@ plan_revert() {
 # and before the rewrite finishes the job when repeated.
 build_rewrite_map() {
   local task id project
-  : > "$MAPFILE"
+  : > "$REWRITE_MAP"
   if [ "$REVERT" -eq 0 ]; then
     while IFS= read -r task; do
       case "${task#"$DATA"/}" in */*) ;; *) continue ;; esac
-      printf '%s\t%s\n' "${task##*/}" "${task#"$DATA"/}" >> "$MAPFILE"
+      printf '%s\t%s\n' "${task##*/}" "${task#"$DATA"/}" >> "$REWRITE_MAP"
     done < <(fm_task_data_task_dirs "$DATA")
-    awk -F'\t' '{ n = split($3, p, "/"); print $1 "\t" p[n-1] "/" $1 }' "$PLAN" >> "$MAPFILE"
+    awk -F'\t' '{ n = split($3, p, "/"); print $1 "\t" p[n-1] "/" $1 }' "$PLAN" >> "$REWRITE_MAP"
   else
-    awk -F'\t' '{ n = split($2, p, "/"); print p[n-1] "/" $1 "\t" $1 }' "$PLAN" >> "$MAPFILE"
+    awk -F'\t' '{ n = split($2, p, "/"); print p[n-1] "/" $1 "\t" $1 }' "$PLAN" >> "$REWRITE_MAP"
     while IFS= read -r task; do
       case "${task#"$DATA"/}" in */*) ;; *) continue ;; esac
       id=${task##*/}
       project=$(basename "$(dirname "$task")")
       fm_task_data_has_marker "$task" || in_manifest "$project" "$id" || continue
-      printf '%s/%s\t%s\n' "$project" "$id" "$id" >> "$MAPFILE"
+      printf '%s/%s\t%s\n' "$project" "$id" "$id" >> "$REWRITE_MAP"
     done < <(fm_task_data_task_dirs "$DATA")
   fi
-  sort -u "$MAPFILE" -o "$MAPFILE"
+  sort -u "$REWRITE_MAP" -o "$REWRITE_MAP"
   # An id that maps to two folders is ambiguous; rewrite neither.
   awk -F'\t' '{ c[$1]++; line[NR] = $0; key[NR] = $1 } END { for (i = 1; i <= NR; i++) if (c[key[i]] == 1) print line[i] }' \
-    "$MAPFILE" > "$MAPFILE.unique" && mv "$MAPFILE.unique" "$MAPFILE"
+    "$REWRITE_MAP" > "$REWRITE_MAP.unique" && mv "$REWRITE_MAP.unique" "$REWRITE_MAP"
 }
 
 # rewrite_links <mode: count|write> <file>... ; prints "<file> <TAB> <count>".
 rewrite_links() {
   local mode=$1
   shift
-  [ "$#" -gt 0 ] && [ -s "$MAPFILE" ] || return 0
+  [ "$#" -gt 0 ] && [ -s "$REWRITE_MAP" ] || return 0
   perl -e '
     use strict; use warnings;
     my ($mapfile, $mode, @files) = @ARGV;
@@ -328,7 +329,7 @@ rewrite_links() {
       chmod($st[2] & 07777, $tmp);
       rename($tmp, $file) or die "rename $tmp: $!";
     }
-  ' "$MAPFILE" "$mode" "$@"
+  ' "$REWRITE_MAP" "$mode" "$@"
 }
 
 # --- run --------------------------------------------------------------------
@@ -364,7 +365,7 @@ if [ "$CONFLICTS" -gt 0 ]; then
 fi
 
 if [ "$APPLY" -eq 1 ]; then
-  if [ "$MOVES" -gt 0 ] || [ -s "$MAPFILE" ]; then
+  if [ "$MOVES" -gt 0 ] || [ -s "$REWRITE_MAP" ]; then
     LOCKDIR="$STATE/.data-migrate.lock"
     mkdir -p "$STATE"
     fm_lock_try_acquire "$LOCKDIR" || { LOCKDIR=; echo "error: another data migration is running" >&2; exit 1; }
@@ -395,7 +396,7 @@ fi
 REWRITE_TOTAL=0
 REWRITE_FILE_COUNT=0
 if [ "${#REWRITE_FILES[@]}" -gt 0 ]; then
-  if [ "$APPLY" -eq 1 ]; then RW=write; else RW=count; fi
+  if [ "$APPLY" -eq 1 ]; then RW="write"; else RW="count"; fi
   while IFS=$'\t' read -r file count; do
     [ "${count:-0}" -gt 0 ] || continue
     echo "rewrite: ${file#"$DATA"/} $count reference(s)"

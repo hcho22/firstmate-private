@@ -851,7 +851,7 @@ seed_home() {
   : > "$SEED_CREATED_PROJECTS_FILE"
   SEED_PARENT_REG_EXISTED=0
   SEED_PARENT_BRIEF_DIR=$(fm_task_data_dir_for_new "$DATA" "$id" "$FM_TASK_DATA_SECONDMATES") || {
-    echo "error: cannot place charter $id in the data layout (invalid id or id collides with a project folder)" >&2
+    echo "error: cannot place charter $id in the data layout (invalid id, or the id or its project folder collides with an existing folder)" >&2
     return 1
   }
   SEED_PARENT_BRIEF="$SEED_PARENT_BRIEF_DIR/brief.md"

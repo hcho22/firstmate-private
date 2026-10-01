@@ -3,12 +3,12 @@
 #
 # Canonical layout (docs/configuration.md owns the operator-facing description):
 #   data/<ProjectDir>/<task-id>/   briefs, reports, findings, evidence, review pages
-# <ProjectDir> is the project's name exactly as data/projects.md spells it. Three
-# reserved, underscore-prefixed folders hold work with no registered project, so
-# they can never collide with a project name:
-#   _firstmate     tasks whose subject is the firstmate repo itself
+# <ProjectDir> is the project's name, spelled as data/projects.md spells it when
+# the project is registered; the firstmate repo is an ordinary project. Two
+# reserved, underscore-prefixed folders hold work with no usable project name,
+# so they can never collide with a project name:
 #   _secondmates   persistent secondmate charter briefs
-#   _unassigned    everything else (no project, or a name that cannot be a folder)
+#   _unassigned    work with no project, or whose name cannot be a folder
 # Fleet-wide files (backlog.md, projects.md, secondmates.md, captain.md,
 # captain-shared.md, learnings.md, archives, charter.md) stay at the data/ root,
 # as do the non-task root folders handoff/, extensions/ and remote-secondmates/.
@@ -31,14 +31,17 @@
 # BOUNDED LEGACY READ. Before the layout change, folders lived flat at
 # data/<id>/. Lookup still FINDS such a folder (and only when the canonical scan
 # found nothing) so a home that has not yet run bin/fm-data-migrate.sh keeps
-# working, but nothing ever CREATES a flat folder. The legacy read exists in
+# working, but nothing ever CREATES a flat folder. A top-level folder is a flat
+# task folder exactly when it carries a task marker file, and a project folder
+# otherwise, so the two can never be confused. The legacy read exists in
 # exactly one place, fm_task_data__legacy_dir, and is removable once every home
 # has migrated (fm-data-migrate.sh reports `legacy_remaining=0`).
 #
 # Return codes of fm_task_data_dir: 0 found, 1 not found, 2 invalid id,
 # 3 ambiguous (the id exists under more than one project folder; candidates on
 # stderr). fm_task_data_dir_for_new adds 4 when the id collides with a reserved
-# or project folder name.
+# or project folder name, or when the project's folder name is held by
+# something that is not a project folder.
 #
 # No side effects on source, and nothing here creates or removes a directory.
 # set -u / set -e safe.
@@ -47,7 +50,6 @@ _FM_TASK_DATA_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=bin/fm-pr-lib.sh
 . "$_FM_TASK_DATA_LIB_DIR/fm-pr-lib.sh"
 
-FM_TASK_DATA_FIRSTMATE=_firstmate
 FM_TASK_DATA_SECONDMATES=_secondmates
 FM_TASK_DATA_UNASSIGNED=_unassigned
 
@@ -91,6 +93,13 @@ fm_task_data_is_project_folder() {  # <data> <name>
   return 0
 }
 
+# Whether data/<name> may hold project task folders: nothing is there yet, or a
+# project folder already is.
+fm_task_data_project_folder_usable() {  # <data> <name>
+  [ ! -e "$1/$2" ] && [ ! -L "$1/$2" ] && return 0
+  fm_task_data_is_project_folder "$1" "$2"
+}
+
 # Print the registry spelling of a project name, matching case-insensitively.
 fm_task_data_registered_name() {  # <data> <name>
   local data=$1 name=$2 found
@@ -100,21 +109,6 @@ fm_task_data_registered_name() {  # <data> <name>
   ' "$data/projects.md") || return 1
   [ -n "$found" ] || return 1
   printf '%s\n' "$found"
-}
-
-# Whether a project argument names the firstmate repo itself. The caller's repo
-# string carries no reliable signal, so this accepts the literal name, the base
-# names of the active home and code root, and is consulted only after the
-# registry, so a registered project always wins. A wrong guess is cosmetic:
-# lookups scan, so the folder is still found wherever it landed.
-fm_task_data__is_firstmate_name() {  # <name>
-  local name=$1 root home
-  [ "$name" = firstmate ] && return 0
-  root=${FM_ROOT_OVERRIDE:-$(cd "$_FM_TASK_DATA_LIB_DIR/.." && pwd)}
-  home=${FM_HOME:-$root}
-  [ "$name" = "$(basename "$root")" ] && return 0
-  [ "$name" = "$(basename "$home")" ] && return 0
-  return 1
 }
 
 fm_task_data__name_valid() {  # <name>
@@ -133,7 +127,7 @@ fm_task_data__name_valid() {  # <name>
 fm_task_data_project_dirname() {  # <data> [<project>]
   local data=$1 project=${2-} name reg existing lower entry
   case "$project" in
-    "$FM_TASK_DATA_FIRSTMATE"|"$FM_TASK_DATA_SECONDMATES"|"$FM_TASK_DATA_UNASSIGNED")
+    "$FM_TASK_DATA_SECONDMATES"|"$FM_TASK_DATA_UNASSIGNED")
       printf '%s\n' "$project"
       return 0 ;;
   esac
@@ -145,9 +139,6 @@ fm_task_data_project_dirname() {  # <data> [<project>]
   fi
   if reg=$(fm_task_data_registered_name "$data" "$name"); then
     name=$reg
-  elif fm_task_data__is_firstmate_name "$name"; then
-    printf '%s\n' "$FM_TASK_DATA_FIRSTMATE"
-    return 0
   fi
   if ! fm_task_data__name_valid "$name"; then
     echo "warning: project '$name' cannot be a data folder name; filing under $FM_TASK_DATA_UNASSIGNED" >&2
@@ -169,13 +160,13 @@ fm_task_data_project_dirname() {  # <data> [<project>]
 }
 
 # The one place the pre-layout flat path is read. Prints data/<id> when it is a
-# real directory that is not a root, reserved, or project folder.
+# real directory, outside the reserved names, that carries a task marker.
 fm_task_data__legacy_dir() {  # <data> <id>
   local data=$1 id=$2
   case "$id" in _*) return 1 ;; esac
   fm_task_data_root_reserved "$id" && return 1
   [ -d "$data/$id" ] && [ ! -L "$data/$id" ] || return 1
-  fm_task_data_registered_name "$data" "$id" >/dev/null 2>&1 && return 1
+  fm_task_data_has_marker "$data/$id" || return 1
   printf '%s/%s\n' "$data" "$id"
 }
 
@@ -221,6 +212,10 @@ fm_task_data_dir_for_new() {  # <data> <id> [<project>]
     return 4
   fi
   dirname=$(fm_task_data_project_dirname "$data" "$project") || return 1
+  if ! fm_task_data_project_folder_usable "$data" "$dirname"; then
+    echo "error: data/$dirname exists but is not a project folder; migrate or move it before placing task $id there" >&2
+    return 4
+  fi
   printf '%s/%s/%s\n' "$data" "$dirname" "$id"
 }
 
@@ -256,11 +251,6 @@ fm_task_data_task_dirs() {  # <data>
   done
   for entry in "$data"/*/; do
     entry=${entry%/}
-    name=${entry##*/}
-    case "$name" in _*|.*) continue ;; esac
-    fm_task_data_root_reserved "$name" && continue
-    [ -d "$entry" ] && [ ! -L "$entry" ] || continue
-    fm_task_data_has_marker "$entry" || continue
-    printf '%s\n' "$entry"
+    fm_task_data__legacy_dir "$data" "${entry##*/}" || continue
   done
 }

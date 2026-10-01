@@ -126,7 +126,7 @@ fi
 
 mkdir -p "$DATA"
 BRIEF_DIR=$(fm_task_data_dir_for_new "$DATA" "$ID" "$FM_TASK_DATA_SECONDMATES") \
-  || die "cannot place charter $ID in the data layout (invalid id or id collides with a project folder)"
+  || die "cannot place charter $ID in the data layout (invalid id, or the id or its project folder collides with an existing folder)"
 BRIEF="$BRIEF_DIR/brief.md"
 BRIEF_CREATED=0
 if [ ! -f "$BRIEF" ]; then

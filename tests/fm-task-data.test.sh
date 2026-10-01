@@ -40,7 +40,7 @@ write_brief_for() {  # <dir> <repo>
 # A home with flat task folders in every shape the migration must place:
 #   rt-alpha, rt-alpha-two   ship briefs naming RepToday (one id prefixes the other)
 #   im-scout                 a scout naming Immerse, with a report
-#   fmhome-own               a brief naming this firstmate home itself
+#   fmhome-own               a brief naming this firstmate home's own unregistered repo
 #   backlog-only             no repo in its brief; the backlog line names Purvia
 #   mate-one                 a registered secondmate's charter
 #   lone-dir                 files only, no marker
@@ -99,9 +99,10 @@ test_project_dirname_mapping() {
   [ "$(lib fm_task_data_project_dirname "$data" projects/Immerse)" = Immerse ] || fail "a projects/<name> argument was not reduced to its name"
   [ "$(lib fm_task_data_project_dirname "$data" "$home/projects/Purvia")" = Purvia ] || fail "an absolute project path was not reduced to its name"
   [ "$(lib fm_task_data_project_dirname "$data" '')" = _unassigned ] || fail "no project did not map to _unassigned"
-  [ "$(lib fm_task_data_project_dirname "$data" firstmate)" = _firstmate ] || fail "the firstmate repo name did not map to _firstmate"
+  [ "$(lib fm_task_data_project_dirname "$data" SomeUnregistered)" = SomeUnregistered ] || fail "an unregistered project did not get its own folder"
+  [ "$(lib fm_task_data_project_dirname "$data" firstmate)" = firstmate ] || fail "the firstmate repo did not get an ordinary project folder"
   out=$(FM_HOME="$home" lib fm_task_data_project_dirname "$data" fmhome) || fail "dirname failed for the home's own name"
-  [ "$out" = _firstmate ] || fail "this home's own base name did not map to _firstmate: $out"
+  [ "$out" = fmhome ] || fail "this home's own repo name did not get an ordinary project folder: $out"
   [ "$(lib fm_task_data_project_dirname "$data" _secondmates)" = _secondmates ] || fail "an internal folder name was not passed through"
   out=$(lib fm_task_data_project_dirname "$data" 'has space' 2>/dev/null) || fail "an unusable name must not fail"
   [ "$out" = _unassigned ] || fail "a name that cannot be a folder did not map to _unassigned: $out"
@@ -109,16 +110,7 @@ test_project_dirname_mapping() {
   [ "$out" = _unassigned ] || fail "a reserved root folder name became a project folder: $out"
   out=$(lib fm_task_data_project_dirname "$data" _sneaky 2>/dev/null) || fail "an underscore name must not fail"
   [ "$out" = _unassigned ] || fail "a user name in the reserved underscore space became a folder: $out"
-  pass "project names map to registry spelling, reserved folders, or _unassigned"
-}
-
-test_project_dirname_registry_beats_the_firstmate_name() {
-  local home out
-  home=$(make_home registry-wins)
-  printf '%s\n' '- fmhome [no-mistakes] - a real project that shares the home name (added 2026-09-30)' >> "$home/data/projects.md"
-  out=$(FM_HOME="$home" lib fm_task_data_project_dirname "$home/data" fmhome)
-  [ "$out" = fmhome ] || fail "a registered project lost to the firstmate-name heuristic: $out"
-  pass "a registered project always wins over the firstmate-name heuristic"
+  pass "project names map to registry spelling, their own name, reserved folders, or _unassigned"
 }
 
 test_project_dirname_adopts_an_existing_folder_spelling() {
@@ -153,10 +145,10 @@ test_lookup_canonical_legacy_and_ambiguity() {
   local home data out rc
   home=$(make_home lookup)
   data="$home/data"
-  mkdir -p "$data/RepToday/canon-task" "$data/_firstmate/own-task"
+  mkdir -p "$data/RepToday/canon-task" "$data/_unassigned/own-task"
   printf 'b\n' > "$data/RepToday/canon-task/brief.md"
   [ "$(lib fm_task_data_dir "$data" canon-task)" = "$data/RepToday/canon-task" ] || fail "canonical lookup failed"
-  [ "$(lib fm_task_data_dir "$data" own-task)" = "$data/_firstmate/own-task" ] || fail "reserved folder lookup failed"
+  [ "$(lib fm_task_data_dir "$data" own-task)" = "$data/_unassigned/own-task" ] || fail "reserved folder lookup failed"
   [ "$(lib fm_task_data_dir "$data" rt-alpha)" = "$data/rt-alpha" ] || fail "the bounded legacy read did not find a flat folder"
   [ "$(lib fm_task_data_file "$data" rt-alpha brief.md)" = "$data/rt-alpha/brief.md" ] || fail "file lookup in a legacy folder failed"
   [ "$(lib fm_task_data_relpath "$data" canon-task)" = RepToday/canon-task ] || fail "relpath of a canonical folder is wrong"
@@ -165,7 +157,7 @@ test_lookup_canonical_legacy_and_ambiguity() {
   [ "$rc" = 1 ] || fail "a missing task returned $rc, expected 1"
   rc=0; lib fm_task_data_dir "$data" '../rt-alpha' >/dev/null 2>&1 || rc=$?
   [ "$rc" = 2 ] || fail "a traversal id returned $rc, expected 2"
-  for reserved in handoff extensions remote-secondmates RepToday _firstmate; do
+  for reserved in handoff extensions remote-secondmates RepToday _unassigned lone-dir; do
     mkdir -p "$data/$reserved"
     rc=0; lib fm_task_data_dir "$data" "$reserved" >/dev/null 2>&1 || rc=$?
     [ "$rc" = 1 ] || fail "$reserved was read as a task folder (rc=$rc)"
@@ -200,10 +192,10 @@ test_task_dirs_listing() {
   local home data out
   home=$(make_home listing)
   data="$home/data"
-  mkdir -p "$data/RepToday/canon-task" "$data/handoff/x" "$data/extensions/pkg" "$data/_firstmate/own-task"
+  mkdir -p "$data/RepToday/canon-task" "$data/handoff/x" "$data/extensions/pkg" "$data/_unassigned/own-task"
   out=$(lib fm_task_data_task_dirs "$data")
   assert_contains "$out" "$data/RepToday/canon-task" "a canonical task folder was not listed"
-  assert_contains "$out" "$data/_firstmate/own-task" "a reserved-folder task was not listed"
+  assert_contains "$out" "$data/_unassigned/own-task" "a reserved-folder task was not listed"
   assert_contains "$out" "$data/rt-alpha" "a legacy marker folder was not listed"
   assert_not_contains "$out" "$data/lone-dir" "a marker-less flat folder was listed as a task"
   assert_not_contains "$out" "$data/handoff" "the handoff root folder was listed as a task"
@@ -220,9 +212,9 @@ test_brief_places_each_kind_in_its_folder() {
   assert_present "$home/data/RepToday/ship-one/brief.md" "a ship brief did not land in its registry-spelled project folder"
   assert_grep "$home/data/RepToday/ship-one/nm-<run>-findings.txt" "$home/data/RepToday/ship-one/brief.md" \
     "the ask-user snapshot path is not inside the project folder"
-  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" own-one fmhome --scout >/dev/null || fail "own scaffold failed"
-  assert_present "$home/data/_firstmate/own-one/brief.md" "a firstmate-repo brief did not land in _firstmate"
-  assert_grep "$home/data/_firstmate/own-one/report.md" "$home/data/_firstmate/own-one/brief.md" \
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" own-one firstmate --scout >/dev/null || fail "own scaffold failed"
+  assert_present "$home/data/firstmate/own-one/brief.md" "a firstmate-repo brief did not land in its own project folder"
+  assert_grep "$home/data/firstmate/own-one/report.md" "$home/data/firstmate/own-one/brief.md" \
     "the scout report path is not inside the task folder"
   FM_HOME="$home" FM_SECONDMATE_CHARTER=x "$ROOT/bin/fm-brief.sh" mate-x --secondmate --no-projects >/dev/null \
     || fail "charter scaffold failed"
@@ -235,7 +227,52 @@ test_brief_places_each_kind_in_its_folder() {
   for flat in ship-one own-one mate-x; do
     [ ! -e "$home/data/$flat" ] || fail "a flat folder was created for $flat"
   done
-  pass "briefs land in project, _firstmate and _secondmates folders, never flat, and never twice"
+  pass "briefs land in project and _secondmates folders, never flat, and never twice"
+}
+
+test_placement_never_mixes_task_and_project_folders() {
+  local home data out rc
+  # A flat task folder holding a project's folder name is not that project's folder.
+  home=$(make_home flat-holds-project-name)
+  data="$home/data"
+  mkdir -p "$data/RepToday"
+  printf '# charter\n' > "$data/RepToday/brief.md"
+  rc=0; lib fm_task_data_dir_for_new "$data" t1 RepToday >/dev/null 2>&1 || rc=$?
+  [ "$rc" = 4 ] || fail "a project folder name held by a flat task folder returned $rc, expected 4"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" t1 RepToday --scout >/dev/null 2>&1 \
+    && fail "a brief was nested inside a flat task folder"
+  [ ! -e "$data/RepToday/t1" ] || fail "a refused brief left a folder inside the flat task folder"
+  [ "$(lib fm_task_data_dir "$data" RepToday)" = "$data/RepToday" ] || fail "the flat task folder stopped resolving"
+
+  # The same name in another case: whatever the disk, a new brief is either
+  # refused or placed where lookup finds it.
+  home=$(make_home flat-holds-project-name-case)
+  data="$home/data"
+  mkdir -p "$data/reptoday"
+  printf '# charter\n' > "$data/reptoday/brief.md"
+  if FM_HOME="$home" "$ROOT/bin/fm-brief.sh" t1 RepToday --scout >/dev/null 2>&1; then
+    out=$(lib fm_task_data_dir "$data" t1) || fail "a new brief was placed where lookup cannot find it"
+    [ -f "$out/brief.md" ] || fail "lookup found a folder without the new brief: $out"
+  fi
+
+  # A legacy charter named like a registered project still resolves, and
+  # placing that id again finds it instead of refusing.
+  [ "$(lib fm_task_data_dir "$data" reptoday)" = "$data/reptoday" ] || fail "a legacy charter named like a project stopped resolving"
+  [ "$(lib fm_task_data_dir_for_new "$data" reptoday _secondmates)" = "$data/reptoday" ] \
+    || fail "re-placing a legacy charter named like a project did not find it"
+
+  # A new id equal to an unregistered project folder never becomes that folder.
+  home=$(make_home id-equals-project-folder)
+  data="$home/data"
+  mkdir -p "$data/Unreg/t1"
+  printf 'b\n' > "$data/Unreg/t1/brief.md"
+  rc=0; lib fm_task_data_dir_for_new "$data" Unreg Other >/dev/null 2>&1 || rc=$?
+  [ "$rc" = 4 ] || fail "an id equal to an unregistered project folder returned $rc, expected 4"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" Unreg Other --scout >/dev/null 2>&1 \
+    && fail "a brief was written into a project folder"
+  [ ! -e "$data/Unreg/brief.md" ] || fail "a project folder was given a task marker"
+  [ "$(lib fm_task_data_dir "$data" t1)" = "$data/Unreg/t1" ] || fail "a task inside the project folder stopped resolving"
+  pass "a top-level data folder is a task folder or a project folder, never both"
 }
 
 # --- migration --------------------------------------------------------------
@@ -274,7 +311,7 @@ test_migrate_dry_run_reports_and_changes_nothing() {
   assert_contains "$out" "move: rt-alpha -> RepToday/rt-alpha (brief)" "rt-alpha placement missing"
   assert_contains "$out" "move: rt-alpha-two -> RepToday/rt-alpha-two (brief)" "rt-alpha-two placement missing"
   assert_contains "$out" "move: im-scout -> Immerse/im-scout (brief)" "im-scout placement missing"
-  assert_contains "$out" "move: fmhome-own -> _firstmate/fmhome-own (brief)" "the firstmate-repo placement missing"
+  assert_contains "$out" "move: fmhome-own -> fmhome/fmhome-own (brief)" "the unregistered firstmate-repo placement missing"
   assert_contains "$out" "move: backlog-only -> Purvia/backlog-only (backlog repo)" "the backlog-repo placement missing"
   assert_contains "$out" "move: mate-one -> _secondmates/mate-one (secondmate registry)" "the charter placement missing"
   assert_contains "$out" "move: mystery -> Purvia/mystery (assigned)" "the assigned placement missing"
@@ -309,7 +346,7 @@ test_migrate_apply_moves_folders_and_rewrites_links() {
   assert_present "$home/data/RepToday/rt-alpha/brief.md" "rt-alpha did not move"
   assert_present "$home/data/RepToday/rt-alpha-two/brief.md" "rt-alpha-two did not move"
   assert_present "$home/data/Immerse/im-scout/report.md" "the scout report did not move with its folder"
-  assert_present "$home/data/_firstmate/fmhome-own/brief.md" "the firstmate-repo task did not move"
+  assert_present "$home/data/fmhome/fmhome-own/brief.md" "the firstmate-repo task did not move"
   assert_present "$home/data/Purvia/backlog-only/brief.md" "the backlog-placed task did not move"
   assert_present "$home/data/_secondmates/mate-one/brief.md" "the charter did not move"
   assert_present "$home/data/Purvia/mystery/brief.md" "the assigned task did not move"
@@ -417,6 +454,23 @@ test_migrate_refuses_a_conflict_before_moving_anything() {
   pass "an existing target refuses the whole migration before any move"
 }
 
+test_migrate_moves_a_flat_task_folder_named_like_a_project() {
+  local home out
+  home="$TMP_ROOT/flat-named-like-project/fmhome"
+  mkdir -p "$home/data/immerse" "$home/state"
+  printf '%s\n' '- Immerse [direct-PR] - camera app (added 2026-09-29)' > "$home/data/projects.md"
+  printf '%s\n' '- immerse - a mate (home: /tmp/immerse-home; scope: sample scope; projects: Immerse; added 2026-09-30)' \
+    > "$home/data/secondmates.md"
+  printf '# charter\n' > "$home/data/immerse/brief.md"
+  out=$(run_migrate "$home" --dry-run) || fail "dry run failed: $out"
+  assert_contains "$out" "move: immerse -> _secondmates/immerse (secondmate registry)" \
+    "a flat charter named like a project was not planned as a task"
+  assert_contains "$out" "legacy_remaining=0" "the dry-run summary misstates what remains"
+  out=$(run_migrate "$home" --apply) || fail "apply failed: $out"
+  assert_present "$home/data/_secondmates/immerse/brief.md" "the flat charter named like a project did not move"
+  pass "a flat task folder named like a project is migrated as a task, not kept as a project folder"
+}
+
 test_migrate_assign_and_unresolved() {
   local home out
   home=$(make_home assign)
@@ -451,13 +505,13 @@ test_migrate_revert_restores_the_original_layout() {
 }
 
 test_project_dirname_mapping
-test_project_dirname_registry_beats_the_firstmate_name
 test_project_dirname_adopts_an_existing_folder_spelling
 test_for_new_places_in_the_project_folder
 test_lookup_canonical_legacy_and_ambiguity
 test_lookup_ignores_symlinked_folders
 test_task_dirs_listing
 test_brief_places_each_kind_in_its_folder
+test_placement_never_mixes_task_and_project_folders
 test_migrate_reads_the_repo_from_a_real_brief
 test_migrate_dry_run_reports_and_changes_nothing
 test_migrate_reports_what_it_cannot_place
@@ -468,6 +522,7 @@ test_migrate_refuses_while_a_task_is_live
 test_migrate_refuses_while_sources_are_registered
 test_migrate_allows_a_registered_secondmate
 test_migrate_refuses_a_conflict_before_moving_anything
+test_migrate_moves_a_flat_task_folder_named_like_a_project
 test_migrate_assign_and_unresolved
 test_migrate_revert_restores_the_original_layout
 

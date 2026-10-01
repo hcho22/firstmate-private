@@ -190,7 +190,7 @@ else
   TASK_PROJECT=${POS[1]}
 fi
 TASK_DIR=$(fm_task_data_dir_for_new "$DATA" "$ID" "$TASK_PROJECT") || {
-  echo "error: cannot place task $ID in the data layout (invalid id or id collides with a project folder)" >&2
+  echo "error: cannot place task $ID in the data layout (invalid id, or the id or its project folder collides with an existing folder)" >&2
   exit 1
 }
 BRIEF="$TASK_DIR/brief.md"
