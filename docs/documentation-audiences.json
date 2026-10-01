@@ -377,10 +377,6 @@
       "audience": "maintainer-architecture"
     },
     {
-      "path": "docs/project-task-data-validation.md",
-      "audience": "maintainer-verification"
-    },
-    {
       "path": "docs/remote-secondmates.md",
       "audience": "operator-current"
     },
