@@ -39,9 +39,10 @@
 #
 # Return codes of fm_task_data_dir: 0 found, 1 not found, 2 invalid id,
 # 3 ambiguous (the id exists under more than one project folder; candidates on
-# stderr). fm_task_data_dir_for_new adds 4 when the id collides with a reserved
-# or project folder name, or when the project's folder name is held by
-# something that is not a project folder.
+# stderr). fm_task_data_dir_for_new adds 4 for an id in the reserved underscore
+# space, or when the project's folder name is held by something that is not a
+# project folder. An id may equal a project name: its folder sits inside a
+# project folder, so the two never share a path.
 #
 # No side effects on source, and nothing here creates or removes a directory.
 # set -u / set -e safe.
@@ -206,11 +207,6 @@ fm_task_data_dir_for_new() {  # <data> <id> [<project>]
     *) return "$rc" ;;
   esac
   case "$id" in _*) return 4 ;; esac
-  if fm_task_data_registered_name "$data" "$id" >/dev/null 2>&1 \
-      || fm_task_data_is_project_folder "$data" "$id"; then
-    echo "error: task id $id collides with a project folder name" >&2
-    return 4
-  fi
   dirname=$(fm_task_data_project_dirname "$data" "$project") || return 1
   if ! fm_task_data_project_folder_usable "$data" "$dirname"; then
     echo "error: data/$dirname exists but is not a project folder; migrate or move it before placing task $id there" >&2

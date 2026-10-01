@@ -25,10 +25,19 @@
 # is reported as unresolved and left flat; it stays readable through the legacy
 # lookup until --assign places it.
 #
+# Destinations are checked against data/ as it will be after this run's own
+# moves: a name that a planned move vacates (on a case-insensitive disk, in any
+# spelling) is free, and the move that vacates it runs first. A folder whose
+# destination needs its own name (task RepToday of project RepToday, or the
+# reverse on --revert) passes through a temporary data/.layout-migration.*
+# folder.
+#
 # What it touches, and nothing else:
 #   - moves flat task folders under data/ by rename (no copy, no deletion)
 #   - rewrites `data/<task-id>/` links inside data/backlog.md, done-archive.md,
-#     and note-archive.md (the backlog's own records), atomically per file
+#     and note-archive.md (the backlog's own records), atomically per file;
+#     a `data/<name>/` link whose <name> is spelled exactly like a project
+#     folder already names that folder and is never rewritten
 # It never moves or edits any other fleet-wide root file (projects.md,
 # secondmates.md, captain*.md, learnings.md, ...); legacy links still present in
 # those, or inside task documents, are counted and reported, never rewritten.
@@ -110,10 +119,11 @@ cleanup() {
 }
 trap cleanup EXIT
 MANIFEST="$DATA/.layout-migration.tsv"   # id <TAB> ProjectDir, one line per folder this command moved
-PLAN="$WORK/plan.tsv"        # id <TAB> source dir <TAB> destination dir <TAB> why
+CANDIDATES="$WORK/candidates.tsv"  # every placeable move, before order_plan checks it
+PLAN="$WORK/plan.tsv"        # id <TAB> source dir <TAB> destination dir <TAB> why, in apply order
 REWRITE_MAP="$WORK/map.tsv"  # rewrite map, see build_rewrite_map
 PLANNED="$WORK/planned.tsv"  # lowercase <TAB> spelling of project folders this run creates
-: > "$PLAN"; : > "$REWRITE_MAP"; : > "$PLANNED"
+: > "$CANDIDATES"; : > "$PLAN"; : > "$REWRITE_MAP"; : > "$PLANNED"
 UNRESOLVED=0
 SKIPPED=0
 CONFLICTS=0
@@ -189,7 +199,7 @@ planned_dirname() {  # <project>
 }
 
 plan_forward() {
-  local entry name id repo why project dirname src dst
+  local entry name id repo why project dirname
   PROJECT_FOLDERS=
   for entry in "$DATA"/*/; do
     entry=${entry%/}
@@ -228,19 +238,7 @@ plan_forward() {
       continue
     fi
     dirname=$(planned_dirname "$repo") || { UNRESOLVED=$((UNRESOLVED + 1)); continue; }
-    src=$entry
-    dst="$DATA/$dirname/$id"
-    if [ -e "$dst" ] || [ -L "$dst" ]; then
-      echo "conflict: $dst already exists; leaving data/$id where it is"
-      CONFLICTS=$((CONFLICTS + 1))
-      continue
-    fi
-    if ! fm_task_data_project_folder_usable "$DATA" "$dirname"; then
-      echo "conflict: data/$dirname exists but is not a project folder; leaving data/$id where it is"
-      CONFLICTS=$((CONFLICTS + 1))
-      continue
-    fi
-    printf '%s\t%s\t%s\t%s\n' "$id" "$src" "$dst" "$why" >> "$PLAN"
+    printf '%s\t%s\t%s\t%s\n' "$id" "$entry" "$DATA/$dirname/$id" "$why" >> "$CANDIDATES"
   done
 }
 
@@ -249,7 +247,7 @@ in_manifest() {  # <ProjectDir> <id>
 }
 
 plan_revert() {
-  local task id project dst
+  local task id project
   while IFS= read -r task; do
     case "${task#"$DATA"/}" in */*) ;; *) continue ;; esac   # flat folders stay
     id=${task##*/}
@@ -258,14 +256,79 @@ plan_revert() {
       echo "skip: data/$project/$id has no task marker and was not moved by this command; leaving it in place"
       continue
     fi
-    dst="$DATA/$id"
-    if [ -e "$dst" ] || [ -L "$dst" ]; then
-      echo "conflict: $dst already exists; leaving data/$project/$id where it is"
+    printf '%s\t%s\t%s\t%s\n' "$id" "$task" "$DATA/$id" "revert" >> "$CANDIDATES"
+  done < <(fm_task_data_task_dirs "$DATA")
+}
+
+# Whether every entry of <dir> is a candidate source, so a revert leaves it empty.
+emptied_by_plan() {  # <dir>
+  find "$1" -mindepth 1 -maxdepth 1 | awk -F'\t' '
+    FILENAME == ARGV[1] { moved[$2] = 1; next }
+    !($0 in moved) { kept = 1 }
+    END { exit kept }
+  ' "$CANDIDATES" -
+}
+
+# The candidate folder <path> resolves to when this plan's own moves vacate it:
+# a flat source a forward move takes away, or a project folder a revert empties.
+# Paths compare by what they resolve to, so a case-insensitive disk matches
+# across spellings.
+vacated_by_plan() {  # <path>
+  local id src dst why
+  [ -d "$1" ] && [ ! -L "$1" ] || return 1
+  while IFS=$'\t' read -r id src dst why; do
+    [ "$REVERT" -eq 0 ] || src=${src%/*}
+    [ "$1" -ef "$src" ] || continue
+    [ "$REVERT" -eq 0 ] || emptied_by_plan "$src" || return 1
+    printf '%s\n' "$src"
+    return 0
+  done < "$CANDIDATES"
+  return 1
+}
+
+# Whether some candidate's destination needs <path>'s top-level name.
+needed_by_plan() {  # <path>
+  local id src dst why
+  while IFS=$'\t' read -r id src dst why; do
+    [ "$REVERT" -eq 1 ] || dst=${dst%/*}
+    [ "$dst" -ef "$1" ] && return 0
+  done < "$CANDIDATES"
+  return 1
+}
+
+# Check every candidate against data/ as it will be once this plan's own moves
+# have vacated their names, then order the plan so those vacating moves run
+# first. A folder whose own name its destination needs (a task id equal to its
+# project's folder name) runs after them, through a temporary name.
+order_plan() {
+  local id src dst why target from holder
+  : > "$WORK/first"; : > "$WORK/self"; : > "$WORK/rest"
+  while IFS=$'\t' read -r id src dst why; do
+    if [ "$REVERT" -eq 1 ]; then target=$dst; from=${src%/*}; else target=${dst%/*}; from=$src; fi
+    if holder=$(vacated_by_plan "$target"); then
+      if [ "$holder" != "$from" ] && needed_by_plan "$from"; then
+        echo "conflict: data/${target#"$DATA"/} is held by data/${holder#"$DATA"/}, which waits on this move; leaving data/${src#"$DATA"/} where it is"
+        CONFLICTS=$((CONFLICTS + 1))
+        continue
+      fi
+    elif [ "$REVERT" -eq 0 ] && ! fm_task_data_project_folder_usable "$DATA" "${target##*/}"; then
+      echo "conflict: data/${target##*/} exists but is not a project folder; leaving data/${src#"$DATA"/} where it is"
+      CONFLICTS=$((CONFLICTS + 1))
+      continue
+    elif [ -e "$dst" ] || [ -L "$dst" ]; then
+      echo "conflict: $dst already exists; leaving data/${src#"$DATA"/} where it is"
       CONFLICTS=$((CONFLICTS + 1))
       continue
     fi
-    printf '%s\t%s\t%s\t%s\n' "$id" "$task" "$dst" "revert" >> "$PLAN"
-  done < <(fm_task_data_task_dirs "$DATA")
+    if [ "$target" -ef "$from" ]; then
+      printf '%s\t%s\t%s\t%s\n' "$id" "$src" "$dst" "$why" >> "$WORK/self"
+    elif needed_by_plan "$from"; then
+      printf '%s\t%s\t%s\t%s\n' "$id" "$src" "$dst" "$why" >> "$WORK/first"
+    else
+      printf '%s\t%s\t%s\t%s\n' "$id" "$src" "$dst" "$why" >> "$WORK/rest"
+    fi
+  done < "$CANDIDATES"
+  cat "$WORK/first" "$WORK/self" "$WORK/rest" > "$PLAN"
 }
 
 # --- record rewriting -------------------------------------------------------
@@ -273,9 +336,12 @@ plan_revert() {
 # Rewrite map, one line per task: forward "<id> <TAB> <ProjectDir>/<id>", revert
 # "<ProjectDir>/<id> <TAB> <id>". It covers every task folder already in the
 # canonical layout plus every planned move, so a run interrupted after the moves
-# and before the rewrite finishes the job when repeated.
+# and before the rewrite finishes the job when repeated. It is built once, from
+# the layout before any move, and drives the dry run and the apply alike. A
+# forward key spelled exactly like a project folder that stays is dropped:
+# data/<that name>/ already names the project folder, so it is never rewritten.
 build_rewrite_map() {
-  local task id project
+  local task id project entry
   : > "$REWRITE_MAP"
   if [ "$REVERT" -eq 0 ]; then
     while IFS= read -r task; do
@@ -283,6 +349,14 @@ build_rewrite_map() {
       printf '%s\t%s\n' "${task##*/}" "${task#"$DATA"/}" >> "$REWRITE_MAP"
     done < <(fm_task_data_task_dirs "$DATA")
     awk -F'\t' '{ n = split($3, p, "/"); print $1 "\t" p[n-1] "/" $1 }' "$PLAN" >> "$REWRITE_MAP"
+    for entry in "$DATA"/*/; do
+      entry=${entry%/}
+      fm_task_data_is_project_folder "$DATA" "${entry##*/}" || continue
+      awk -F'\t' -v s="$entry" '$2 == s { f = 1 } END { exit !f }' "$PLAN" && continue
+      printf '%s\n' "${entry##*/}"
+    done > "$WORK/project-folders"
+    awk -F'\t' 'FILENAME == ARGV[1] { project[$0] = 1; next } !($1 in project)' \
+      "$WORK/project-folders" "$REWRITE_MAP" > "$REWRITE_MAP.kept" && mv "$REWRITE_MAP.kept" "$REWRITE_MAP"
   else
     awk -F'\t' '{ n = split($2, p, "/"); print p[n-1] "/" $1 "\t" $1 }' "$PLAN" >> "$REWRITE_MAP"
     while IFS= read -r task; do
@@ -336,6 +410,7 @@ rewrite_links() {
 
 check_live
 if [ "$REVERT" -eq 1 ]; then plan_revert; else plan_forward; fi
+order_plan
 [ -z "$PROJECT_FOLDERS" ] || echo "note: treating as project folders:$PROJECT_FOLDERS"
 
 MOVES=0
@@ -373,9 +448,20 @@ if [ "$APPLY" -eq 1 ]; then
   while IFS=$'\t' read -r id src dst why; do
     [ -n "$id" ] || continue
     [ -d "$src" ] && [ ! -L "$src" ] || { echo "error: $src vanished before it could be moved" >&2; exit 1; }
+    from=$src
+    stage=
+    if [ "${dst%/*}" -ef "$src" ] || [ "$dst" -ef "${src%/*}" ]; then
+      stage=$(mktemp -d "$DATA/.layout-migration.XXXXXX")
+      mv -- "$src" "$stage/$id"
+      from="$stage/$id"
+      if [ "$REVERT" -eq 1 ]; then
+        rmdir "${src%/*}" || { echo "error: ${src%/*} is not empty; $id is parked at $from" >&2; exit 1; }
+      fi
+    fi
     [ ! -e "$dst" ] && [ ! -L "$dst" ] || { echo "error: $dst appeared before it could be moved" >&2; exit 1; }
     mkdir -p "$(dirname "$dst")"
-    mv -- "$src" "$dst"
+    mv -- "$from" "$dst"
+    [ -z "$stage" ] || rmdir "$stage"
     if [ "$REVERT" -eq 0 ]; then
       printf '%s\t%s\n' "$id" "$(basename "$(dirname "$dst")")" >> "$MANIFEST"
     else
@@ -383,14 +469,9 @@ if [ "$APPLY" -eq 1 ]; then
         grep -Fxv -- "$id"$'\t'"$(basename "$(dirname "$src")")" "$MANIFEST" > "$MANIFEST.tmp" || true
         if [ -s "$MANIFEST.tmp" ]; then mv "$MANIFEST.tmp" "$MANIFEST"; else rm -f "$MANIFEST.tmp" "$MANIFEST"; fi
       fi
-      rmdir "$(dirname "$src")" 2>/dev/null || true
+      [ -n "$stage" ] || rmdir "$(dirname "$src")" 2>/dev/null || true
     fi
   done < "$PLAN"
-  # The folder set changed; rebuild the map from the new canonical layout so a
-  # repeat run and this run rewrite identically.
-  if [ "$REVERT" -eq 0 ]; then
-    build_rewrite_map
-  fi
 fi
 
 REWRITE_TOTAL=0

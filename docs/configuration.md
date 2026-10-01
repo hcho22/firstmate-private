@@ -30,11 +30,13 @@ Each home, including every secondmate home, keeps its own `data/` in this layout
 Only a creator (`bin/fm-brief.sh` and the two secondmate seed scripts) maps a project to a folder.
 Everything else finds an existing task folder by its id, so no script re-derives a project and none can disagree with the brief that created the folder.
 An id that exists under more than one project folder is refused rather than guessed.
-A new task is also refused when its id equals a project name, or when its project's folder name is still held by a flat pre-layout task folder, until the migration moves that folder.
+A task id may equal a project name, because its folder sits inside a project folder and never shares a path with one.
+A new task is refused when its project's folder name is still held by a flat pre-layout task folder (on a case-insensitive disk, in any spelling), until the migration moves that folder.
 Recorded report links in the backlog name the folder they were written from, for example `data/<ProjectDir>/<task-id>/report.md`.
 
 The pre-layout flat folders `data/<task-id>/` are still read, and never created, until a home runs the migration; the read lives in one function of the library and is removable once every home reports `legacy_remaining=0`.
 `bin/fm-data-migrate.sh` moves a home's flat folders into the layout by rename, rewrites the `data/<task-id>/` links inside the backlog and its archives, reports everything it would do before doing it, refuses while any task is live, and is safe to repeat.
+It checks each destination against the layout its own moves produce, so a flat folder holding a project's name never blocks the move that frees that name, and it never rewrites a link that already names a project folder.
 Its header owns the flags, the order in which it places a folder, and its exit codes, and `--revert` is the recovery path that restores the flat layout.
 
 `bin/fm-spawn.sh` owns the base task-metadata fields it emits, while the runtime-backend section below owns backend-specific fields and selector interpretation.
