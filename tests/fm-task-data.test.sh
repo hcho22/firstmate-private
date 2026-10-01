@@ -432,6 +432,38 @@ test_migrate_finishes_an_interrupted_rewrite() {
   pass "a run interrupted between the moves and the rewrite is finished by repeating it"
 }
 
+test_migrate_finishes_an_interrupted_revert() {
+  local home data before out rc
+  home="$TMP_ROOT/interrupted-revert/fmhome"
+  data="$home/data"
+  mkdir -p "$data" "$home/state"
+  cat > "$data/projects.md" <<'EOF'
+- RepToday [no-mistakes] - coaching app (added 2026-09-24)
+- Purvia [no-mistakes] - rag app (added 2026-09-29)
+EOF
+  write_brief_for "$data/pv-b" Purvia
+  write_brief_for "$data/rt-a" RepToday
+  printf '%s\n' '- [x] pv-b - report data/pv-b/report.md (kind: scout)' '- [x] rt-a - report data/rt-a/report.md (kind: scout)' \
+    > "$data/backlog.md"
+  cp "$data/backlog.md" "$data/done-archive.md"
+  before=$(tree_sig "$home")
+  run_migrate "$home" --apply >/dev/null || fail "apply failed"
+
+  # The revert moves Purvia/pv-b back, then cannot take rt-a out of RepToday.
+  chmod 555 "$data/RepToday"
+  rc=0; out=$(run_migrate "$home" --apply --revert) || rc=$?
+  chmod 755 "$data/RepToday"
+  [ "$rc" != 0 ] || fail "a revert that could not move rt-a reported success: $out"
+  assert_present "$data/pv-b/brief.md" "the revert did not move pv-b before it stopped"
+  assert_present "$data/RepToday/rt-a/brief.md" "rt-a left its project folder although its move failed"
+  assert_grep "$(printf 'rt-a\tRepToday')" "$data/.layout-migration.tsv" "the manifest dropped the folder the revert did not move"
+  assert_no_grep "$(printf 'pv-b\tPurvia')" "$data/.layout-migration.tsv" "the manifest kept the folder the revert moved"
+
+  out=$(run_migrate "$home" --apply --revert) || fail "the repeated revert failed: $out"
+  [ "$(tree_sig "$home")" = "$before" ] || fail "the repeated revert did not restore the home byte for byte, links included"
+  pass "a revert stopped after some moves is finished by repeating it, backlog and archive links included"
+}
+
 test_migrate_refuses_while_a_task_is_live() {
   local home before out rc
   home=$(make_home live)
@@ -748,6 +780,7 @@ test_migrate_reports_what_it_cannot_place
 test_migrate_apply_moves_folders_and_rewrites_links
 test_migrate_is_idempotent
 test_migrate_finishes_an_interrupted_rewrite
+test_migrate_finishes_an_interrupted_revert
 test_migrate_refuses_while_a_task_is_live
 test_migrate_refuses_while_sources_are_registered
 test_migrate_allows_a_registered_secondmate

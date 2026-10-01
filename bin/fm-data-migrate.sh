@@ -38,7 +38,9 @@
 #   - rewrites `data/<task-id>/` links inside data/backlog.md, done-archive.md,
 #     and note-archive.md (the backlog's own records), atomically per file;
 #     a `data/<name>/` link whose <name> is spelled exactly like a project
-#     folder already names that folder and is never rewritten
+#     folder already names that folder and is never rewritten. The forward
+#     run rewrites after its moves and --revert before them, so a run stopped
+#     midway is finished by repeating it
 # It never moves or edits any other fleet-wide root file (projects.md,
 # secondmates.md, captain*.md, learnings.md, ...); legacy links still present in
 # those, or inside task documents, are counted and reported, never rewritten.
@@ -355,11 +357,12 @@ order_plan() {
 
 # Rewrite map, one line per task: forward "<id> <TAB> <ProjectDir>/<id>", revert
 # "<ProjectDir>/<id> <TAB> <id>". It covers every task folder already in the
-# canonical layout plus every planned move, so a run interrupted after the moves
-# and before the rewrite finishes the job when repeated. It is built once, from
-# the layout before any move, and drives the dry run and the apply alike. A
-# forward key spelled exactly like a project folder that stays is dropped:
-# data/<that name>/ already names the project folder, so it is never rewritten.
+# canonical layout plus every planned move, so a forward run interrupted after
+# its moves and before its rewrite finishes the job when repeated. It is built
+# once, from the layout before any move, and drives the dry run and the apply
+# alike. A forward key spelled exactly like a project folder that stays is
+# dropped: data/<that name>/ already names the project folder, so it is never
+# rewritten.
 build_rewrite_map() {
   local task id project entry
   : > "$REWRITE_MAP"
@@ -459,12 +462,34 @@ if [ "$CONFLICTS" -gt 0 ]; then
   exit 4
 fi
 
+# Rewrite the backlog's own records, or count the rewrites on a dry run. A
+# failed rewrite stops the run before anything that follows it.
+REWRITE_TOTAL=0
+REWRITE_FILE_COUNT=0
+rewrite_records() {
+  local mode=count file count
+  [ "${#REWRITE_FILES[@]}" -gt 0 ] || return 0
+  [ "$APPLY" -eq 0 ] || mode="write"
+  rewrite_links "$mode" "${REWRITE_FILES[@]}" > "$WORK/rewrites"
+  while IFS=$'\t' read -r file count; do
+    [ "${count:-0}" -gt 0 ] || continue
+    echo "rewrite: ${file#"$DATA"/} $count reference(s)"
+    REWRITE_TOTAL=$((REWRITE_TOTAL + count))
+    REWRITE_FILE_COUNT=$((REWRITE_FILE_COUNT + 1))
+  done < "$WORK/rewrites"
+}
+
+if [ "$APPLY" -eq 1 ] && { [ "$MOVES" -gt 0 ] || [ -s "$REWRITE_MAP" ]; }; then
+  LOCKDIR="$STATE/.data-migrate.lock"
+  mkdir -p "$STATE"
+  fm_lock_try_acquire "$LOCKDIR" || { LOCKDIR=; echo "error: another data migration is running" >&2; exit 1; }
+fi
+# Forward rewrites after its moves and --revert before them, so a run stopped
+# midway never leaves a link into a project folder its task already left: no
+# repeat could find that link again, while every other mix of flat and
+# canonical links and folders is finished by repeating either direction.
+[ "$REVERT" -eq 0 ] || rewrite_records
 if [ "$APPLY" -eq 1 ]; then
-  if [ "$MOVES" -gt 0 ] || [ -s "$REWRITE_MAP" ]; then
-    LOCKDIR="$STATE/.data-migrate.lock"
-    mkdir -p "$STATE"
-    fm_lock_try_acquire "$LOCKDIR" || { LOCKDIR=; echo "error: another data migration is running" >&2; exit 1; }
-  fi
   while IFS=$'\t' read -r id src dst why; do
     [ -n "$id" ] || continue
     [ -d "$src" ] && [ ! -L "$src" ] || { echo "error: $src vanished before it could be moved" >&2; exit 1; }
@@ -493,18 +518,7 @@ if [ "$APPLY" -eq 1 ]; then
     fi
   done < "$PLAN"
 fi
-
-REWRITE_TOTAL=0
-REWRITE_FILE_COUNT=0
-if [ "${#REWRITE_FILES[@]}" -gt 0 ]; then
-  if [ "$APPLY" -eq 1 ]; then RW="write"; else RW="count"; fi
-  while IFS=$'\t' read -r file count; do
-    [ "${count:-0}" -gt 0 ] || continue
-    echo "rewrite: ${file#"$DATA"/} $count reference(s)"
-    REWRITE_TOTAL=$((REWRITE_TOTAL + count))
-    REWRITE_FILE_COUNT=$((REWRITE_FILE_COUNT + 1))
-  done < <(rewrite_links "$RW" "${REWRITE_FILES[@]}")
-fi
+[ "$REVERT" -eq 1 ] || rewrite_records
 
 # Legacy links in files this command never edits: report, never rewrite. Fleet
 # root files are named one by one; task documents are summarized.
