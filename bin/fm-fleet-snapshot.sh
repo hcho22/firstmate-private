@@ -52,7 +52,7 @@
 #     endpoint.agent_alive is populated for local secondmates only, where it is
 #     useful return-channel supervision data; remote secondmates use "unknown"
 #     without a probe, and other tasks use "not_checked".
-#   scout_reports[]: present data/<id>/report.md pointers.
+#   scout_reports[]: present data/<Project>/<id>/report.md pointers.
 #   main_inventory: {valid,reason,orphan_in_flight[],unstructured_current_count} -
 #     main-home current-inventory checks shared with secondmate_home_summary_json
 #     (orphan structured in-flight ids with no state/<id>.meta, and unstructured
@@ -99,6 +99,8 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 PROJECTS="${FM_PROJECTS_OVERRIDE:-$FM_HOME/projects}"
 BACKLOG="$DATA/backlog.md"
+# shellcheck source=bin/fm-task-data-lib.sh
+. "$SCRIPT_DIR/fm-task-data-lib.sh"
 SNAPSHOT_NOW=${FM_SNAPSHOT_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
 if [ -n "${FM_SNAPSHOT_NOW_EPOCH:-}" ]; then
   SNAPSHOT_EPOCH=$FM_SNAPSHOT_NOW_EPOCH
@@ -535,7 +537,7 @@ prefetch_task_observations() {  # <meta> <id>
   endpoint_file="$SNAPSHOT_TASK_DIR/$id.endpoint"
   status_log="$STATE/$id.status"
   status_capture="$SNAPSHOT_TASK_DIR/$id.status"
-  report_path="$DATA/$id/report.md"
+  report_path=$(task_report_path "$id")
   report_capture="$SNAPSHOT_TASK_DIR/$id.report"
 
   snapshot_task_generation_is_current "$meta" "$id" || generation_current=0
@@ -740,7 +742,7 @@ task_json_lines() {
     [ -f "$report_path" ] && report_present=1 || report_present=0
     meta_json=$(path_present_json "$original_meta" "$meta")
     status_json=$event_json
-    report_json=$(path_present_json "$DATA/$id/report.md" "$report_path")
+    report_json=$(path_present_json "$(task_report_path "$id")" "$report_path")
     if [ -n "$worktree" ]; then worktree_json=$(path_present_json "$worktree"); else worktree_json=$(jq -n '{path:null,present:false}'); fi
     if [ -n "$home" ] && [ -n "$remote_host" ]; then
       home_json=$(jq -n --arg path "$home" '{path:$path,present:null}')
@@ -1827,18 +1829,25 @@ secondmate_landed_from_current_json() {  # <secondmate-current-json-file> <outpu
 }
 
 scout_report_lines() {
-  local report id
+  local dir report id
   if [ ! -d "$DATA" ]; then
     jq -n '[]'
     return 0
   fi
-  LC_ALL=C find "$DATA" -mindepth 2 -maxdepth 2 -type f -name report.md -print \
-    | sort \
-    | while IFS= read -r report; do
-      id=$(basename "$(dirname "$report")")
+  fm_task_data_task_dirs "$DATA" \
+    | while IFS= read -r dir; do
+      report="$dir/report.md"
+      [ -f "$report" ] && [ ! -L "$report" ] || continue
+      id=$(basename "$dir")
       jq -n --arg id "$id" --arg path "$report" '{id:$id,path:$path}'
     done \
     | jq -s 'sort_by(.id)'
+}
+
+# A task's report.md path wherever its folder lives; a folder that does not
+# exist yet reports the flat path, which is simply absent.
+task_report_path() {  # <id>
+  fm_task_data_file "$DATA" "$1" report.md 2>/dev/null || printf '%s/%s/report.md\n' "$DATA" "$1"
 }
 
 BACKLOG_JSON=$(backlog_json) || { echo "fm-fleet-snapshot: backlog read failed" >&2; exit 1; }

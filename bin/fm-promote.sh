@@ -3,7 +3,8 @@
 # worktree, and loaded context; only the contract changes. Flips kind= to ship in
 # state/<task-id>.meta so fm-teardown.sh applies the full ship-task teardown protection
 # again. Promotion also writes the crewmate's ship instructions to
-# data/<task-id>/ship-instructions.md and prints the fm-send.sh command that
+# data/<Project>/<task-id>/ship-instructions.md (beside the scout brief; the task's
+# folder is resolved by bin/fm-task-data-lib.sh) and prints the fm-send.sh command that
 # delivers them. Those instructions carry the scratch-state inventory, the clean
 # default-branch base, the fm/<task-id> branch, and - rendered from
 # bin/fm-dod-lib.sh, the single owner an ordinary ship brief also uses - the
@@ -35,6 +36,8 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 
 # shellcheck source=bin/fm-dod-lib.sh
 . "$SCRIPT_DIR/fm-dod-lib.sh"
+# shellcheck source=bin/fm-task-data-lib.sh
+. "$SCRIPT_DIR/fm-task-data-lib.sh"
 # shellcheck source=bin/fm-pr-lib.sh
 . "$SCRIPT_DIR/fm-pr-lib.sh"
 # shellcheck source=bin/fm-wake-lib.sh
@@ -136,7 +139,10 @@ if ! fm_backlog_record_present "$META" "task record" "$STATE"; then
 fi
 grep -qx 'kind=scout' "$META" || { echo "error: task $ID is not a scout task (kind=scout not in meta)" >&2; exit 1; }
 
-SCOUT_BRIEF="$DATA/$ID/brief.md"
+# A task with no folder keeps the flat path so the missing-brief check below
+# reports the same refusal it always did.
+TASK_DIR=$(fm_task_data_dir "$DATA" "$ID" 2>/dev/null) || TASK_DIR="$DATA/$ID"
+SCOUT_BRIEF="$TASK_DIR/brief.md"
 if fm_brief_task_placeholders_present "$SCOUT_BRIEF"; then
   echo "error: $SCOUT_BRIEF still contains {TASK} or {FIRSTMATE_SPEC}; preserve the original ask in ## Captain's intent and fill the scout-time ## Firstmate spec; promotion generates a separate ship-time spec" >&2
   exit 1
@@ -161,14 +167,14 @@ fi
 # single owner (bin/fm-dod-lib.sh) rather than summarised into a hint line. A
 # promoted no-mistakes worker that never received the ask-user escalation rule or
 # the --yes ban is the delivery hole this file used to leave open.
-INSTRUCTIONS="$DATA/$ID/ship-instructions.md"
+INSTRUCTIONS="$TASK_DIR/ship-instructions.md"
 PROMOTION_ASK_USER_BLOCK=
 if [ "$MODE" = no-mistakes ]; then
-  PROMOTION_ASK_USER_BLOCK=$(fm_ask_user_escalation_block "$DATA" "$ID")
+  PROMOTION_ASK_USER_BLOCK=$(fm_ask_user_escalation_block "$TASK_DIR")
 fi
-mkdir -p "$DATA/$ID"
+mkdir -p "$TASK_DIR"
 [ ! -d "$INSTRUCTIONS" ] || { echo "error: ship instructions path is a directory: $INSTRUCTIONS" >&2; exit 1; }
-TMP="$DATA/$ID/.ship-instructions.md.${BASHPID:-$$}"
+TMP="$TASK_DIR/.ship-instructions.md.${BASHPID:-$$}"
 {
   cat <<EOF
 Your scout task has been promoted to a ship task, mode=$MODE. Your window, worktree, and context stay as they are; only the contract below changes.

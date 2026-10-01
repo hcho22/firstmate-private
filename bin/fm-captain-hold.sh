@@ -160,6 +160,9 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 # shellcheck source=bin/fm-classify-lib.sh
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/fm-classify-lib.sh"
+# shellcheck source=bin/fm-task-data-lib.sh
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/fm-task-data-lib.sh"
 # shellcheck source=bin/fm-tasks-axi-lib.sh
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/fm-tasks-axi-lib.sh"
@@ -326,7 +329,7 @@ show_field_value() {  # <show-output> <field>
 
 origin_exists_here() {  # <origin-id>
   [ -f "$STATE/$1.meta" ] && return 0
-  [ -f "$DATA/$1/report.md" ] && return 0
+  [ -f "$(fm_task_data_file "$DATA" "$1" report.md 2>/dev/null)" ] && return 0
   task_show "$1" >/dev/null 2>&1
 }
 
