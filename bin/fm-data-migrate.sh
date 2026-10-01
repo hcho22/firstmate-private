@@ -27,10 +27,11 @@
 #
 # Destinations are checked against data/ as it will be after this run's own
 # moves: a name that a planned move vacates (on a case-insensitive disk, in any
-# spelling) is free, and the move that vacates it runs first. A folder whose
-# destination needs its own name (task RepToday of project RepToday, or the
-# reverse on --revert) passes through a temporary data/.layout-migration.*
-# folder.
+# spelling) is free, and every move out of the folder holding it runs before the
+# move that needs it, however long the chain. A folder whose destination needs
+# its own name (task RepToday of project RepToday, or the reverse on --revert)
+# passes through a temporary data/.layout-migration.* folder. Moves that wait on
+# each other in a cycle are refused as a conflict, with the cycle named.
 #
 # What it touches, and nothing else:
 #   - moves flat task folders under data/ by rename (no copy, no deletion)
@@ -286,49 +287,68 @@ vacated_by_plan() {  # <path>
   return 1
 }
 
-# Whether some candidate's destination needs <path>'s top-level name.
-needed_by_plan() {  # <path>
-  local id src dst why
-  while IFS=$'\t' read -r id src dst why; do
-    [ "$REVERT" -eq 1 ] || dst=${dst%/*}
-    [ "$dst" -ef "$1" ] && return 0
-  done < "$CANDIDATES"
-  return 1
-}
-
 # Check every candidate against data/ as it will be once this plan's own moves
-# have vacated their names, then order the plan so those vacating moves run
-# first. A folder whose own name its destination needs (a task id equal to its
-# project's folder name) runs after them, through a temporary name.
+# have vacated their names, then order the plan by dependency: a move whose
+# destination name is held by a folder this plan vacates runs once every move
+# out of that folder has run. A folder whose own name its destination needs (a
+# task id equal to its project's folder name) moves through a temporary name.
+# Moves still waiting when nothing more can run wait on each other in a cycle
+# and are refused, the cycle named.
 order_plan() {
-  local id src dst why target from holder
-  : > "$WORK/first"; : > "$WORK/self"; : > "$WORK/rest"
+  local id src dst why target from holder kind cycle
+  : > "$WORK/deps"
   while IFS=$'\t' read -r id src dst why; do
     if [ "$REVERT" -eq 1 ]; then target=$dst; from=${src%/*}; else target=${dst%/*}; from=$src; fi
-    if holder=$(vacated_by_plan "$target"); then
-      if [ "$holder" != "$from" ] && needed_by_plan "$from"; then
-        echo "conflict: data/${target#"$DATA"/} is held by data/${holder#"$DATA"/}, which waits on this move; leaving data/${src#"$DATA"/} where it is"
+    holder=$(vacated_by_plan "$target") || holder=
+    if [ -z "$holder" ]; then
+      if [ "$REVERT" -eq 0 ] && ! fm_task_data_project_folder_usable "$DATA" "${target##*/}"; then
+        echo "conflict: data/${target##*/} exists but is not a project folder; leaving data/${src#"$DATA"/} where it is"
         CONFLICTS=$((CONFLICTS + 1))
         continue
       fi
-    elif [ "$REVERT" -eq 0 ] && ! fm_task_data_project_folder_usable "$DATA" "${target##*/}"; then
-      echo "conflict: data/${target##*/} exists but is not a project folder; leaving data/${src#"$DATA"/} where it is"
-      CONFLICTS=$((CONFLICTS + 1))
-      continue
-    elif [ -e "$dst" ] || [ -L "$dst" ]; then
-      echo "conflict: $dst already exists; leaving data/${src#"$DATA"/} where it is"
-      CONFLICTS=$((CONFLICTS + 1))
-      continue
+      if [ -e "$dst" ] || [ -L "$dst" ]; then
+        echo "conflict: $dst already exists; leaving data/${src#"$DATA"/} where it is"
+        CONFLICTS=$((CONFLICTS + 1))
+        continue
+      fi
     fi
-    if [ "$target" -ef "$from" ]; then
-      printf '%s\t%s\t%s\t%s\n' "$id" "$src" "$dst" "$why" >> "$WORK/self"
-    elif needed_by_plan "$from"; then
-      printf '%s\t%s\t%s\t%s\n' "$id" "$src" "$dst" "$why" >> "$WORK/first"
-    else
-      printf '%s\t%s\t%s\t%s\n' "$id" "$src" "$dst" "$why" >> "$WORK/rest"
-    fi
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$id" "$src" "$dst" "$why" "$from" "$holder" >> "$WORK/deps"
   done < "$CANDIDATES"
-  cat "$WORK/first" "$WORK/self" "$WORK/rest" > "$PLAN"
+  while IFS=$'\t' read -r kind id src dst why cycle; do
+    if [ "$kind" = move ]; then
+      printf '%s\t%s\t%s\t%s\n' "$id" "$src" "$dst" "$why" >> "$PLAN"
+      continue
+    fi
+    echo "conflict: data/${src#"$DATA"/} cannot move: each of $cycle waits for the next to free its destination; leaving it where it is"
+    CONFLICTS=$((CONFLICTS + 1))
+  done < <(awk -F'\t' -v OFS='\t' -v data="$DATA/" '
+    function rel(p) { return "data/" (index(p, data) == 1 ? substr(p, length(data) + 1) : p) }
+    function waits_on(i,   j) {
+      if (holder[i] == "") return 0
+      for (j = 1; j <= n; j++) if (j != i && left[j] && from[j] == holder[i]) return j
+      return 0
+    }
+    { n++; id[n] = $1; src[n] = $2; dst[n] = $3; why[n] = $4; from[n] = $5; holder[n] = $6; left[n] = 1 }
+    END {
+      do {
+        progress = 0
+        for (i = 1; i <= n; i++) if (left[i] && !waits_on(i)) {
+          print "move", id[i], src[i], dst[i], why[i]
+          left[i] = 0
+          progress = 1
+        }
+      } while (progress)
+      for (i = 1; i <= n; i++) if (left[i]) {
+        split("", seen)
+        cycle = ""
+        for (k = i; !(k in seen); k = waits_on(k)) {
+          seen[k] = 1
+          cycle = cycle (cycle == "" ? "" : " -> ") rel(src[k])
+        }
+        print "cycle", id[i], src[i], dst[i], why[i], cycle " -> " rel(src[k])
+      }
+    }
+  ' "$WORK/deps")
 }
 
 # --- record rewriting -------------------------------------------------------

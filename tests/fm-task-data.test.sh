@@ -612,6 +612,94 @@ EOF
   pass "links into a project folder named like a task are never rewritten, and revert frees that name"
 }
 
+test_migrate_orders_a_chain_of_moves_in_both_directions() {
+  local home data out
+  # Each task's folder name is the next task's project: data/web holds t1,
+  # data/api holds web, data/core holds api.
+  home="$TMP_ROOT/chain/fmhome"
+  data="$home/data"
+  mkdir -p "$data" "$home/state"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" t1 web --scout >/dev/null || fail "t1 scaffold failed"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" web api --scout >/dev/null || fail "web scaffold failed"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" api core --scout >/dev/null || fail "api scaffold failed"
+  printf 't1\n' > "$data/web/t1/who"
+  printf 'web\n' > "$data/api/web/who"
+  printf 'api\n' > "$data/core/api/who"
+
+  out=$(run_migrate "$home" --dry-run --revert) || fail "a revert chain was refused: $out"
+  assert_not_contains "$out" "conflict:" "a revert chain reported a conflict"
+  out=$(run_migrate "$home" --apply --revert) || fail "revert failed: $out"
+  [ "$(cat "$data/t1/who")" = t1 ] || fail "t1 did not return to its flat folder"
+  [ "$(cat "$data/web/who")" = web ] || fail "web did not take the name its project folder freed"
+  [ "$(cat "$data/api/who")" = api ] || fail "api did not take the name its project folder freed"
+  [ ! -e "$data/core" ] || fail "the emptied core project folder was left behind"
+
+  out=$(run_migrate "$home" --dry-run) || fail "a forward chain was refused: $out"
+  assert_not_contains "$out" "conflict:" "a forward chain reported a conflict"
+  out=$(run_migrate "$home" --apply) || fail "forward apply failed: $out"
+  [ "$(cat "$data/web/t1/who")" = t1 ] || fail "t1 did not move back into project web"
+  [ "$(cat "$data/api/web/who")" = web ] || fail "web did not move back into project api"
+  [ "$(cat "$data/core/api/who")" = api ] || fail "api did not move back into project core"
+  pass "a chain of moves that free each other's names runs in dependency order, forward and back"
+}
+
+test_migrate_orders_a_case_insensitive_chain() {
+  local home data before out
+  # On a case-insensitive disk data/alpha is data/Alpha: x1 waits on alpha,
+  # which waits on beta.
+  home="$TMP_ROOT/ci-chain/fmhome"
+  data="$home/data"
+  mkdir -p "$data" "$home/state"
+  cat > "$data/projects.md" <<'EOF'
+- Alpha [direct-PR] - first (added 2026-09-30)
+- Beta [direct-PR] - second (added 2026-09-30)
+- Gamma [direct-PR] - third (added 2026-09-30)
+EOF
+  write_brief_for "$data/alpha" Beta
+  write_brief_for "$data/beta" Gamma
+  write_brief_for "$data/x1" Alpha
+  before=$(tree_sig "$home")
+  out=$(run_migrate "$home" --dry-run) || fail "a case-insensitive chain was refused: $out"
+  assert_not_contains "$out" "conflict:" "a case-insensitive chain reported a conflict"
+  out=$(run_migrate "$home" --apply) || fail "apply failed: $out"
+  [ "$(lib fm_task_data_dir "$data" alpha)" = "$data/Beta/alpha" ] || fail "alpha did not land in Beta"
+  [ "$(lib fm_task_data_dir "$data" beta)" = "$data/Gamma/beta" ] || fail "beta did not land in Gamma"
+  [ "$(lib fm_task_data_dir "$data" x1)" = "$data/Alpha/x1" ] || fail "x1 did not land in Alpha"
+  out=$(run_migrate "$home" --apply --revert) || fail "revert failed: $out"
+  [ "$(tree_sig "$home")" = "$before" ] || fail "revert did not restore the home byte for byte"
+  pass "a chain through case-insensitive project names runs in dependency order, forward and back"
+}
+
+test_migrate_refuses_a_cycle_before_moving_anything() {
+  local home data before out rc
+  # data/X holds task web and data/web holds task X: each needs the other's name.
+  home="$TMP_ROOT/cycle/fmhome"
+  data="$home/data"
+  mkdir -p "$data" "$home/state"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" web X --scout >/dev/null || fail "web scaffold failed"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" X web --scout >/dev/null || fail "X scaffold failed"
+  before=$(tree_sig "$home")
+  rc=0; out=$(run_migrate "$home" --apply --revert) || rc=$?
+  [ "$rc" = 4 ] || fail "a revert cycle exited $rc, expected 4: $out"
+  assert_contains "$out" "waits for the next to free its destination" "the revert cycle was not explained"
+  assert_contains "$out" "data/X/web" "the revert cycle message does not name data/X/web"
+  assert_contains "$out" "data/web/X" "the revert cycle message does not name data/web/X"
+  [ "$(tree_sig "$home")" = "$before" ] || fail "a refused revert cycle moved something"
+
+  # The same cycle between flat folders, forward.
+  home="$TMP_ROOT/cycle-forward/fmhome"
+  data="$home/data"
+  mkdir -p "$data" "$home/state"
+  write_brief_for "$data/alpha" beta
+  write_brief_for "$data/beta" alpha
+  before=$(tree_sig "$home")
+  rc=0; out=$(run_migrate "$home" --apply) || rc=$?
+  [ "$rc" = 4 ] || fail "a forward cycle exited $rc, expected 4: $out"
+  assert_contains "$out" "data/alpha -> data/beta -> data/alpha" "the forward cycle was not named"
+  [ "$(tree_sig "$home")" = "$before" ] || fail "a refused forward cycle moved something"
+  pass "moves that wait on each other in a cycle are refused, named, and nothing moves"
+}
+
 test_migrate_assign_and_unresolved() {
   local home out
   home=$(make_home assign)
@@ -668,6 +756,9 @@ test_migrate_moves_a_flat_task_folder_named_like_a_project
 test_migrate_places_a_task_named_like_its_own_project
 test_migrate_rerun_keeps_links_into_a_project_named_like_a_moved_task
 test_migrate_keeps_links_into_a_project_named_like_a_task
+test_migrate_orders_a_chain_of_moves_in_both_directions
+test_migrate_orders_a_case_insensitive_chain
+test_migrate_refuses_a_cycle_before_moving_anything
 test_migrate_assign_and_unresolved
 test_migrate_revert_restores_the_original_layout
 

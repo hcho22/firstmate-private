@@ -36,7 +36,7 @@ Recorded report links in the backlog name the folder they were written from, for
 
 The pre-layout flat folders `data/<task-id>/` are still read, and never created, until a home runs the migration; the read lives in one function of the library and is removable once every home reports `legacy_remaining=0`.
 `bin/fm-data-migrate.sh` moves a home's flat folders into the layout by rename, rewrites the `data/<task-id>/` links inside the backlog and its archives, reports everything it would do before doing it, refuses while any task is live, and is safe to repeat.
-It checks each destination against the layout its own moves produce, so a flat folder holding a project's name never blocks the move that frees that name, and it never rewrites a link that already names a project folder.
+It checks each destination against the layout its own moves produce and orders the moves so a folder holding a needed name moves out of the way first, however long the chain; only moves that wait on each other in a cycle are refused, and it never rewrites a link that already names a project folder.
 Its header owns the flags, the order in which it places a folder, and its exit codes, and `--revert` is the recovery path that restores the flat layout.
 
 `bin/fm-spawn.sh` owns the base task-metadata fields it emits, while the runtime-backend section below owns backend-specific fields and selector interpretation.
