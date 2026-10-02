@@ -109,13 +109,10 @@ const MAX_TRANSFER_ENTRIES = 128;
 const MAX_TRANSFER_FILE_BYTES = 256 * 1024;
 const MAX_TRANSFER_PACKAGE_BYTES = 512 * 1024;
 const MAX_BINDINGS = 128;
-const HANDSHAKE_TIMEOUT_MS = 5000;
 const DEFAULT_TIMEOUT_MS = 300000;
 const MIN_TIMEOUT_MS = 100;
 const MAX_TIMEOUT_MS = 3600000;
 const TERMINATE_GRACE_MS = 250;
-const CLEANUP_WAIT_MS = 2000;
-const LAUNCH_READY_WAIT_MS = 5000;
 const INVOCATION_POLL_MS = 20;
 const CONSENT_NAMES = ["network", "credential-store", "task-metadata", "artifact-references"];
 const RESPONSE_ERROR_CODES = new Set(["invalid-request", "incompatible", "conflict", "unavailable", "internal"]);
@@ -172,6 +169,40 @@ function integerIn(value, min, max, label) {
     fail("schema-invalid", `${label} must be an integer from ${min} to ${max}`);
   }
   return value;
+}
+
+// The host's startup bounds: the default of each, and the environment variable
+// that overrides it (docs/extension-bindings.md). An override uses the same
+// millisecond range as a binding timeout_ms and is refused, never ignored, when
+// it is malformed.
+const STARTUP_BOUNDS = {
+  handshake: ["FM_EXTENSION_HANDSHAKE_TIMEOUT_MS", 5000],
+  cleanup: ["FM_EXTENSION_CLEANUP_WAIT_MS", 2000],
+  launchReady: ["FM_EXTENSION_LAUNCH_READY_WAIT_MS", 5000],
+  launchBarrier: ["FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS", 5000],
+};
+
+function startupBoundMs(key) {
+  const [name, fallback] = STARTUP_BOUNDS[key];
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  return integerIn(/^[0-9]+$/.test(raw) ? Number(raw) : Number.NaN, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS, name);
+}
+
+// Refuse a malformed override up front for every command, so a typo is reported
+// where it was made rather than on whichever rare path first reads the bound.
+// The lifecycle runners start the host again with a constructed environment, so
+// a startup-bound override has to be carried across that boundary explicitly or
+// the nested host would silently fall back to the default.
+function carryStartupBounds(env) {
+  for (const [name] of Object.values(STARTUP_BOUNDS)) {
+    if (process.env[name]) env[name] = process.env[name];
+  }
+  return env;
+}
+
+function validateStartupBounds() {
+  for (const key of Object.keys(STARTUP_BOUNDS)) startupBoundMs(key);
 }
 
 function boundedString(value, max, label, pattern = null) {
@@ -1039,7 +1070,7 @@ async function cleanupExactProcessGroup(invocation) {
   const termUntil = Date.now() + TERMINATE_GRACE_MS;
   while (Date.now() < termUntil && groupAlive(invocation.pid)) await sleep(INVOCATION_POLL_MS);
   if (groupAlive(invocation.pid)) signalProcessGroup(invocation, "SIGKILL");
-  const killUntil = Date.now() + CLEANUP_WAIT_MS;
+  const killUntil = Date.now() + startupBoundMs("cleanup");
   while (Date.now() < killUntil && groupAlive(invocation.pid)) await sleep(INVOCATION_POLL_MS);
   if (groupAlive(invocation.pid)) fail("process-cleanup-failed", "extension process group survived TERM and KILL");
 }
@@ -1239,7 +1270,10 @@ async function reserveInvocation(home, record, verb, request, statePath) {
     ], {
       cwd: record.packageInfo.root,
       detached: true,
-      env: childEnvironment(record.binding, statePath),
+      env: {
+        ...childEnvironment(record.binding, statePath),
+        FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS: String(startupBoundMs("launchBarrier")),
+      },
       shell: false,
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -1262,7 +1296,7 @@ async function reserveInvocation(home, record, verb, request, statePath) {
 }
 
 async function publishInvocationGroup(invocation, owner) {
-  const deadline = Date.now() + LAUNCH_READY_WAIT_MS;
+  const deadline = Date.now() + startupBoundMs("launchReady");
   let ready = null;
   while (Date.now() < deadline) {
     const value = await readPrivateJson(invocation.readyFile, "extension invocation readiness");
@@ -1455,7 +1489,7 @@ async function handshake(home, record, statePath = "") {
       adapter_names: binding.capabilities[0].adapter_names,
     },
   };
-  const response = await runExtensionProcess(home, record, "handshake", request, HANDSHAKE_TIMEOUT_MS, statePath);
+  const response = await runExtensionProcess(home, record, "handshake", request, startupBoundMs("handshake"), statePath);
   validateHandshakeResponse(response, request, binding);
 }
 
@@ -2249,7 +2283,7 @@ async function cmdRetireBindingLocked(args) {
 async function runLifecycleRetirement(mode, args) {
   const command = path.join(CODE_ROOT, "bin", "fm-procevent.sh");
   const home = await activeHome();
-  const env = { PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT };
+  const env = carryStartupBounds({ PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT });
   if (process.env.FM_STATE_OVERRIDE) env.FM_STATE_OVERRIDE = process.env.FM_STATE_OVERRIDE;
   if (process.env.XDG_STATE_HOME) env.XDG_STATE_HOME = process.env.XDG_STATE_HOME;
   if (process.env.FM_PROCEVENT_CLAIM_ROOT) env.FM_PROCEVENT_CLAIM_ROOT = process.env.FM_PROCEVENT_CLAIM_ROOT;
@@ -2285,7 +2319,7 @@ async function runLifecycleRetirement(mode, args) {
 async function runLifecycleProcessEvent(args) {
   const command = path.join(CODE_ROOT, "bin", "fm-procevent.sh");
   const home = await activeHome();
-  const env = { PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT };
+  const env = carryStartupBounds({ PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT });
   if (process.env.FM_STATE_OVERRIDE) env.FM_STATE_OVERRIDE = process.env.FM_STATE_OVERRIDE;
   if (process.env.XDG_STATE_HOME) env.XDG_STATE_HOME = process.env.XDG_STATE_HOME;
   if (process.env.FM_PROCEVENT_CAPTURE_SOURCE_LOCK_HELD === "1") env.FM_PROCEVENT_CAPTURE_SOURCE_LOCK_HELD = "1";
@@ -2323,7 +2357,7 @@ async function runLifecycleProcessEvent(args) {
 async function runLifecycleBinding(commandName, args) {
   const command = path.join(CODE_ROOT, "bin", "fm-procevent.sh");
   const home = await activeHome();
-  const env = { PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT };
+  const env = carryStartupBounds({ PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT });
   if (process.env.FM_STATE_OVERRIDE) env.FM_STATE_OVERRIDE = process.env.FM_STATE_OVERRIDE;
   if (process.env.XDG_STATE_HOME) env.XDG_STATE_HOME = process.env.XDG_STATE_HOME;
   if (process.env.FM_PROCEVENT_CLAIM_ROOT) env.FM_PROCEVENT_CLAIM_ROOT = process.env.FM_PROCEVENT_CLAIM_ROOT;
@@ -2389,7 +2423,7 @@ async function runInheritedLifecycleRetirement(args) {
 async function bindingRetirementPreflight(home, bindingDigest) {
   await cleanupRecordedInvocations(home, { bindingDigest });
   const command = path.join(CODE_ROOT, "bin", "fm-procevent.sh");
-  const env = { PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT };
+  const env = carryStartupBounds({ PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT });
   if (process.env.FM_STATE_OVERRIDE) env.FM_STATE_OVERRIDE = process.env.FM_STATE_OVERRIDE;
   if (process.env.XDG_STATE_HOME) env.XDG_STATE_HOME = process.env.XDG_STATE_HOME;
   if (process.env.FM_PROCEVENT_CLAIM_ROOT) env.FM_PROCEVENT_CLAIM_ROOT = process.env.FM_PROCEVENT_CLAIM_ROOT;
@@ -2548,6 +2582,7 @@ async function main() {
     return;
   }
   const [command, ...args] = process.argv.slice(2);
+  validateStartupBounds();
   switch (command) {
     case "bind": await cmdBind(args); break;
     case "pack-transfer": await cmdPackTransfer(args); break;

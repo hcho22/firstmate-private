@@ -14,7 +14,6 @@ import path from "node:path";
 const READY_SCHEMA = "firstmate.extension-invocation-ready.v1";
 const OWNER_SCHEMA = "firstmate.extension-invocation-owner.v1";
 const RELEASE_SCHEMA = "firstmate.extension-invocation-release.v1";
-const STARTUP_WAIT_MS = 5000;
 const MAX_CONTROL_BYTES = 16384;
 const POLL_MS = 20;
 
@@ -86,7 +85,15 @@ async function main() {
     group_identity: identity,
   });
 
-  const deadline = Date.now() + STARTUP_WAIT_MS;
+  // The host owns this bound (FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS, validated and
+  // defaulted in bin/fm-extension.mjs) and passes it in this process's
+  // environment. Remove it before the package starts: the package receives
+  // exactly the host's constructed environment, not this knob.
+  const rawWait = process.env.FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS;
+  delete process.env.FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS;
+  if (!/^[0-9]+$/.test(rawWait ?? "") || Number(rawWait) <= 0) die("host did not pass its launch wait bound");
+  const startupWaitMs = Number(rawWait);
+  const deadline = Date.now() + startupWaitMs;
   let release;
   while (Date.now() < deadline) {
     if (!pidAlive(hostPid)) process.exit(125);

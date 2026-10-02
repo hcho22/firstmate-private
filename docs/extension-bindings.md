@@ -88,6 +88,12 @@ The mode-`0600` document has schema `firstmate.extension-binding.v1` and exactly
 - `consents` records `trusted_same_user_code` plus every supported consent fact as an explicit boolean.
 - `timeout_ms` bounds one invocation between 100 and 3,600,000 milliseconds.
 
+The host has four startup bounds of its own, separate from `timeout_ms`.
+The handshake that precedes every invocation defaults to 5,000 milliseconds, launch readiness to 5,000, the launch barrier's wait for release to 5,000, and the wait for a killed process group to disappear to 2,000.
+Each can be widened or narrowed by an environment variable: `FM_EXTENSION_HANDSHAKE_TIMEOUT_MS`, `FM_EXTENSION_LAUNCH_READY_WAIT_MS`, `FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS`, and `FM_EXTENSION_CLEANUP_WAIT_MS`.
+An override is a whole number of milliseconds in the same 100 to 3,600,000 range as `timeout_ms`, and the host refuses any other value instead of ignoring it.
+The defaults are unchanged and the overrides exist for hosts whose process starts are slow enough to exceed them.
+
 The host supports at most 128 binding records and refuses malformed, unsafe, duplicate-id, or duplicate-adapter registries rather than selecting around them.
 Binding publication is atomic and does not replace a concurrent file.
 `list`, `inspect`, and `verify` expose the resulting identity and live compatibility without creating state when no registry exists.

@@ -18,7 +18,7 @@ fi
 
 extension_segment=${FM_EXTENSION_BINDING_SEGMENT:-all}
 case "$extension_segment" in
-  all|coordinator|early-bind|early-validation|early-handshake|early-integrity|matrix|matrix-runtime|lifecycle-flow|lifecycle-lock|lifecycle-runner|lifecycle-state|lifecycle-invocation-cleanup|remote-envelope|remote-activation|remote-lifecycle|remote-retirement|example|coordinator-fail|coordinator-wait|coordinator-stubborn|coordinator-pass|coordinator-late-pass|coordinator-scheduler-block|coordinator-scheduler-late) ;;
+  all|coordinator|early-bind|early-validation|early-handshake|early-integrity|matrix|matrix-runtime|lifecycle-flow|lifecycle-lock|lifecycle-runner|lifecycle-state|lifecycle-invocation-cleanup|remote-envelope|remote-activation|remote-lifecycle|remote-retirement|example|startup-bounds|coordinator-fail|coordinator-wait|coordinator-stubborn|coordinator-pass|coordinator-late-pass|coordinator-scheduler-block|coordinator-scheduler-late) ;;
   *) printf 'unknown extension-binding segment: %s\n' "$extension_segment" >&2; exit 64 ;;
 esac
 
@@ -188,6 +188,7 @@ if verb == "handshake":
         except FileExistsError: pass
         else:
             while not os.path.exists(release): time.sleep(.01)
+    if fixed == "handshake-slow-when-flagged" and os.path.exists(release): time.sleep(float(marker))
     if fixed == "handshake-wrong-id": raw(handshake(request_id="sha256:" + "0" * 64))
     elif fixed == "handshake-unknown": raw(handshake(authority="merge"))
     elif fixed == "handshake-duplicate": raw(json.dumps(handshake()).replace('"request_id": ', f'"request_id":"{request["request_id"]}","request_id": ', 1))
@@ -336,6 +337,17 @@ fi
 # genuine hang reaches the guard.  The guard sits below the section
 # coordinator's 90 second budget so a hung lane reports its own failure.
 EXTENSION_WAIT_SECONDS=60
+
+# The host's own startup bounds (5 s by default, docs/extension-bindings.md) are
+# a speed expectation the sections below do not test, and a starved host can
+# exceed them while a package merely starts. Widen them to the same hang guard so
+# only a genuine hang fails; the startup-bounds section runs the defaults.
+FM_EXTENSION_HANDSHAKE_TIMEOUT_MS=$((EXTENSION_WAIT_SECONDS * 1000))
+FM_EXTENSION_LAUNCH_READY_WAIT_MS=$((EXTENSION_WAIT_SECONDS * 1000))
+FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS=$((EXTENSION_WAIT_SECONDS * 1000))
+FM_EXTENSION_CLEANUP_WAIT_MS=$((EXTENSION_WAIT_SECONDS * 1000))
+export FM_EXTENSION_HANDSHAKE_TIMEOUT_MS FM_EXTENSION_LAUNCH_READY_WAIT_MS \
+  FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS FM_EXTENSION_CLEANUP_WAIT_MS
 
 wait_until() {  # <command...> - poll until it succeeds or the hang guard expires
   local deadline=$((SECONDS + EXTENSION_WAIT_SECONDS))
@@ -570,7 +582,7 @@ if [ "$extension_segment" = all ] || [ "$extension_segment" = coordinator ]; the
     (
       trap - EXIT HUP INT
       trap 'terminate_section_lanes; exit 143' TERM
-      run_extension_section_lanes lifecycle-flow remote-lifecycle example
+      run_extension_section_lanes lifecycle-flow remote-lifecycle example startup-bounds
     ) &
     section_coordinator_pid=$!
   fi
@@ -2190,6 +2202,35 @@ bind_package "$H_HANDSHAKE_ORPHAN" "$P_HANDSHAKE_RECOVER" ext-handshake-orphan >
 assert_contains "$(FM_HOME="$H_HANDSHAKE_ORPHAN" "$HOST" verify org.example.handshake-orphan)" "verified: org.example.handshake-orphan@1.2.3" \
   "cleaned handshake state did not permit safe binding"
 pass "handshake execution rejects and reaps foreground descendants"
+fi
+
+# --- startup bounds ----------------------------------------------------------
+if section_enabled startup-bounds; then
+# The host's four startup bounds default to 5000/5000/5000/2000 ms and each has an
+# environment override. The slow fixture delays only handshakes made after its
+# flag file exists, so a package that handshakes quickly can be made slow on the
+# next handshake.
+P_SLOW="$PACKAGES/slow-handshake"
+SLOW_FLAG="$TMP_ROOT/slow-handshake.flag"
+make_package "$P_SLOW" org.example.slow ext-slow "$(printf 'handshake-slow-when-flagged\n7\n%s' "$SLOW_FLAG")"
+H_SLOW="$HOMES/slow"; new_home "$H_SLOW"
+bind_package "$H_SLOW" "$P_SLOW" ext-slow >/dev/null
+: > "$SLOW_FLAG"
+expect_failure "extension handshake exceeded 5000 ms" \
+  env -u FM_EXTENSION_HANDSHAKE_TIMEOUT_MS FM_HOME="$H_SLOW" "$HOST" verify org.example.slow
+expect_failure "extension handshake exceeded 1500 ms" \
+  env FM_EXTENSION_HANDSHAKE_TIMEOUT_MS=1500 FM_HOME="$H_SLOW" "$HOST" verify org.example.slow
+assert_contains "$(env FM_EXTENSION_HANDSHAKE_TIMEOUT_MS=60000 FM_HOME="$H_SLOW" "$HOST" verify org.example.slow)" \
+  "verified: org.example.slow@1.2.3" "a handshake slower than the default bound was refused despite a wider override"
+rm -f "$SLOW_FLAG"
+for bound in FM_EXTENSION_HANDSHAKE_TIMEOUT_MS FM_EXTENSION_LAUNCH_READY_WAIT_MS \
+  FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS FM_EXTENSION_CLEANUP_WAIT_MS; do
+  for invalid in abc 99 3600001 -5 1.5; do
+    expect_failure "$bound must be an integer from 100 to 3600000" \
+      env "$bound=$invalid" FM_HOME="$H_SLOW" "$HOST" list
+  done
+done
+pass "the host startup bounds keep their defaults, accept overrides, and refuse malformed ones"
 fi
 
 printf '\nall extension-binding tests passed\n'
