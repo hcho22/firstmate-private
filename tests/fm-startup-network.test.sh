@@ -25,7 +25,39 @@ set -u
 TMP_ROOT=$(fm_test_tmproot fm-startup-network-tests)
 DRAIN="$ROOT/bin/fm-wake-drain.sh"
 FM_TEST_CLEANUP_DIRS+=("$TMP_ROOT")
-trap fm_test_cleanup EXIT
+
+# A case that `start`s a detached worker with this shell as its claimant leaves the
+# worker parked in its delivery wait when the case ends. Removing the state
+# directory under it then strands it polling a lock in a directory that no longer
+# exists, which spins until its own delivery budget runs out: a couple of minutes
+# of busy loop per leftover worker, on the host that is also running the next
+# tests. So every process whose command line names this run's private root is
+# retired, by exact pid, before the directories go.
+retire_stage_workers() {
+  local pids pid deadline
+  pids=$(pgrep -f "$TMP_ROOT/" 2>/dev/null | grep -vx -e "$$" -e "${BASHPID:-$$}" || true)
+  [ -n "$pids" ] || return 0
+  for pid in $pids; do
+    kill -TERM "$pid" 2>/dev/null || true
+  done
+  deadline=$((SECONDS + 60))
+  for pid in $pids; do
+    while kill -0 "$pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
+      sleep 0.05
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -KILL "$pid" 2>/dev/null || true
+    fi
+  done
+}
+
+stage_test_cleanup() {
+  retire_stage_workers
+  fm_test_cleanup
+}
+trap stage_test_cleanup EXIT
+trap 'stage_test_cleanup; exit 130' INT
+trap 'stage_test_cleanup; exit 143' TERM
 
 # new_world <name>: an FM_HOME plus a fake code root whose bin/ is a real
 # firstmate bin/ except for fm-bootstrap.sh, which is replaced by a scriptable
