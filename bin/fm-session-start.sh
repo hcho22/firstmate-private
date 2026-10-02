@@ -327,6 +327,12 @@ if [ -z "${FM_SESSION_START_STAGE_FILE:-}" ]; then
   exit 0
 fi
 
+# The stage file is this process's own breadcrumb channel (stage() above writes
+# it from this shell). Keep the shell variable but stop exporting it, so no
+# child - bootstrap and the snapshot reads can start a backend server that keeps
+# its startup environment for every later pane - inherits the temporary path.
+export -n FM_SESSION_START_STAGE_FILE
+
 PRIMARY_HARNESS=$("$SCRIPT_DIR/fm-harness.sh" 2>/dev/null || printf unknown)
 
 # shellcheck source=bin/fm-backend.sh

@@ -1347,6 +1347,100 @@ EOF
   pass "herdr endpoint liveness is reported per task: alive for a live pane, dead for a gone one"
 }
 
+# --- startup-internal variables stay out of the session's environment ---------
+#
+# Startup reads each task through temporary overrides, and the first process that
+# reaches a backend can launch its long-lived server. That server hands its own
+# startup environment to every pane it creates later, so any internal variable
+# still set at that point shows up in the captain's session and makes
+# fm-crew-state.sh read one task's temporary snapshot for every task. Drive the
+# real Claude SessionStart entry point against a fake server that records the
+# environment it was started with, then read each task from a shell that holds
+# exactly that environment.
+make_fake_herdr_server_recorder() {  # <fakebin>
+  local fakebin=$1
+  cat > "$fakebin/herdr" <<'SH'
+#!/usr/bin/env bash
+set -u
+dir=${FM_FAKE_HERDR_DIR:?}
+args=()
+while [ $# -gt 0 ]; do
+  if [ "$1" = --session ]; then shift 2; else args+=("$1"); shift; fi
+done
+case "${args[0]:-} ${args[1]:-}" in
+  "status --json")
+    if [ -e "$dir/up" ]; then running=true; else running=false; fi
+    printf '{"client":{"protocol":14,"version":"test"},"server":{"running":%s}}\n' "$running"
+    ;;
+  "server ")
+    env | grep '^FM_' | sort > "$dir/server.env" || true
+    : > "$dir/up"
+    ;;
+  *)
+    printf '%s\n' '{"error":{"code":"pane_not_found"}}' >&2
+    exit 1
+    ;;
+esac
+SH
+  chmod +x "$fakebin/herdr"
+}
+
+test_startup_internal_variables_never_reach_the_session_environment() {
+  local rec root home fakebin w rec_dir task wt server_env leaked line name out
+  local -a pane_env
+  rec=$(new_world internal-env)
+  IFS='|' read -r root home fakebin <<EOF
+$rec
+EOF
+  w=${root%/root}
+  rec_dir="$w/herdr"
+  mkdir -p "$rec_dir"
+  ln -s "$ROOT/bin" "$root/bin"
+  printf '# Firstmate\n' > "$root/AGENTS.md"
+  make_fake_toolchain "$fakebin"
+  make_fake_ps_claude "$fakebin"
+  make_fake_herdr_server_recorder "$fakebin"
+  for task in alpha beta; do
+    wt="$w/wt-$task"
+    mkdir -p "$wt"
+    fm_write_meta "$home/state/$task.meta" "kind=ship" "project=demo" "mode=direct-PR" "yolo=0" \
+      "backend=herdr" "window=sess:p-$task" "herdr_session=sess" "worktree=$wt" \
+      "spawn_gen=g1" "harness=claude"
+    printf 'working: %s\n' "$task" > "$home/state/$task.status"
+  done
+
+  printf '{"source":"startup"}' | env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
+    FM_FAKE_HERDR_DIR="$rec_dir" FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
+    PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-sessionstart-run.sh" >/dev/null 2>&1
+
+  server_env="$rec_dir/server.env"
+  assert_present "$server_env" "startup never launched the backend server, so the environment check proved nothing"
+
+  # The server may carry what this suite itself exports and what the launch above
+  # deliberately passed; any other FM_ name came from startup.
+  leaked=
+  while IFS= read -r line; do
+    name=${line%%=*}
+    case "$name" in
+      FM_FAKE_HERDR_DIR) ;;
+      *) compgen -e "$name" | grep -qx "$name" || leaked="$leaked $name" ;;
+    esac
+  done < "$server_env"
+  [ -z "$leaked" ] || fail "startup left internal variables in the environment its backend server hands to every pane:$leaked"
+
+  # A pane the server creates now starts from exactly the server's environment.
+  pane_env=()
+  while IFS= read -r line; do pane_env+=("$line"); done < "$server_env"
+  for task in alpha beta; do
+    out=$(env "${pane_env[@]}" FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$fakebin:$BASE_PATH" \
+      "$ROOT/bin/fm-crew-state.sh" "$task")
+    assert_not_contains "$out" "no metadata" "a session started after startup cannot see $task's record: $out"
+    assert_contains "$out" "sess:p-$task" "fm-crew-state.sh did not read $task's own record: $out"
+  done
+
+  pass "startup keeps its internal variables out of the backend server environment, so later sessions read every task's real record"
+}
+
 # --- composition: real scripts run, not reimplemented ------------------------
 
 test_composition_invokes_real_scripts() {
@@ -2587,6 +2681,7 @@ test_status_tail_line_cap
 test_orphan_status_logs_are_printed
 test_endpoint_liveness_tmux
 test_endpoint_liveness_herdr
+test_startup_internal_variables_never_reach_the_session_environment
 test_composition_invokes_real_scripts
 test_branch_outcome_replay_respects_captain_barrier_and_lease_sweep
 test_non_pi_session_start_leaves_branch_state_untouched
