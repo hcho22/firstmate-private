@@ -228,6 +228,45 @@ arm_answer() {
   printf '%s' "$dir/home/state/$id.status" > "$dir/fake/answer-status"
 }
 
+# hold_persist_bound_until_a_mate_is_stopped <case-dir> <persist-wait-secs>
+# Puts a `date` in the case's fakebin so the persist bound of an UNANSWERED mate
+# elapses on an event of this case rather than on the host's speed. The pass reads
+# its clock only through `date +%s`: a deadline is that clock plus the bound, and a
+# mate is out of time once the clock reaches it. A real wall-clock bound races the
+# slow part of the pass - every mate's request is sent before any restart, and a
+# restart is many process spawns - so on a loaded host the bound passes before the
+# confirmed mate is stopped, however it is chosen.
+#
+# The shim answers `date +%s` with real time, plus <persist-wait-secs> once the pane
+# transcript shows a mate was stopped. Pick a bound far larger than the case can
+# run, so real time alone can never end the wait. A pass that has not stopped the
+# confirmed mate within 120 s gets the same advance, so a pass that is held behind
+# the unanswered mate fails the case's ordering assertion instead of polling
+# forever. Every other `date` invocation is the real one.
+hold_persist_bound_until_a_mate_is_stopped() {
+  local dir=$1 wait=$2
+  /bin/date +%s > "$dir/fake/clock-origin"
+  printf '%s\n' "$wait" > "$dir/fake/clock-advance"
+  cat > "$dir/fakebin/date" <<'SH'
+#!/usr/bin/env bash
+set -u
+D=${FM_FAKE_DIR:-}
+if [ "${1:-}" = +%s ] && [ -r "$D/clock-origin" ]; then
+  now=$(/bin/date +%s)
+  read -r origin < "$D/clock-origin"
+  if grep -qx '/exit' "$D/literal" 2>/dev/null \
+    || [ "$((now - origin))" -ge 120 ]; then
+    read -r advance < "$D/clock-advance"
+    now=$((now + advance))
+  fi
+  printf '%s\n' "$now"
+  exit 0
+fi
+exec /bin/date "$@"
+SH
+  chmod +x "$dir/fakebin/date"
+}
+
 run_restart() {  # <case-dir> <args...>
   local dir=$1; shift
   env PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_FAKE_DIR="$dir/fake" \
@@ -548,14 +587,28 @@ test_persist_waits_are_polled_together() {
   add_local_mate "$dir" sm1
   add_local_mate "$dir" sm2
   arm_answer "$dir" sm2
+  # The first mate never answers, so only its persist bound ends its wait, and that
+  # bound elapses once the confirmed mate has been stopped: if the pass held the
+  # confirmed mate behind the first one, the first mate would time out before the
+  # second was ever stopped.
+  hold_persist_bound_until_a_mate_is_stopped "$dir" 901
 
-  out=$(FM_TEST_PERSIST_WAIT=3 run_restart "$dir" sm1 sm2); rc=$?
+  out=$(FM_TEST_PERSIST_WAIT=900 run_restart "$dir" sm1 sm2); rc=$?
 
   expect_code 3 "$rc" "the unanswered mate should fall back after the confirmed mate restarts"$'\n'"$out"
   exit_line=$(grep -n '^/exit$' "$dir/fake/literal" | head -1 | cut -d: -f1)
   nudge_line=$(grep -n '^Firstmate instruction waiting: ' "$dir/fake/literal" | tail -1 | cut -d: -f1)
   [ -n "$exit_line" ] && [ -n "$nudge_line" ] && [ "$exit_line" -lt "$nudge_line" ] \
     || fail "the first mate's timeout held the confirmed second mate behind it: $out"
+  assert_contains "$out" "restarted: sm2 (claude)" \
+    "the confirmed second mate was not restarted"
+  assert_contains "$out" "nudged: sm1: it did not confirm within 900s" \
+    "the unanswered first mate did not fall back to the re-read message"
+  assert_not_contains "$out" "restarted: sm1" "the unanswered first mate was restarted"
+  assert_contains "$out" "summary: 1 of 2 restarted, 1 nudged, 0 unreached" \
+    "the pass did not account for the confirmed restart and the unanswered fallback"
+  [ "$(grep -c '^/exit$' "$dir/fake/literal")" -eq 1 ] \
+    || fail "the pass stopped a mate other than the confirmed one: $(cat "$dir/fake/literal")"
   pass "T10 pending persist answers are polled as one fleet"
 }
 
