@@ -260,11 +260,44 @@ args=()
 while IFS= read -r -d '' arg; do args+=("$arg"); done \
   < <(perl -MMIME::Base64=decode_base64 -e 'print decode_base64($ARGV[0])' "$4")
 printf '%s\t%s\n' "$remote_home" "${args[0]:-}" >> "$FM_TEST_LEDGER_CALL_LOG"
+event() { printf '%s %s\n' "$1" "$$" >> "$FM_TEST_LEDGER_EVENT_LOG"; }
+# wait_for_events <event> <count> blocks until <count> reads have logged <event>.
+# It is bounded by a poll count rather than a clock, so a loaded host stretches
+# the wait along with the work it waits for; the bound only keeps a regression
+# that serializes the reads from hanging the suite.
+wait_for_events() {
+  local name=$1 want=$2 polls=0
+  while [ "$polls" -lt 1200 ]; do
+    [ "$(grep -c "^$name " "$FM_TEST_LEDGER_EVENT_LOG")" -lt "$want" ] || return 0
+    sleep 0.05
+    polls=$((polls + 1))
+  done
+  return 1
+}
+event started
+# A home's state/slow-ledger-read marker makes its read slow. The marker's first
+# word picks how: `wedge` (also an empty marker) never answers until the
+# collector cancels it, `rendezvous <n>` stays in flight until <n> reads have
+# started and then fails, and `after-peers <n>` stays in flight until <n> other
+# reads have finished and then fails.
 if [ -f "$remote_home/state/slow-ledger-read" ]; then
-  sleep 30 &
-  sleeper=$!
-  printf '%s %s\n' "$$" "$sleeper" >> "$FM_TEST_LEDGER_PID_LOG"
-  wait "$sleeper"
+  read -r slow_mode slow_count < "$remote_home/state/slow-ledger-read" || true
+  case "${slow_mode:-wedge}" in
+    wedge)
+      sleep 30 &
+      sleeper=$!
+      printf '%s %s\n' "$$" "$sleeper" >> "$FM_TEST_LEDGER_PID_LOG"
+      wait "$sleeper"
+      ;;
+    rendezvous)
+      if wait_for_events started "$slow_count"; then event overlapped; fi
+      exit 1
+      ;;
+    after-peers)
+      if wait_for_events done "$slow_count"; then event peers-done; else event guard-expired; fi
+      exit 1
+      ;;
+  esac
 fi
 case "${args[0]:-}" in
   fm-remote-file.sh)
@@ -274,6 +307,7 @@ case "${args[0]:-}" in
     else
       cat "$remote_home/state/home-summary.json"
     fi
+    event done
     ;;
   *) exit 91 ;;
 esac
@@ -282,14 +316,71 @@ SH
   printf '%s\n' "$fb"
 }
 
-run_remote_ledger_bearings() {  # <parent-home> <fakebin> <epoch>
-  local parent=$1 fakebin=$2 epoch=$3
+# The collection budget is a wall-clock deadline that also covers process start-up,
+# which a loaded host stretches past any small figure. Every case whose property
+# is not the deadline itself therefore runs under a hang-guard budget, so the
+# reads it checks are never cut off by the host's speed; only the case that
+# asserts cancellation by the deadline passes a short one.
+REMOTE_LEDGER_HANG_GUARD_BUDGET=30
+# The cancellation case's budget is the snapshot's own default, far below the
+# 30 seconds a wedged read would otherwise take to answer.
+REMOTE_LEDGER_CUTOFF_BUDGET=5
+
+run_remote_ledger_bearings() {  # <parent-home> <fakebin> <epoch> [<budget-seconds>]
+  local parent=$1 fakebin=$2 epoch=$3 budget=${4:-$REMOTE_LEDGER_HANG_GUARD_BUDGET}
   FM_HOME="$parent" FM_ROOT_OVERRIDE="$ROOT" FM_SSH_BIN="$fakebin/fake-ssh" \
     FM_TEST_LEDGER_CALL_LOG="$parent/ledger-calls.log" \
     FM_TEST_LEDGER_PID_LOG="$parent/ledger-pids.log" \
+    FM_TEST_LEDGER_EVENT_LOG="$parent/ledger-events.log" \
     FM_SNAPSHOT_CACHE_DIR="$parent/state/summary-cache" \
-    FM_SNAPSHOT_BUDGET=3 FM_SNAPSHOT_NOW_EPOCH="$epoch" \
+    FM_SNAPSHOT_BUDGET="$budget" FM_SNAPSHOT_NOW_EPOCH="$epoch" \
     FM_BEARINGS_NOW=2026-09-01T22:00:00Z "$BEARINGS" --json
+}
+
+# set_remote_ledger_slow <count> [<marker>] marks homes 1..<count> slow with the
+# given marker line (default: wedge, see make_remote_ledger_ssh);
+# clear_remote_ledger_slow <count> removes the marker again.
+set_remote_ledger_slow() {
+  local count=$1 marker=${2:-wedge} i=1
+  while [ "$i" -le "$count" ]; do
+    printf '%s\n' "$marker" > "$TMP_ROOT/remote-ledger-home-$i/state/slow-ledger-read"
+    i=$((i + 1))
+  done
+}
+
+clear_remote_ledger_slow() {
+  local count=$1 i=1
+  while [ "$i" -le "$count" ]; do
+    rm -f "$TMP_ROOT/remote-ledger-home-$i/state/slow-ledger-read"
+    i=$((i + 1))
+  done
+}
+
+# remote_ledger_events <parent-home> <event> prints how many reads logged <event>.
+remote_ledger_events() {
+  grep -c "^$2 " "$1/ledger-events.log" || true
+}
+
+# remote_ledger_processes_gone <pid-log> succeeds once every process the wedged
+# reads recorded has exited. A killed process leaves the table when the system
+# reaps it, which a loaded host can delay, so poll for it rather than sleeping a
+# fixed settle; the poll count only bounds a regression where a cancelled read
+# truly survives.
+remote_ledger_processes_gone() {
+  local log=$1 polls=0 collector_pid sleeper_pid pid alive
+  while [ "$polls" -lt 400 ]; do
+    alive=0
+    while read -r collector_pid sleeper_pid; do
+      for pid in "$collector_pid" "$sleeper_pid"; do
+        [ -n "$pid" ] || continue
+        if kill -0 "$pid" 2>/dev/null; then alive=1; fi
+      done
+    done < "$log"
+    [ "$alive" -eq 1 ] || return 0
+    sleep 0.05
+    polls=$((polls + 1))
+  done
+  return 1
 }
 
 # End-to-end Domain Alpha regression fixture.
@@ -2430,7 +2521,7 @@ SH
 }
 
 test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
-  local parent fakebin json started elapsed i remote_home pid collector_pid sleeper_pid duplicate_base
+  local parent fakebin json i remote_home duplicate_base
   parent=$(make_home concurrent-remote-ledgers)
   make_remote_ledger_fleet "$parent" 5
   fakebin=$(make_remote_ledger_ssh "$parent/remote-ssh")
@@ -2469,49 +2560,63 @@ test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
     || fail "bounding one faulty primary ledger added remote reads"
   rm -f "$TMP_ROOT/remote-ledger-home-1/state/unbounded-ledger-read"
 
-  i=1
-  while [ "$i" -le 5 ]; do
-    remote_home="$TMP_ROOT/remote-ledger-home-$i"
-    : > "$remote_home/state/slow-ledger-read"
-    i=$((i + 1))
-  done
+  # Five reads that each stay in flight until all five have started. Reads that
+  # overlap release one another; reads the collector ran one after another could
+  # never all be in flight together, so the first would wait out the hang guard
+  # alone. Every read logging `overlapped` therefore proves all five were in
+  # flight at once, which is the property a shared budget depends on and which no
+  # amount of host load can change. Each read then fails, so the cache answers.
+  set_remote_ledger_slow 5 "rendezvous 5"
+  : > "$parent/ledger-calls.log"
+  : > "$parent/ledger-events.log"
+  json=$(run_remote_ledger_bearings "$parent" "$fakebin" 2000)
+  [ "$(remote_ledger_events "$parent" overlapped)" -eq 5 ] \
+    || fail "five slow remote reads were not all in flight at once: $(remote_ledger_events "$parent" overlapped) saw all five started and $(remote_ledger_events "$parent" started) started at all, so the collector ran them serially"
+  [ "$(remote_ledger_events "$parent" started)" -eq 5 ] \
+    || fail "five slow remote reads did not each start exactly once ($(remote_ledger_events "$parent" started) started)"
+  printf '%s' "$json" | jq -e '
+    (.secondmates | length) == 5
+      and all(.secondmates[]; .freshness == "cached" and .age_seconds == 1000
+        and .provenance == "structured-home-cache")
+      and ([.omitted[] | select(.surface | contains("served from cached home ledger"))] | length) == 5
+  ' >/dev/null || fail "failed homes did not use and disclose age-labeled cache rows: $json"
+
+  # Five reads that never answer are cut off by the one shared budget: no read
+  # reaches its own 30-second end (that would make it fresh), every row is served
+  # from cache, and every process the collector started is gone once the snapshot
+  # returns. The assertions hold however many reads the host let start before
+  # the deadline; the overlap above is what proves they all can.
+  set_remote_ledger_slow 5 wedge
   : > "$parent/ledger-calls.log"
   : > "$parent/ledger-pids.log"
-  started=$(date +%s)
-  json=$(run_remote_ledger_bearings "$parent" "$fakebin" 2000)
-  elapsed=$(( $(date +%s) - started ))
-  # The three-second bound covers remote collection, while setup, cache validation,
-  # and projection run outside it. Keep the end-to-end ceiling well below the
-  # fifteen seconds that five serial three-second reads would require, without
-  # treating slower stock-macOS jq/process startup as collector serialization.
-  [ "$elapsed" -lt 12 ] || fail "five wedged remote reads behaved serially despite the shared three-second budget (${elapsed}s)"
+  : > "$parent/ledger-events.log"
+  json=$(run_remote_ledger_bearings "$parent" "$fakebin" 2000 "$REMOTE_LEDGER_CUTOFF_BUDGET")
   printf '%s' "$json" | jq -e '
     (.secondmates | length) == 5
       and all(.secondmates[]; .freshness == "cached" and .age_seconds == 1000
         and .provenance == "structured-home-cache")
       and ([.omitted[] | select(.surface | contains("served from cached home ledger"))] | length) == 5
   ' >/dev/null || fail "wedged homes did not use and disclose age-labeled cache rows: $json"
-  sleep 0.3
-  while read -r collector_pid sleeper_pid; do
-    for pid in "$collector_pid" "$sleeper_pid"; do
-      [ -n "$pid" ] || continue
-      if kill -0 "$pid" 2>/dev/null; then
-        fail "a cancelled remote ledger collector process survived the total budget (pid $pid)"
-      fi
-    done
-  done < "$parent/ledger-pids.log"
+  remote_ledger_processes_gone "$parent/ledger-pids.log" \
+    || fail "a cancelled remote ledger collector process survived the total budget"
 
   i=1
   while [ "$i" -le 5 ]; do
     remote_home="$TMP_ROOT/remote-ledger-home-$i"
     remote_home=$(cd "$remote_home" && pwd -P)
-    rm -f "$remote_home/state/slow-ledger-read"
     write_remote_home_summary "$remote_home" 1990
     i=$((i + 1))
   done
-  : > "$TMP_ROOT/remote-ledger-home-1/state/slow-ledger-read"
+  # Home 1 answers only after the other four have finished, so it is the slow one
+  # by construction rather than by a clock. It is released by its peers finishing
+  # while it is still in flight (`peers-done`); reads run in series with it first
+  # would instead wait out the hang guard (`guard-expired`) with the four peers
+  # never started, leaving them cached rather than fresh.
+  clear_remote_ledger_slow 5
+  set_remote_ledger_slow 1 "after-peers 4"
   : > "$parent/ledger-calls.log"
   : > "$parent/ledger-pids.log"
+  : > "$parent/ledger-events.log"
   json=$(run_remote_ledger_bearings "$parent" "$fakebin" 2000)
   printf '%s' "$json" | jq -e '
     ([.secondmates[] | select(.freshness == "fresh" and .age_seconds == 10)] | length) == 4
@@ -2519,6 +2624,8 @@ test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
         and .age_seconds == 1000 and .provenance == "structured-home-cache")] | length) == 1
       and ([.omitted[] | select(.surface == "secondmate ledger-1 served from cached home ledger")] | length) == 1
   ' >/dev/null || fail "one slow home prevented four fresh rows or hid its cache disclosure: $json"
+  [ "$(remote_ledger_events "$parent" peers-done)" -eq 1 ] \
+    || fail "the slow home was not released by its four peers finishing while it was in flight ($(remote_ledger_events "$parent" guard-expired) guard expiries)"
   [ "$(wc -l < "$parent/ledger-calls.log" | tr -d ' ')" -eq 5 ] \
     || fail "the mixed-speed snapshot made more than one remote read per ledger home"
   pass "remote ledgers collect concurrently under one budget, reuse aged cache, and cancel wedged collectors"
