@@ -10,10 +10,34 @@ The shared orchestrator behavior lives in [`AGENTS.md`](../AGENTS.md) - edit it 
 
 This section is the single owner of the top-level operational-home layout; producer script headers and their help own exact child-file fields and mutation contracts.
 The tracked code root contains the shared instruction, skill, documentation, workflow, and `bin/` surfaces, while each effective `FM_HOME` contains private operational directories.
-`data/` holds durable private fleet records such as the project and secondmate registries, captain preferences, optional shared captain preferences, learnings, backlog, briefs, scout reports, and explicitly installed content-addressed extension packages under `data/extensions/packages/`.
+`data/` holds durable private fleet records such as the project and secondmate registries, captain preferences, optional shared captain preferences, learnings, backlog, per-project task folders holding briefs and scout reports, and explicitly installed content-addressed extension packages under `data/extensions/packages/`.
 `state/` holds runtime records such as task metadata, append-only status events, endpoint signals, watcher and wake-queue coordination, inactive terminal-outcome receipts under `state/terminal-outcomes/`, enabled extension working namespaces under `state/extensions/`, away-mode state, generated Relay artifacts, parent-side remote ledger copies under `state/secondmate-summary-cache/`, one-shot Bearings reconcile requests under `state/reconcile-notify/`, private secondmate config-reread generations with their retry and quarantine state, per-task steering-inbox records under `state/<id>.inbox/` (`bin/fm-task-inbox-lib.sh`), and parent-owned secondmate pending-reply records under `state/pending-replies/` (`bin/fm-pending-reply-lib.sh`).
 `config/` holds local gitignored operating choices, including explicit extension bindings under `config/extensions.d/`, and `projects/` holds the local project clones that Firstmate reads but changes only through the narrow guarded and concrete captain-approved exceptions in `AGENTS.md`.
 Untracked files and directories whose names begin with `scratchpad` are also gitignored, so temporary scratch does not make porcelain-based secondmate sync guards treat a home as dirty.
+
+### Per-project task data
+
+A task's private documents (brief, launch brief, ship instructions, scout report, review findings, evidence, and review pages) live in `data/<ProjectDir>/<task-id>/`, never flat under `data/`.
+`<ProjectDir>` is the project's name: its `data/projects.md` spelling when the project is registered, so it matches the clone under `projects/`, and otherwise the repo name the task was created for.
+The firstmate repo itself is an ordinary project and gets its folder the same way.
+Two reserved folders begin with an underscore, which no project name can, so they never collide with one:
+`_secondmates` holds persistent secondmate charter briefs, and `_unassigned` holds work created with no project or with a project name that cannot be a folder name.
+A project name that differs only in case from an existing folder adopts that folder's spelling, so a case-insensitive disk never holds two.
+The fleet-wide files stay at the `data/` root: the backlog and its archives, `memory-archive.md`, the dated Bearings `status-report-<YYYY-MM-DD>.md` reports, `projects.md`, `secondmates.md`, `captain.md`, `captain-shared.md`, `learnings.md`, and a secondmate home's `charter.md`, alongside the non-task folders `handoff/`, `extensions/`, and `remote-secondmates/`.
+Each home, including every secondmate home, keeps its own `data/` in this layout; nothing is shared across homes.
+
+`bin/fm-task-data-lib.sh` is the single owner of placement and lookup, and every script that builds a per-task data path goes through it.
+Only a creator (`bin/fm-brief.sh` and the two secondmate seed scripts) maps a project to a folder.
+Everything else finds an existing task folder by its id, so no script re-derives a project and none can disagree with the brief that created the folder.
+An id that exists under more than one project folder is refused rather than guessed.
+A task id may equal a project name, because its folder sits inside a project folder and never shares a path with one.
+A new task is refused when its project's folder name is still held by a flat pre-layout task folder (on a case-insensitive disk, in any spelling), until the migration moves that folder.
+Recorded report links in the backlog name the folder they were written from, for example `data/<ProjectDir>/<task-id>/report.md`.
+
+The pre-layout flat folders `data/<task-id>/` are still read, and never created, until a home runs the migration; the read lives in one function of the library and is removable once every home reports `legacy_remaining=0`.
+`bin/fm-data-migrate.sh` moves a home's flat folders into the layout by rename, rewrites the `data/<task-id>/` links inside the backlog and its archives, reports everything it would do before doing it, refuses while any task is live, and is safe to repeat.
+It checks each destination against the layout its own moves produce and orders the moves so a folder holding a needed name moves out of the way first, however long the chain; only moves that wait on each other in a cycle are refused, and it never rewrites a link that already names a project folder.
+Its header owns the flags, the order in which it places a folder, and its exit codes, and `--revert` is the recovery path that restores the flat layout.
 
 `bin/fm-spawn.sh` owns the base task-metadata fields it emits, while the runtime-backend section below owns backend-specific fields and selector interpretation.
 The producing PR and Relay helpers own the fields they append, `bin/fm-classify-lib.sh` owns status-event vocabulary, and `bin/fm-crew-state.sh` owns current-state reconciliation.

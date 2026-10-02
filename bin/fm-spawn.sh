@@ -166,7 +166,7 @@
 #   multi-task shell loop (the tool shell is zsh, which does not word-split unquoted
 #   $vars and silently breaks ad-hoc `for ... in $pairs` loops).
 #   Launch templates live in launch_template() below; placeholders replaced before launch:
-#     __BRIEF__    absolute path to data/<task-id>/brief.md
+#     __BRIEF__    absolute path to the task's brief.md (data/<Project>/<task-id>/, resolved by bin/fm-task-data-lib.sh)
 #     __PIBIN__    quoted concrete Pi-family executable path resolved from PATH
 #     __PITUIMODE__ optional --tui-mode regular when that executable advertises it
 #     __TURNEND__  absolute path to state/<task-id>.turn-ended (for harnesses whose
@@ -319,6 +319,8 @@ fm_backlog_directory_present "$STATE" "state directory" || {
 . "$SCRIPT_DIR/fm-pr-lib.sh"
 # shellcheck source=bin/fm-dod-lib.sh
 . "$SCRIPT_DIR/fm-dod-lib.sh"
+# shellcheck source=bin/fm-task-data-lib.sh
+. "$SCRIPT_DIR/fm-task-data-lib.sh"
 # shellcheck source=bin/fm-trace-context-lib.sh
 . "$SCRIPT_DIR/fm-trace-context-lib.sh"
 # shellcheck source=bin/fm-remote-readiness-lib.sh
@@ -1850,12 +1852,14 @@ if [ "$KIND" = secondmate ]; then
   if [ -f "$PROJ_ABS/data/charter.md" ]; then
     BRIEF="$PROJ_ABS/data/charter.md"
   else
-    BRIEF="$DATA/$ID/brief.md"
+    TASK_DIR=$(fm_task_data_dir "$DATA" "$ID" 2>/dev/null) || TASK_DIR="$DATA/$ID"
+    BRIEF="$TASK_DIR/brief.md"
   fi
 else
   PROJ_ABS="$(cd "$(resolve_project_dir_arg "$PROJ")" && pwd)"
   WT=""
-  BRIEF="$DATA/$ID/brief.md"
+  TASK_DIR=$(fm_task_data_dir "$DATA" "$ID" 2>/dev/null) || TASK_DIR="$DATA/$ID"
+  BRIEF="$TASK_DIR/brief.md"
 fi
 [ -f "$BRIEF" ] || { echo "error: task $ID has no brief at inaccessible data path $BRIEF" >&2; exit 1; }
 if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
@@ -1879,8 +1883,8 @@ if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
       fi
     fi
     SOURCE_BRIEF=$BRIEF
-    BRIEF="$DATA/$ID/launch-brief.md"
-    BRIEF_TMP="$DATA/$ID/.launch-brief.md.${BASHPID:-$$}"
+    BRIEF="$TASK_DIR/launch-brief.md"
+    BRIEF_TMP="$TASK_DIR/.launch-brief.md.${BASHPID:-$$}"
     {
       cat "$SOURCE_BRIEF"
       fm_brief_intent_overlay "$CAPTAIN_INTENT"

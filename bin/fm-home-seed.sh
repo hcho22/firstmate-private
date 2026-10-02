@@ -49,6 +49,8 @@ SUB_HOME_PARENT_MARKER=".fm-secondmate-parent"
 . "$SCRIPT_DIR/fm-secondmate-charter-lib.sh"
 # shellcheck source=bin/fm-wake-lib.sh
 . "$SCRIPT_DIR/fm-wake-lib.sh"
+# shellcheck source=bin/fm-task-data-lib.sh
+. "$SCRIPT_DIR/fm-task-data-lib.sh"
 
 usage() {
   echo "usage: fm-home-seed.sh <id> <home|-> {<project>...|--no-projects}" >&2
@@ -633,6 +635,9 @@ seed_rollback() {
   fi
   if [ -n "${SEED_PARENT_BRIEF:-}" ] && [ "$SEED_PARENT_BRIEF_DIR_CREATED" = 1 ]; then
     rmdir "$(dirname "$SEED_PARENT_BRIEF")" 2>/dev/null || true
+    case "$(dirname "$(dirname "$SEED_PARENT_BRIEF")")" in
+      */"$FM_TASK_DATA_SECONDMATES") rmdir "$(dirname "$(dirname "$SEED_PARENT_BRIEF")")" 2>/dev/null || true ;;
+    esac
   fi
 
   if [ -n "${SEED_HOME:-}" ] && [ "$SEED_HOME" != "/" ]; then
@@ -845,7 +850,11 @@ seed_home() {
   SEED_CREATED_PROJECTS_FILE="$SEED_BACKUP_DIR/created-projects"
   : > "$SEED_CREATED_PROJECTS_FILE"
   SEED_PARENT_REG_EXISTED=0
-  SEED_PARENT_BRIEF="$DATA/$id/brief.md"
+  SEED_PARENT_BRIEF_DIR=$(fm_task_data_dir_for_new "$DATA" "$id" "$FM_TASK_DATA_SECONDMATES") || {
+    echo "error: cannot place charter $id in the data layout (invalid id, or the id or its project folder collides with an existing folder)" >&2
+    return 1
+  }
+  SEED_PARENT_BRIEF="$SEED_PARENT_BRIEF_DIR/brief.md"
   SEED_PARENT_BRIEF_CREATED=0
   SEED_PARENT_BRIEF_DIR_CREATED=0
   SEED_SUB_REG_EXISTED=0
@@ -905,7 +914,7 @@ seed_home() {
       echo "error: no filled secondmate charter brief at $SEED_PARENT_BRIEF; set FM_SECONDMATE_CHARTER or scaffold one and replace {TASK}" >&2
       return 1
     }
-    [ -d "$DATA/$id" ] || SEED_PARENT_BRIEF_DIR_CREATED=1
+    [ -d "$SEED_PARENT_BRIEF_DIR" ] || SEED_PARENT_BRIEF_DIR_CREATED=1
     if [ "$no_projects" -eq 1 ]; then
       "$FM_ROOT/bin/fm-brief.sh" "$id" --secondmate --no-projects
     else

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Scaffold a crewmate brief or persistent secondmate charter at
-# data/<task-id>/brief.md under the active firstmate home.
+# data/<Project>/<task-id>/brief.md under the active firstmate home
+# (bin/fm-task-data-lib.sh owns the folder layout and project-folder naming).
 # For ordinary tasks, the standard Setup/Rules/Definition-of-done contract is
 # filled in. Ship and scout `# Task` sections have two subsections Firstmate
 # fills before dispatch: `{TASK}` under `## Captain's intent` (the captain's
@@ -18,7 +19,7 @@
 #        fm-brief.sh <task-id> <repo-name> --scout [--herdr-lab]
 #        fm-brief.sh <task-id> --secondmate {<project>...|--no-projects}
 #   --scout writes the scout contract instead: the deliverable is a report at
-#   data/<task-id>/report.md (no branch, no push, no PR) and the worktree is scratch.
+#   data/<Project>/<task-id>/report.md (no branch, no push, no PR) and the worktree is scratch.
 #   --secondmate writes a persistent secondmate charter. The project list
 #   is cloned into the secondmate home, while the natural-language scope
 #   tells the main firstmate when to route work there; routine churn stays in its own home;
@@ -89,6 +90,8 @@ esac
 . "$SCRIPT_DIR/fm-classify-lib.sh"
 # shellcheck source=bin/fm-dod-lib.sh
 . "$SCRIPT_DIR/fm-dod-lib.sh"
+# shellcheck source=bin/fm-task-data-lib.sh
+. "$SCRIPT_DIR/fm-task-data-lib.sh"
 PAUSED_VERB=${FM_CLASSIFY_PAUSED_VERB:-$FM_CLASSIFY_PAUSED_VERB_DEFAULT}
 
 resolve_directory_input() {
@@ -180,13 +183,23 @@ if [ "$NO_PROJECTS" -eq 1 ] && [ "$KIND" != secondmate ]; then
   exit 1
 fi
 
-BRIEF="$DATA/$ID/brief.md"
+if [ "$KIND" = secondmate ]; then
+  TASK_PROJECT=$FM_TASK_DATA_SECONDMATES
+else
+  [ -n "${POS[1]:-}" ] || { echo "error: usage: fm-brief.sh <task-id> <repo-name> ..." >&2; exit 1; }
+  TASK_PROJECT=${POS[1]}
+fi
+TASK_DIR=$(fm_task_data_dir_for_new "$DATA" "$ID" "$TASK_PROJECT") || {
+  echo "error: cannot place task $ID in the data layout (invalid id, or the id or its project folder collides with an existing folder)" >&2
+  exit 1
+}
+BRIEF="$TASK_DIR/brief.md"
 [ -e "$BRIEF" ] && { echo "error: $BRIEF already exists" >&2; exit 1; }
-mkdir -p "$DATA/$ID"
+mkdir -p "$TASK_DIR"
 
 ASK_USER_BLOCK=
 if [ "$KIND" = ship ] && [ "$MODE" = no-mistakes ]; then
-  ASK_USER_BLOCK=$(fm_ask_user_escalation_block "$DATA" "$ID")
+  ASK_USER_BLOCK=$(fm_ask_user_escalation_block "$TASK_DIR")
 fi
 
 shell_quote() {
@@ -395,7 +408,7 @@ The report is the only thing that survives, so anything worth keeping must be in
 $INBOX_SECTION
 
 # Definition of done
-Write your findings to \`$DATA/$ID/report.md\`.
+Write your findings to \`$TASK_DIR/report.md\`.
 The report must stand alone: what you did, what you found, the evidence (commands run, output, file:line references), and what you recommend.
 If your deliverable is a visual artifact the captain will review and iterate on, you may host the Lavish review loop yourself (poll, revise, re-serve, staying alive) instead of handing it back to firstmate.
 Before reporting done, read and follow \`$FM_ROOT/.agents/skills/captain-hold-lifecycle/SKILL.md\` and pass its shared completion gate for the report and any visual review.

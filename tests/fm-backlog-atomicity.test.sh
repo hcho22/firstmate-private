@@ -1088,6 +1088,70 @@ test_completion_closes_a_scout_with_its_report() {
   pass "completion closes a scout item against its report"
 }
 
+# The per-project data layout end to end (bin/fm-task-data-lib.sh owns it): a
+# scout brief is scaffolded into data/<Project>/<id>/, spawn finds it there,
+# the report lands beside it, and teardown closes the row with a report link
+# that names the project folder. Nothing is ever created at the flat path.
+fill_brief_placeholders() {  # <brief>
+  local file=$1 content
+  content=$(cat "$file")
+  content=${content//'{TASK}'/Investigate the sample question.}
+  content=${content//'{FIRSTMATE_SPEC}'/Write the findings report.}
+  printf '%s\n' "$content" > "$file"
+}
+
+test_new_layout_scout_brief_to_teardown() {
+  local case_dir home id out
+  id=atomic-layout-scout-c1
+  case_dir=$(make_home layout-scout)
+  home=$(home_of "$case_dir")
+  printf '%s\n' '- Sample [no-mistakes] - sample project (added 2026-09-30)' > "$home/data/projects.md"
+  add_item "$case_dir" "$id" scout
+  cp "$ROOT/.tasks.toml" "$home/.tasks.toml"
+
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" Sample --scout >/dev/null \
+    || fail "scout brief scaffold failed"
+  assert_present "$home/data/Sample/$id/brief.md" "the brief was not scaffolded into the project folder"
+  assert_absent "$home/data/$id" "the scaffold created a flat task folder"
+  assert_grep "$home/data/Sample/$id/report.md" "$home/data/Sample/$id/brief.md" \
+    "the scout brief did not point its report at the project folder"
+  fill_brief_placeholders "$home/data/Sample/$id/brief.md"
+
+  out=$(run_spawn "$case_dir" "$id" "$case_dir/project" --scout) || fail "scout spawn failed: $out"
+  assert_present "$home/state/$id.meta" "spawn found no brief in the project folder"
+
+  printf 'findings\n' > "$home/data/Sample/$id/report.md"
+  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$home" PATH="$case_dir/fakebin:$PATH" \
+    "$ROOT/bin/fm-captain-hold.sh" complete "$id" --none >/dev/null \
+    || fail "captain-call inventory did not find the report in the project folder"
+  out=$(run_teardown "$case_dir" "$id") || fail "teardown failed: $out"
+  [ "$(row_state "$case_dir" "$id")" = "done" ] \
+    || fail "teardown left the scout row $(row_state "$case_dir" "$id")"
+  assert_grep "data/Sample/$id/report.md" "$(backlog_of "$case_dir")" \
+    "the closed row did not link the report inside its project folder"
+  assert_absent "$home/data/$id" "the lifecycle created a flat task folder"
+  pass "a scout runs brief to teardown inside its project folder"
+}
+
+test_new_layout_ship_launch_brief_lands_beside_the_brief() {
+  local case_dir home id out
+  id=atomic-layout-ship-c2
+  case_dir=$(make_home layout-ship)
+  home=$(home_of "$case_dir")
+  printf '%s\n' '- Sample [no-mistakes] - sample project (added 2026-09-30)' > "$home/data/projects.md"
+  add_item "$case_dir" "$id"
+  cp "$ROOT/.tasks.toml" "$home/.tasks.toml"
+
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" Sample --mode no-mistakes >/dev/null \
+    || fail "ship brief scaffold failed"
+  fill_brief_placeholders "$home/data/Sample/$id/brief.md"
+  out=$(run_ship_spawn "$case_dir" "$id") || fail "ship spawn failed: $out"
+  assert_present "$home/data/Sample/$id/launch-brief.md" \
+    "spawn did not render the launch brief beside the brief"
+  assert_absent "$home/data/$id" "the lifecycle created a flat task folder"
+  pass "a ship spawn reads its brief and renders its launch brief in the project folder"
+}
+
 test_completion_refuses_a_legacy_record_without_an_incarnation() {
   local case_dir id meta out rc=0
   id=atomic-close-legacy-no-incarnation-b7
@@ -2339,6 +2403,8 @@ test_dispatch_does_not_resurrect_a_row_closed_after_preflight
 test_dispatch_fails_when_its_row_vanishes_after_preflight
 test_completion_closes_a_local_only_ship_before_reporting_success
 test_completion_closes_a_scout_with_its_report
+test_new_layout_scout_brief_to_teardown
+test_new_layout_ship_launch_brief_lands_beside_the_brief
 test_completion_refuses_a_legacy_record_without_an_incarnation
 test_completion_refuses_ambiguous_incarnation_metadata
 test_completion_records_a_relative_report_for_relocated_data

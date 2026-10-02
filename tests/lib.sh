@@ -328,6 +328,16 @@ assert_not_contains() {
   esac
 }
 
+# task_data_path <home> <id> <name>: where the task-data resolver
+# (bin/fm-task-data-lib.sh) finds <name> in the task's folder under <home>/data,
+# so a test reads a brief or report wherever the layout put it. A task with no
+# folder yet reports the flat path, which is simply absent.
+task_data_path() {
+  bash -c '. "$1/bin/fm-task-data-lib.sh"; fm_task_data_file "$2/data" "$3" "$4"' _ \
+    "$ROOT" "$1" "$2" "$3" 2>/dev/null \
+    || printf '%s/data/%s/%s\n' "$1" "$2" "$3"
+}
+
 # expect_code <expected> <actual> <label>
 expect_code() {
   local expected=$1 actual=$2 label=$3

@@ -39,6 +39,8 @@ MAX_MANIFEST_BYTES=1048576
 . "$SCRIPT_DIR/fm-secondmate-charter-lib.sh"
 # shellcheck source=bin/fm-wake-lib.sh
 . "$SCRIPT_DIR/fm-wake-lib.sh"
+# shellcheck source=bin/fm-task-data-lib.sh
+. "$SCRIPT_DIR/fm-task-data-lib.sh"
 # shellcheck source=bin/fm-remote-readiness-lib.sh
 . "$SCRIPT_DIR/fm-remote-readiness-lib.sh"
 # shellcheck source=bin/fm-project-origin-lib.sh
@@ -123,7 +125,9 @@ if [ -e "$REG" ] || [ -L "$REG" ]; then
 fi
 
 mkdir -p "$DATA"
-BRIEF="$DATA/$ID/brief.md"
+BRIEF_DIR=$(fm_task_data_dir_for_new "$DATA" "$ID" "$FM_TASK_DATA_SECONDMATES") \
+  || die "cannot place charter $ID in the data layout (invalid id, or the id or its project folder collides with an existing folder)"
+BRIEF="$BRIEF_DIR/brief.md"
 BRIEF_CREATED=0
 if [ ! -f "$BRIEF" ]; then
   [ -n "${FM_SECONDMATE_CHARTER:-}" ] || die "no filled charter at $BRIEF; set FM_SECONDMATE_CHARTER or scaffold one first"
