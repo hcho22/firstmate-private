@@ -176,8 +176,9 @@ budget_reset() {
 # that loop either, because it counts auto-arm event epochs and a lock-refused
 # session never advances one. Recovery belongs to the lock holder or to a
 # captain-confirmed takeover, so this session neither blocks nor touches any
-# state/ file, and says so at most once per session, naming the holder and the
-# takeover command exactly as the session-start refusal does. It says so only
+# state/ file, and says so at most once per session, naming the holder exactly as
+# the session-start refusal does and asking the captain, who is the one who reads
+# this notice, to have firstmate in this session run the takeover. It says so only
 # once the watcher beat is stale beyond grace: a fresh beat with no live watcher
 # process is the Stop auto-arm's healthy between-turns state, and the takeover
 # itself refuses while the beat is fresh. The once-only markers live in the temp
@@ -202,7 +203,7 @@ readonly_session_notice() {
     need="X-mode relay polling active"
   fi
   jq -cn --arg m "FIRSTMATE SUPERVISION IS OFF in this home ($need, last watcher beat: $FM_SUP_BEACON_DESC), and this session is read-only: another live process holds the fleet lock, so this session will not arm or repair supervision and its turn may end. Supervision stays off for as long as that holder keeps the lock.
-$(fm_session_lock_takeover_guidance "$STATE" "$holder" "$SCRIPT_DIR/fm-lock.sh" "$FM_HOME" "$FM_ROOT")" '{systemMessage: $m}'
+$(fm_session_lock_takeover_guidance captain "$STATE" "$holder")" '{systemMessage: $m}'
 }
 
 # The one lock-refused case that must reach the MODEL, not just the captain: this

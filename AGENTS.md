@@ -161,7 +161,7 @@ Do not separately re-read the context, backlog, metadata, or bulk status inputs 
 An `ABSENT` captain, shared-captain, secondmate, or learnings file means the firstmate repo's built-in defaults, no shared captain preferences, no registered secondmates, or no captured learnings; rebuild an absent or stale project registry from the clones before dispatch.
 
 If the session lock cannot be acquired and verified, report its exact diagnostic and remain read-only; another active session is only one possible cause.
-A live holder is never displaced automatically: relay the diagnostic's holder description and takeover command to the captain, and run that command only on the captain's explicit confirmation.
+A live holder is never displaced automatically: relay the diagnostic's holder description to the captain, and run its takeover command (`bin/fm-lock.sh takeover --confirm-holder <pid>`) yourself, in this session, only on the captain's explicit confirmation.
 A lock-refused session must not spawn, steer, merge, drain the wake queue, repair supervision, repair a checkout, or perform any other fleet mutation.
 
 The digest itself makes no external-network call and never waits for one.

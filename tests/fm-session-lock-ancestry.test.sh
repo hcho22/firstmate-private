@@ -616,6 +616,39 @@ test_confirmed_takeover_records_who_replaced_whom_and_keeps_the_lock_format() {
   pass "session-lock takeover: records who replaced whom, keeps the one-line lock, and never signals the previous holder"
 }
 
+# The captain's own terminal: an ordinary shell with no firstmate session in its
+# ancestry. The process is orphaned before it runs the takeover, so the ancestry
+# walk cannot escape into the session running this suite.
+test_takeover_outside_any_session_says_where_to_run_it() {
+  local dir i out
+  dir="$TMP_ROOT/takeover-plain-terminal"
+  make_idle_daemon_home "$dir"
+  cat > "$dir/terminal.sh" <<'SH'
+#!/usr/bin/env bash
+i=0
+while [ "$i" -lt 200 ] && [ "$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' ')" != 1 ]; do
+  sleep 0.05
+  i=$((i + 1))
+done
+"$FM_HOME/bin/fm-lock.sh" takeover --confirm-holder "$1" > "$FM_HOME/terminal.out" 2>&1
+printf '%s\n' "$?" > "$FM_HOME/terminal.rc"
+SH
+  FM_HOME="$dir" bash -c 'bash "$0" "$1" &' "$dir/terminal.sh" "$DAEMON_PID"
+  i=0
+  while [ "$i" -lt 400 ] && [ ! -s "$dir/terminal.rc" ]; do
+    sleep 0.05
+    i=$((i + 1))
+  done
+  [ -s "$dir/terminal.rc" ] || { stop_idle_daemon_home "$dir"; fail "the plain-terminal takeover never finished"; }
+  out=$(cat "$dir/terminal.out")
+  expect_code 1 "$(tr -d '[:space:]' < "$dir/terminal.rc")" "a takeover with no firstmate session to hand the lock to must refuse"
+  assert_contains "$out" "a takeover must be run by the firstmate session that will take the lock" "the refusal did not say where the takeover must run"
+  [ "$(cat "$dir/state/.lock")" = "$DAEMON_PID" ] || fail "a takeover from outside any session displaced the holder"
+  assert_absent "$dir/state/.lock-takeovers" "a refused takeover left a record"
+  stop_idle_daemon_home "$dir"
+  pass "session-lock takeover: run outside any firstmate session it refuses and says the session that will take the lock must run it"
+}
+
 test_displaced_session_is_read_only_at_its_next_lock_checks() {
   local dir
   dir="$TMP_ROOT/takeover-displaced"
@@ -670,5 +703,6 @@ test_live_idle_holder_is_named_and_never_displaced_automatically
 test_takeover_requires_explicit_confirmation_of_the_current_holder
 test_takeover_refuses_while_a_watcher_beat_is_fresh
 test_confirmed_takeover_records_who_replaced_whom_and_keeps_the_lock_format
+test_takeover_outside_any_session_says_where_to_run_it
 test_displaced_session_is_read_only_at_its_next_lock_checks
 test_dead_holder_is_still_reclaimed_automatically

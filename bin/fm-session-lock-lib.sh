@@ -202,17 +202,28 @@ fm_session_lock_holder_summary() {  # <state> <pid>
   printf 'command: %s, holding the lock since %s (%s ago)' "$args" "$taken" "$age"
 }
 
-# Print the lines every lock-refused surface shows for state dir $1's live holder
-# pid $2: what holds the lock, and the one way to take it over, spelled as the
-# exact command for lock script $3 in home $4 (checkout root $5). The session-start
-# refusal (bin/fm-lock.sh) and the turn-end guard's read-only notice both print
-# exactly these lines, so the two can never disagree about the way out.
-fm_session_lock_takeover_guidance() {  # <state> <pid> <lock-script> <home> <root>
-  local state=$1 pid=$2 lock_script=$3 home=$4 root=$5 home_prefix=
-  [ "$home" = "$root" ] || home_prefix="FM_HOME='$home' "
+# Print the lines every lock-refused surface shows for state dir $2's live holder
+# pid $3: what holds the lock, and the one way to take it over, worded for
+# audience $1. "session" is the firstmate session itself (the session-start
+# refusal in bin/fm-lock.sh), which gets the exact command for lock script $4 in
+# home $5 (checkout root $6). "captain" is the reader of the turn-end guard's
+# read-only notice, which Claude Code shows to the captain and not the model; it
+# gets no command to paste, because a takeover only works from inside the
+# session that will hold the lock, so the captain asks firstmate in this session
+# to run it. Every other line is shared, so the two surfaces can never disagree
+# about the holder or the conditions.
+fm_session_lock_takeover_guidance() {  # <session|captain> <state> <pid> [<lock-script> <home> <root>]
+  local audience=$1 state=$2 pid=$3 home_prefix=
+  local never='This session never takes over a live holder on its own.'
+  local idle='that process is not a working firstmate session (for example an idle background service)'
   printf 'holder: pid %s, %s\n' "$pid" "$(fm_session_lock_holder_summary "$state" "$pid")"
-  printf '%s\n' "This session never takes over a live holder on its own. Only with the captain's OK, once the captain confirms that process is not a working firstmate session (for example an idle background service), take over with:"
-  printf '  %s%s takeover --confirm-holder %s\n' "$home_prefix" "$lock_script" "$pid"
+  if [ "$audience" = captain ]; then
+    printf '%s If you confirm %s, ask firstmate in this session to take over the fleet lock from pid %s. The takeover must be run by the firstmate session that will hold the lock, so it does not work from a separate terminal.\n' "$never" "$idle" "$pid"
+  else
+    [ "$5" = "$6" ] || home_prefix="FM_HOME='$5' "
+    printf "%s Only with the captain's OK, once the captain confirms %s, take over with:\n" "$never" "$idle"
+    printf '  %s%s takeover --confirm-holder %s\n' "$home_prefix" "$4" "$pid"
+  fi
   printf '%s\n' 'The takeover refuses while a watcher beat is fresh, and records who took over from whom.'
 }
 

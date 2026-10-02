@@ -2020,8 +2020,9 @@ test_hook_claude_readonly_notice_is_once_per_session() {
   assert_contains "$message" "app-server --listen unix:// --managed-daemon" "the notice did not show what the holder is running"
   assert_contains "$message" "holding the lock since 2026-" "the notice did not say when the holder took the lock"
   assert_contains "$message" "stays off for as long as that holder keeps the lock" "the notice must say supervision stays off while the holder keeps the lock"
-  assert_contains "$message" "fm-lock.sh takeover --confirm-holder $foreign" "the notice did not print the explicit takeover command"
-  assert_contains "$message" "Only with the captain's OK" "the notice must say the takeover needs the captain's OK"
+  assert_contains "$message" "If you confirm that process is not a working firstmate session" "the notice must leave the takeover decision to the captain"
+  assert_contains "$message" "ask firstmate in this session to take over the fleet lock from pid $foreign" "the notice must tell the captain to have firstmate in this session run the takeover"
+  assert_not_contains "$message" "--confirm-holder" "the captain-facing notice must not offer a bare command to paste into another terminal"
   assert_not_contains "$message" "resumes when" "the notice must not tell the reader to wait for the holder to go away"
   run_guard_in_harness "$dir" claude sess-a none --claude
   [ -z "$GUARD_OUT" ] || { stop_foreign_session "$foreign"; fail "second stop of the same read-only session repeated the notice: $GUARD_OUT"; }
@@ -2137,7 +2138,7 @@ test_hook_readonly_session_stays_silent_while_the_beat_is_fresh() {
   stop_foreign_session "$foreign"
   expect_code 0 "$GUARD_RC" "a read-only session over a stale beat must still end its turn"
   assert_contains "$GUARD_OUT" 'FIRSTMATE SUPERVISION IS OFF' "the same session got no notice once the beat went stale"
-  assert_contains "$GUARD_OUT" "takeover --confirm-holder $foreign" "the stale-beat notice did not offer the takeover"
+  assert_contains "$GUARD_OUT" "take over the fleet lock from pid $foreign" "the stale-beat notice did not offer the takeover"
   pass "fm-turnend-guard --claude: a read-only session is silent over a fresh beat and notified once it goes stale"
 }
 

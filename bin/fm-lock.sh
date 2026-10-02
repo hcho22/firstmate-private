@@ -28,7 +28,9 @@
 #   - no watcher beat is fresh (FM_GUARD_GRACE, default 300s), because a fresh
 #     beat means a live session is supervising this home right now;
 #   - the takeover can be recorded.
-# It appends one line to state/.lock-takeovers (who took over from whom, and
+# It must run inside the firstmate session that will hold the lock, because the
+# new holder is that session's harness pid; run anywhere else it refuses and says
+# so. It appends one line to state/.lock-takeovers (who took over from whom, and
 # when) and then writes the new holder pid. It never signals the previous holder:
 # that process may be a shared background service. A previous holder that is
 # still a firstmate session finds itself read-only at every lock-ownership check
@@ -92,7 +94,14 @@ if [ "${1:-}" = "takeover" ]; then
   esac
 fi
 
-me=$(fm_harness_ancestry_pid) || { echo "error: cannot locate harness process in ancestry" >&2; exit 1; }
+if ! me=$(fm_harness_ancestry_pid); then
+  if [ "$TAKEOVER" -eq 1 ]; then
+    echo "error: cannot locate harness process in ancestry: a takeover must be run by the firstmate session that will take the lock, and this command is not running inside one; ask firstmate in that session to run it" >&2
+  else
+    echo "error: cannot locate harness process in ancestry" >&2
+  fi
+  exit 1
+fi
 probe=$(mktemp "$STATE/.lock-write.XXXXXX" 2>/dev/null) || {
   echo "error: cannot write session lock; operate read-only until resolved" >&2
   exit 1
@@ -117,7 +126,7 @@ trap 'exit 1' HUP INT TERM
 # way out, so the captain decides with the facts instead of a bare pid.
 refuse_live_holder() {  # <pid>
   echo "error: another live firstmate session holds the lock (pid $1); operate read-only until resolved" >&2
-  fm_session_lock_takeover_guidance "$STATE" "$1" "$SCRIPT_DIR/fm-lock.sh" "$FM_HOME" "$FM_ROOT" | sed 's/^/  /' >&2
+  fm_session_lock_takeover_guidance session "$STATE" "$1" "$SCRIPT_DIR/fm-lock.sh" "$FM_HOME" "$FM_ROOT" | sed 's/^/  /' >&2
 }
 
 # Publish this session's pid as the holder and verify it landed. Exits 1 with the
