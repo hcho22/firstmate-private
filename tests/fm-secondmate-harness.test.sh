@@ -2116,7 +2116,7 @@ SH
 
 test_config_reread_serializes_concurrent_pushes() {
   local w head fakebin marker entered log first_out second_out first_pid first_status second_status
-  local first_instr second_instr first_line second_line
+  local first_instr second_instr first_line second_line push_deadline
   w=$(new_world config-reread-serialized-pushes)
   head=$(git -C "$w/main" rev-parse HEAD)
   add_sm_worktree "$w" sm "$head"
@@ -2150,13 +2150,13 @@ SH
       "$ROOT/bin/fm-config-push.sh" > "$first_out" 2>&1
   ) &
   first_pid=$!
-  # Wait for the first push to reach delivery for as long as a loaded host needs:
-  # a 2s window made this case a load detector instead of a serialization test.
-  for _ in $(seq 1 1500); do
-    [ -e "$entered" ] && break
+  # Wait for the event itself, bounded by time rather than by a count of sleeps: a
+  # slow host stretches the wait, and only a genuine hang reaches the 60 s guard.
+  push_deadline=$((SECONDS + 60))
+  until [ -e "$entered" ]; do
+    [ "$SECONDS" -lt "$push_deadline" ] || fail "first config push did not reach pointer delivery"
     sleep 0.02
   done
-  [ -e "$entered" ] || fail "first config push did not reach pointer delivery"
   first_instr=$(reread_instruction_path "$w/sm") \
     || fail "first concurrent push did not publish its generation"
   printf 'two\n' > "$w/home/config/crew-harness"
