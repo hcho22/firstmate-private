@@ -537,6 +537,67 @@ SH
   pass "changed defaults to bounded automatic scheduling with serial override"
 }
 
+# The automatic --changed bound is a hang guard with a 900s floor, but a script
+# with a measured duration hint runs at several times that hint on a slow shared
+# host (fm-watch-triage measured 761s against a 263s hint and was cut off at 900s
+# while still progressing). A script with a hint therefore gets the larger of the
+# floor and six times the hint, a script without one keeps the floor, an explicit
+# --per-script-timeout-secs stays flat, and a hung script still fails at its bound.
+test_changed_bound_scales_with_the_duration_hint() {
+  local tmp repo hinted unhinted log rc bound
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-hintbound.XXXXXX")
+  repo="$tmp/repo"
+  hinted=tests/fm-watch-triage.test.sh
+  unhinted=tests/fm-calm-pi-extension.test.sh
+  log="$tmp/bounds.log"
+  mkdir -p "$repo/bin" "$repo/tests"
+  cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+  cat >"$repo/bin/fm-timeout-lib.sh" <<'SH'
+fm_run_timed() {
+  printf '%s\n' "$*" >>"$FM_TEST_BOUND_LOG"
+  return 124
+}
+SH
+  for s in "$hinted" "$unhinted"; do
+    printf '#!/usr/bin/env bash\ntouch should-not-run\n' >"$repo/$s"
+    chmod +x "$repo/$s"
+  done
+  chmod +x "$repo/bin/fm-test-run.sh"
+  git -C "$repo" init -q
+  git -C "$repo" add .
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm baseline
+  for s in "$hinted" "$unhinted"; do printf '\n' >>"$repo/$s"; done
+
+  : >"$log"
+  set +e
+  (cd "$repo" && FM_TEST_BOUND_LOG="$log" bin/fm-test-run.sh --changed --base HEAD) >"$tmp/out" 2>"$tmp/err"
+  rc=$?
+  set -e
+  [ "$rc" -eq 1 ] || fail "hung scripts must fail the run, got $rc: $(cat "$tmp/out")"
+  # The hinted script's bound is read back from what the runner handed the timeout
+  # helper. The exact hint is the runner's own balance data and is refreshed over
+  # time, so assert the rule rather than a number: above the 900s floor, and in
+  # the range of a small multiple of a hint that is a few minutes long.
+  bound=$(awk -v s="$hinted" 'index($0, s) { print $1; exit }' "$log")
+  case "$bound" in ''|*[!0-9]*) fail "$hinted was not run under a numeric bound: $(cat "$log")" ;; esac
+  [ "$bound" -gt 900 ] || fail "$hinted kept the flat 900s floor instead of a hint-proportional bound ($bound s)"
+  [ "$bound" -le 6000 ] || fail "$hinted got an implausibly large bound ($bound s)"
+  grep -Eq "^900 .*$unhinted" "$log" || fail "$unhinted lost the 900s floor: $(cat "$log")"
+  grep -Fq "$hinted exceeded the per-script bound of ${bound}s and was terminated" "$tmp/out" \
+    || fail "a hung hinted script was not reported at its own bound: $(cat "$tmp/out")"
+  grep -Eq "^FM_TEST_END .+ $hinted exit=124 " "$tmp/out" || fail "a hung hinted script was not recorded as exit 124"
+
+  : >"$log"
+  set +e
+  (cd "$repo" && FM_TEST_BOUND_LOG="$log" bin/fm-test-run.sh --changed --base HEAD --per-script-timeout-secs 7) >"$tmp/out2" 2>"$tmp/err2"
+  set -e
+  grep -Eq "^7 .*$hinted" "$log" || fail "an explicit bound was scaled for a hinted script: $(cat "$log")"
+  grep -Eq "^7 .*$unhinted" "$log" || fail "an explicit bound was not applied flat: $(cat "$log")"
+
+  rm -rf "$tmp"
+  pass "the automatic changed bound scales with the duration hint and stays flat when explicit"
+}
+
 # A local verification round names the subjects it cares about. Exercise begin/end
 # markers from real fixture processes to prove that a plain list of script paths
 # gets bounded automatic scheduling without changing its per-script timeout
@@ -1561,6 +1622,7 @@ test_changed_runner_surfaces_select_their_family
 test_changed_context_selects_documentation_and_guidance_checks
 test_changed_dependency_selection_and_unmapped_failure
 test_changed_bin_reference_selects_per_script_not_per_family
+test_changed_bound_scales_with_the_duration_hint
 test_changed_uses_bounded_automatic_concurrency
 test_script_list_uses_bounded_automatic_concurrency
 test_family_proofs_run_in_separate_concurrent_phases

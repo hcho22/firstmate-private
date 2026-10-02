@@ -73,9 +73,13 @@
 #   --per-script-timeout-secs N
 #                   terminate a script that runs longer than N seconds and
 #                   record it as exit 124 (0 disables, the default). The
-#                   --changed applies 900s automatically: no real script
-#                   approaches it, so it only converts a HUNG
-#                   script into a bounded failure. --max-wall-ms is checked
+#                   --changed applies a bound automatically: at least 900s, and
+#                   for a script with a measured duration hint (the runner's own
+#                   balance hints) at least 6 times that hint, so it only
+#                   converts a HUNG script into a bounded failure even where a
+#                   slow host runs a long script at several times its hint. An
+#                   explicit value is a flat bound for every script.
+#                   --max-wall-ms is checked
 #                   after the run and so cannot catch a hang on its own.
 #                   External interruption cleanup is outside this runner's
 #                   guarantee; configured per-script bounds remain authoritative.
@@ -169,16 +173,24 @@ JOBS_EXPLICIT=0
 JOBS_MAX=8
 MAX_WALL_MS=
 PER_SCRIPT_TIMEOUT_SECS=0
-# Bound applied automatically on the automatic --changed path, derived from
-# measured healthy runtimes with margin rather than picked: the slowest measured
-# behavior test is the 341s Herdr presentation E2E, and the slowest script in a
-# runner-file changed selection is tests/fm-calm-pi-extension.test.sh at 77s
-# once its Chrome reap terminates. 900s leaves roughly 2.6x headroom over the
-# slowest real script, so this can only ever fire on a script that is genuinely
-# stuck. It is a guard, not a speed control: a HUNG script becomes a bounded
-# failure instead of an unbounded suite, which is the shape that silently
-# outruns a caller's invocation budget.
+PER_SCRIPT_TIMEOUT_AUTO=0
+# Bound applied automatically on the automatic --changed path. The floor was
+# derived from healthy runtimes measured on the CI reference host: the slowest
+# measured behavior test is the 341s Herdr presentation E2E, and the slowest
+# script in a runner-file changed selection is tests/fm-calm-pi-extension.test.sh
+# at 77s once its Chrome reap terminates, so 900s left roughly 2.6x headroom there.
+# That headroom does not hold everywhere. On a macOS host with stock bash 3.2 under
+# shared load, tests/fm-watch-triage.test.sh measured 761s in one run and was
+# still progressing, 88 assertions in, when 900s terminated it in the next,
+# against a 263s hint: about 3x the reference. So the bound for a script with a
+# measured duration hint (portable_serial_weight_hints) is the larger of this
+# floor and CHANGED_HINT_BOUND_FACTOR times that hint, which keeps the floor, and
+# the quick detection of a hang, for every script without a hint. It is a guard,
+# not a speed control: a HUNG script becomes a bounded failure instead of an
+# unbounded suite, which is the shape that silently outruns a caller's invocation
+# budget. An explicit --per-script-timeout-secs is a flat bound and is not scaled.
 CHANGED_DEFAULT_TIMEOUT_SECS=900
+CHANGED_HINT_BOUND_FACTOR=6
 
 # How many separate-runner shards the portable serial remainder splits into.
 # One owner: CI lane names carry this count and are refused when they disagree.
@@ -1923,6 +1935,7 @@ AUTO_CONCURRENCY=0
 if { [ "$MODE" = changed ] || [ "$MODE" = scripts ]; } && [ "$JOBS_EXPLICIT" -eq 0 ]; then
   if [ "$MODE" = changed ] && [ "${#SCRIPTS[@]}" -gt 0 ] && [ "$PER_SCRIPT_TIMEOUT_SECS" -eq 0 ]; then
     PER_SCRIPT_TIMEOUT_SECS=$CHANGED_DEFAULT_TIMEOUT_SECS
+    PER_SCRIPT_TIMEOUT_AUTO=1
   fi
   auto_admissible=0
   for s in "${SCRIPTS[@]}"; do
@@ -2184,32 +2197,52 @@ record_script_result() {
 # positive, a script that outruns it is terminated and reported as exit 124: a
 # hung script must become a bounded failure rather than an unbounded suite,
 # because an unbounded suite is what silently outruns its caller's budget.
+# script_bound_secs <script>: the bound this script runs under. A flat explicit
+# bound (or 0, no bound) is returned as given. The automatic bound is raised to
+# CHANGED_HINT_BOUND_FACTOR times the script's measured duration hint when that is
+# larger, see CHANGED_DEFAULT_TIMEOUT_SECS.
+script_bound_secs() {
+  local script=$1 bound=$PER_SCRIPT_TIMEOUT_SECS hint_ms hinted
+  if [ "$PER_SCRIPT_TIMEOUT_AUTO" -eq 1 ]; then
+    hint_ms=$(portable_serial_weight_hints | awk -v script="$script" '$1 == script { print $2; exit }')
+    case "$hint_ms" in
+      ''|*[!0-9]*) ;;
+      *)
+        hinted=$(( (hint_ms * CHANGED_HINT_BOUND_FACTOR + 999) / 1000 ))
+        [ "$hinted" -le "$bound" ] || bound=$hinted
+        ;;
+    esac
+  fi
+  printf '%s\n' "$bound"
+}
+
 run_script_bounded() {  # <script> <out> <stream> <id>
   local script=$1 out=$2 stream=$3 id=$4
-  local rc
+  local rc bound
   : "$id"
+  bound=$(script_bound_secs "$script")
   set +e
   if [ "$stream" -eq 1 ]; then
-    if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
+    if [ "$bound" -gt 0 ]; then
       # Expansion is intentionally deferred to the child bash passed to -c.
       # shellcheck disable=SC2016
-      fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash -c \
+      fm_run_timed "$bound" bash -c \
         'bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' _ "$script" "$out"
       rc=$?
     else
       bash "$script" 2>&1 | tee "$out"
       rc=${PIPESTATUS[0]}
     fi
-  elif [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
-    fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash "$script" >"$out" 2>&1
+  elif [ "$bound" -gt 0 ]; then
+    fm_run_timed "$bound" bash "$script" >"$out" 2>&1
     rc=$?
   else
     bash "$script" >"$out" 2>&1
     rc=$?
   fi
-  if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ] && [ "$rc" -eq 124 ]; then
+  if [ "$bound" -gt 0 ] && [ "$rc" -eq 124 ]; then
     printf 'not ok - %s exceeded the per-script bound of %ss and was terminated\n' \
-      "$script" "$PER_SCRIPT_TIMEOUT_SECS" >>"$out"
+      "$script" "$bound" >>"$out"
     [ "$stream" -eq 1 ] && tail -1 "$out"
   fi
   return "$rc"
