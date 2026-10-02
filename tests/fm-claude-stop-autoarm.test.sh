@@ -121,7 +121,12 @@ SH
 #!/usr/bin/env bash
 echo "$$" >> "$FM_HOME/state/arm-ran"
 : > "$FM_HOME/state/arm-waiting"
-while [ ! -e "$FM_HOME/state/arm-release" ]; do sleep 0.02; done
+# A case that fails before releasing this arm removes its home on exit; stop
+# then instead of spinning on a release that can never come.
+while [ ! -e "$FM_HOME/state/arm-release" ]; do
+  [ -d "$FM_HOME/state" ] || exit 1
+  sleep 0.02
+done
 printf 'watcher: FAILED - cycle ended without an actionable reason\n'
 exit 1
 SH
