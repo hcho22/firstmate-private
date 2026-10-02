@@ -107,8 +107,11 @@ printf '%s\n' "$count" > "$FM_SSH_COUNT"
 printf '%s\n' "$*" >> "$FM_SSH_LOG"
 if [ -n "${FM_FAKE_SSH_HANG:-}" ]; then
   # A busy remote lane: the transport attempt never returns on its own. The
-  # real sleep, because the stubbed one on PATH returns immediately.
+  # real sleep, because the stubbed one on PATH returns immediately. A lane
+  # that does run out records it, so a send that waited it out is visible
+  # without timing the send.
   /bin/sleep "$FM_FAKE_SSH_HANG"
+  printf '%s\n' "$count" >> "$FM_SSH_COUNT.lane-finished"
   exit 255
 fi
 if [ "${FM_FAKE_SSH_AFTER_AMBIGUOUS_RC:-0}" -ne 0 ] && [ "$count" -gt 1 ]; then
@@ -610,7 +613,7 @@ test_remote_transport_loss_preserves_expectation() {
 }
 
 test_remote_send_budget_bounds_busy_lane() {
-  local dir fb ssh_log home rhome rc err began elapsed count pend delivery corr ssh_before
+  local dir fb ssh_log home rhome rc err count pend delivery corr ssh_before budget
   dir="$TMP_ROOT/remote-budget"; mkdir -p "$dir"
   fb=$(make_stubs "$dir"); ssh_log="$dir/ssh.log"; : > "$ssh_log"
   rhome=$(setup_remote_secondmate_home remote-budget)
@@ -625,30 +628,35 @@ test_remote_send_budget_bounds_busy_lane() {
     "an invalid remote key budget must explain its validation failure"
   [ ! -f "$ssh_log.count" ] || fail "an invalid remote key budget reached the transport"
 
-  began=$(date +%s)
+  # The budget bounds a whole transport attempt, including fm-on.sh's local
+  # route resolution before ssh starts (about 1.2 s at load average 150 on a
+  # macOS host, 2.4 s with a new fake ssh's first execution). It must outlast
+  # that local work so each bounded send really reaches the busy lane, and the
+  # lane (60 s) must outlast the budget. Whether a send waited the lane out is
+  # read from the lane's own finished record, not from the send's wall clock.
+  budget=10
+
   rc=0
-  send_env "$fb" "$home" "$ssh_log" FM_FAKE_SSH_HANG=60 FM_SEND_REMOTE_BUDGET=2 \
+  send_env "$fb" "$home" "$ssh_log" FM_FAKE_SSH_HANG=60 FM_SEND_REMOTE_BUDGET="$budget" \
     "$SEND" rsm --key Enter >"$dir/key.out" 2>"$dir/key.err" || rc=$?
-  elapsed=$(( $(date +%s) - began ))
   expect_code 1 "$rc" "a bounded remote key must preserve the existing failure contract"
-  [ "$elapsed" -le 15 ] || fail "the bounded remote key waited ${elapsed}s behind the busy lane"
+  [ ! -e "$ssh_log.count.lane-finished" ] || fail "the bounded remote key waited out the busy lane"
   assert_contains "$(cat "$dir/key.err")" "completion may be unknown" \
     "a bounded remote key failure must preserve its existing diagnostic"
-  [ "$(cat "$ssh_log.count")" = 1 ] \
-    || fail "a bounded remote key must make exactly one transport attempt"
+  count=$(cat "$ssh_log.count" 2>/dev/null || echo 0)
+  [ "$count" = 1 ] \
+    || fail "a bounded remote key must make exactly one transport attempt, got $count"
   printf '0\n' > "$ssh_log.count"
 
   # T5: a fire-and-forget send to a mate behind a busy lane returns its
   # unconfirmed result within its own budget instead of waiting the lane out.
-  began=$(date +%s)
   rc=0
-  send_env "$fb" "$home" "$ssh_log" FM_FAKE_SSH_HANG=60 FM_SEND_REMOTE_BUDGET=2 \
+  send_env "$fb" "$home" "$ssh_log" FM_FAKE_SSH_HANG=60 FM_SEND_REMOTE_BUDGET="$budget" \
     "$SEND" rsm --fire-and-forget "$delivery" "reconcile your own books" \
     >"$dir/out" 2>"$dir/err" || rc=$?
-  elapsed=$(( $(date +%s) - began ))
   err=$(cat "$dir/err")
   expect_code 3 "$rc" "a budget-bounded fire-and-forget send must report unconfirmed: $err"
-  [ "$elapsed" -le 15 ] || fail "the bounded send waited ${elapsed}s behind the busy lane"
+  [ ! -e "$ssh_log.count.lane-finished" ] || fail "the bounded send waited out the busy lane"
   assert_contains "$err" "delivery-id=$delivery" \
     "the bounded unconfirmed result must name the reusable delivery id"
   [ "$(cat "$ssh_log.count")" = 1 ] \
@@ -666,11 +674,12 @@ test_remote_send_budget_bounds_busy_lane() {
   # A reply-bearing send names the budget and prints the correlation-reusing
   # resend command, with the expectation preserved as delivery-unknown.
   rc=0
-  send_env "$fb" "$home" "$ssh_log" FM_FAKE_SSH_HANG=60 FM_SEND_REMOTE_BUDGET=2 \
+  send_env "$fb" "$home" "$ssh_log" FM_FAKE_SSH_HANG=60 FM_SEND_REMOTE_BUDGET="$budget" \
     "$SEND" rsm "please rename the metric" >"$dir/reply.out" 2>"$dir/reply.err" || rc=$?
   err=$(cat "$dir/reply.err")
   [ "$rc" -ne 0 ] || fail "a budget-bounded reply-bearing send must not claim confirmed delivery"
-  assert_contains "$err" "within its 2s budget" \
+  [ ! -e "$ssh_log.count.lane-finished" ] || fail "the bounded reply-bearing send waited out the busy lane"
+  assert_contains "$err" "within its ${budget}s budget" \
     "the budget-bounded failure must name the budget that bounded it"
   assert_contains "$err" "Only the correlation-reusing resend below is idempotent" \
     "the budget-bounded failure must print the supported safe resend boundary"
