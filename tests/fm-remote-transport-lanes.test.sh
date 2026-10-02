@@ -10,13 +10,18 @@
 #   T3: a caller killed mid-wait cancels its job - the worker never executes a
 #       cancelled queued job and terminates a running cancelled job's process
 #       group - and a caller whose parent dies without delivering a signal
-#       (the dead-ssh-channel shape) cancels the same way; afterwards a burst
-#       of short commands completes with no convoy.
+#       (the dead-ssh-channel shape) cancels the same way; a burst of short
+#       commands staged right behind an abandoned job completes with no convoy.
 #   T6: a non-payload fm-on call with an OPEN stdin pipe completes instead of
 #       wedging staging, and a payload caller with --stdin still delivers its
 #       bytes through the worker.
 #   Stage litter older than the reap age does not survive a worker pass while
 #   fresh staging does.
+#
+# Every lane holder and every abandoned job is a gated fixture that ends only
+# when the test releases it or the worker cancels it, and every positive wait is
+# bounded by a time guard on the real event. Nothing asserts how many seconds a
+# step took: elapsed time on a shared host measures its load, not the property.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -60,24 +65,27 @@ cp "$ROOT/bin/fm-remote-job-lib.sh" "$ROOT/bin/fm-remote-job-worker.sh" \
 mkdir -p "$REMOTE_ROOT/bin/backends"
 cp "$ROOT/bin/backends/herdr.sh" "$REMOTE_ROOT/bin/backends/herdr.sh"
 printf 'fixture\n' > "$REMOTE_ROOT/AGENTS.md"
-# Appends its tag to a shared log, then optionally sleeps: the log order is the
-# observable execution order.
+# Appends its tag to a shared log: the log order is the observable execution
+# order.
 cat > "$REMOTE_ROOT/bin/fm-mark-job.sh" <<'SH'
 #!/bin/bash
 printf '%s\n' "$1" >> "$2"
-sleep "${3:-0}"
 SH
 cat > "$REMOTE_ROOT/bin/fm-touch-job.sh" <<'SH'
 #!/bin/bash
 printf 'ran\n' > "$1"
 SH
-# Marks its start, sleeps, then marks completion: cancellation must leave the
-# start marker without the completion marker.
-cat > "$REMOTE_ROOT/bin/fm-two-phase-job.sh" <<'SH'
+# Holds its lane until the release marker exists: appends its tag to the log,
+# publishes its pid atomically (the file's presence marks the start), then
+# blocks. A held lane is a state the test controls instead of a sleep the host's
+# load can outlast, and an abandoned gated job can end only by cancellation.
+cat > "$REMOTE_ROOT/bin/fm-gate-job.sh" <<'SH'
 #!/bin/bash
-printf 'started\n' > "$1"
-sleep "$3"
-printf 'finished\n' > "$2"
+printf '%s\n' "$1" >> "$2"
+if [ -n "${4:-}" ]; then
+  printf '%s\n' "$$" > "$4.tmp" && mv -f -- "$4.tmp" "$4"
+fi
+while [ ! -e "$3" ]; do sleep 0.1; done
 SH
 cat > "$REMOTE_ROOT/bin/fm-stdin-probe.sh" <<'SH'
 #!/bin/bash
@@ -161,44 +169,96 @@ job_state() { # <id>
   fm_remote_job_read_state "$STATE_ROOT/jobs/$1" 2>/dev/null || true
 }
 
-wait_for_state() { # <id> <state>
-  local i=0
-  while [ "$i" -lt 200 ]; do
-    [ "$(job_state "$1")" = "$2" ] && return 0
-    i=$((i + 1))
+# Every positive wait waits on the real event and is bounded by time, never by a
+# count of sleeps: each iteration of a counted loop also pays process spawns, so
+# on a loaded host the give-up arrives before the fixture's own path to the
+# event. Only a genuine hang may reach the guard. SECONDS ticks on wall-clock
+# second boundaries, so requiring more than the guard in ticks guarantees the
+# full guard has elapsed.
+EVENT_WAIT_SECONDS=60
+# One whole fm-on call crosses fm-on, the ssh stand-in, the remote entrypoint, the
+# queue, and a worker lane, many process spawns each, so its guard is wider.
+CALL_GUARD_SECONDS=120
+# An execution bound far beyond every guard here: a gated job ends only by its
+# release or by cancellation, never by the worker's timeout path.
+GATED_TIMEOUT=3600
+# A held-open writer must outlive the call guard it is meant to outlast.
+STDIN_HOLD_SECONDS=$((CALL_GUARD_SECONDS * 2))
+
+wait_until() { # <command...>: poll until the command succeeds
+  local started=$SECONDS
+  until "$@"; do
+    [ $((SECONDS - started)) -le "$EVENT_WAIT_SECONDS" ] || return 1
     sleep 0.05
   done
+}
+
+# Keeps a pipe's writer alive until the marker exists, so the reader's stdin
+# capture stays open exactly as long as the test needs it.
+hold_open_until() { # <marker>
+  local started=$SECONDS
+  until [ -e "$1" ] || [ $((SECONDS - started)) -gt "$STDIN_HOLD_SECONDS" ]; do
+    sleep 0.05
+  done
+}
+
+job_is() { [ "$(job_state "$1")" = "$2" ]; } # <id> <state>
+wait_for_state() { wait_until job_is "$1" "$2"; } # <id> <state>
+jobs_entry_absent() { [ ! -d "$STATE_ROOT/jobs/$1" ]; } # <name under jobs/>
+job_records_absent() { ! ls "$STATE_ROOT"/jobs/job-* >/dev/null 2>&1; }
+stage_dir_present() { ls "$STATE_ROOT/jobs"/.stage.* >/dev/null 2>&1; }
+process_gone() { ! kill -0 "$1" 2>/dev/null; } # <pid>
+log_has() { grep -qx -- "$2" "$1" 2>/dev/null; } # <log> <line>
+
+# Sets QUEUED_JOB to the one queued job that is not the lane holder.
+QUEUED_JOB=
+queued_job_besides() { # <holder id>
+  local job
+  for job in "$STATE_ROOT"/jobs/job-*; do
+    [ -d "$job" ] || continue
+    [ "${job##*/}" = "$1" ] && continue
+    if [ "$(job_state "${job##*/}")" = queued ]; then
+      QUEUED_JOB=${job##*/}
+      return 0
+    fi
+  done
   return 1
+}
+
+stage_gate() { # <home> <tag> <log> <release> [pid-file]: stage a job that holds its lane until <release> exists
+  FM_REMOTE_JOB_TIMEOUT=$GATED_TIMEOUT fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$1" \
+    fm-gate-job.sh "${@:2}" < /dev/null > /dev/null
 }
 
 HOME="$ACCOUNT_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$STATE_ROOT" \
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux \
   "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" > "$TMP_ROOT/worker.out" 2> "$TMP_ROOT/worker.err" &
-for _ in $(seq 1 100); do
-  [ -f "$STATE_ROOT/worker.ready" ] && break
-  sleep 0.05
-done
-assert_present "$STATE_ROOT/worker.ready" "the worker did not publish its readiness heartbeat"
+wait_until test -f "$STATE_ROOT/worker.ready" \
+  || fail "the worker did not publish its readiness heartbeat"
 
 # T9: home B's job completes while home A runs a long job, and A's queued job
-# stays strictly behind A's running job.
+# stays strictly behind A's running job. Home A's job is held until released, so
+# B's completion proves lane B was not queued behind lane A without measuring how
+# long it took.
 LOG_A="$TMP_ROOT/log-a"
 LOG_B="$TMP_ROOT/log-b"
-fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$HOME_A" fm-mark-job.sh a1 "$LOG_A" 4 < /dev/null > /dev/null
+A1_RELEASE="$TMP_ROOT/a1-release"
+stage_gate "$HOME_A" a1 "$LOG_A" "$A1_RELEASE"
 A1=$FM_REMOTE_JOB_ID
 wait_for_state "$A1" running || fail "home A's long job did not begin running"
-fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$HOME_A" fm-mark-job.sh a2 "$LOG_A" 0 < /dev/null > /dev/null
+# The state flips to running just before the command starts, so wait for the
+# command's own first line before treating home A's lane as held by it.
+wait_until log_has "$LOG_A" a1 || fail "home A's long job never started its command"
+fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$HOME_A" fm-mark-job.sh a2 "$LOG_A" < /dev/null > /dev/null
 A2=$FM_REMOTE_JOB_ID
-fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$HOME_EDGE" fm-mark-job.sh b1 "$LOG_B" 0 < /dev/null > /dev/null
+fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$HOME_EDGE" fm-mark-job.sh b1 "$LOG_B" < /dev/null > /dev/null
 B1=$FM_REMOTE_JOB_ID
-B_BEGAN=$(date +%s)
 fm_remote_job_wait "$ACCOUNT_HOME" "$B1" || fail "$FM_REMOTE_JOB_ERROR"
-B_ELAPSED=$(( $(date +%s) - B_BEGAN ))
 [ "$FM_REMOTE_JOB_EXIT" -eq 0 ] || fail "home B's job behind home A's long job did not complete"
-[ "$B_ELAPSED" -le 3 ] || fail "home B's job waited ${B_ELAPSED}s behind home A's long job"
 [ "$(job_state "$A1")" = running ] || fail "home A's long job should still be running for the FIFO assertion"
 [ "$(cat "$LOG_A")" = a1 ] || fail "home A's queued job ran beside its running job: $(cat "$LOG_A")"
 fm_remote_job_reap "$ACCOUNT_HOME" "$B1" || fail "home B's job could not be reaped"
+: > "$A1_RELEASE"
 fm_remote_job_wait "$ACCOUNT_HOME" "$A1" || fail "$FM_REMOTE_JOB_ERROR"
 fm_remote_job_wait "$ACCOUNT_HOME" "$A2" || fail "$FM_REMOTE_JOB_ERROR"
 [ "$(printf '%s' "$(cat "$LOG_A")")" = "$(printf 'a1\na2')" ] \
@@ -209,15 +269,18 @@ pass "lanes run homes concurrently while each home stays FIFO"
 
 # T9 stage order: five jobs staged in rapid succession behind a busy lane must
 # execute in staging-sequence order, not the queue directory's random-id order.
+# The lane stays busy until all five are staged, so they genuinely queue together.
 : > "$LOG_A"
-fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$HOME_A" fm-mark-job.sh hold "$LOG_A" 2 < /dev/null > /dev/null
+HOLD_RELEASE="$TMP_ROOT/hold-release"
+stage_gate "$HOME_A" hold "$LOG_A" "$HOLD_RELEASE"
 HOLD=$FM_REMOTE_JOB_ID
 wait_for_state "$HOLD" running || fail "the lane-holding job did not begin running"
 RAPID_IDS=()
 for tag in r1 r2 r3 r4 r5; do
-  fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$HOME_A" fm-mark-job.sh "$tag" "$LOG_A" 0 < /dev/null > /dev/null
+  fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$HOME_A" fm-mark-job.sh "$tag" "$LOG_A" < /dev/null > /dev/null
   RAPID_IDS+=("$FM_REMOTE_JOB_ID")
 done
+: > "$HOLD_RELEASE"
 fm_remote_job_wait "$ACCOUNT_HOME" "$HOLD" || fail "$FM_REMOTE_JOB_ERROR"
 fm_remote_job_reap "$ACCOUNT_HOME" "$HOLD" || true
 for id in "${RAPID_IDS[@]}"; do
@@ -228,26 +291,27 @@ done
   || fail "rapidly staged same-home jobs did not execute in stage order: $(tr '\n' ' ' < "$LOG_A")"
 pass "same-home jobs staged in the same second execute in staging-sequence order"
 
+# The delayed stage's stdin stays open until the fast stage has published, so the
+# fast stage completes first by construction and the order assertion does not
+# depend on how fast the host stages.
 : > "$LOG_A"
-fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$HOME_A" fm-mark-job.sh publish-hold "$LOG_A" 3 < /dev/null > /dev/null
+PUBLISH_RELEASE="$TMP_ROOT/publish-release"
+FAST_PUBLISHED="$TMP_ROOT/fast-published"
+stage_gate "$HOME_A" publish-hold "$LOG_A" "$PUBLISH_RELEASE"
 PUBLISH_HOLD=$FM_REMOTE_JOB_ID
 wait_for_state "$PUBLISH_HOLD" running || fail "the publication-order lane holder did not begin running"
 (
   {
     printf 'delayed payload\n'
-    sleep 5
+    hold_open_until "$FAST_PUBLISHED"
   } | fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$HOME_A" \
-    fm-mark-job.sh delayed "$LOG_A" 0
+    fm-mark-job.sh delayed "$LOG_A"
 ) > "$TMP_ROOT/delayed-stage-id" &
 DELAYED_STAGE_PID=$!
-for _ in $(seq 1 200); do
-  ls "$STATE_ROOT/jobs"/.stage.* >/dev/null 2>&1 && break
-  sleep 0.02
-done
-ls "$STATE_ROOT/jobs"/.stage.* >/dev/null 2>&1 \
-  || fail "the delayed stdin stage did not begin capturing"
-fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$HOME_A" fm-mark-job.sh fast "$LOG_A" 0 < /dev/null > /dev/null
+wait_until stage_dir_present || fail "the delayed stdin stage did not begin capturing"
+fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$HOME_A" fm-mark-job.sh fast "$LOG_A" < /dev/null > /dev/null
 FAST_STAGE=$FM_REMOTE_JOB_ID
+: > "$FAST_PUBLISHED"
 wait "$DELAYED_STAGE_PID" || fail "the delayed stdin stage failed to publish"
 DELAYED_STAGE=$(cat "$TMP_ROOT/delayed-stage-id")
 FAST_SEQ=$(fm_remote_job_read_number "$STATE_ROOT/jobs/$FAST_STAGE" seq) \
@@ -256,6 +320,7 @@ DELAYED_SEQ=$(fm_remote_job_read_number "$STATE_ROOT/jobs/$DELAYED_STAGE" seq) \
   || fail "the delayed stage lost its sequence"
 [ "$FAST_SEQ" -lt "$DELAYED_SEQ" ] \
   || fail "sequence order did not follow publication order: fast=$FAST_SEQ delayed=$DELAYED_SEQ"
+: > "$PUBLISH_RELEASE"
 fm_remote_job_wait "$ACCOUNT_HOME" "$PUBLISH_HOLD" || fail "$FM_REMOTE_JOB_ERROR"
 fm_remote_job_wait "$ACCOUNT_HOME" "$FAST_STAGE" || fail "$FM_REMOTE_JOB_ERROR"
 fm_remote_job_wait "$ACCOUNT_HOME" "$DELAYED_STAGE" || fail "$FM_REMOTE_JOB_ERROR"
@@ -267,121 +332,126 @@ fm_remote_job_reap "$ACCOUNT_HOME" "$DELAYED_STAGE" || true
 pass "same-home sequence order follows completed staging publication"
 
 # T3a: a caller killed while its job is still queued cancels it; the worker
-# never executes it.
-fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$HOME_A" fm-mark-job.sh hold2 "$LOG_A" 4 < /dev/null > /dev/null
+# never executes it. Lane A stays held for the whole cancellation, so the queued
+# record can only have vanished by cancellation, never by running.
+HOLD2_RELEASE="$TMP_ROOT/hold2-release"
+stage_gate "$HOME_A" hold2 "$LOG_A" "$HOLD2_RELEASE"
 HOLD2=$FM_REMOTE_JOB_ID
 wait_for_state "$HOLD2" running || fail "the cancellation fixture's lane holder did not begin running"
 QUEUED_EFFECT="$TMP_ROOT/queued-cancel-effect"
 fm_on ios fm-touch-job.sh "$QUEUED_EFFECT" > /dev/null 2>&1 &
 QUEUED_CALLER=$!
-QUEUED_JOB=
-for _ in $(seq 1 200); do
-  for job in "$STATE_ROOT"/jobs/job-*; do
-    [ -d "$job" ] || continue
-    [ "${job##*/}" = "$HOLD2" ] && continue
-    [ "$(job_state "${job##*/}")" = queued ] && QUEUED_JOB=${job##*/} && break
-  done
-  [ -n "$QUEUED_JOB" ] && break
-  sleep 0.05
-done
-[ -n "$QUEUED_JOB" ] || fail "the doomed caller's job never appeared in the queue"
+wait_until queued_job_besides "$HOLD2" || fail "the doomed caller's job never appeared in the queue"
 kill -TERM "$QUEUED_CALLER" 2>/dev/null || true
 wait "$QUEUED_CALLER" 2>/dev/null || true
-for _ in $(seq 1 200); do
-  [ ! -d "$STATE_ROOT/jobs/$QUEUED_JOB" ] && break
-  sleep 0.05
-done
-[ ! -d "$STATE_ROOT/jobs/$QUEUED_JOB" ] \
+wait_until jobs_entry_absent "$QUEUED_JOB" \
   || fail "the cancelled queued job's record survived (state: $(job_state "$QUEUED_JOB"))"
+[ "$(job_state "$HOLD2")" = running ] \
+  || fail "the cancelled queued job's record vanished only after its lane holder ended (state: $(job_state "$HOLD2"))"
+assert_absent "$QUEUED_EFFECT" "the worker executed a queued job whose caller was killed while its lane was held"
+: > "$HOLD2_RELEASE"
 fm_remote_job_wait "$ACCOUNT_HOME" "$HOLD2" || fail "$FM_REMOTE_JOB_ERROR"
 fm_remote_job_reap "$ACCOUNT_HOME" "$HOLD2" || true
-sleep 1
-assert_absent "$QUEUED_EFFECT" "the worker executed a queued job whose caller was killed"
+# A job staged after the cancelled one on the same lane runs strictly after it
+# would have, so its completion proves the lane moved past the cancelled job
+# without executing it.
+SENTINEL_EFFECT="$TMP_ROOT/queued-cancel-sentinel"
+fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$HOME_A" fm-touch-job.sh "$SENTINEL_EFFECT" < /dev/null > /dev/null
+SENTINEL=$FM_REMOTE_JOB_ID
+fm_remote_job_wait "$ACCOUNT_HOME" "$SENTINEL" || fail "$FM_REMOTE_JOB_ERROR"
+fm_remote_job_reap "$ACCOUNT_HOME" "$SENTINEL" || true
+assert_present "$SENTINEL_EFFECT" "the lane did not run the job staged behind the cancelled one"
+assert_absent "$QUEUED_EFFECT" "the worker executed a cancelled queued job once its lane was free"
 pass "a caller killed mid-wait cancels its queued job before execution"
 
 # T3b: a caller killed while its job is running terminates the job's process
-# group instead of letting it run to completion for nobody.
-RUN_START="$TMP_ROOT/running-cancel-start"
-RUN_FINISH="$TMP_ROOT/running-cancel-finish"
-fm_on build fm-two-phase-job.sh "$RUN_START" "$RUN_FINISH" 8 > /dev/null 2>&1 &
+# group instead of letting it run for nobody. The job's execution bound is far
+# beyond every guard and its release is never given, so the record can vanish and
+# the process can end only through cancellation.
+GATE_LOG="$TMP_ROOT/gate-log"
+NEVER_RELEASED="$TMP_ROOT/never-released"
+RUN_PID="$TMP_ROOT/running-cancel-pid"
+FM_REMOTE_JOB_TIMEOUT=$GATED_TIMEOUT \
+  fm_on build fm-gate-job.sh running-cancel "$GATE_LOG" "$NEVER_RELEASED" "$RUN_PID" > /dev/null 2>&1 &
 RUNNING_CALLER=$!
-for _ in $(seq 1 200); do
-  [ -f "$RUN_START" ] && break
-  sleep 0.05
-done
-assert_present "$RUN_START" "the running-cancellation fixture never started"
+wait_until test -f "$RUN_PID" || fail "the running-cancellation fixture never started"
 kill -TERM "$RUNNING_CALLER" 2>/dev/null || true
 wait "$RUNNING_CALLER" 2>/dev/null || true
-CANCEL_BEGAN=$(date +%s)
-for _ in $(seq 1 200); do
-  ls "$STATE_ROOT"/jobs/job-* >/dev/null 2>&1 || break
-  sleep 0.05
-done
-CANCEL_ELAPSED=$(( $(date +%s) - CANCEL_BEGAN ))
-ls "$STATE_ROOT"/jobs/job-* >/dev/null 2>&1 \
-  && fail "the cancelled running job's record survived"
-[ "$CANCEL_ELAPSED" -le 6 ] || fail "running-job cancellation took ${CANCEL_ELAPSED}s"
-sleep 2
-assert_absent "$RUN_FINISH" "a cancelled running job's process group ran to completion"
+wait_until job_records_absent || fail "the cancelled running job's record survived"
+wait_until process_gone "$(cat "$RUN_PID")" \
+  || fail "a cancelled running job's process group was not terminated"
 pass "a caller killed mid-wait stops its running job's process group"
 
 # T3c: a caller whose parent exits WITHOUT delivering any signal - the shape a
 # dead ssh channel leaves behind - still cancels through the entrypoint's
 # parent-liveness probe.
-ORPHAN_START="$TMP_ROOT/orphan-cancel-start"
-ORPHAN_FINISH="$TMP_ROOT/orphan-cancel-finish"
+ORPHAN_PID="$TMP_ROOT/orphan-cancel-pid"
 # shellcheck disable=SC2016 # Expansion is deliberately deferred to the child shell.
 env FM_HOME="$LOCAL_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   FM_SSH_BIN="$FAKEBIN/fake-ssh" \
   FM_FAKE_REMOTE_ENTRYPOINT="$REMOTE_ROOT/bin/fm-remote-entrypoint.sh" \
   FM_REMOTE_JOB_STATE_ROOT="$STATE_ROOT" FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux \
+  FM_REMOTE_JOB_TIMEOUT="$GATED_TIMEOUT" \
   bash -c '
-    "$1/bin/fm-on.sh" build fm-two-phase-job.sh "$2" "$3" 12 >/dev/null 2>&1 &
-    while [ ! -f "$2" ]; do sleep 0.1; done
-  ' _ "$ROOT" "$ORPHAN_START" "$ORPHAN_FINISH"
-assert_present "$ORPHAN_START" "the orphan-cancellation fixture never started"
-ORPHAN_BEGAN=$(date +%s)
-for _ in $(seq 1 300); do
-  ls "$STATE_ROOT"/jobs/job-* >/dev/null 2>&1 || break
-  sleep 0.05
-done
-ORPHAN_ELAPSED=$(( $(date +%s) - ORPHAN_BEGAN ))
-ls "$STATE_ROOT"/jobs/job-* >/dev/null 2>&1 \
-  && fail "the orphaned caller's job record survived its disconnect"
-[ "$ORPHAN_ELAPSED" -le 10 ] || fail "orphan-disconnect cancellation took ${ORPHAN_ELAPSED}s"
-sleep 2
-assert_absent "$ORPHAN_FINISH" "a job abandoned by a signal-less disconnect ran to completion"
+    "$1/bin/fm-on.sh" build fm-gate-job.sh orphan-cancel "$4" "$5" "$2" >/dev/null 2>&1 &
+    deadline=$((SECONDS + $3))
+    while [ ! -f "$2" ] && [ "$SECONDS" -le "$deadline" ]; do sleep 0.1; done
+  ' _ "$ROOT" "$ORPHAN_PID" "$CALL_GUARD_SECONDS" "$GATE_LOG" "$NEVER_RELEASED"
+assert_present "$ORPHAN_PID" "the orphan-cancellation fixture never started"
+wait_until job_records_absent || fail "the orphaned caller's job record survived its disconnect"
+wait_until process_gone "$(cat "$ORPHAN_PID")" \
+  || fail "a job abandoned by a signal-less disconnect kept running"
 pass "a signal-less caller disconnect cancels the abandoned job through the parent probe"
 
-# T3: after the cancellations, a burst of short bounded commands meets its own
-# budget - no convoy behind abandoned work.
-BURST_BEGAN=$(date +%s)
-for tag in c1 c2 c3; do
+# T3: a burst of short commands staged right behind an abandoned job completes
+# with no convoy. The abandoned job holds lane build, its release is never given,
+# and its execution bound is far beyond every guard, so it cannot end by itself:
+# each burst command can complete only if the worker drops the abandoned job and
+# moves on, and a convoy would sit behind it until the guard. The burst starts
+# without waiting for the cancellation to settle, and one command takes the other
+# home's lane.
+BURST_PID="$TMP_ROOT/burst-abandoned-pid"
+FM_REMOTE_JOB_TIMEOUT=$GATED_TIMEOUT \
+  fm_on build fm-gate-job.sh burst-abandoned "$GATE_LOG" "$NEVER_RELEASED" "$BURST_PID" > /dev/null 2>&1 &
+BURST_CALLER=$!
+wait_until test -f "$BURST_PID" || fail "the burst fixture's abandoned job never started"
+kill -TERM "$BURST_CALLER" 2>/dev/null || true
+wait "$BURST_CALLER" 2>/dev/null || true
+for spec in build:c1 ios:c2 build:c3; do
+  route=${spec%%:*}
+  tag=${spec#*:}
   rc=0
-  fm_run_timed 15 env FM_HOME="$LOCAL_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
+  fm_run_timed "$CALL_GUARD_SECONDS" env FM_HOME="$LOCAL_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
     FM_SSH_BIN="$FAKEBIN/fake-ssh" \
     FM_FAKE_REMOTE_ENTRYPOINT="$REMOTE_ROOT/bin/fm-remote-entrypoint.sh" \
     FM_REMOTE_JOB_STATE_ROOT="$STATE_ROOT" FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux \
-    "$ROOT/bin/fm-on.sh" ios fm-touch-job.sh "$TMP_ROOT/burst-$tag" >/dev/null 2>&1 || rc=$?
-  [ "$rc" -eq 0 ] || fail "post-cancellation burst command $tag failed with $rc"
+    "$ROOT/bin/fm-on.sh" "$route" fm-touch-job.sh "$TMP_ROOT/burst-$tag" >/dev/null 2>&1 || rc=$?
+  [ "$rc" -eq 0 ] \
+    || fail "post-cancellation burst command $tag on $route did not complete (exit $rc): it convoyed behind abandoned work"
   assert_present "$TMP_ROOT/burst-$tag" "post-cancellation burst command $tag did not run"
 done
-BURST_ELAPSED=$(( $(date +%s) - BURST_BEGAN ))
-[ "$BURST_ELAPSED" -le 12 ] || fail "the post-cancellation burst convoyed for ${BURST_ELAPSED}s"
-pass "bounded reads after a cancellation meet their own budget with no convoy"
+assert_absent "$NEVER_RELEASED" "the abandoned job's release was given before the burst finished"
+wait_until job_records_absent || fail "the burst's abandoned job record survived its cancellation"
+wait_until process_gone "$(cat "$BURST_PID")" \
+  || fail "the burst's abandoned job kept running after its caller was killed"
+pass "bounded reads after a cancellation complete behind abandoned work with no convoy"
 
 # T6: a non-payload call with an OPEN stdin pipe completes instead of wedging
-# staging on a stdin capture that never reaches EOF.
+# staging on a stdin capture that never reaches EOF. The pipe's writer stays open
+# until the call has returned, and outlives the call guard, so only a call that
+# ignores its stdin can finish.
 printf 'rsm\n' > "$HOME_A/.fm-secondmate-home"
 printf '# fixture secondmate home\n' > "$HOME_A/AGENTS.md"
 mkdir -p "$HOME_A/state" "$HOME_A/bin"
+STDIN_OPEN_RELEASE="$TMP_ROOT/stdin-open-release"
 rc=0
-fm_run_timed 20 env FM_HOME="$LOCAL_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
+fm_run_timed "$CALL_GUARD_SECONDS" env FM_HOME="$LOCAL_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   FM_SSH_BIN="$FAKEBIN/fake-ssh" \
   FM_FAKE_REMOTE_ENTRYPOINT="$REMOTE_ROOT/bin/fm-remote-entrypoint.sh" \
   FM_REMOTE_JOB_STATE_ROOT="$STATE_ROOT" FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux \
   "$ROOT/bin/fm-on.sh" ios fm-remote-secondmate-control.sh state rsm \
-  < <(sleep 30) > "$TMP_ROOT/state-out" 2> "$TMP_ROOT/state-err" || rc=$?
+  < <(hold_open_until "$STDIN_OPEN_RELEASE") > "$TMP_ROOT/state-out" 2> "$TMP_ROOT/state-err" || rc=$?
+: > "$STDIN_OPEN_RELEASE"
 [ "$rc" -ne 124 ] || fail "a control-state call with an open stdin pipe wedged staging"
 assert_grep 'missing' "$TMP_ROOT/state-out" \
   "the control-state call did not complete through the worker: $(cat "$TMP_ROOT/state-err")"
@@ -420,11 +490,8 @@ fm_remote_job_process_start "$$" > "$LIVE_STAGE_BUILD/.owner-start" \
   || fail "the live staging fixture could not record its owner identity"
 mv -- "$LIVE_STAGE_BUILD" "$LIVE_STAGE"
 touch -t 200001010000 "$OLD_STAGE" "$LIVE_STAGE"
-for _ in $(seq 1 100); do
-  [ ! -d "$OLD_STAGE" ] && break
-  sleep 0.05
-done
-[ ! -d "$OLD_STAGE" ] || fail "stage litter older than the reap age survived the worker pass"
+wait_until jobs_entry_absent .stage.abandoned \
+  || fail "stage litter older than the reap age survived the worker pass"
 assert_present "$LIVE_STAGE" "the worker reaped staging owned by a live process"
 rm -rf -- "$LIVE_STAGE"
 pass "abandoned stage litter is reaped by age while live staging survives"
