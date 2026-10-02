@@ -1605,16 +1605,24 @@ EOF
 
 # --- deferred network stage -------------------------------------------------
 
-# install_slow_gh <fakebin> <seconds>: one external-network call the digest used
-# to make directly. Making it pathologically slow is how a test stands in for an
-# unreachable host without touching one: if any part of the blocking path still
-# waits on the network, the digest cannot finish before this does.
-install_slow_gh() {
-  local fakebin=$1 seconds=$2 finished_marker=${3:-}
+# install_held_gh <fakebin> <release> [finished-marker]: one external-network
+# call the digest used to make directly. It stands in for an unreachable host
+# without touching one: `gh auth` does not answer until the case creates
+# <release>, so if any part of the blocking path still waited on the network
+# the digest could not return before the case releases it. The case releases
+# only after the digest has returned, so that verdict never depends on how fast
+# the host composes the digest. The 120 s hang guard only ends a hold a failed
+# case forgot, and the hold also ends once the case's world is gone.
+install_held_gh() {
+  local fakebin=$1 release=$2 finished_marker=${3:-}
   cat > "$fakebin/gh" <<SH
 #!/usr/bin/env bash
 if [ "\${1:-}" = auth ]; then
-  sleep $seconds
+  deadline=\$((SECONDS + 120))
+  while [ ! -e '$release' ] && [ "\$SECONDS" -lt "\$deadline" ]; do
+    [ -d '${release%/*}' ] || exit 1
+    sleep 0.05
+  done
   [ -z '$finished_marker' ] || : > '$finished_marker'
   exit 1
 fi
@@ -1725,24 +1733,23 @@ SH
 }
 
 # The headline guarantee: an unreachable host delays a reported CHECK, never the
-# startup. The fake host hangs for 12s; the digest must be done long before that,
-# must say so rather than implying the checks passed, and the sweeps must still
-# run and land afterwards.
+# startup. The fake host does not answer until the digest has returned; the
+# digest must still complete, must say so rather than implying the checks
+# passed, and the sweeps must still run and land afterwards.
 test_unreachable_network_never_blocks_the_digest() {
-  local rec root home fakebin mate log spawned network_finished out started elapsed
+  local rec root home fakebin mate log spawned network_finished network_release out
   rec=$(prepare_session_start_secondmate secondmate-slow-network)
   IFS='|' read -r root home fakebin mate log spawned <<EOF
 $rec
 EOF
   network_finished="${root%/root}/network-finished"
-  install_slow_gh "$fakebin" 12 "$network_finished"
+  network_release="${root%/root}/network-release"
+  install_held_gh "$fakebin" "$network_release" "$network_finished"
 
-  started=$(date +%s)
   out=$(run_session_start_secondmate "$root" "$home" "$fakebin" "$mate" "$log" "$spawned" missing)
-  elapsed=$(( $(date +%s) - started ))
-
   [ ! -e "$network_finished" ] \
-    || fail "the digest waited for the 12s unreachable-host probe instead of returning from local state (${elapsed}s)"
+    || fail "the digest waited for the unreachable-host probe instead of returning from local state"
+  : > "$network_release"
   assert_contains "$out" "SESSION START" "the digest did not complete"
   assert_contains "$out" "IN PROGRESS - the deferred network checks have not finished yet." \
     "the digest did not disclose that its network checks were still running"
@@ -1771,10 +1778,13 @@ test_deferred_result_reaches_the_agent_when_the_digest_cannot_print_it() {
   IFS='|' read -r root home fakebin mate log spawned <<EOF
 $rec
 EOF
-  install_slow_gh "$fakebin" 8
+  # The host answers only once the digest has returned, so the digest can never
+  # print this result itself, however slow the host composes it.
+  install_held_gh "$fakebin" "${root%/root}/network-release"
   queue="$home/state/.wake-queue"
 
   run_session_start_secondmate "$root" "$home" "$fakebin" "$mate" "$log" "$spawned" missing >/dev/null
+  : > "${root%/root}/network-release"
   wait_for_network_stage "$home" "$root" 60 || fail "the deferred stage never finished"
   wait_for_network_wake "$home" 60 || fail "the deferred stage never settled wake delivery"
   assert_grep 'check	startup-network' "$queue" \
