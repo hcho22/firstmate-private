@@ -1,0 +1,429 @@
+
+==================== A. New tasks land in data/<Project>/<task-id>/ (candidate fm-brief.sh) ====================
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-brief.sh rt-new-ship reptoday --mode no-mistakes
+scaffolded: <scratch>/home-new/data/RepToday/rt-new-ship/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-brief.sh rt-new-scout RepToday --scout
+scaffolded: <scratch>/home-new/data/RepToday/rt-new-scout/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-brief.sh fm-self-fix firstmate --mode local-only
+scaffolded: <scratch>/home-new/data/firstmate/fm-self-fix/brief.md (ship, mode=local-only; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-brief.sh unregistered-task SomeNewRepo --scout
+scaffolded: <scratch>/home-new/data/SomeNewRepo/unregistered-task/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-brief.sh sm-reptoday --secondmate RepToday
+scaffolded: <scratch>/home-new/data/_secondmates/sm-reptoday/brief.md (secondmate charter)
+[exit 0]
+
+==================== A-adversarial. names that must not land flat or collide ====================
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-brief.sh weird-proj bad name! --scout
+warning: project 'bad name!' cannot be a data folder name; filing under _unassigned
+scaffolded: <scratch>/home-new/data/_unassigned/weird-proj/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-brief.sh _sneaky RepToday --scout
+error: cannot place task _sneaky in the data layout (invalid id, or the id or its project folder collides with an existing folder)
+[exit 1]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-brief.sh RepToday RepToday --scout
+scaffolded: <scratch>/home-new/data/RepToday/RepToday/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-brief.sh rt-new-scout firstmate --scout
+error: <scratch>/home-new/data/RepToday/rt-new-scout/brief.md already exists
+[exit 1]
+
+--- resulting data/ tree
+dir           ./
+dir           ./RepToday/
+dir           ./RepToday/RepToday/
+466097cfd0de  ./RepToday/RepToday/brief.md
+dir           ./RepToday/rt-new-scout/
+4d53891ee936  ./RepToday/rt-new-scout/brief.md
+dir           ./RepToday/rt-new-ship/
+74d0fae13644  ./RepToday/rt-new-ship/brief.md
+dir           ./SomeNewRepo/
+dir           ./SomeNewRepo/unregistered-task/
+350cacf581cd  ./SomeNewRepo/unregistered-task/brief.md
+dir           ./_secondmates/
+dir           ./_secondmates/sm-reptoday/
+540b0308213a  ./_secondmates/sm-reptoday/brief.md
+dir           ./_unassigned/
+dir           ./_unassigned/weird-proj/
+34e1bd573bc3  ./_unassigned/weird-proj/brief.md
+5e814ebfcefd  ./backlog.md
+c3146335faa5  ./captain-shared.md
+21cd257812df  ./captain.md
+dir           ./firstmate/
+dir           ./firstmate/fm-self-fix/
+e2c007688cca  ./firstmate/fm-self-fix/brief.md
+8e16dcb2b32b  ./learnings.md
+2d3a4e6ca945  ./projects.md
+f72a6b75addb  ./secondmates.md
+--- scout report pointer inside the scaffolded scout brief
+53:Write your findings to `<scratch>/home-new/data/RepToday/rt-new-scout/report.md`.
+CHECK PASS: registry spelling RepToday used for lowercase repo arg
+CHECK PASS: scout brief in project folder
+CHECK PASS: scout brief points its report at the project folder
+CHECK PASS: firstmate repo is an ordinary project folder
+CHECK PASS: unregistered repo gets its repo-name folder
+CHECK PASS: secondmate charter in _secondmates
+CHECK PASS: unfolderable project name filed under _unassigned
+CHECK PASS: reserved underscore id refused (no folder anywhere)
+CHECK PASS: task id equal to project name sits inside the project folder
+CHECK PASS: same id under another project refused, not duplicated
+CHECK PASS: no flat task folder was created
+CHECK PASS: fleet-wide root files unchanged by new briefs
+
+==================== B. Legacy flat home (built by the BASE fm-brief.sh), then migrated by the candidate ====================
+--- legacy data/ tree (T0)
+dir           ./
+5f3898b17b21  ./backlog.md
+3a6843d08b8f  ./captain-shared.md
+13a5bb2bfcea  ./captain.md
+8715c6bf9ffe  ./done-archive.md
+dir           ./extensions/
+dir           ./extensions/packages/
+dir           ./fm-data-by-project/
+01b27a6fd190  ./fm-data-by-project/brief.md
+dir           ./handoff/
+91ee5e9f42ba  ./handoff/note.md
+302e1a59cb88  ./learnings.md
+b4742ee5b323  ./note-archive.md
+2d3a4e6ca945  ./projects.md
+dir           ./remote-secondmates/
+dir           ./reptoday-artist-checklist/
+a91d97ff9da9  ./reptoday-artist-checklist/reptoday-exercise-art-checklist.csv
+dir           ./reptoday-coach-config-repair/
+7df7d820249f  ./reptoday-coach-config-repair/repair-plan.json
+63397442ddae  ./reptoday-coach-config-repair/report.md
+dir           ./rt-legacy-annotated/
+444e0fffbd82  ./rt-legacy-annotated/report.md
+dir           ./rt-premium-fix/
+8019ed633ed1  ./rt-premium-fix/brief.md
+dir           ./rt-xcode-check/
+4bdd4d1fbe4d  ./rt-xcode-check/brief.md
+560af8ce86e5  ./rt-xcode-check/report.md
+d6e2d2cb0813  ./secondmates.md
+dir           ./sm-alpha/
+873c6ba2b33d  ./sm-alpha/brief.md
+T0 digest: 591111d21fe0fc3f
+
+==================== B1. lookup before migration: candidate fleet view finds legacy flat reports (bounded legacy read) ====================
+[{"id":"reptoday-coach-config-repair","path":"<scratch>/home-legacy/data/reptoday-coach-config-repair/report.md","kind":"scout"},{"id":"rt-legacy-annotated","path":"<scratch>/home-legacy/data/rt-legacy-annotated/report.md","kind":"scout"},{"id":"rt-xcode-check","path":"<scratch>/home-legacy/data/rt-xcode-check/report.md","kind":"scout"}]
+
+==================== B2. migration refuses while a task is live (dry run and apply) ====================
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-data-migrate.sh
+mode: dry-run home=<scratch>/home-legacy data=<scratch>/home-legacy/data
+blocked: task rt-premium-fix is live (state/rt-premium-fix.meta); finish or tear it down first
+skip: data/reptoday-artist-checklist has no task marker and no assignment; if it is a task folder, rerun with --assign reptoday-artist-checklist=<Project>
+unresolved: data/reptoday-coach-config-repair has no recorded project; rerun with --assign reptoday-coach-config-repair=<Project>
+move: fm-data-by-project -> firstmate/fm-data-by-project (brief)
+move: rt-legacy-annotated -> RepToday/rt-legacy-annotated (backlog repo)
+move: rt-premium-fix -> RepToday/rt-premium-fix (brief)
+move: rt-xcode-check -> RepToday/rt-xcode-check (brief)
+move: sm-alpha -> _secondmates/sm-alpha (secondmate registry)
+summary: refused move=5 blocked=1
+[exit 3]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-data-migrate.sh --apply
+mode: apply home=<scratch>/home-legacy data=<scratch>/home-legacy/data
+blocked: task rt-premium-fix is live (state/rt-premium-fix.meta); finish or tear it down first
+skip: data/reptoday-artist-checklist has no task marker and no assignment; if it is a task folder, rerun with --assign reptoday-artist-checklist=<Project>
+unresolved: data/reptoday-coach-config-repair has no recorded project; rerun with --assign reptoday-coach-config-repair=<Project>
+move: fm-data-by-project -> firstmate/fm-data-by-project (brief)
+move: rt-legacy-annotated -> RepToday/rt-legacy-annotated (backlog repo)
+move: rt-premium-fix -> RepToday/rt-premium-fix (brief)
+move: rt-xcode-check -> RepToday/rt-xcode-check (brief)
+move: sm-alpha -> _secondmates/sm-alpha (secondmate registry)
+summary: refused move=5 blocked=1
+[exit 3]
+CHECK PASS: live task refusal moved nothing
+
+==================== B3. dry run (default) reports every move and changes nothing ====================
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-data-migrate.sh
+mode: dry-run home=<scratch>/home-legacy data=<scratch>/home-legacy/data
+skip: data/reptoday-artist-checklist has no task marker and no assignment; if it is a task folder, rerun with --assign reptoday-artist-checklist=<Project>
+unresolved: data/reptoday-coach-config-repair has no recorded project; rerun with --assign reptoday-coach-config-repair=<Project>
+move: fm-data-by-project -> firstmate/fm-data-by-project (brief)
+move: rt-legacy-annotated -> RepToday/rt-legacy-annotated (backlog repo)
+move: rt-premium-fix -> RepToday/rt-premium-fix (brief)
+move: rt-xcode-check -> RepToday/rt-xcode-check (brief)
+move: sm-alpha -> _secondmates/sm-alpha (secondmate registry)
+rewrite: backlog.md 2 reference(s)
+rewrite: done-archive.md 1 reference(s)
+note: captain.md holds 1 legacy data/<task-id>/ link(s) this command does not rewrite
+note: 5 legacy data/<task-id>/ link(s) remain inside 3 task document(s); they are history and are not rewritten
+summary: dry-run move=5 rewrite_files=2 rewrite_refs=3 unresolved=1 legacy_remaining=2
+[exit 0]
+CHECK PASS: dry run left data/ byte-identical
+
+==================== B4. apply without assignments: the two RepToday folders are reported, left flat, still readable ====================
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-data-migrate.sh --apply
+mode: apply home=<scratch>/home-legacy data=<scratch>/home-legacy/data
+skip: data/reptoday-artist-checklist has no task marker and no assignment; if it is a task folder, rerun with --assign reptoday-artist-checklist=<Project>
+unresolved: data/reptoday-coach-config-repair has no recorded project; rerun with --assign reptoday-coach-config-repair=<Project>
+move: fm-data-by-project -> firstmate/fm-data-by-project (brief)
+move: rt-legacy-annotated -> RepToday/rt-legacy-annotated (backlog repo)
+move: rt-premium-fix -> RepToday/rt-premium-fix (brief)
+move: rt-xcode-check -> RepToday/rt-xcode-check (brief)
+move: sm-alpha -> _secondmates/sm-alpha (secondmate registry)
+rewrite: backlog.md 2 reference(s)
+rewrite: done-archive.md 1 reference(s)
+note: captain.md holds 1 legacy data/<task-id>/ link(s) this command does not rewrite
+note: 5 legacy data/<task-id>/ link(s) remain inside 3 task document(s); they are history and are not rewritten
+summary: apply move=5 rewrite_files=2 rewrite_refs=3 unresolved=1 legacy_remaining=2
+[exit 0]
+--- data/ tree after first apply
+dir           ./
+de5e7ff66daa  ./.layout-migration.tsv
+dir           ./RepToday/
+dir           ./RepToday/rt-legacy-annotated/
+444e0fffbd82  ./RepToday/rt-legacy-annotated/report.md
+dir           ./RepToday/rt-premium-fix/
+8019ed633ed1  ./RepToday/rt-premium-fix/brief.md
+dir           ./RepToday/rt-xcode-check/
+4bdd4d1fbe4d  ./RepToday/rt-xcode-check/brief.md
+560af8ce86e5  ./RepToday/rt-xcode-check/report.md
+dir           ./_secondmates/
+dir           ./_secondmates/sm-alpha/
+873c6ba2b33d  ./_secondmates/sm-alpha/brief.md
+ecbef3b6f97e  ./backlog.md
+3a6843d08b8f  ./captain-shared.md
+13a5bb2bfcea  ./captain.md
+969fa8acdb46  ./done-archive.md
+dir           ./extensions/
+dir           ./extensions/packages/
+dir           ./firstmate/
+dir           ./firstmate/fm-data-by-project/
+01b27a6fd190  ./firstmate/fm-data-by-project/brief.md
+dir           ./handoff/
+91ee5e9f42ba  ./handoff/note.md
+302e1a59cb88  ./learnings.md
+b4742ee5b323  ./note-archive.md
+2d3a4e6ca945  ./projects.md
+dir           ./remote-secondmates/
+dir           ./reptoday-artist-checklist/
+a91d97ff9da9  ./reptoday-artist-checklist/reptoday-exercise-art-checklist.csv
+dir           ./reptoday-coach-config-repair/
+7df7d820249f  ./reptoday-coach-config-repair/repair-plan.json
+63397442ddae  ./reptoday-coach-config-repair/report.md
+d6e2d2cb0813  ./secondmates.md
+--- legacy-read lookup still finds the unplaced report folder
+[{"id":"reptoday-coach-config-repair","path":"<scratch>/home-legacy/data/reptoday-coach-config-repair/report.md","kind":"scout"},{"id":"rt-legacy-annotated","path":"<scratch>/home-legacy/data/RepToday/rt-legacy-annotated/report.md","kind":"scout"},{"id":"rt-xcode-check","path":"<scratch>/home-legacy/data/RepToday/rt-xcode-check/report.md","kind":"scout"}]
+
+==================== B5. apply with the captain's assignments files both folders under RepToday ====================
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-data-migrate.sh --apply --assign reptoday-artist-checklist=RepToday --assign reptoday-coach-config-repair=reptoday
+mode: apply home=<scratch>/home-legacy data=<scratch>/home-legacy/data
+note: treating as project folders: RepToday firstmate
+move: reptoday-artist-checklist -> RepToday/reptoday-artist-checklist (assigned)
+move: reptoday-coach-config-repair -> RepToday/reptoday-coach-config-repair (assigned)
+rewrite: backlog.md 1 reference(s)
+rewrite: note-archive.md 1 reference(s)
+note: captain.md holds 1 legacy data/<task-id>/ link(s) this command does not rewrite
+note: 5 legacy data/<task-id>/ link(s) remain inside 3 task document(s); they are history and are not rewritten
+summary: apply move=2 rewrite_files=2 rewrite_refs=2 unresolved=0 legacy_remaining=0
+[exit 0]
+--- data/ tree after assigned apply (T1)
+dir           ./
+e1a078880722  ./.layout-migration.tsv
+dir           ./RepToday/
+dir           ./RepToday/reptoday-artist-checklist/
+a91d97ff9da9  ./RepToday/reptoday-artist-checklist/reptoday-exercise-art-checklist.csv
+dir           ./RepToday/reptoday-coach-config-repair/
+7df7d820249f  ./RepToday/reptoday-coach-config-repair/repair-plan.json
+63397442ddae  ./RepToday/reptoday-coach-config-repair/report.md
+dir           ./RepToday/rt-legacy-annotated/
+444e0fffbd82  ./RepToday/rt-legacy-annotated/report.md
+dir           ./RepToday/rt-premium-fix/
+8019ed633ed1  ./RepToday/rt-premium-fix/brief.md
+dir           ./RepToday/rt-xcode-check/
+4bdd4d1fbe4d  ./RepToday/rt-xcode-check/brief.md
+560af8ce86e5  ./RepToday/rt-xcode-check/report.md
+dir           ./_secondmates/
+dir           ./_secondmates/sm-alpha/
+873c6ba2b33d  ./_secondmates/sm-alpha/brief.md
+4884ac7dead6  ./backlog.md
+3a6843d08b8f  ./captain-shared.md
+13a5bb2bfcea  ./captain.md
+969fa8acdb46  ./done-archive.md
+dir           ./extensions/
+dir           ./extensions/packages/
+dir           ./firstmate/
+dir           ./firstmate/fm-data-by-project/
+01b27a6fd190  ./firstmate/fm-data-by-project/brief.md
+dir           ./handoff/
+91ee5e9f42ba  ./handoff/note.md
+302e1a59cb88  ./learnings.md
+279ae8aa2e84  ./note-archive.md
+2d3a4e6ca945  ./projects.md
+dir           ./remote-secondmates/
+d6e2d2cb0813  ./secondmates.md
+--- backlog and archives after rewrite
+# Backlog
+## In flight
+## Done
+- [x] rt-xcode-check Xcode version check (repo: RepToday) - report: data/RepToday/rt-xcode-check/report.md
+- [x] rt-legacy-annotated old notes (repo: RepToday) - see data/RepToday/rt-legacy-annotated/report.md.
+- [x] reptoday-coach-config-repair coach config - report data/RepToday/reptoday-coach-config-repair/report.md
+- note: links to data/backlog.md and data/projects.md are fleet files, never task links
+- [x] fm-data-by-project (repo: firstmate) brief: data/firstmate/fm-data-by-project/brief.md
+- artist checklist at `data/RepToday/reptoday-artist-checklist/reptoday-exercise-art-checklist.csv`
+CHECK PASS: both captain-named folders under data/RepToday
+CHECK PASS: secondmate charter moved to _secondmates
+CHECK PASS: firstmate task moved to data/firstmate
+CHECK PASS: fleet-wide projects.md unchanged at data/ root
+CHECK PASS: fleet-wide secondmates.md unchanged at data/ root
+CHECK PASS: fleet-wide captain.md unchanged at data/ root
+CHECK PASS: fleet-wide captain-shared.md unchanged at data/ root
+CHECK PASS: fleet-wide learnings.md unchanged at data/ root
+CHECK PASS: fleet-wide handoff/note.md unchanged at data/ root
+CHECK PASS: fleet-file links (data/backlog.md, data/projects.md) not rewritten
+CHECK PASS: no flat task folder remains
+--- lookup after migration: fleet view finds reports in project folders
+[{"id":"reptoday-coach-config-repair","path":"<scratch>/home-legacy/data/RepToday/reptoday-coach-config-repair/report.md","kind":"scout"},{"id":"rt-legacy-annotated","path":"<scratch>/home-legacy/data/RepToday/rt-legacy-annotated/report.md","kind":"scout"},{"id":"rt-xcode-check","path":"<scratch>/home-legacy/data/RepToday/rt-xcode-check/report.md","kind":"scout"}]
+
+==================== B6. re-running is idempotent ====================
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-data-migrate.sh --apply --assign reptoday-artist-checklist=RepToday --assign reptoday-coach-config-repair=reptoday
+mode: apply home=<scratch>/home-legacy data=<scratch>/home-legacy/data
+note: treating as project folders: RepToday firstmate
+note: captain.md holds 1 legacy data/<task-id>/ link(s) this command does not rewrite
+note: 5 legacy data/<task-id>/ link(s) remain inside 3 task document(s); they are history and are not rewritten
+summary: apply move=0 rewrite_files=0 rewrite_refs=0 unresolved=0 legacy_remaining=0
+[exit 0]
+CHECK PASS: rerun changed nothing
+
+==================== B7. revert restores the flat layout and every recorded link exactly ====================
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-data-migrate.sh --revert
+mode: dry-run revert home=<scratch>/home-legacy data=<scratch>/home-legacy/data
+revert: reptoday-artist-checklist <- reptoday-artist-checklist from RepToday/reptoday-artist-checklist
+revert: reptoday-coach-config-repair <- reptoday-coach-config-repair from RepToday/reptoday-coach-config-repair
+revert: rt-legacy-annotated <- rt-legacy-annotated from RepToday/rt-legacy-annotated
+revert: rt-premium-fix <- rt-premium-fix from RepToday/rt-premium-fix
+revert: rt-xcode-check <- rt-xcode-check from RepToday/rt-xcode-check
+revert: sm-alpha <- sm-alpha from _secondmates/sm-alpha
+revert: fm-data-by-project <- fm-data-by-project from firstmate/fm-data-by-project
+rewrite: backlog.md 3 reference(s)
+rewrite: done-archive.md 1 reference(s)
+rewrite: note-archive.md 1 reference(s)
+summary: dry-run move=7 rewrite_files=3 rewrite_refs=5 unresolved=0 legacy_remaining=0
+[exit 0]
+CHECK PASS: revert dry run changed nothing
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-data-migrate.sh --revert --apply
+mode: apply revert home=<scratch>/home-legacy data=<scratch>/home-legacy/data
+revert: reptoday-artist-checklist <- reptoday-artist-checklist from RepToday/reptoday-artist-checklist
+revert: reptoday-coach-config-repair <- reptoday-coach-config-repair from RepToday/reptoday-coach-config-repair
+revert: rt-legacy-annotated <- rt-legacy-annotated from RepToday/rt-legacy-annotated
+revert: rt-premium-fix <- rt-premium-fix from RepToday/rt-premium-fix
+revert: rt-xcode-check <- rt-xcode-check from RepToday/rt-xcode-check
+revert: sm-alpha <- sm-alpha from _secondmates/sm-alpha
+revert: fm-data-by-project <- fm-data-by-project from firstmate/fm-data-by-project
+rewrite: backlog.md 3 reference(s)
+rewrite: done-archive.md 1 reference(s)
+rewrite: note-archive.md 1 reference(s)
+summary: apply move=7 rewrite_files=3 rewrite_refs=5 unresolved=0 legacy_remaining=0
+[exit 0]
+--- diff of data/ against T0 (empty means byte-identical)
+(no differences)
+CHECK PASS: revert restored T0 byte-for-byte
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-data-migrate.sh --revert --apply
+mode: apply revert home=<scratch>/home-legacy data=<scratch>/home-legacy/data
+summary: apply move=0 rewrite_files=0 rewrite_refs=0 unresolved=0 legacy_remaining=0
+[exit 0]
+CHECK PASS: repeated revert changed nothing
+
+==================== B8. migrate forward again, then a new brief joins the migrated project folder ====================
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-data-migrate.sh --apply --assign reptoday-artist-checklist=RepToday --assign reptoday-coach-config-repair=RepToday
+mode: apply home=<scratch>/home-legacy data=<scratch>/home-legacy/data
+move: fm-data-by-project -> firstmate/fm-data-by-project (brief)
+move: reptoday-artist-checklist -> RepToday/reptoday-artist-checklist (assigned)
+move: reptoday-coach-config-repair -> RepToday/reptoday-coach-config-repair (assigned)
+move: rt-legacy-annotated -> RepToday/rt-legacy-annotated (backlog repo)
+move: rt-premium-fix -> RepToday/rt-premium-fix (brief)
+move: rt-xcode-check -> RepToday/rt-xcode-check (brief)
+move: sm-alpha -> _secondmates/sm-alpha (secondmate registry)
+rewrite: backlog.md 3 reference(s)
+rewrite: done-archive.md 1 reference(s)
+rewrite: note-archive.md 1 reference(s)
+note: captain.md holds 1 legacy data/<task-id>/ link(s) this command does not rewrite
+note: 5 legacy data/<task-id>/ link(s) remain inside 3 task document(s); they are history and are not rewritten
+summary: apply move=7 rewrite_files=3 rewrite_refs=5 unresolved=0 legacy_remaining=0
+[exit 0]
+--- diff of data/ against T1 (single-pass forward vs two-pass forward)
+diff -r <scratch>/legacy-data-T1/.layout-migration.tsv <scratch>/home-legacy/data/.layout-migration.tsv
+1a2,3
+> reptoday-artist-checklist	RepToday
+> reptoday-coach-config-repair	RepToday
+6,7d7
+< reptoday-artist-checklist	RepToday
+< reptoday-coach-config-repair	RepToday
+CHECK PASS: forward again reaches the same folders and bytes (manifest compared as a set)
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-brief.sh rt-after-migration RepToday --scout
+scaffolded: <scratch>/home-legacy/data/RepToday/rt-after-migration/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+CHECK PASS: post-migration brief joined data/RepToday
+reptoday-artist-checklist
+reptoday-coach-config-repair
+rt-after-migration
+rt-legacy-annotated
+rt-premium-fix
+rt-xcode-check
+
+==================== C. cycle refusal: moves that wait on each other are refused, named, nothing moves ====================
+--- before
+dir           ./
+dir           ./alpha/
+87428fc52280  ./alpha/report.md
+bf9a30c3d8d7  ./backlog.md
+dir           ./beta/
+0263829989b6  ./beta/report.md
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-data-migrate.sh --apply
+mode: apply home=<scratch>/home-cycle data=<scratch>/home-cycle/data
+conflict: data/alpha cannot move: each of data/alpha -> data/beta -> data/alpha waits for the next to free its destination; leaving it where it is
+conflict: data/beta cannot move: each of data/beta -> data/alpha -> data/beta waits for the next to free its destination; leaving it where it is
+summary: refused move=0 conflicts=2
+[exit 4]
+CHECK PASS: cycle refused with nothing moved or rewritten
+
+==================== C2. a task named like its own project moves into and back out of that folder ====================
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-data-migrate.sh --apply
+mode: apply home=<scratch>/home-selfnamed data=<scratch>/home-selfnamed/data
+move: RepToday -> RepToday/RepToday (backlog repo)
+rewrite: backlog.md 1 reference(s)
+summary: apply move=1 rewrite_files=1 rewrite_refs=1 unresolved=0 legacy_remaining=0
+[exit 0]
+dir           ./
+9a33b5124af5  ./.layout-migration.tsv
+dir           ./RepToday/
+dir           ./RepToday/RepToday/
+8e54b0ca1802  ./RepToday/RepToday/report.md
+1a4ece58e046  ./backlog.md
+aa9261cec908  ./projects.md
+CHECK PASS: self-named task now at data/RepToday/RepToday
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3WJKS4N49ZJQAJY53AH5Z2M/bin/fm-data-migrate.sh --revert --apply
+mode: apply revert home=<scratch>/home-selfnamed data=<scratch>/home-selfnamed/data
+revert: RepToday <- RepToday from RepToday/RepToday
+rewrite: backlog.md 1 reference(s)
+summary: apply move=1 rewrite_files=1 rewrite_refs=1 unresolved=0 legacy_remaining=0
+[exit 0]
+CHECK PASS: self-named revert restored exactly
