@@ -633,9 +633,10 @@ stage lock
 subsection "LOCK"
 LOCK_OUT=$("$SCRIPT_DIR/fm-lock.sh" 2>&1)
 LOCK_RC=$?
-printf '%s\n' "$LOCK_OUT"
 READ_ONLY=0
-if [ "$LOCK_RC" -ne 0 ]; then
+if [ "$LOCK_RC" -eq 0 ]; then
+  printf '%s\n' "$LOCK_OUT"
+else
   READ_ONLY=1
   BAR='●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
   {
