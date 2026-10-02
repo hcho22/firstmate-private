@@ -23,7 +23,7 @@ The firstmate repo itself is an ordinary project and gets its folder the same wa
 Two reserved folders begin with an underscore, which no project name can, so they never collide with one:
 `_secondmates` holds persistent secondmate charter briefs, and `_unassigned` holds work created with no project or with a project name that cannot be a folder name.
 A project name that differs only in case from an existing folder adopts that folder's spelling, so a case-insensitive disk never holds two.
-The fleet-wide files stay at the `data/` root: the backlog and its archives, `projects.md`, `secondmates.md`, `captain.md`, `captain-shared.md`, `learnings.md`, and a secondmate home's `charter.md`, alongside the non-task folders `handoff/`, `extensions/`, and `remote-secondmates/`.
+The fleet-wide files stay at the `data/` root: the backlog and its archives, `memory-archive.md`, the dated Bearings `status-report-<YYYY-MM-DD>.md` reports, `projects.md`, `secondmates.md`, `captain.md`, `captain-shared.md`, `learnings.md`, and a secondmate home's `charter.md`, alongside the non-task folders `handoff/`, `extensions/`, and `remote-secondmates/`.
 Each home, including every secondmate home, keeps its own `data/` in this layout; nothing is shared across homes.
 
 `bin/fm-task-data-lib.sh` is the single owner of placement and lookup, and every script that builds a per-task data path goes through it.
