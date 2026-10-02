@@ -1088,7 +1088,7 @@ test_dead_window_still_reports_active_run_step() {
 
 test_no_timeout_uses_perl_bound() {
   reset_fakes
-  local d toolbin out start elapsed calls_file calls
+  local d toolbin out calls_file calls nm_pid_file nm_pid nm_deadline
   d=$(new_case no-timeout)
   make_repo_on_branch "$d/wt" fm/feat-timeout
   make_fakebin "$d" >/dev/null
@@ -1097,6 +1097,7 @@ test_no_timeout_uses_perl_bound() {
   cat > "$d/fakebin/no-mistakes" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${FM_FAKE_NM_CALLS:-/dev/null}"
+printf '%s\n' "$$" > "${FM_FAKE_NM_PID:-/dev/null}"
 while :; do :; done
 SH
   chmod +x "$d/fakebin/no-mistakes"
@@ -1107,14 +1108,25 @@ SH
   local gen; gen=$("$ROOT/bin/fm-busy-event.sh" arm "$d/state" feat-timeout)
   "$ROOT/bin/fm-busy-event.sh" apply "$d/state" feat-timeout busy --gen "$gen" \
     --source claude-hook --event user-prompt-submit
-  start=$SECONDS
-  out=$(FM_FAKE_NM_CALLS="$calls_file" PATH="$d/fakebin:$toolbin" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_NM_TIMEOUT=1 "$CREW_STATE" feat-timeout)
-  elapsed=$((SECONDS - start))
+  # The stub never returns, so crew-state returning at all proves the perl bound
+  # stopped it. The bound is a speed expectation this case does not test: at 1 s a
+  # slow host (macOS starts a fresh script in about a second and a half) expired
+  # it before the stub ran, recording zero calls, and an elapsed-seconds check
+  # measured the host. Use a bound well above any start-up latency, then assert
+  # what the bound must have done: the stub ran exactly once and was killed.
+  nm_pid_file="$d/no-mistakes.pid"
+  out=$(FM_FAKE_NM_CALLS="$calls_file" FM_FAKE_NM_PID="$nm_pid_file" PATH="$d/fakebin:$toolbin" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_NM_TIMEOUT=8 "$CREW_STATE" feat-timeout)
   assert_contains "$out" "state: working" "timed-out no-mistakes falls back to pane"
   assert_contains "$out" "source: pane" "timed-out no-mistakes -> pane source"
-  [ "$elapsed" -lt 5 ] || fail "perl timeout did not bound no-mistakes calls (elapsed ${elapsed}s)"
   calls=$(awk 'END { print NR + 0 }' "$calls_file" 2>/dev/null || echo 0)
   [ "$calls" -eq 1 ] || fail "empty no-mistakes status triggered extra lookups ($calls calls)"
+  nm_pid=$(cat "$nm_pid_file" 2>/dev/null || true)
+  [ -n "$nm_pid" ] || fail "the no-mistakes stub never recorded its pid"
+  nm_deadline=$((SECONDS + 30))
+  while kill -0 "$nm_pid" 2>/dev/null; do
+    [ "$SECONDS" -lt "$nm_deadline" ] || { kill -KILL "$nm_pid" 2>/dev/null || true; fail "perl timeout did not stop the hung no-mistakes call"; }
+    sleep 0.1
+  done
   pass "no timeout command uses perl bound"
 }
 
