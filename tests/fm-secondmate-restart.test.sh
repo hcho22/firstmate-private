@@ -65,8 +65,17 @@ case "${1:-}" in
       printf '%s\n' "$payload" >> "$D/literal"
       case "$payload" in
         /exit|/quit)
+          if [ -e "$D/hold-stop-for-remote-relaunch" ]; then
+            # Stop only once the remote relaunch is in flight, so the overlap this
+            # case looks for does not depend on which worker the host starts first.
+            hold_deadline=$((SECONDS + 60))
+            until [ -e "$D/remote-relaunch-start" ] || [ "$SECONDS" -ge "$hold_deadline" ]; do
+              /bin/sleep 0.02
+            done
+          fi
           if [ -e "$D/remote-relaunch-start" ] && [ ! -e "$D/remote-relaunch-end" ]; then
             : > "$D/local-relaunch-during-remote"
+            : > "$D/remote-relaunch-release"
           fi
           printf 'zsh' > "$D/command"
           ;;
@@ -470,7 +479,13 @@ case "${rargs[1]:-}" in
     case "${FM_FAKE_SSH_MODE:-ok}" in
       slow-relaunch)
         : > "$FM_FAKE_DIR/remote-relaunch-start"
-        /bin/sleep 2
+        # Stay in flight until the case releases the relaunch, so what a case
+        # does during it never depends on how long the host takes to do so. The
+        # 60 s guard only keeps a case that never releases from hanging.
+        release_deadline=$((SECONDS + 60))
+        until [ -e "$FM_FAKE_DIR/remote-relaunch-release" ] || [ "$SECONDS" -ge "$release_deadline" ]; do
+          /bin/sleep 0.02
+        done
         : > "$FM_FAKE_DIR/remote-relaunch-end"
         ;;
     esac
@@ -641,6 +656,12 @@ test_relaunches_do_not_block_persist_polling() {
     "$dir/sm2-home" >> "$dir/home/data/secondmates.md"
   export FM_FAKE_ANSWER_STATUS="$dir/home/state/sm1.status"
   arm_answer "$dir" sm2
+  # The remote relaunch stays in flight until the second mate is stopped, and the
+  # second mate is stopped only once the remote relaunch is in flight: the overlap
+  # is the event, not an interval of the host's clock. A pass that held the second
+  # mate behind the first relaunch leaves the relaunch waiting for a stop that
+  # cannot come, so the overlap never happens and the assertion below fails.
+  : > "$dir/fake/hold-stop-for-remote-relaunch"
 
   out=$(FM_TEST_PERSIST_WAIT=5 run_restart "$dir" sm1 sm2); rc=$?
   unset FM_FAKE_ANSWER_STATUS
@@ -657,7 +678,7 @@ test_relaunches_do_not_block_persist_polling() {
 
 # --- T13: a worker that cannot publish its result cannot hang the pass -------
 test_unpublished_worker_result_is_accounted_for() {
-  local dir out rc_file driver i result_dir
+  local dir out rc_file driver deadline result_dir
   dir=$(new_case worker-result)
   setup_remote_case "$dir" sm1 slow-relaunch
   export FM_FAKE_ANSWER_STATUS="$dir/home/state/sm1.status"
@@ -666,26 +687,29 @@ test_unpublished_worker_result_is_accounted_for() {
 
   ( run_restart "$dir" sm1 > "$out" 2>&1; printf '%s\n' "$?" > "$rc_file" ) &
   driver=$!
+  # Every wait here is on an event, bounded by time rather than by a count of
+  # sleeps: a restart is many process spawns, a loaded host stretches it, and only
+  # a genuine hang should reach the 60 s guard.
   result_dir=
-  i=0
-  while [ "$i" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while :; do
     result_dir=$(find "$dir/home/state" -maxdepth 1 -type d -name '.secondmate-restart.*' -print -quit)
     [ -e "$dir/fake/remote-relaunch-start" ] && [ -n "$result_dir" ] && break
-    /bin/sleep 0.01
-    i=$((i + 1))
+    [ "$SECONDS" -lt "$deadline" ] || { kill "$driver" 2>/dev/null || true; fail "restart result directory never appeared"; }
+    /bin/sleep 0.02
   done
-  [ -n "$result_dir" ] || { kill "$driver" 2>/dev/null || true; fail "restart result directory never appeared"; }
   rm -rf -- "$result_dir"
-  i=0
-  while kill -0 "$driver" 2>/dev/null && [ "$i" -lt 400 ]; do
-    /bin/sleep 0.01
-    i=$((i + 1))
+  # Only now may the in-flight relaunch finish, with nowhere left to publish to.
+  : > "$dir/fake/remote-relaunch-release"
+  deadline=$((SECONDS + 60))
+  while kill -0 "$driver" 2>/dev/null; do
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      kill "$driver" 2>/dev/null || true
+      wait "$driver" 2>/dev/null || true
+      fail "a terminated restart worker left the parent hung"
+    fi
+    /bin/sleep 0.02
   done
-  if kill -0 "$driver" 2>/dev/null; then
-    kill "$driver" 2>/dev/null || true
-    wait "$driver" 2>/dev/null || true
-    fail "a terminated restart worker left the parent hung"
-  fi
   wait "$driver" 2>/dev/null || true
   unset FM_FAKE_ANSWER_STATUS
 
@@ -712,6 +736,7 @@ if [ -e "$FM_FAKE_DIR/remote-relaunch-start" ] && [ ! -e "$FM_FAKE_DIR/result-ra
     if [ -n "$result_dir" ]; then
       printf 'restarted: sm1 on remote-mac (claude)\n' > "$result_dir/0.result"
       : > "$FM_FAKE_DIR/result-race-injected"
+      : > "$FM_FAKE_DIR/remote-relaunch-release"
       printf 'Z\n'
       exit 0
     fi
