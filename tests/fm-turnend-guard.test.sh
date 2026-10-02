@@ -2118,6 +2118,29 @@ test_hook_readonly_session_stays_silent_when_supervision_is_healthy() {
   pass "fm-turnend-guard --claude: a read-only session is silent while the lock holder supervises"
 }
 
+# The Stop auto-arm's healthy between-turns state: the holder handles a wake with
+# its watcher exited, so the beat is fresh and no watcher process holds the lock.
+# Supervision is not off, so a read-only session must not say it is or offer a
+# takeover, and its one notice must still be there once the beat goes stale.
+test_hook_readonly_session_stays_silent_while_the_beat_is_fresh() {
+  local dir foreign
+  dir=$(make_primary_dir "$TMP_ROOT/hook-claude-readonly-fresh-beat")
+  : > "$dir/state/task1.meta"
+  foreign=$(start_foreign_session "$dir")
+  printf '%s\n' "$foreign" > "$dir/state/.lock"
+  touch "$dir/state/.last-watcher-beat"
+  run_guard_in_harness "$dir" claude sess-readonly none --claude
+  [ "$GUARD_RC" = 0 ] || { stop_foreign_session "$foreign"; fail "a read-only session over a fresh beat must end its turn, got exit $GUARD_RC: $GUARD_OUT"; }
+  [ -z "$GUARD_OUT" ] || { stop_foreign_session "$foreign"; fail "a read-only session reported supervision off while the holder's beat is fresh: $GUARD_OUT"; }
+  touch -t 202001010000 "$dir/state/.last-watcher-beat"
+  run_guard_in_harness "$dir" claude sess-readonly none --claude
+  stop_foreign_session "$foreign"
+  expect_code 0 "$GUARD_RC" "a read-only session over a stale beat must still end its turn"
+  assert_contains "$GUARD_OUT" 'FIRSTMATE SUPERVISION IS OFF' "the same session got no notice once the beat went stale"
+  assert_contains "$GUARD_OUT" "takeover --confirm-holder $foreign" "the stale-beat notice did not offer the takeover"
+  pass "fm-turnend-guard --claude: a read-only session is silent over a fresh beat and notified once it goes stale"
+}
+
 test_hook_unresolvable_ancestry_keeps_guarding() {
   local dir foreign fakebin out status
   dir=$(make_primary_dir "$TMP_ROOT/hook-claude-no-ancestry")
@@ -2236,5 +2259,6 @@ test_hook_default_mode_readonly_session_stands_down
 test_hook_lock_holder_session_still_blocks
 test_hook_dead_lock_holder_keeps_guarding
 test_hook_readonly_session_stays_silent_when_supervision_is_healthy
+test_hook_readonly_session_stays_silent_while_the_beat_is_fresh
 test_hook_unresolvable_ancestry_keeps_guarding
 test_hook_displaced_session_is_told_once_that_its_lock_was_taken_over

@@ -177,9 +177,12 @@ budget_reset() {
 # session never advances one. Recovery belongs to the lock holder or to a
 # captain-confirmed takeover, so this session neither blocks nor touches any
 # state/ file, and says so at most once per session, naming the holder and the
-# takeover command exactly as the session-start refusal does. The once-only
-# markers live in the temp directory, keyed by home and session id, precisely so
-# a read-only session writes nothing into the fleet's state.
+# takeover command exactly as the session-start refusal does. It says so only
+# once the watcher beat is stale beyond grace: a fresh beat with no live watcher
+# process is the Stop auto-arm's healthy between-turns state, and the takeover
+# itself refuses while the beat is fresh. The once-only markers live in the temp
+# directory, keyed by home and session id, precisely so a read-only session
+# writes nothing into the fleet's state.
 notice_once() {  # <kind>: succeed only the first time this session asks
   local marker
   marker="${TMPDIR:-/tmp}/.fm-$1-guard-notice.$(printf '%s' "$STATE" | cksum | cut -d' ' -f1).$(printf '%s' "$SESSION_ID" | tr -c 'A-Za-z0-9_.-' '_')"
@@ -198,7 +201,7 @@ readonly_session_notice() {
   else
     need="X-mode relay polling active"
   fi
-  jq -cn --arg m "FIRSTMATE SUPERVISION IS OFF in this home ($need, no live watcher), and this session is read-only: another live process holds the fleet lock, so this session will not arm or repair supervision and its turn may end. Supervision stays off for as long as that holder keeps the lock.
+  jq -cn --arg m "FIRSTMATE SUPERVISION IS OFF in this home ($need, last watcher beat: $FM_SUP_BEACON_DESC), and this session is read-only: another live process holds the fleet lock, so this session will not arm or repair supervision and its turn may end. Supervision stays off for as long as that holder keeps the lock.
 $(fm_session_lock_takeover_guidance "$STATE" "$holder" "$SCRIPT_DIR/fm-lock.sh" "$FM_HOME" "$FM_ROOT")" '{systemMessage: $m}'
 }
 
@@ -228,7 +231,7 @@ if fm_session_lock_held_by_other "$STATE"; then
   if displaced_record=$(fm_session_lock_displaced_record "$STATE"); then
     displaced_session_notice "$displaced_record"
   fi
-  if [ "$FM_SUP_NEEDED" = true ] \
+  if [ "$FM_SUP_NEEDED" = true ] && [ "$FM_SUP_WATCHER_FRESH" = false ] \
     && ! fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME" \
     && ! { [ "$FM_SUP_WATCHER_FRESH" = true ] && fm_afk_daemon_owns_supervision "$STATE"; }; then
     readonly_session_notice
