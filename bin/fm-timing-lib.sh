@@ -15,15 +15,20 @@
 # a failed append is discarded rather than propagated, because losing a diagnostic
 # line must never change what a sweep does or how it exits.
 #
-# ENVIRONMENT, both exported by the stage that owns a run:
+# ENVIRONMENT, both handed explicitly to each process being measured:
 #   FM_TIMING_LOG       append-only record file. Unset or empty disables recording.
-#                       Exported across process boundaries on purpose: the phases
-#                       being measured run in bin/fm-bootstrap.sh and
+#                       It crosses process boundaries on purpose: the phases being
+#                       measured run in bin/fm-bootstrap.sh and
 #                       bin/fm-fleet-sync.sh, which are children of the stage.
 #   FM_TIMING_EPOCH_MS  the run's start instant, so every record carries an offset
 #                       from ONE origin even though the records are written by
 #                       several processes. Defaults to the first recording
 #                       process's own start, which keeps a hand-run child readable.
+# Each hop passes both to the one measured child it starts (the stage to
+# bootstrap, bootstrap to fleet sync), and sourcing this file stops exporting
+# them. An exported value would reach every other descendant too, and a backend
+# probe or secondmate relaunch can start a long-lived server that hands its
+# startup environment to every later pane.
 #
 # RECORD FORMAT, one tab-separated line per measured step:
 #   v1 <TAB> scope <TAB> name <TAB> start-offset-ms <TAB> elapsed-ms <TAB> detail
@@ -44,6 +49,7 @@
 # place.
 set -u
 
+export -n FM_TIMING_LOG FM_TIMING_EPOCH_MS
 FM_TIMING_DETAIL_MAX=${FM_TIMING_DETAIL_MAX:-80}
 
 fm_timing_enabled() {
@@ -77,7 +83,7 @@ fm_timing_now_ms() {
 }
 
 # Ensure FM_TIMING_EPOCH_MS holds the origin every offset is measured from.
-# Callers that own a run export it up front; a process that starts recording
+# Callers that own a run stamp it up front; a process that starts recording
 # without one adopts its own first measurement so its records stay internally
 # consistent instead of being silently dropped.
 #
@@ -87,10 +93,7 @@ fm_timing_now_ms() {
 # record would recompute it, flattening every start offset to zero.
 fm_timing_epoch_ensure() {
   case "${FM_TIMING_EPOCH_MS:-}" in
-    ''|*[!0-9]*)
-      FM_TIMING_EPOCH_MS=$(fm_timing_now_ms)
-      export FM_TIMING_EPOCH_MS
-      ;;
+    ''|*[!0-9]*) FM_TIMING_EPOCH_MS=$(fm_timing_now_ms) ;;
   esac
 }
 
@@ -103,7 +106,6 @@ fm_timing_start() {  # <file>
   : > "$file" 2>/dev/null || return 0
   FM_TIMING_LOG=$file
   FM_TIMING_EPOCH_MS=$(fm_timing_now_ms)
-  export FM_TIMING_LOG FM_TIMING_EPOCH_MS
 }
 
 fm_timing_sanitize() {  # <text>

@@ -76,6 +76,11 @@ case "$HOME_SUMMARY_IF_IDLE" in
   0|1) ;;
   *) HOME_SUMMARY_IF_IDLE=0 ;;
 esac
+# Both are this process's own input, already read above. Parent mode hands the
+# worker its values explicitly, so withdraw them here rather than let any child
+# (a snapshot read can start a backend server that keeps its startup
+# environment for every later pane) inherit them.
+unset FM_HOME_SUMMARY_IF_IDLE FM_HOME_SUMMARY_WORKER_BEST_EFFORT
 
 if [ "$HOME_SUMMARY_MODE" != parent ]; then
   # shellcheck source=bin/fm-wake-lib.sh

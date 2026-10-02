@@ -471,7 +471,8 @@ EOF
   # killed mid-sweep cannot leave a half-written artifact where the previous
   # run's complete one used to be; publish() promotes it atomically at the end.
   # Sweeps run in child processes (bin/fm-bootstrap.sh, and bin/fm-fleet-sync.sh
-  # below it), so FM_TIMING_LOG is exported and appended to by all of them.
+  # below it), so the record file and its origin are handed to bootstrap, which
+  # hands them on, and all of them append to it.
   timings=$(mktemp "${TMPDIR:-/tmp}/fm-startup-network-timings.XXXXXX" 2>/dev/null) || timings=
   [ -z "$timings" ] || fm_timing_start "$timings"
   stage_started=$(fm_timing_now_ms)
@@ -489,18 +490,21 @@ EOF
   # retains its own tighter per-scan bound inside this outer bound. Findings
   # need no report translation: the scan writes its ordinary durable
   # inactive-outcome wakes directly. A child shell composes the two executable
-  # owners only so fm_run_timed can govern them as one process group.
+  # owners only so fm_run_timed can govern them as one process group. Bootstrap's
+  # own inputs go to bootstrap alone: the scan can reach a backend that starts a
+  # long-lived server, which would hand them to every later pane.
   if [ "$sweep_locked" -eq 1 ]; then
     # shellcheck disable=SC2016  # Child-shell variables expand inside the bound.
     fm_run_timed "$budget" env FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
-      FM_BOOTSTRAP_NETWORK=only FM_BOOTSTRAP_NETWORK_LOCK_PID="$lock_pid" \
       bash -c '
         script_dir=$1
         "$script_dir/fm-inactive-reconcile.sh" scan --startup >/dev/null 2>&1 || true
-        exec "$script_dir/fm-bootstrap.sh"
-      ' _ "$SCRIPT_DIR" >"$out" 2>&1 || rc=$?
+        exec env FM_BOOTSTRAP_NETWORK=only FM_BOOTSTRAP_NETWORK_LOCK_PID="$2" \
+          FM_TIMING_LOG="$3" FM_TIMING_EPOCH_MS="$4" "$script_dir/fm-bootstrap.sh"
+      ' _ "$SCRIPT_DIR" "$lock_pid" "${FM_TIMING_LOG:-}" "${FM_TIMING_EPOCH_MS:-}" >"$out" 2>&1 || rc=$?
   else
     fm_run_timed "$budget" env FM_BOOTSTRAP_NETWORK=only FM_BOOTSTRAP_DETECT_ONLY=1 \
+      FM_TIMING_LOG="${FM_TIMING_LOG:-}" FM_TIMING_EPOCH_MS="${FM_TIMING_EPOCH_MS:-}" \
       "$SCRIPT_DIR/fm-bootstrap.sh" >"$out" 2>&1 || rc=$?
   fi
   [ "$lease_held" -eq 0 ] || fm_lock_release "$STATE/.lock.acquire"

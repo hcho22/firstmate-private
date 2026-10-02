@@ -130,7 +130,9 @@ make_no_timeout_toolbin() {  # <dir> -> echoes toolbin path
   local dir=$1 tb="$1/notimeoutbin" tool real
   mkdir -p "$tb"
   for tool in bash git grep sed head cut tail dirname perl; do
-    real=$(command -v "$tool" || true)
+    # type -P: an executable path only, never a shell function or alias, which
+    # would otherwise become a dangling symlink in the tool-less PATH.
+    real=$(type -P "$tool" || true)
     [ -n "$real" ] || fail "missing tool for no-timeout path: $tool"
     ln -s "$real" "$tb/$tool"
   done
@@ -1724,6 +1726,47 @@ EOF
   pass "runs-list continuation attribution works when axi answers another branch"
 }
 
+# Regression: startup's fleet snapshot reads each task through these two
+# overrides, and a backend probe a read starts can be the process that launches a
+# long-lived server, which hands its startup environment to every later pane. The
+# overrides are the helper's own input, so they must not reach the processes it
+# starts - while still steering the read to the snapshot's copy of the record.
+test_overrides_do_not_reach_backend_probes() {
+  command -v jq >/dev/null 2>&1 || { pass "override scoping skipped without jq"; return; }
+  reset_fakes
+  local d; d=$(new_case override-scope)
+  make_repo_on_branch "$d/wt" fm/feat-scope
+  make_fakebin "$d" >/dev/null
+  # Only the snapshot copy exists, so a read that ignored the overrides could not
+  # find the record at all.
+  mkdir -p "$d/snap"
+  fm_write_meta "$d/snap/feat-scope.meta" "window=default:w1:p2" "worktree=$d/wt" "kind=ship" \
+    "backend=herdr" "harness=claude"
+  printf 'working: from the snapshot copy\n' > "$d/snap/feat-scope.status"
+  cat > "$d/fakebin/herdr" <<'SH'
+#!/usr/bin/env bash
+set -u
+{ printf 'call %s\n' "$*"; env | grep '^FM_CREW_STATE_' || true; } >> "${FM_FAKE_HERDR_ENV_LOG:?}"
+case "${1:-}" in
+  status) printf '{"client":{"version":"0.7.1","protocol":14},"server":{"running":true}}\n'; exit 0 ;;
+  pane) [ "${2:-}" = read ] && { printf 'all quiet\n> \n'; exit 0; } ;;
+esac
+exit 1
+SH
+  chmod +x "$d/fakebin/herdr"
+  FM_FAKE_TMUX_MISSING=1
+  : > "$d/herdr.env"
+  local out
+  out=$(FM_FAKE_HERDR_ENV_LOG="$d/herdr.env" \
+    FM_CREW_STATE_META_OVERRIDE="$d/snap/feat-scope.meta" \
+    FM_CREW_STATE_STATUS_OVERRIDE="$d/snap/feat-scope.status" \
+    run_crew_state "$d" feat-scope)
+  assert_not_contains "$out" "no metadata" "the overrides no longer steer the read to the snapshot's record: $out"
+  assert_contains "$(cat "$d/herdr.env")" "call " "the backend probe never ran, so the check proved nothing"
+  assert_not_contains "$(cat "$d/herdr.env")" "FM_CREW_STATE_" "a backend probe inherited the helper's own overrides"
+  pass "the snapshot overrides steer the read without reaching the processes it starts"
+}
+
 test_active_run_is_authoritative
 test_stale_needs_decision_superseded
 test_stale_blocked_superseded
@@ -1787,5 +1830,6 @@ test_active_fix_round_unfetched_pipeline_head_reports_current
 test_unanchored_unfetched_active_row_does_not_match
 test_unresolved_terminal_row_is_history_not_current
 test_runs_list_continuation_found_when_axi_answers_other_branch
+test_overrides_do_not_reach_backend_probes
 
 echo "all fm-crew-state tests passed"
