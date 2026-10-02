@@ -96,6 +96,20 @@ fi
 # that must act only AFTER that point waits for this file, not for some elapsed time.
 [ -z "${FM_FAKE_SWEEP_RECORDED:-}" ] || : > "$FM_FAKE_SWEEP_RECORDED"
 [ -z "${FM_FAKE_BOOTSTRAP_SLEEP:-}" ] || sleep "$FM_FAKE_BOOTSTRAP_SLEEP"
+# FM_FAKE_BOOTSTRAP_HOLD names a release file: the sweep stays in flight until
+# the case creates it, so a case that must act WHILE a sweep runs does not race a
+# fixed sleep. The sweep marks <hold>.passed once it moves on, so a case can
+# prove something happened before the sweep finished. The hang guard only keeps
+# a forgotten hold from lasting forever, and a case that failed before releasing
+# it removes its temp root, which ends the hold at once.
+if [ -n "${FM_FAKE_BOOTSTRAP_HOLD:-}" ]; then
+  hold_deadline=$((SECONDS + 120))
+  while [ ! -e "$FM_FAKE_BOOTSTRAP_HOLD" ] && [ "$SECONDS" -lt "$hold_deadline" ]; do
+    [ -d "${FM_FAKE_BOOTSTRAP_HOLD%/*}" ] || exit 1
+    sleep 0.05
+  done
+  : > "$FM_FAKE_BOOTSTRAP_HOLD.passed"
+fi
 [ -z "${FM_FAKE_BOOTSTRAP_OUT:-}" ] || printf '%s\n' "$FM_FAKE_BOOTSTRAP_OUT"
 exit "${FM_FAKE_BOOTSTRAP_RC:-0}"
 SH
@@ -509,19 +523,22 @@ EOF
 }
 
 test_locked_start_is_not_satisfied_by_an_inflight_probe() {
-  local rec home root log waited=0
+  local rec home root log hold deadline
   rec=$(new_world probe-then-locked)
   IFS='|' read -r home root log <<EOF
 $rec
 EOF
+  hold="$TMP_ROOT/probe-then-locked.hold"
   printf '%s\n' $$ > "$home/state/.lock"
   printf '../other-home\n' > "$home/.fm-secondmate-home"
 
-  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=6 \
+  # The probe-only sweep stays in flight until the case releases it, so the
+  # locked request always meets it however slow the host is.
+  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_HOLD="$hold" \
     run_stage "$home" "$root" start --locked 0 --harvest-pid $$
-  while ! grep -Fq 'detect_only=1' "$log" 2>/dev/null && [ "$waited" -lt 50 ]; do
+  deadline=$((SECONDS + 60))
+  while ! grep -Fq 'detect_only=1' "$log" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
   assert_grep 'network=only detect_only=1' "$log" \
     "the probe-only worker was not in flight before the locked request"
@@ -530,6 +547,8 @@ EOF
     run_stage "$home" "$root" start --locked 1 --harvest-pid $$
   run_stage "$home" "$root" wait 30 >/dev/null \
     || fail "the locked request never published"
+  [ ! -e "$hold.passed" ] || fail "the probe-only sweep finished before the locked request superseded it"
+  : > "$hold"
   assert_grep 'network=only detect_only=0' "$log" \
     "the in-flight probe-only worker suppressed the locked sweeps"
   assert_grep $'check\tinactive-reconcile-diagnostic:invalid-secondmate-home\t' "$home/state/.wake-queue" \
@@ -540,18 +559,23 @@ EOF
 # Two session opens in quick succession must not run the same mutating sweeps
 # concurrently against each other.
 test_start_is_single_flight() {
-  local rec home root log runs
+  local rec home root log runs hold
   rec=$(new_world single-flight)
   IFS='|' read -r home root log <<EOF
 $rec
 EOF
+  hold="$TMP_ROOT/single-flight.hold"
   printf '%s\n' $$ > "$home/state/.lock"
 
-  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=6 \
+  # The first worker's sweep stays in flight until the case releases it, so the
+  # second start always meets a running worker however slow the host is.
+  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_HOLD="$hold" \
     run_stage "$home" "$root" start --locked 1 --harvest-pid $$
   await_worker_record "$home"
-  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=6 \
+  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_HOLD="$hold" \
     run_stage "$home" "$root" start --locked 1 --harvest-pid $$
+  [ ! -e "$hold.passed" ] || fail "the first worker finished before the second start could meet it"
+  : > "$hold"
   run_stage "$home" "$root" wait 40 >/dev/null || fail "the worker never published"
 
   runs=$(grep -c 'network=only' "$log" || true)
@@ -578,9 +602,14 @@ lock_pid=
 EOF
   printf 'old result\n' > "$home/state/.startup-network.report"
 
-  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=5 \
+  # The new worker's sweep stays in flight until the case releases it, so the
+  # harvest below always sees a running generation however slow the host is.
+  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_HOLD="$TMP_ROOT/generation-reservation.hold" \
     run_stage "$home" "$root" start --locked 0 --harvest-pid $$
   report=$(run_stage "$home" "$root" harvest --pid $$)
+  [ ! -e "$TMP_ROOT/generation-reservation.hold.passed" ] \
+    || fail "the new generation finished before the harvest could observe it in flight"
+  : > "$TMP_ROOT/generation-reservation.hold"
   assert_contains "$report" "IN PROGRESS" \
     "harvest exposed the previous generation after a new start returned: $report"
   assert_not_contains "$report" "old result" \
@@ -612,28 +641,32 @@ EOF
 }
 
 test_lock_takeover_stays_read_only_while_a_sweep_holds_the_lease() {
-  local rec home root log next_owner new_owner out rc started elapsed waited=0
+  local rec home root log hold next_owner new_owner out rc deadline
   rec=$(new_world sweep-lease)
   IFS='|' read -r home root log <<EOF
 $rec
 EOF
+  hold="$TMP_ROOT/sweep-lease.hold"
   printf '%s\n' $$ > "$home/state/.lock"
-  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=6 \
+  # The sweep stays mid-run, holding its lease, until the case releases it, so
+  # the takeover below always meets a mutating sweep however slow the host is.
+  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_HOLD="$hold" \
     run_stage "$home" "$root" start --locked 1 --harvest-pid $$
-  while [ ! -s "$log" ] && [ "$waited" -lt 50 ]; do
+  deadline=$((SECONDS + 60))
+  while [ ! -s "$log" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
-  [ -s "$log" ] || fail "the mutating sweep never started"
+  [ -s "$log" ] || { : > "$hold"; fail "the mutating sweep never started"; }
 
   next_owner=$(/bin/ps -o ppid= -p $$ | tr -d ' ')
-  started=$(date +%s)
   rc=0
   out=$(PATH="$root/bin:$PATH" FM_FAKE_HARNESS_PID="$next_owner" \
     FM_HOME="$home" FM_ROOT_OVERRIDE="$root" "$root/bin/fm-lock.sh" 2>&1) || rc=$?
-  elapsed=$(( $(date +%s) - started ))
+  # Returning while the sweep is still held proves the takeover did not wait
+  # behind it; a takeover that waited could only return once the sweep moved on.
+  [ ! -e "$hold.passed" ] || fail "lock takeover blocked behind deferred network work"
+  : > "$hold"
   [ "$rc" -ne 0 ] || fail "lock takeover succeeded while the prior sweep was mutating"
-  [ "$elapsed" -lt 4 ] || fail "lock takeover blocked ${elapsed}s behind deferred network work"
   assert_contains "$out" "operate read-only" \
     "a lease-blocked takeover did not fail closed to read-only: $out"
   [ "$(cat "$home/state/.lock")" = "$$" ] \
