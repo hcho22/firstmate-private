@@ -543,6 +543,7 @@ test_live_idle_holder_is_named_and_never_displaced_automatically() {
   assert_contains "$SESSION_OUT" "app-server --listen unix:// --managed-daemon" "the refusal did not show what the holder is running"
   assert_contains "$SESSION_OUT" "holding the lock since 2026-" "the refusal did not say when the holder took the lock"
   assert_contains "$SESSION_OUT" "fm-lock.sh takeover --confirm-holder $DAEMON_PID" "the refusal did not print the one explicit takeover command"
+  assert_contains "$SESSION_OUT" "Only with the captain's OK" "the refusal must say the takeover needs the captain's OK"
   [ "$(cat "$dir/state/.lock")" = "$DAEMON_PID" ] || fail "an idle live holder was displaced without a takeover"
   session_run "$dir" claude '"$FM_HOME/bin/fm-lock.sh" status'
   assert_contains "$SESSION_OUT" "lock: held by live harness pid $DAEMON_PID (command:" "status lost its stable prefix or the holder's command"
@@ -557,13 +558,17 @@ test_takeover_requires_explicit_confirmation_of_the_current_holder() {
   session_run "$dir" claude '"$FM_HOME/bin/fm-lock.sh" takeover'
   expect_code 2 "$SESSION_RC" "takeover without the confirmation flag must be refused as a usage error"
   assert_contains "$SESSION_OUT" "--confirm-holder" "the refusal did not name the confirmation flag"
+  session_run "$dir" claude "\"\$FM_HOME/bin/fm-lock.sh\" takeover --confirm-holder=$DAEMON_PID"
+  expect_code 2 "$SESSION_RC" "only the documented --confirm-holder <pid> spelling may confirm a takeover"
+  assert_contains "$SESSION_OUT" "usage: fm-lock.sh takeover --confirm-holder <pid>" "an undocumented spelling did not get the usage line"
+  [ "$(cat "$dir/state/.lock")" = "$DAEMON_PID" ] || fail "an undocumented confirmation spelling displaced the holder"
   session_run "$dir" claude '"$FM_HOME/bin/fm-lock.sh" takeover --confirm-holder 1'
   expect_code 1 "$SESSION_RC" "a confirmation naming a different pid must not displace the holder"
   assert_contains "$SESSION_OUT" "not the confirmed pid 1" "the stale-confirmation refusal did not explain itself"
   [ "$(cat "$dir/state/.lock")" = "$DAEMON_PID" ] || fail "an unconfirmed takeover displaced the holder"
   assert_absent "$dir/state/.lock-takeovers" "a refused takeover left a record"
   stop_idle_daemon_home "$dir"
-  pass "session-lock takeover: refuses without the flag and when the confirmed pid is not the current holder"
+  pass "session-lock takeover: refuses without the flag, for an undocumented spelling, and when the confirmed pid is not the current holder"
 }
 
 test_takeover_refuses_while_a_watcher_beat_is_fresh() {

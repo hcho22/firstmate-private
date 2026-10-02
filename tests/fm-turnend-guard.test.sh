@@ -2006,14 +2006,23 @@ test_hook_claude_readonly_session_with_prior_epoch_ledger_does_not_loop() {
 }
 
 test_hook_claude_readonly_notice_is_once_per_session() {
-  local dir foreign
+  local dir foreign message
   dir=$(make_primary_dir "$TMP_ROOT/hook-claude-readonly-sessions")
   : > "$dir/state/task1.meta"
   foreign=$(start_foreign_session "$dir")
   printf '%s\n' "$foreign" > "$dir/state/.lock"
+  touch -t 202601010900 "$dir/state/.lock"
   run_guard_in_harness "$dir" claude sess-a none --claude
-  assert_contains "$GUARD_OUT" 'this session is read-only' "first read-only stop did not explain itself"
-  assert_contains "$GUARD_OUT" "pid $foreign" "the notice must name the live lock holder"
+  message=$(printf '%s' "$GUARD_OUT" | jq -er '.systemMessage') \
+    || { stop_foreign_session "$foreign"; fail "the read-only notice is not a Claude hook systemMessage: $GUARD_OUT"; }
+  assert_contains "$message" 'this session is read-only' "first read-only stop did not explain itself"
+  assert_contains "$message" "holder: pid $foreign, command:" "the notice must name the live lock holder's pid and command"
+  assert_contains "$message" "app-server --listen unix:// --managed-daemon" "the notice did not show what the holder is running"
+  assert_contains "$message" "holding the lock since 2026-" "the notice did not say when the holder took the lock"
+  assert_contains "$message" "stays off for as long as that holder keeps the lock" "the notice must say supervision stays off while the holder keeps the lock"
+  assert_contains "$message" "fm-lock.sh takeover --confirm-holder $foreign" "the notice did not print the explicit takeover command"
+  assert_contains "$message" "Only with the captain's OK" "the notice must say the takeover needs the captain's OK"
+  assert_not_contains "$message" "resumes when" "the notice must not tell the reader to wait for the holder to go away"
   run_guard_in_harness "$dir" claude sess-a none --claude
   [ -z "$GUARD_OUT" ] || { stop_foreign_session "$foreign"; fail "second stop of the same read-only session repeated the notice: $GUARD_OUT"; }
   run_guard_in_harness "$dir" claude sess-b none --claude

@@ -174,11 +174,12 @@ budget_reset() {
 # arm, drain, or repair supervision, so demanding that repair would only trap it
 # in a loop it cannot satisfy. In --claude mode the block budget cannot bound
 # that loop either, because it counts auto-arm event epochs and a lock-refused
-# session never advances one. The lock holder owns recovery, so this session
-# neither blocks nor touches any state/ file, and says so at most once per
-# session. The once-only markers live in the temp directory, keyed by home and
-# session id, precisely so a read-only session writes nothing into the fleet's
-# state.
+# session never advances one. Recovery belongs to the lock holder or to a
+# captain-confirmed takeover, so this session neither blocks nor touches any
+# state/ file, and says so at most once per session, naming the holder and the
+# takeover command exactly as the session-start refusal does. The once-only
+# markers live in the temp directory, keyed by home and session id, precisely so
+# a read-only session writes nothing into the fleet's state.
 notice_once() {  # <kind>: succeed only the first time this session asks
   local marker
   marker="${TMPDIR:-/tmp}/.fm-$1-guard-notice.$(printf '%s' "$STATE" | cksum | cut -d' ' -f1).$(printf '%s' "$SESSION_ID" | tr -c 'A-Za-z0-9_.-' '_')"
@@ -188,8 +189,8 @@ notice_once() {  # <kind>: succeed only the first time this session asks
 readonly_session_notice() {
   local holder need
   [ "$CLAUDE_MODE" -eq 1 ] || return 0
+  holder=$(fm_session_lock_holder_pid "$STATE") || return 0
   notice_once readonly || return 0
-  holder=$(fm_session_lock_holder_pid "$STATE" || printf 'unknown')
   if [ "$FM_SUP_IN_FLIGHT" -gt 0 ]; then
     need="$FM_SUP_IN_FLIGHT task(s) in flight"
   elif [ "$FM_SUP_SOURCES" -gt 0 ]; then
@@ -197,7 +198,8 @@ readonly_session_notice() {
   else
     need="X-mode relay polling active"
   fi
-  printf '{"systemMessage":"FIRSTMATE SUPERVISION IS OFF in this home (%s, no live watcher), but this session is read-only: another live session (pid %s) holds the fleet lock, so this session will not arm or repair supervision and its turn may end. Recovery belongs to the lock holder; it resumes when that session is gone and a new session takes the lock."}\n' "$need" "$holder"
+  jq -cn --arg m "FIRSTMATE SUPERVISION IS OFF in this home ($need, no live watcher), and this session is read-only: another live process holds the fleet lock, so this session will not arm or repair supervision and its turn may end. Supervision stays off for as long as that holder keeps the lock.
+$(fm_session_lock_takeover_guidance "$STATE" "$holder" "$SCRIPT_DIR/fm-lock.sh" "$FM_HOME" "$FM_ROOT")" '{systemMessage: $m}'
 }
 
 # The one lock-refused case that must reach the MODEL, not just the captain: this

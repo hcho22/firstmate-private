@@ -65,7 +65,7 @@ if [ "${1:-}" = "status" ]; then
     echo "lock: unreadable"
     exit 0
   }
-  if fm_session_holder_live "$STATE" "$old"; then
+  if fm_harness_pid_alive "$old"; then
     echo "lock: held by live harness pid $old ($(fm_session_lock_holder_summary "$STATE" "$old"))"
   else
     echo "lock: stale (pid $old dead or not a harness)"
@@ -81,7 +81,6 @@ if [ "${1:-}" = "takeover" ]; then
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --confirm-holder) CONFIRM_HOLDER=${2:-}; shift; [ "$#" -eq 0 ] || shift ;;
-      --confirm-holder=*) CONFIRM_HOLDER=${1#--confirm-holder=}; shift ;;
       *) echo "usage: fm-lock.sh takeover --confirm-holder <pid>" >&2; exit 2 ;;
     esac
   done
@@ -117,15 +116,8 @@ trap 'exit 1' HUP INT TERM
 # stable diagnostic every consumer matches; the rest names the holder and the one
 # way out, so the captain decides with the facts instead of a bare pid.
 refuse_live_holder() {  # <pid>
-  local pid=$1 home_prefix=
-  [ "$FM_HOME" = "$FM_ROOT" ] || home_prefix="FM_HOME='$FM_HOME' "
-  echo "error: another live firstmate session holds the lock (pid $pid); operate read-only until resolved" >&2
-  {
-    echo "  holder: pid $pid, $(fm_session_lock_holder_summary "$STATE" "$pid")"
-    echo "  This session never takes over a live holder on its own. If the captain confirms that process is not a working firstmate session (for example an idle background service), take over with:"
-    echo "    ${home_prefix}$SCRIPT_DIR/fm-lock.sh takeover --confirm-holder $pid"
-    echo "  The takeover refuses while a watcher beat is fresh, and records who took over from whom."
-  } >&2
+  echo "error: another live firstmate session holds the lock (pid $1); operate read-only until resolved" >&2
+  fm_session_lock_takeover_guidance "$STATE" "$1" "$SCRIPT_DIR/fm-lock.sh" "$FM_HOME" "$FM_ROOT" | sed 's/^/  /' >&2
 }
 
 # Publish this session's pid as the holder and verify it landed. Exits 1 with the
@@ -152,7 +144,7 @@ if [ "$TAKEOVER" -eq 0 ] && [ -f "$LOCK" ] && [ ! -L "$LOCK" ]; then
     echo "lock acquired: harness pid $me"
     exit 0
   fi
-  if fm_session_holder_live "$STATE" "$old"; then
+  if fm_harness_pid_alive "$old"; then
     refuse_live_holder "$old"
     exit 1
   fi
@@ -191,7 +183,7 @@ if [ "$TAKEOVER" -eq 1 ]; then
       exit 1
       ;;
   esac
-  if ! fm_session_holder_live "$STATE" "$old"; then
+  if ! fm_harness_pid_alive "$old"; then
     echo "error: lock holder pid $old is not a live session, so no takeover is needed; run $SCRIPT_DIR/fm-lock.sh to acquire the lock normally" >&2
     exit 1
   fi
@@ -230,7 +222,7 @@ if [ "$TAKEOVER" -eq 1 ]; then
   exit 0
 fi
 
-if [ "$old" != "$me" ] && [ -n "$old" ] && fm_session_holder_live "$STATE" "$old"; then
+if [ "$old" != "$me" ] && [ -n "$old" ] && fm_harness_pid_alive "$old"; then
   refuse_live_holder "$old"
   exit 1
 fi

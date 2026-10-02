@@ -165,15 +165,6 @@ fm_session_lock_holder_pid() {
   printf '%s\n' "$lock_pid"
 }
 
-# True when pid $2, recorded in state dir $1's session lock, still holds a LIVE
-# firstmate session. THE single owner of the question every lock reader asks
-# before it defers to, or reclaims from, a recorded holder: bin/fm-lock.sh, the
-# Claude Stop auto-arm, the Cursor park, and the turn-end guard all call it, so
-# no caller can drift into a looser or stricter test of its own.
-fm_session_holder_live() {  # <state> <pid>
-  fm_harness_pid_alive "$2"
-}
-
 # Print pid $1's command line as one printable line capped at 300 characters
 # (a harness launched with a whole brief on its command line stays readable), or
 # a placeholder when ps cannot report it.
@@ -211,6 +202,20 @@ fm_session_lock_holder_summary() {  # <state> <pid>
   printf 'command: %s, holding the lock since %s (%s ago)' "$args" "$taken" "$age"
 }
 
+# Print the lines every lock-refused surface shows for state dir $1's live holder
+# pid $2: what holds the lock, and the one way to take it over, spelled as the
+# exact command for lock script $3 in home $4 (checkout root $5). The session-start
+# refusal (bin/fm-lock.sh) and the turn-end guard's read-only notice both print
+# exactly these lines, so the two can never disagree about the way out.
+fm_session_lock_takeover_guidance() {  # <state> <pid> <lock-script> <home> <root>
+  local state=$1 pid=$2 lock_script=$3 home=$4 root=$5 home_prefix=
+  [ "$home" = "$root" ] || home_prefix="FM_HOME='$home' "
+  printf 'holder: pid %s, %s\n' "$pid" "$(fm_session_lock_holder_summary "$state" "$pid")"
+  printf '%s\n' "This session never takes over a live holder on its own. Only with the captain's OK, once the captain confirms that process is not a working firstmate session (for example an idle background service), take over with:"
+  printf '  %s%s takeover --confirm-holder %s\n' "$home_prefix" "$lock_script" "$pid"
+  printf '%s\n' 'The takeover refuses while a watcher beat is fresh, and records who took over from whom.'
+}
+
 # True when pid $1 is this process or ANY ancestor of it, at any depth (up to 64
 # hops). Wider than the contiguous harness run fm_session_lock_owned_by_self
 # uses: the stand-down decisions below silence a guard, so they must treat a
@@ -236,7 +241,7 @@ fm_session_lock_pid_in_ancestry() {  # <pid>
 fm_session_lock_held_by_other() {
   local state=$1 lock_pid
   lock_pid=$(fm_session_lock_holder_pid "$state") || return 1
-  fm_session_holder_live "$state" "$lock_pid" || return 1
+  fm_harness_pid_alive "$lock_pid" || return 1
   fm_harness_ancestry_pids >/dev/null || return 1
   ! fm_session_lock_pid_in_ancestry "$lock_pid"
 }
