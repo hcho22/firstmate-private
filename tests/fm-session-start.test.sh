@@ -317,8 +317,10 @@ SH
 
 # make_fake_tmux_secondmate_recovery <fakebin>: a stateful tmux boundary
 # fixture for the real session-start -> bootstrap -> spawn path.
-# FM_FAKE_TMUX_MODE selects missing, ambiguous, unreadable, or shell; missing
-# reproduces real tmux's active-window fallback while inventory omits the mate.
+# FM_FAKE_TMUX_MODE selects missing, ambiguous, unreadable, shell, or no-server;
+# missing reproduces real tmux's active-window fallback while inventory omits the
+# mate, and no-server has no tmux server at all until `new-session` starts one,
+# recording the environment it was started with in <spawned>.server.env.
 make_fake_tmux_secondmate_recovery() {
   local fakebin=$1
   cat > "$fakebin/tmux" <<'SH'
@@ -328,9 +330,24 @@ mode=${FM_FAKE_TMUX_MODE:?}
 log=${FM_FAKE_TMUX_LOG:?}
 spawned=${FM_FAKE_TMUX_SPAWNED:?}
 killed=${spawned}.killed
+server=${spawned}.server
 mate_home=${FM_FAKE_SECOND_MATE_HOME:?}
 mate_id=${FM_FAKE_SECOND_MATE_ID:?}
 mate_window="fm-$mate_id"
+if [ "$mode" = no-server ] && [ ! -e "$server" ]; then
+  case "${1:-}" in
+    new-session)
+      printf '%s\n' "$*" >> "$log"
+      env | grep '^FM_' | sort > "$server.env" || true
+      : > "$server"
+      exit 0
+      ;;
+    *)
+      printf 'no server running on /tmp/tmux-fake/default\n' >&2
+      exit 1
+      ;;
+  esac
+fi
 case "${1:-}" in
   display-message)
     target=
@@ -1385,8 +1402,26 @@ SH
   chmod +x "$fakebin/herdr"
 }
 
+# startup_variables_in_server_env <server-env-file> <allowed-pattern>...: the FM_
+# names in a recorded server environment that this suite does not export itself
+# and that match none of the patterns the launch deliberately passed. Any such
+# name came from startup.
+startup_variables_in_server_env() {
+  local file=$1 line name allowed leaked=
+  shift
+  while IFS= read -r line; do
+    name=${line%%=*}
+    for allowed in "$@"; do
+      # shellcheck disable=SC2254  # Allowed names are glob patterns on purpose.
+      case "$name" in $allowed) continue 2 ;; esac
+    done
+    compgen -e "$name" | grep -qx "$name" || leaked="$leaked $name"
+  done < "$file"
+  printf '%s' "$leaked"
+}
+
 test_startup_internal_variables_never_reach_the_session_environment() {
-  local rec root home fakebin w rec_dir task wt server_env leaked line name out
+  local rec root home fakebin w rec_dir task wt server_env leaked line out
   local -a pane_env
   rec=$(new_world internal-env)
   IFS='|' read -r root home fakebin <<EOF
@@ -1416,16 +1451,7 @@ EOF
   server_env="$rec_dir/server.env"
   assert_present "$server_env" "startup never launched the backend server, so the environment check proved nothing"
 
-  # The server may carry what this suite itself exports and what the launch above
-  # deliberately passed; any other FM_ name came from startup.
-  leaked=
-  while IFS= read -r line; do
-    name=${line%%=*}
-    case "$name" in
-      FM_FAKE_HERDR_DIR) ;;
-      *) compgen -e "$name" | grep -qx "$name" || leaked="$leaked $name" ;;
-    esac
-  done < "$server_env"
+  leaked=$(startup_variables_in_server_env "$server_env" FM_FAKE_HERDR_DIR)
   [ -z "$leaked" ] || fail "startup left internal variables in the environment its backend server hands to every pane:$leaked"
 
   # A pane the server creates now starts from exactly the server's environment.
@@ -1439,6 +1465,40 @@ EOF
   done
 
   pass "startup keeps its internal variables out of the backend server environment, so later sessions read every task's real record"
+}
+
+# The deferred network stage reaches a backend too. When a recorded secondmate
+# endpoint reads as missing - a tmux home after a reboot, with no tmux server
+# running - its liveness sweep relaunches the secondmate through fm-spawn.sh, and
+# that relaunch is what starts the tmux server. Whatever the stage still exports
+# at that point becomes the global environment of every later window: a pane
+# whose fm-spawn.sh skips the watcher guard, or whose fm-bootstrap.sh runs only
+# the network half under a fleet-lock pid that no longer matches.
+test_secondmate_relaunch_keeps_startup_variables_out_of_the_server() {
+  local rec root home fakebin mate log spawned server_env leaked
+  rec=$(prepare_session_start_secondmate secondmate-relaunch-server-env)
+  IFS='|' read -r root home fakebin mate log spawned <<EOF
+$rec
+EOF
+
+  run_session_start_secondmate "$root" "$home" "$fakebin" "$mate" "$log" "$spawned" no-server >/dev/null
+  wait_for_network_stage "$home" "$root" \
+    || fail "the deferred network stage never published: $(network_stage_report "$home" "$root")"
+
+  assert_contains "$(cat "$log")" "new-window" \
+    "the deferred stage did not relaunch the missing secondmate: $(network_stage_report "$home" "$root")"
+  server_env="$spawned.server.env"
+  assert_present "$server_env" "the relaunch never started the tmux server, so the environment check proved nothing"
+
+  # Tmux, unlike Herdr's launcher, keeps the home selection, and startup pins it
+  # to this same real home.
+  grep -Fqx "FM_STATE_OVERRIDE=$home/state" "$server_env" \
+    || fail "the relaunch started the tmux server for a different home: $(cat "$server_env")"
+  leaked=$(startup_variables_in_server_env "$server_env" \
+    'FM_FAKE_*' FM_BACKEND FM_HOME FM_ROOT_OVERRIDE FM_STATE_OVERRIDE)
+  [ -z "$leaked" ] || fail "the deferred secondmate relaunch left startup variables in the environment its tmux server hands to every window:$leaked"
+
+  pass "a deferred secondmate relaunch starts its backend server without startup's internal variables"
 }
 
 # --- composition: real scripts run, not reimplemented ------------------------
@@ -2682,6 +2742,7 @@ test_orphan_status_logs_are_printed
 test_endpoint_liveness_tmux
 test_endpoint_liveness_herdr
 test_startup_internal_variables_never_reach_the_session_environment
+test_secondmate_relaunch_keeps_startup_variables_out_of_the_server
 test_composition_invokes_real_scripts
 test_branch_outcome_replay_respects_captain_barrier_and_lease_sweep
 test_non_pi_session_start_leaves_branch_state_untouched

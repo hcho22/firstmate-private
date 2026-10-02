@@ -192,6 +192,13 @@ esac
 local_phase() { [ "$FM_BOOTSTRAP_NETWORK_PHASE" != only ]; }
 network_phase() { [ "$FM_BOOTSTRAP_NETWORK_PHASE" != skip ]; }
 
+# The FM_BOOTSTRAP_* settings are this run's own input, read from this shell
+# below. Stop exporting them so no child - a secondmate relaunch or backend probe
+# can start a long-lived server that hands its startup environment to every
+# later pane - carries them into sessions that never asked for them.
+export -n FM_BOOTSTRAP_NETWORK FM_BOOTSTRAP_NETWORK_LOCK_PID FM_BOOTSTRAP_DETECT_ONLY \
+  FM_BOOTSTRAP_LOCKED FM_BOOTSTRAP_VERBOSE_FACTS
+
 network_mutation_authorized() {
   local expected=${FM_BOOTSTRAP_NETWORK_LOCK_PID:-} current
   [ -n "$expected" ] || return 0
@@ -220,7 +227,6 @@ bootstrap_parallel_begin() {
   BOOTSTRAP_PAR_DIR=$(mktemp -d "${TMPDIR:-/tmp}/fm-bootstrap-par.XXXXXX") || return 1
   BOOTSTRAP_PAR_N=0
   FM_BOOTSTRAP_PARALLEL_DIR=$BOOTSTRAP_PAR_DIR
-  export FM_BOOTSTRAP_PARALLEL_DIR
 }
 
 bootstrap_parallel_spawn() {
@@ -318,7 +324,8 @@ fleet_sync() {
   monitor_was_on=0
   case $- in *m*) monitor_was_on=1 ;; esac
   set -m 2>/dev/null || true
-  "$FM_ROOT/bin/fm-fleet-sync.sh" >"$tmp" 2>/dev/null &
+  FM_TIMING_LOG=${FM_TIMING_LOG:-} FM_TIMING_EPOCH_MS=${FM_TIMING_EPOCH_MS:-} \
+    "$FM_ROOT/bin/fm-fleet-sync.sh" >"$tmp" 2>/dev/null &
   pid=$!
 
   start=$SECONDS
