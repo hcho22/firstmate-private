@@ -60,6 +60,9 @@ if [ -n "${FM_TIMING_LOG:-}" ]; then
   fm_timing_record phase "${FM_FAKE_TIMING_PHASE:-gh-auth}" \
     "$(( $(fm_timing_now_ms) - 1500 ))" "${FM_FAKE_TIMING_DETAIL:-}"
 fi
+# Everything this sweep is going to record is on disk once it gets here, so a test
+# that must act only AFTER that point waits for this file, not for some elapsed time.
+[ -z "${FM_FAKE_SWEEP_RECORDED:-}" ] || : > "$FM_FAKE_SWEEP_RECORDED"
 [ -z "${FM_FAKE_BOOTSTRAP_SLEEP:-}" ] || sleep "$FM_FAKE_BOOTSTRAP_SLEEP"
 [ -z "${FM_FAKE_BOOTSTRAP_OUT:-}" ] || printf '%s\n' "$FM_FAKE_BOOTSTRAP_OUT"
 exit "${FM_FAKE_BOOTSTRAP_RC:-0}"
@@ -694,31 +697,73 @@ EOF
   pass "fm-startup-network: timings are durable and printed only on demand"
 }
 
+# make_event_driven_timeout <bindir>: a timeout(1) stand-in whose deadline is an
+# EVENT, for the one case that must kill a sweep only AFTER the sweep has recorded
+# something. The real bound is a wall clock that starts before the stage's own
+# start-up chain (a shell, the inactive-outcome scan, the sweep's shell) has run,
+# so any fixed value races that chain's latency and loses on a loaded host.
+# This one fires when FM_FAKE_DEADLINE_EVENT appears, and otherwise only at the
+# bound it was given, so a sweep that never reaches the event still ends. It keeps
+# what the stage needs from a deadline: the command runs in its own process group,
+# the whole group is terminated, and the exit status is 124. It arms only if the
+# event is still absent when it starts, so a bounded call made after the event
+# (the stage's lock helpers) keeps its ordinary clock.
+make_event_driven_timeout() {
+  cat > "$1/timeout" <<'SH'
+#!/usr/bin/env bash
+[ "${1:-}" != -k ] || shift 2
+seconds=$1
+shift
+armed=0
+[ -e "${FM_FAKE_DEADLINE_EVENT:?}" ] || armed=1
+set -m
+"$@" &
+child=$!
+limit=$((SECONDS + seconds))
+while kill -0 "$child" 2>/dev/null; do
+  if { [ "$armed" -eq 1 ] && [ -e "$FM_FAKE_DEADLINE_EVENT" ]; } || [ "$SECONDS" -ge "$limit" ]; then
+    { kill -TERM -- "-$child"; sleep 0.2; kill -KILL -- "-$child"; wait "$child"; } 2>/dev/null
+    exit 124
+  fi
+  sleep 0.05
+done
+wait "$child"
+SH
+  chmod +x "$1/timeout"
+}
+
 # A run that hit the bound is exactly the run worth attributing, so whatever the
 # killed sweeps managed to record must survive rather than being discarded with
-# them.
+# them. The deadline is driven by the sweep's own "I have recorded" signal, never
+# by a clock: the stage's bound starts counting before its start-up chain has even
+# reached the sweep, so a short wall-clock bound would test host speed, not whether
+# the stage publishes what a killed sweep left behind.
 test_a_bounded_run_still_publishes_the_timings_it_managed_to_record() {
-  local rec home root log report_out
+  local rec home root log event report_out
   rec=$(new_world timings-partial)
   IFS='|' read -r home root log <<EOF
 $rec
 EOF
   printf '%s\n' $$ > "$home/state/.lock"
+  make_event_driven_timeout "$root/bin"
+  event="$home/sweep-recorded"
 
-  # The bound has to be long enough for the fake sweep to START and record its
-  # timing before the kill even on a loaded host; a 1s bound made this case fail
-  # whenever the machine was busy, so it proved load rather than the contract.
-  FM_STARTUP_NETWORK_TIMEOUT=4 FM_SESSION_START_TIMEOUT=6 \
-    FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=30 \
+  FM_STARTUP_NETWORK_TIMEOUT=60 FM_SESSION_START_TIMEOUT=2 \
+    FM_FAKE_SWEEP_RECORDED="$event" FM_FAKE_DEADLINE_EVENT="$event" \
+    FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=120 \
     FM_FAKE_TIMING_PHASE=secondmate-liveness FM_FAKE_TIMING_DETAIL='mate-a@host-one' \
     run_stage "$home" "$root" run --locked 1
 
+  assert_present "$event" \
+    "the sweep never recorded, so the deadline came from the hang guard and not from the sweep"
   [ "$(sed -n 's/^state=//p' "$home/state/.startup-network.status")" = timeout ] \
     || fail "the bounded run did not record itself as timed out"
   report_out=$(run_stage "$home" "$root" report)
-  assert_contains "$report_out" "hit the 4s bound" "the bound stopped being reported"
+  assert_contains "$report_out" "hit the 60s bound" "the bound stopped being reported"
   assert_contains "$report_out" "secondmate-liveness mate-a@host-one" \
     "a timed-out run discarded the partial timings its sweeps had already recorded"
+  assert_contains "$report_out" "network-checks" \
+    "a timed-out run did not record its own bounded total"
   pass "fm-startup-network: a timed-out run still publishes the partial timings it recorded"
 }
 
