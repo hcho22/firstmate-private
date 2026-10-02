@@ -12,6 +12,18 @@ EXT="$ROOT/.pi/extensions/fm-primary-pi-watch.ts"
 # unrelated to plugin output, which the assertions intentionally require empty.
 export NODE_NO_WARNINGS=1
 
+# Hermetic login shell. Both plugins start every arm through `bash -lc`, so the
+# time before an arm's first statement includes whatever the invoking user's
+# login profile does. Conda, nvm, and similar hooks cost seconds under load, and
+# over a second on an idle host, against well under 100ms with none. That cost
+# belongs to the host rather than to the plugin under test, so no wait or budget
+# in this file may depend on it. An empty HOME makes the login shell start from
+# /etc/profile alone on every host. Nothing here reads the real HOME: fixture git
+# commits carry an inline identity (tests/lib.sh).
+HOME="$TMP_ROOT/home"
+mkdir -p "$HOME"
+export HOME
+
 # How long this host takes to get an arm to its first statement: the worst of
 # three cold `bash -lc` starts that each exec a second bash, as the plugins do.
 ARM_SPAWN_LATENCY_MS=$(node -e '
