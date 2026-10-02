@@ -298,6 +298,25 @@ remote_env() {
   "$@"
 }
 
+# fm-fleet-snapshot.sh bounds every cross-home read with a short production
+# timeout so one hung home cannot stall the parent: 5 s for the whole concurrent
+# remote ledger fetch and 2 s for each local table or evidence read. The cases
+# below assert WHICH source the snapshot selects for a healthy or an unreachable
+# home, not how fast a host answers. A remote ledger read crosses the fixture's
+# ssh and entrypoint and spawns many processes, so a host that is slow to spawn
+# turns an elapsed bound into a different projection. Each bound is raised to the
+# hang guard for these reads; the bounds themselves are exercised where a test
+# sets a deliberately tight one against a deliberately delayed home
+# (tests/fm-secondmate-reconcile.test.sh).
+snapshot_env() {
+  FM_SNAPSHOT_BUDGET=$FM_TEST_EVENT_HANG_GUARD_SECONDS \
+  FM_SNAPSHOT_CREW_STATE_TIMEOUT=$FM_TEST_EVENT_HANG_GUARD_SECONDS \
+  FM_SNAPSHOT_REGISTRY_TIMEOUT=$FM_TEST_EVENT_HANG_GUARD_SECONDS \
+  FM_SNAPSHOT_TERMINAL_TIMEOUT=$FM_TEST_EVENT_HANG_GUARD_SECONDS \
+  FM_SNAPSHOT_PARENT_ACTIVITY_TIMEOUT=$FM_TEST_EVENT_HANG_GUARD_SECONDS \
+  "$@"
+}
+
 sha256_file() {
   if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'; else sha256sum "$1" | awk '{print $1}'; fi
 }
@@ -1033,7 +1052,7 @@ FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$LOCAL_HOME" \
   || fail "local fixture did not publish its home ledger"
 remote_env "$ROOT/bin/fm-on.sh" ios fm-home-summary-refresh.sh >/dev/null \
   || fail "remote fixture did not publish its home ledger"
-SNAPSHOT=$(remote_env "$ROOT/bin/fm-fleet-snapshot.sh" --json)
+SNAPSHOT=$(snapshot_env remote_env "$ROOT/bin/fm-fleet-snapshot.sh" --json)
 if ! printf '%s' "$SNAPSHOT" | jq -e '.secondmate_current.records | any(.id == "ios" and .remote == true and .host == "remote-mac" and .provenance.selected == "structured-home")' >/dev/null; then
   printf 'secondmate projection:\n%s\n' "$(printf '%s' "$SNAPSHOT" | jq '.secondmate_current')" >&2
   fail "fleet snapshot did not select the remote structured-home projection"
@@ -1149,7 +1168,7 @@ rm -f -- "$PARENT/state/.last-watcher-beat"
 BOOT_UNAVAILABLE=$(FM_FAKE_SSH_MODE=unreachable remote_env "$ROOT/bin/fm-bootstrap.sh")
 assert_contains "$BOOT_UNAVAILABLE" 'SECONDMATE_LIVENESS: secondmate ios: skipped: remote host unavailable or endpoint state unknown' \
   "bootstrap did not preserve an unreachable remote endpoint as unknown"
-UNAVAILABLE=$(FM_FAKE_SSH_MODE=unreachable remote_env "$ROOT/bin/fm-fleet-snapshot.sh" --json)
+UNAVAILABLE=$(FM_FAKE_SSH_MODE=unreachable snapshot_env remote_env "$ROOT/bin/fm-fleet-snapshot.sh" --json)
 printf '%s' "$UNAVAILABLE" | jq -e '.secondmate_current.records | any(.id == "ios"
   and .current.state == "unknown" and .provenance.selected != "structured-home"
   and (.current.reason | test("home ledger.*(timed out|missing|unreadable|invalid)")))' >/dev/null \
