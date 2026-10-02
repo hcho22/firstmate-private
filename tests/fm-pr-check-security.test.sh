@@ -614,13 +614,19 @@ SH
   pass "valid direct and merge flows record exact metadata and reject multiline head metadata"
 }
 
-# The watcher exits by itself once it surfaces or retires a poll, so both bounds
-# below are only hang guards and never part of an assertion. One cycle is hundreds
-# of short-lived processes (retiring a merged poll alone re-validates and hashes
-# every artifact), so its wall time scales with host load: roughly 8 s once the
-# load average is in the hundreds, which a 10 s bound turned into a silent exit 124.
+# The watcher exits by itself once it surfaces or retires a poll, so the first two
+# bounds below are only hang guards and never part of an assertion. One cycle is
+# hundreds of short-lived processes (retiring a merged poll alone re-validates and
+# hashes every artifact), so its wall time scales with host load: roughly 8 s once
+# the load average is in the hundreds, which a 10 s bound turned into a silent exit 124.
+# HANG_GUARD_EVENT_SECS is the same kind of bound for a case that waits on an event
+# it expects (a process reaching a milestone, a fake being released, a watcher
+# exiting). Such a wait is measured by the clock through SECONDS and never by a
+# count of sleeps, because a start-up that spawns freshly written executables costs
+# seconds on a contended host while a count of 0.01 s sleeps stays near 3 s.
 HANG_GUARD_WATCHER_SECS=120
 HANG_GUARD_CHECK_SECS=30
+HANG_GUARD_EVENT_SECS=120
 
 run_watcher_bounded() {
   local home=$1 fakebin=$2 check_interval=${FM_TEST_CHECK_INTERVAL:-0} watch_root=${FM_TEST_WATCH_ROOT:-$ROOT}
@@ -773,33 +779,61 @@ SH
 }
 
 test_concurrent_watcher_sees_only_complete_publication() {
-  local n dir direct_pid rc i
+  local n dir staged release direct_pid watcher_pid rc deadline
   n=1
   while [ "$n" -le 3 ]; do
     dir=$(make_case "concurrent-$n")
     write_task_meta "$dir"
+    staged="$dir/cp-staged"
+    release="$dir/cp-release"
+    # The arm stages the poll check by copying the template before it publishes
+    # anything. This cp holds that moment open: it reports the finished staged copy
+    # and then blocks until the case releases it, so the watcher is guaranteed to
+    # cycle while the publication is half done, however long the arm took to get
+    # there. Any other cp (the watcher's own summary refresh runs one) passes through.
     cat > "$dir/fakebin/cp" <<SH
 #!/usr/bin/env bash
 '$REAL_CP' "\$@" || exit 1
-sleep 0.3
+for last in "\$@"; do :; done
+case "\$last" in
+  */.fm-pr-poll-check.*)
+    : > '$staged'
+    deadline=\$((SECONDS + $HANG_GUARD_EVENT_SECS))
+    while [ ! -e '$release' ]; do
+      [ "\$SECONDS" -lt "\$deadline" ] || exit 1
+      sleep 0.02
+    done
+    ;;
+esac
 SH
     chmod +x "$dir/fakebin/cp"
 
     FM_TEST_GH_HEAD=0123456789abcdef0123456789abcdef01234567 \
       run_check_entry "$dir" task-a https://github.com/o/r/pull/1 > "$dir/direct.out" 2> "$dir/direct.err" &
     direct_pid=$!
-    i=0
-    while [ "$i" -lt 100 ] && ! find "$dir/home/state" -name '.fm-pr-poll-check.*' -print | grep . >/dev/null; do
-      sleep 0.01
-      i=$((i + 1))
+    deadline=$((SECONDS + HANG_GUARD_EVENT_SECS))
+    while [ ! -e "$staged" ] && kill -0 "$direct_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
+      sleep 0.02
     done
-    [ "$i" -lt 100 ] || fail "atomic publication did not reach staged check"
+    [ -e "$staged" ] || fail "atomic publication did not reach staged check: $(cat "$dir/direct.err")"
 
+    FM_TEST_GH_STATE=MERGED run_watcher_bounded "$dir/home" "$dir/fakebin" > "$dir/watch.out" 2> "$dir/watch.err" &
+    watcher_pid=$!
+    # The watcher writes .last-check at the end of a full sweep of the state's
+    # checks, so its appearance proves a whole cycle ran while the publication was
+    # staged and nothing runnable was published yet.
+    deadline=$((SECONDS + HANG_GUARD_EVENT_SECS))
+    while [ ! -e "$dir/home/state/.last-check" ] && kill -0 "$watcher_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
+      sleep 0.02
+    done
+    [ -e "$dir/home/state/.last-check" ] || fail "concurrent watcher never completed a cycle during the staged publication"
+    : > "$release"
+
+    wait "$direct_pid" || fail "concurrent direct arming failed"
     set +e
-    FM_TEST_GH_STATE=MERGED run_watcher_bounded "$dir/home" "$dir/fakebin" > "$dir/watch.out" 2> "$dir/watch.err"
+    wait "$watcher_pid"
     rc=$?
     set -e
-    wait "$direct_pid" || fail "concurrent direct arming failed"
     [ "$rc" -eq 0 ] || fail "concurrent watcher did not complete"
     grep -q '^check: .*: merged$' "$dir/watch.out" || fail "concurrent watcher never saw complete poll"
     [ ! -s "$dir/watch.err" ] || fail "concurrent watcher observed a partial artifact error"
