@@ -440,7 +440,7 @@ async function claimSessionstartMessage(
 
 function runGuard(): Promise<{ code: number; stderr: string }> {
   return new Promise((resolveResult) => {
-    const child = spawn(`${root}/bin/fm-turnend-guard.sh`, {
+    const child = spawn(`${root}/bin/fm-turnend-guard.sh`, ["--followup"], {
       stdio: ["pipe", "ignore", "pipe"],
     });
     let stderr = "";
@@ -581,15 +581,17 @@ export default function (pi: ExtensionAPI) {
     }
 
     const result = await runGuard();
-    if (result.code !== 2) return;
+    if (result.code !== 2 && result.code !== 3) return;
 
     guardFollowupActive = true;
     try {
       const content = encodeFirstmateOperationalInput(
         "turn-end-guard",
-        "TURN WOULD END BLIND - supervision is off. " +
-          "The watcher cycle is missing, failed, or unhealthy. Follow the harness recovery instruction below before ending the turn.\n\n" +
-          result.stderr,
+        result.code === 3
+          ? result.stderr
+          : "TURN WOULD END BLIND - supervision is off. " +
+              "The watcher cycle is missing, failed, or unhealthy. Follow the harness recovery instruction below before ending the turn.\n\n" +
+              result.stderr,
       );
       await pi.sendUserMessage(content, { deliverAs: "followUp" });
     } catch {

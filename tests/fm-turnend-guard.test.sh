@@ -1929,25 +1929,23 @@ stop_foreign_session() {  # <pid>
   wait "$1" 2>/dev/null || true
 }
 
-# Run the guard as a child of a real process named like <harness>, so the harness
-# is the guard's lock-ownership ancestor. <lock-mode> is "none" (leave the lock as
-# the fixture set it), "self" (the session records itself as the lock holder, the
-# way fm-lock.sh does), or "displaced" (the lock names the live process in
-# GUARD_FOREIGN_PID, and state/.lock-takeovers records a takeover by that process
-# of THIS session, the way fm-lock.sh takeover does). GUARD_STOP_ACTIVE (default true, the state Claude
-# reports on every stop after a hook-driven continuation) sets the payload's
-# stop_hook_active. Sets GUARD_OUT and GUARD_RC. The trailing echo keeps the fake
-# harness alive as the guard's parent instead of letting bash exec the guard in
-# its place.
-run_guard_in_harness() {  # <dir> <harness> <session-id> <lock-mode> [guard args...]
-  local dir=$1 harness=$2 session=$3 lock_mode=$4 home raw
-  shift 4
+# Run <command...> as a child of a real process named like <harness>, so the
+# harness is the lock-ownership ancestor of everything the command starts, with
+# stdin passed through. <lock-mode> is "none" (leave the lock as the fixture set
+# it), "self" (the session records itself as the lock holder, the way fm-lock.sh
+# does), or "displaced" (the lock names the live process in GUARD_FOREIGN_PID, and
+# state/.lock-takeovers records a takeover by that process of THIS session, the
+# way fm-lock.sh takeover does). Sets GUARD_OUT (stdout and stderr) and GUARD_RC.
+# The trailing echo keeps the fake harness alive as the command's parent instead
+# of letting bash exec the command in its place.
+run_in_harness() {  # <dir> <harness> <lock-mode> <command...>
+  local dir=$1 harness=$2 lock_mode=$3 home raw
+  shift 3
   home=$(cd "$dir" && pwd)
   mkdir -p "$dir/tmp"
   ln -sf /bin/bash "$dir/fake-$harness"
   # shellcheck disable=SC2016 # the fake harness expands FM_HOME and $$ inside its child shell.
-  raw=$(printf '{"stop_hook_active":%s,"session_id":"%s"}' "${GUARD_STOP_ACTIVE:-true}" "$session" \
-    | CLAUDECODE=1 TMPDIR="$dir/tmp" FM_HOME="$home" FM_CLAUDE_AUTOARM_SYNC_WAIT_MS=100 FM_LOCK_MODE="$lock_mode" \
+  raw=$(CLAUDECODE=1 TMPDIR="$dir/tmp" FM_HOME="$home" FM_CLAUDE_AUTOARM_SYNC_WAIT_MS=100 FM_LOCK_MODE="$lock_mode" \
       FOREIGN_PID="${GUARD_FOREIGN_PID:-}" \
       "$dir/fake-$harness" -c '
         [ "$FM_LOCK_MODE" != self ] || printf "%s\n" "$$" > "$FM_HOME/state/.lock"
@@ -1955,11 +1953,21 @@ run_guard_in_harness() {  # <dir> <harness> <session-id> <lock-mode> [guard args
           printf "%s\n" "$FOREIGN_PID" > "$FM_HOME/state/.lock"
           printf "at=2026-10-01T20:00:00Z\tnew_pid=%s\tnew_command=claude\tprev_pid=%s\tprev_holder=command: codex\n" "$FOREIGN_PID" "$$" > "$FM_HOME/state/.lock-takeovers"
         fi
-        "$FM_HOME/bin/fm-turnend-guard.sh" "$@"
+        "$@"
         echo "__rc=$?"
       ' fake-harness "$@" 2>&1)
   GUARD_RC=${raw##*__rc=}
   GUARD_OUT=${raw%__rc=*}
+}
+
+# Run the guard itself through run_in_harness with a turn-end payload.
+# GUARD_STOP_ACTIVE (default true, the state Claude reports on every stop after
+# a hook-driven continuation) sets the payload's stop_hook_active.
+run_guard_in_harness() {  # <dir> <harness> <session-id> <lock-mode> [guard args...]
+  local dir=$1 harness=$2 session=$3 lock_mode=$4
+  shift 4
+  run_in_harness "$dir" "$harness" "$lock_mode" "$dir/bin/fm-turnend-guard.sh" "$@" \
+    < <(printf '{"stop_hook_active":%s,"session_id":"%s"}' "${GUARD_STOP_ACTIVE:-true}" "$session")
 }
 
 test_hook_claude_readonly_session_does_not_loop() {
@@ -2083,6 +2091,142 @@ test_hook_displaced_session_is_told_once_that_its_lock_was_taken_over() {
   expect_code 0 "$GUARD_RC" "an observer of a foreign lock was told it was displaced"
   assert_not_contains "$GUARD_OUT" 'NO LONGER OWNS' "an observer of a foreign lock was told it was displaced"
   pass "fm-turnend-guard: a session displaced by an explicit takeover is told once, and an observer is not"
+}
+
+# The displaced notice is a plain stop-acting notice in every harness, never the
+# blind-turn repair alarm, even with work in flight and no watcher. Each case
+# runs the REAL adapter as a child of a real process the lock was just taken
+# from. Claude, Codex, and native Grok get exit 2 with the guard's own stderr;
+# the follow-up renderers (Pi, OpenCode, legacy Grok) call the guard with
+# --followup and forward its exit 3 unchanged.
+assert_plain_displaced_notice() {  # <output> <harness>
+  assert_contains "$1" 'THIS SESSION NO LONGER OWNS THE FLEET' "$2: the displaced notice did not reach the session"
+  assert_contains "$1" 'must stop acting on the fleet now' "$2: the displaced notice did not tell the session to stop acting"
+  assert_not_contains "$1" 'TURN WOULD END BLIND' "$2: the displaced notice was framed as a blind-turn alarm"
+  assert_not_contains "$1" 'recovery instruction' "$2: the displaced notice demanded supervision recovery"
+  assert_not_contains "$1" 'Repair missing watcher supervision' "$2: the displaced notice demanded supervision repair"
+}
+
+test_displaced_notice_never_carries_repair_wording_from_the_guard() {
+  local dir foreign
+  dir=$(make_primary_dir "$TMP_ROOT/displaced-direct")
+  : > "$dir/state/task1.meta"
+  foreign=$(start_foreign_session "$dir")
+  GUARD_FOREIGN_PID=$foreign GUARD_STOP_ACTIVE=false run_guard_in_harness "$dir" claude sess-claude displaced --claude
+  expect_code 2 "$GUARD_RC" "Claude must receive the displaced notice through its stderr block"
+  assert_plain_displaced_notice "$GUARD_OUT" claude
+  GUARD_FOREIGN_PID=$foreign GUARD_STOP_ACTIVE=false run_guard_in_harness "$dir" codex sess-codex displaced
+  expect_code 2 "$GUARD_RC" "Codex must receive the displaced notice through its stderr block"
+  assert_plain_displaced_notice "$GUARD_OUT" codex
+  GUARD_FOREIGN_PID=$foreign GUARD_STOP_ACTIVE=false run_guard_in_harness "$dir" pi sess-followup displaced --followup
+  expect_code 3 "$GUARD_RC" "a follow-up renderer must receive the displaced notice as its own outcome"
+  assert_plain_displaced_notice "$GUARD_OUT" followup
+  # The lock holder's real alarm is unchanged under --followup.
+  GUARD_STOP_ACTIVE=false run_guard_in_harness "$dir" pi sess-holder self --followup
+  stop_foreign_session "$foreign"
+  expect_code 2 "$GUARD_RC" "the lock holder's blind-turn alarm must keep exit 2 under --followup"
+  assert_contains "$GUARD_OUT" 'TURN WOULD END BLIND' "the lock holder lost its blind-turn alarm under --followup"
+  pass "fm-turnend-guard: the displaced notice is exit 2 for Claude and Codex, exit 3 under --followup, and never a repair alarm"
+}
+
+test_grok_adapter_delivers_displaced_notice_without_repair_wording() {
+  local dir legacy foreign fakebin log
+  dir=$(make_primary_dir "$TMP_ROOT/displaced-grok-native")
+  legacy=$(make_primary_dir "$TMP_ROOT/displaced-grok-legacy")
+  : > "$dir/state/task1.meta"
+  : > "$legacy/state/task1.meta"
+  foreign=$(start_foreign_session "$dir")
+  fakebin=$(fm_fakebin "$TMP_ROOT/displaced-grok-bin")
+  log="$TMP_ROOT/displaced-grok.log"
+  cat > "$fakebin/grok" <<EOF
+#!/usr/bin/env bash
+for arg in "\$@"; do printf '<%s>\n' "\$arg"; done >> "$log"
+EOF
+  chmod +x "$fakebin/grok"
+  GUARD_FOREIGN_PID=$foreign PATH="$fakebin:$PATH" GROK_WORKSPACE_ROOT="$dir" \
+    run_in_harness "$dir" grok displaced bash "$dir/bin/fm-turnend-guard-grok.sh" \
+    < <(printf '%s' '{"sessionId":"grok-native","stopHookActive":false}')
+  expect_code 2 "$GUARD_RC" "native Grok must receive the displaced notice through the shared blocking status"
+  assert_plain_displaced_notice "$GUARD_OUT" native-grok
+  [ ! -e "$log" ] || { stop_foreign_session "$foreign"; fail "native Grok started a resume for the displaced notice: $(cat "$log")"; }
+  GUARD_FOREIGN_PID=$foreign PATH="$fakebin:$PATH" GROK_WORKSPACE_ROOT="$legacy" \
+    run_in_harness "$legacy" grok displaced bash "$legacy/bin/fm-turnend-guard-grok.sh" \
+    < <(printf '%s' '{"sessionId":"grok-legacy","hookEventName":"stop"}')
+  stop_foreign_session "$foreign"
+  expect_code 0 "$GUARD_RC" "legacy Grok must fail open after queuing its one resume"
+  [ -s "$log" ] || fail "legacy Grok never resumed the session with the displaced notice"
+  assert_contains "$(cat "$log")" 'FIRSTMATE_OP: v1 turn-end-guard: ' "legacy Grok lost the typed guard kind"
+  assert_contains "$(cat "$log")" '<grok-legacy>' "legacy Grok did not resume the displaced session"
+  assert_plain_displaced_notice "$(cat "$log")" legacy-grok
+  pass "fm-turnend-guard-grok: native and legacy Grok deliver the displaced notice without repair wording"
+}
+
+test_opencode_plugin_delivers_displaced_notice_without_repair_wording() {
+  local dir foreign
+  dir=$(make_primary_dir "$TMP_ROOT/displaced-opencode")
+  : > "$dir/state/task1.meta"
+  foreign=$(start_foreign_session "$dir")
+  GUARD_FOREIGN_PID=$foreign NODE_NO_WARNINGS=1 PLUGIN="$ROOT/.opencode/plugins/fm-primary-turnend-guard.js" WORKTREE="$dir" \
+    run_in_harness "$dir" opencode displaced node --input-type=module <<'EOF'
+import { pathToFileURL } from "node:url";
+
+const mod = await import(pathToFileURL(process.env.PLUGIN).href);
+let prompts = 0;
+let promptBody = "";
+const client = {
+  session: {
+    promptAsync: async (request) => {
+      prompts += 1;
+      promptBody = request.body.parts[0].text;
+    },
+  },
+};
+const hooks = await mod.FmPrimaryTurnendGuard({ client, directory: process.env.WORKTREE, worktree: process.env.WORKTREE });
+await hooks.event({ event: { type: "session.idle", properties: { sessionID: "session-test" } } });
+if (prompts !== 1) throw new Error(`expected one displaced follow-up, got ${prompts}`);
+process.stdout.write(promptBody);
+EOF
+  stop_foreign_session "$foreign"
+  expect_code 0 "$GUARD_RC" "the OpenCode plugin run failed: $GUARD_OUT"
+  assert_contains "$GUARD_OUT" 'FIRSTMATE_OP: v1 turn-end-guard: ' "OpenCode lost the typed guard kind"
+  assert_plain_displaced_notice "$GUARD_OUT" opencode
+  pass ".opencode primary plugin: the displaced notice is one follow-up without repair wording"
+}
+
+test_pi_extension_delivers_displaced_notice_without_repair_wording() {
+  local dir foreign
+  dir=$(make_primary_dir "$TMP_ROOT/displaced-pi")
+  : > "$dir/state/task1.meta"
+  mkdir -p "$dir/.pi/extensions/lib"
+  cp "$ROOT/.pi/extensions/fm-primary-turnend-guard.ts" "$dir/.pi/extensions/fm-primary-turnend-guard.ts"
+  cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" "$dir/.pi/extensions/lib/fm-operational-input.ts"
+  foreign=$(start_foreign_session "$dir")
+  GUARD_FOREIGN_PID=$foreign PLUGIN="$dir/.pi/extensions/fm-primary-turnend-guard.ts" \
+    run_in_harness "$dir" pi displaced node --input-type=module <<'EOF'
+import { pathToFileURL } from "node:url";
+
+const handlers = new Map();
+const messages = [];
+const pi = {
+  on(event, handler) {
+    handlers.set(event, handler);
+  },
+  async sendUserMessage(message, options) {
+    if (options?.deliverAs !== "followUp") throw new Error("the displaced notice was not a follow-up");
+    messages.push(message);
+  },
+};
+const mod = await import(pathToFileURL(process.env.PLUGIN).href);
+mod.default(pi);
+await handlers.get("agent_settled")?.({ type: "agent_settled" }, {});
+if (messages.length !== 1) throw new Error(`expected one displaced follow-up, got ${messages.length}`);
+process.stdout.write(messages[0]);
+EOF
+  stop_foreign_session "$foreign"
+  expect_code 0 "$GUARD_RC" "the Pi extension run failed: $GUARD_OUT"
+  assert_contains "$GUARD_OUT" 'FIRSTMATE_OP: v1 turn-end-guard: ' "Pi lost the typed guard kind"
+  assert_plain_displaced_notice "$GUARD_OUT" pi
+  pass ".pi primary extension: the displaced notice is one follow-up without repair wording"
 }
 
 test_hook_dead_lock_holder_keeps_guarding() {
@@ -2263,3 +2407,7 @@ test_hook_readonly_session_stays_silent_when_supervision_is_healthy
 test_hook_readonly_session_stays_silent_while_the_beat_is_fresh
 test_hook_unresolvable_ancestry_keeps_guarding
 test_hook_displaced_session_is_told_once_that_its_lock_was_taken_over
+test_displaced_notice_never_carries_repair_wording_from_the_guard
+test_grok_adapter_delivers_displaced_notice_without_repair_wording
+test_opencode_plugin_delivers_displaced_notice_without_repair_wording
+test_pi_extension_delivers_displaced_notice_without_repair_wording
