@@ -42,8 +42,18 @@ command -v tasks-axi >/dev/null 2>&1 || {
 
 # --- fixture ----------------------------------------------------------------
 
-# A home with a real backlog, a real project clone with an origin, a pooled
-# worktree, and stubs for every tool the spawn path shells out to.
+# A real project clone with an origin and a pooled worktree. Only a spawn reads
+# them, so run_spawn builds them on first use instead of every case paying for
+# the git setup.
+ensure_project() {  # <case-dir>
+  local case_dir=$1
+  [ ! -d "$case_dir/project" ] || return 0
+  fm_git_init_commit "$case_dir/project"
+  fm_git_add_origin "$case_dir/project" "$case_dir/project.origin.git"
+  git -C "$case_dir/project" worktree add --quiet -b pooled "$case_dir/wt"
+}
+
+# A home with a real backlog and stubs for every tool the spawn path shells out to.
 make_home() {  # <name> [task-id...]
   local name=$1 case_dir home fakebin id
   shift
@@ -78,10 +88,6 @@ exit 0
 SH
   chmod +x "$fakebin/tmux"
   fm_fake_exit0 "$fakebin" treehouse gh gh-axi no-mistakes
-
-  fm_git_init_commit "$case_dir/project"
-  fm_git_add_origin "$case_dir/project" "$case_dir/project.origin.git"
-  git -C "$case_dir/project" worktree add --quiet -b pooled "$case_dir/wt"
 
   printf '%s\n' "$case_dir"
 }
@@ -394,6 +400,7 @@ write_task_meta() {  # <case-dir> <id> <kind> <mode> [extra-line...]
 run_spawn() {  # <case-dir> <args...>
   local case_dir=$1
   shift
+  ensure_project "$case_dir"
   # A claude spawn pre-registers workspace trust in the launching user's own
   # store (bin/fm-claude-trust.sh), so it runs against a throwaway HOME;
   # without it this suite would write the developer's real ~/.claude.json.
