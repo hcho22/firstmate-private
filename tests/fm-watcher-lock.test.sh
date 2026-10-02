@@ -695,6 +695,28 @@ test_arm_starts_and_self_heals() {
   pass "arm starts cleanly and resurfaces recovery after a dead-pid lock"
 }
 
+# arm_hup_diagnostics <arm-pid> <arm-output> <state-dir>: what an arm that did not
+# exit on HUP is waiting on - its output, every process under it, the lock files,
+# and the lifecycle ledger. Printed only when the assertion fails.
+arm_hup_diagnostics() {
+  local armpid=$1 armout=$2 state=$3
+  printf 'arm output:\n%s\n' "$(cat "$armout" 2>/dev/null)"
+  printf 'processes under arm %s:\n' "$armpid"
+  ps -Ao pid,ppid,stat,etime,command | awk -v root="$armpid" '
+    NR > 1 { parent[$1] = $2; row[$1] = $0 }
+    END {
+      for (pid in parent) {
+        walk = pid
+        while (walk in parent) {
+          if (walk == root) { print row[pid]; break }
+          walk = parent[walk]
+        }
+      }
+    }' | cut -c1-170
+  printf 'lock and watcher files:\n%s\n' "$(find "$state" -maxdepth 1 \( -name '.*lock*' -o -name '.watch*' \) -exec ls -lad {} + 2>/dev/null | head -20)"
+  printf 'lifecycle ledger tail:\n%s\n' "$(tail -5 "$state/.watch-cycle-exits.log" 2>/dev/null)"
+}
+
 test_arm_hup_cleans_child_and_temp_output() {
   # Two rows, one assertion block. "settled" sends HUP once the arm is blocked
   # following its watcher. "entering" sends it while the arm is in the instant
@@ -730,8 +752,15 @@ wait() {
 }
 SH
     fi
+    # A suite started under nohup, or by a daemon or pipeline, hands every child an
+    # ignored SIGHUP, and bash cannot trap a signal that was ignored on entry: the
+    # arm would never see this HUP and the case would wait out its hang guard no
+    # matter what the arm does. Give the arm under test the default HUP
+    # disposition (the exec keeps its pid) so the case does not depend on how the
+    # suite was launched.
     BASH_ENV="$seam" FM_TEST_WAIT_WINDOW_ONCE="$dir/wait-window-once" FM_TEST_WAIT_WINDOW_SECS=2 \
-      PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH_ARM" > "$armout" &
+      PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
+      perl -e '$SIG{HUP} = "DEFAULT"; exec @ARGV' "$WATCH_ARM" > "$armout" &
     armpid=$!
     # Wait on the events themselves, bounded by time rather than by a count of
     # sleeps: a loaded host stretches each wait, and only a genuine hang reaches
@@ -745,7 +774,7 @@ SH
     kill -HUP "$armpid" 2>/dev/null || fail "could not send HUP to arm ($row)"
     wait_for_exit "$armpid" 80
     status=$?
-    [ "$status" -eq 129 ] || fail "arm ($row) did not exit with HUP status (got $status)"
+    [ "$status" -eq 129 ] || fail "arm ($row) did not exit with HUP status (got $status)"$'\n'"$(arm_hup_diagnostics "$armpid" "$armout" "$state")"
     if [ "$row" = entering ]; then
       [ -d "$dir/wait-window-once" ] || fail "arm ($row) never reached the stretched wait, so the row checked nothing"
     fi
