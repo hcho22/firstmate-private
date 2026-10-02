@@ -168,7 +168,7 @@ That warning uses `bin/fm-supervision-instructions.sh --repair-line`, so it alwa
 ## Compatibility limits
 
 - Child crewmate and scout worktrees are outside scope.
-- Session-lock ownership is re-verified by the lock script itself, the Claude Stop auto-arm, the Cursor park, this guard, and the locked startup sweeps, so a session displaced by a takeover is refused, stops recognizing itself as the owner, and arms nothing.
+- Session-lock ownership is re-verified by the lock script itself, the Claude Stop auto-arm, the Pi and OpenCode watcher adapters, the Cursor park, this guard, and the locked startup sweeps, so a session displaced by a takeover is refused, stops recognizing itself as the owner, and arms nothing.
   The fleet's mutating entrypoints (`bin/fm-spawn.sh`, `bin/fm-send.sh`, `bin/fm-teardown.sh`, `bin/fm-pr-merge.sh`, `bin/fm-merge-local.sh`, `bin/fm-wake-drain.sh`) do not re-verify the lock, and several are legitimately cross-home callers, so a displaced session is stopped from them by its read-only instructions and the one-time displaced notice above rather than by a refusal.
 - A valid secondmate home is in scope; an idle secondmate endpoint with no Relay poll remains healthy because it has no supervision need.
 - The blocking and bounded-follow-up mechanisms are limited to the primary integrations listed above.
