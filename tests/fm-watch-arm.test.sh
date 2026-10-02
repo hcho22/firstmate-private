@@ -244,7 +244,7 @@ test_attached_arm_still_fails_on_a_wake_it_did_not_deliver() {
 }
 
 test_rearm_resurfaces_durable_queue_and_remote_open_decision() {
-  local dir home state fakebin result armout drainout status watcher_pid sequence generation decision_recovery_arm decision_successor
+  local dir home state fakebin result armout drainout status watcher_pid sequence generation decision_recovery_arm decision_successor i
   dir=$(make_case rearm-resurface)
   home="$dir/home"
   state="$dir/state"
@@ -288,7 +288,15 @@ test_rearm_resurfaces_durable_queue_and_remote_open_decision() {
   append_wake "$state" check startup-network 'check: startup-network'
 
   start_rearm_arm "$home" "$state" "$fakebin" "$armout"
-  sleep 0.25
+  # A healthy re-arm announces its watcher, surfaces the durable wakes, and exits
+  # on its own; the regression this guards leaves it live. Wait for that exit
+  # rather than a fixed settle: a loaded host can take far longer than any fixed
+  # window to get there. The 60s bound only catches a genuine hang.
+  i=0
+  while [ "$i" -lt 600 ] && is_live_non_zombie "$ARM_PID"; do
+    sleep 0.1
+    i=$((i + 1))
+  done
   if is_live_non_zombie "$ARM_PID"; then
     # End the fixture through an ordinary actionable status transition so this
     # failing pre-fix path leaves no child behind.
