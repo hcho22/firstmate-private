@@ -87,6 +87,21 @@
 #                   sinks that block finalization are explicitly out of scope.
 #   -h, --help      print this header
 #
+# Hermetic environment (execution only, serial and concurrent alike): every
+# script runs without the caller's firstmate state. The runner drops each
+# inherited FM_/FMX_ variable that a script under bin/, .pi/, .agents/, or
+# skills/ reads, and the session identity a multiplexer injects (HERDR_ENV,
+# HERDR_PANE_ID, HERDR_TAB_ID, HERDR_WORKSPACE_ID, HERDR_SOCKET_PATH,
+# HERDR_SESSION, HERDR_STARTUP_CWD, TMUX, TMUX_PANE, ZELLIJ*, CMUX_WORKSPACE_ID,
+# CMUX_SURFACE_ID, ORCA_WORKTREE_ID, ORCA_TERMINAL). A test therefore sees
+# production defaults unless it sets a value itself, and a run inside an agent's
+# pane behaves like a run in CI instead of failing on, or touching, the live
+# session it was launched from. Test-owned controls pass through: FM_TEST_* and
+# FM_ISOLATION_*, and the opt-in gates (*_LIVE, *_LIVE_E2E, *_E2E, *_EVAL,
+# FM_HARNESS_LIVENESS_DRIFT). A line names whatever was dropped. Running a test
+# directly with bash does not go through this runner and inherits the caller's
+# environment.
+#
 # Per-script machine-parseable markers (stdout):
 #   FM_TEST_BEGIN <iso8601> <script> family=<family> expected_gate_skip=<class>
 #   FM_TEST_END <iso8601> <script> exit=<code> duration_ms=<n> gate_skip=<true|false>
@@ -2066,7 +2081,32 @@ prepare_test_runtimes() {
   export PATH="$RUN_TMP/runtime-bin:$PATH"
 }
 
+# scrub_ambient_environment: see "Hermetic environment" in the header. The
+# production names are read from the tree under test, so a new variable a script
+# starts reading is covered without editing a list here.
+scrub_ambient_environment() {
+  local production name scrubbed=
+  production=$(grep -rhoE '\bFMX?_[A-Z0-9_]+\b' "$ROOT/bin" "$ROOT/.pi" "$ROOT/.agents" "$ROOT/skills" 2>/dev/null \
+    | sort -u) || production=
+  while IFS= read -r name; do
+    case "$name" in
+      FM_TEST_*|FM_ISOLATION_*|*_LIVE|*_LIVE_E2E|*_E2E|*_EVAL|FM_HARNESS_LIVENESS_DRIFT) continue ;;
+      FM_*|FMX_*) printf '%s\n' "$production" | grep -qxF -- "$name" || continue ;;
+      HERDR_ENV|HERDR_PANE_ID|HERDR_TAB_ID|HERDR_WORKSPACE_ID|HERDR_SOCKET_PATH|\
+      HERDR_SESSION|HERDR_STARTUP_CWD|TMUX|TMUX_PANE|ZELLIJ|ZELLIJ_*|\
+      CMUX_WORKSPACE_ID|CMUX_SURFACE_ID|ORCA_WORKTREE_ID|ORCA_TERMINAL) ;;
+      *) continue ;;
+    esac
+    unset "$name"
+    scrubbed="${scrubbed}${scrubbed:+ }$name"
+  done <<EOF
+$(compgen -e)
+EOF
+  [ -z "$scrubbed" ] || log "ignoring ambient variables a firstmate script reads or that name a live session: $scrubbed"
+}
+
 [ "${#SCRIPTS[@]}" -eq 0 ] || prepare_test_runtimes
+[ "${#SCRIPTS[@]}" -eq 0 ] || scrub_ambient_environment
 
 RUN_ID="fm-test-run-${RUN_STARTED_MS}-$$"
 TOTAL=0
@@ -2297,8 +2337,6 @@ else
       set +e
       export TMPDIR="$work/tmp"
       export TMP="$work/tmp"
-      unset FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_ROOT_OVERRIDE \
-        FM_PROJECTS_OVERRIDE FM_CONFIG_OVERRIDE FM_BACKEND 2>/dev/null || true
       cd "$ROOT" || exit 1
       begin_ms=$(now_ms)
       set +e

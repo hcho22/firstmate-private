@@ -1213,6 +1213,73 @@ SH
   pass "--per-script-timeout-secs turns a hung script into a bounded failure"
 }
 
+# A script run from an agent's own pane inherits that firstmate session's
+# internal variables and its live Herdr or tmux identity. The reproduced case:
+# an inherited FM_SESSION_START_STAGE_FILE made fm-session-start.sh believe it
+# was already the bounded child, so its runtime-bound test ran unbounded and
+# hung for 44 minutes. Production-read names and live session identity must not
+# reach a script; test-owned controls and opt-in gates must.
+test_scripts_run_without_the_callers_firstmate_state() {
+  local tmp repo runner fixture rc out
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-env.XXXXXX")
+  repo="$tmp/repo"
+  runner="$repo/bin/fm-test-run.sh"
+  fixture=tests/fm-env-fixture.test.sh
+  mkdir -p "$repo/bin" "$repo/tests"
+  cp "$RUNNER" "$runner"
+  cat >"$repo/bin/fm-env-reader.sh" <<'SH'
+#!/usr/bin/env bash
+# A stand-in production script: the runner treats any FM_ name read here as one
+# that an ambient value must not reach.
+printf '%s %s\n' "${FM_ENVFIX_STAGE_FILE:-}" "${FMX_ENVFIX_TOKEN:-}"
+SH
+  cat >"$repo/$fixture" <<'SH'
+#!/usr/bin/env bash
+for name in FM_ENVFIX_STAGE_FILE FMX_ENVFIX_TOKEN HERDR_ENV HERDR_PANE_ID \
+  HERDR_SOCKET_PATH TMUX TMUX_PANE ZELLIJ_PANE_ID CMUX_WORKSPACE_ID \
+  ORCA_WORKTREE_ID FM_ENVFIX_UNREAD FM_TEST_ENVFIX_CONTROL FM_ENVFIX_PROBE_LIVE \
+  FM_ENVFIX_PROBE_E2E FM_ENVFIX_PROBE_EVAL; do
+  if [ -n "$(printenv "$name" || true)" ]; then
+    echo "ok - visible $name"
+  else
+    echo "ok - hidden $name"
+  fi
+done
+SH
+  chmod +x "$runner" "$repo/bin/fm-env-reader.sh" "$repo/$fixture"
+
+  set +e
+  FM_ENVFIX_STAGE_FILE=/stage FMX_ENVFIX_TOKEN=t HERDR_ENV=1 HERDR_PANE_ID=wG:pZ \
+    HERDR_SOCKET_PATH=/live.sock TMUX=/tmp/tmux-1/default,1,0 TMUX_PANE=%1 \
+    ZELLIJ_PANE_ID=1 CMUX_WORKSPACE_ID=w ORCA_WORKTREE_ID=o FM_ENVFIX_UNREAD=keep \
+    FM_TEST_ENVFIX_CONTROL=keep FM_ENVFIX_PROBE_LIVE=1 FM_ENVFIX_PROBE_E2E=1 \
+    FM_ENVFIX_PROBE_EVAL=1 "$runner" "$fixture" >"$tmp/out" 2>"$tmp/err"
+  rc=$?
+  set -e
+  out=$(cat "$tmp/out")
+  [ "$rc" -eq 0 ] || fail "the environment fixture run failed: $out $(cat "$tmp/err")"
+  for name in FM_ENVFIX_STAGE_FILE FMX_ENVFIX_TOKEN HERDR_ENV HERDR_PANE_ID HERDR_SOCKET_PATH \
+    TMUX TMUX_PANE ZELLIJ_PANE_ID CMUX_WORKSPACE_ID ORCA_WORKTREE_ID; do
+    assert_contains "$out" "ok - hidden $name" "$name reached a script run by the runner"
+  done
+  for name in FM_ENVFIX_UNREAD FM_TEST_ENVFIX_CONTROL FM_ENVFIX_PROBE_LIVE \
+    FM_ENVFIX_PROBE_E2E FM_ENVFIX_PROBE_EVAL; do
+    assert_contains "$out" "ok - visible $name" "$name is a test-owned control or opt-in gate and must pass through"
+  done
+  assert_contains "$(cat "$tmp/err")" "FM_ENVFIX_STAGE_FILE" "the runner did not name what it dropped"
+  assert_not_contains "$(cat "$tmp/err")" "FM_ENVFIX_UNREAD" "the runner reported dropping a pass-through variable"
+
+  # With nothing to drop the runner stays silent about it.
+  set +e
+  env -i HOME="$HOME" PATH="$PATH" TMPDIR="${TMPDIR:-/tmp}" "$runner" "$fixture" >"$tmp/out2" 2>"$tmp/err2"
+  set -e
+  assert_not_contains "$(cat "$tmp/err2")" "ignoring ambient variables" \
+    "the runner reported a drop when the environment was already clean"
+
+  rm -rf "$tmp"
+  pass "scripts run without the caller's firstmate state and live session identity"
+}
+
 # The duration regression this guard exists for: a suite whose scripts are all
 # green but whose wall clock outgrew its caller's invocation budget. The caller
 # gets killed mid-run and retries invisibly, so an over-budget run has to be a
@@ -1512,6 +1579,7 @@ test_jobs_admits_a_concurrent_safe_family
 test_unmapped_new_test_never_inherits_family_concurrency
 test_concurrent_runs_are_ordered_longest_first
 test_per_script_timeout_bounds_a_hang
+test_scripts_run_without_the_callers_firstmate_state
 test_max_wall_ms_is_a_result_not_advice
 test_jobs_parallel_scheduler_and_failure_propagation
 test_herdr_ci_family_run_has_a_step_timeout
