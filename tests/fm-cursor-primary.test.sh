@@ -372,11 +372,13 @@ test_park_stands_down_when_superseded() {
   marker="$dir/state/first-park-out"
   ( run_park "$dir" > "$marker" 2>/dev/null ) &
   first_pid=$!
-  local waited=0
+  # Every wait on a park milestone is bounded by time rather than by a count of
+  # sleeps: a park is many process spawns, a loaded host stretches it, and only a
+  # genuine hang should reach the 60 s guard.
+  local deadline=$((SECONDS + 60))
   while [ ! -s "$dir/state/.cursor-park-owner" ] || [ ! -e "$dir/state/arm-ran" ]; do
+    [ "$SECONDS" -lt "$deadline" ] || fail "the first park never claimed ownership"
     sleep 0.2
-    waited=$((waited + 1))
-    [ "$waited" -lt 100 ] || fail "the first park never claimed ownership"
   done
   : > "$dir/state/arm-fast"
   run_park "$dir" >/dev/null 2>&1
@@ -387,7 +389,7 @@ test_park_stands_down_when_superseded() {
 }
 
 test_park_serializes_supersession_with_followup_commit() {
-  local dir first_pid first_out second_out waited budget_count
+  local dir first_pid first_out second_out deadline budget_count
   dir=$(make_primary_dir "$TMP_ROOT/park-commit-race")
   : > "$dir/state/task1.meta"
   printf 'session=sess-cursor\ncount=1\n' > "$dir/state/.turnend-cursor-blocks"
@@ -404,11 +406,10 @@ fm_operational_input_encode() {
 SH
   ( run_park "$dir" > "$dir/state/first-out" ) &
   first_pid=$!
-  waited=0
+  deadline=$((SECONDS + 60))
   while [ ! -e "$dir/state/commit-entered" ]; do
+    [ "$SECONDS" -lt "$deadline" ] || fail "the first park never entered follow-up preparation"
     sleep 0.05
-    waited=$((waited + 1))
-    [ "$waited" -lt 200 ] || fail "the first park never entered follow-up preparation"
   done
   write_arm_fixture "$dir" failed
   second_out=$(run_park "$dir")
@@ -425,7 +426,7 @@ SH
 }
 
 test_superseded_park_does_not_consume_nag_budget() {
-  local dir first_pid second_out waited budget_count
+  local dir first_pid second_out deadline budget_count
   dir=$(make_primary_dir "$TMP_ROOT/park-nag-supersede")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" failed
@@ -440,11 +441,10 @@ SH
   chmod +x "$dir/bin/fm-turnend-guard.sh"
   ( run_park "$dir" > "$dir/state/first-nag-out" ) &
   first_pid=$!
-  waited=0
+  deadline=$((SECONDS + 60))
   while [ ! -e "$dir/state/first-guard-entered" ]; do
+    [ "$SECONDS" -lt "$deadline" ] || fail "the first park never reached the guard decision"
     sleep 0.05
-    waited=$((waited + 1))
-    [ "$waited" -lt 200 ] || fail "the first park never reached the guard decision"
   done
   second_out=$(run_park "$dir")
   : > "$dir/state/first-guard-release"
@@ -512,7 +512,7 @@ test_park_still_parks_with_pi_leak_and_cursor_identity() {
 }
 
 test_park_stands_down_when_away_mode_activates_before_commit() {
-  local dir park_pid out waited budget_count
+  local dir park_pid out deadline budget_count
   dir=$(make_primary_dir "$TMP_ROOT/park-afk-transition")
   : > "$dir/state/task1.meta"
   printf 'session=sess-cursor\ncount=1\n' > "$dir/state/.turnend-cursor-blocks"
@@ -528,11 +528,10 @@ fm_operational_input_encode() {
 SH
   ( run_park "$dir" > "$dir/state/afk-transition-out" ) &
   park_pid=$!
-  waited=0
+  deadline=$((SECONDS + 60))
   while [ ! -e "$dir/state/afk-commit-entered" ]; do
+    [ "$SECONDS" -lt "$deadline" ] || fail "the park never reached follow-up preparation"
     sleep 0.05
-    waited=$((waited + 1))
-    [ "$waited" -lt 200 ] || fail "the park never reached follow-up preparation"
   done
   : > "$dir/state/.afk"
   : > "$dir/state/afk-commit-release"
@@ -556,18 +555,17 @@ test_park_inert_without_session_lock() {
 }
 
 test_park_stands_down_after_session_takeover() {
-  local dir park_pid out waited budget_count
+  local dir park_pid out deadline budget_count
   dir=$(make_primary_dir "$TMP_ROOT/park-session-takeover")
   : > "$dir/state/task1.meta"
   printf 'session=sess-cursor\ncount=1\n' > "$dir/state/.turnend-cursor-blocks"
   write_arm_fixture "$dir" switchable
   ( run_park "$dir" > "$dir/state/takeover-out" ) &
   park_pid=$!
-  waited=0
+  deadline=$((SECONDS + 60))
   while [ ! -e "$dir/state/arm-ran" ]; do
+    [ "$SECONDS" -lt "$deadline" ] || fail "the park never began polling before takeover"
     sleep 0.05
-    waited=$((waited + 1))
-    [ "$waited" -lt 200 ] || fail "the park never began polling before takeover"
   done
   printf '%s\n' "$$" > "$dir/state/.lock"
   wait "$park_pid" 2>/dev/null || true
