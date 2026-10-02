@@ -93,11 +93,12 @@ PATH="$PUBLISH_FAKEBIN:$PATH" FM_HOME="$PUBLISH_HOME" FM_ROOT_OVERRIDE="$ROOT" \
   FM_TEST_PUBLISH_RELEASE="$PUBLISH_RELEASE" \
   "$ROOT/bin/fm-remote-home-provision.sh" < "$PUBLISH_MANIFEST" >/dev/null 2>&1 &
 PUBLISH_PID=$!
-publish_wait=0
+# A hang guard measured by the clock, not a count of sleeps: provisioning is many
+# process spawns, a loaded host stretches it, and an early exit fails at once.
+publish_deadline=$((SECONDS + 60))
 while [ ! -f "$PUBLISH_ENTERED" ]; do
   kill -0 "$PUBLISH_PID" 2>/dev/null || fail "remote provisioning exited before its completion marker"
-  publish_wait=$((publish_wait + 1))
-  [ "$publish_wait" -le 250 ] || fail "remote provisioning never reached its completion marker"
+  [ "$SECONDS" -lt "$publish_deadline" ] || fail "remote provisioning never reached its completion marker"
   sleep 0.02
 done
 cmp -s "$PUBLISH_HOME/.fm-secondmate-parent" <(

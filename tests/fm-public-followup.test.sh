@@ -737,7 +737,7 @@ assert_local_secondmate_parent_record() {
 }
 
 test_local_secondmate_seed_publishes_parent_before_identity() {
-  local parent child parent_resolved fakebin entered release manifest_out real_mv seed_pid wait_count
+  local parent child parent_resolved fakebin entered release manifest_out real_mv seed_pid wait_deadline
   parent=$(make_home seed-publication-parent relay-off)
   child="$TMP_ROOT/seed-publication-child"
   parent_resolved=$(cd "$parent" && pwd -P)
@@ -752,10 +752,11 @@ destination=${!#}
 case "$destination" in
   */.fm-secondmate-home)
     touch "$FM_TEST_PUBLISH_ENTERED"
-    wait_count=0
+    # Held until the case releases it; the clock-based guard only ends a hold
+    # the case forgot, so a slow host cannot make the fake give up early.
+    hold_deadline=$((SECONDS + 60))
     while [ ! -f "$FM_TEST_PUBLISH_RELEASE" ]; do
-      wait_count=$((wait_count + 1))
-      [ "$wait_count" -le 250 ] || exit 97
+      [ "$SECONDS" -lt "$hold_deadline" ] || exit 97
       sleep 0.02
     done
     ;;
@@ -769,12 +770,13 @@ SH
     FM_TEST_PUBLISH_RELEASE="$release" \
     "$ROOT/bin/fm-home-seed.sh" mate "$child" --no-projects > "$manifest_out" 2>&1 &
   seed_pid=$!
-  wait_count=0
+  # A hang guard measured by the clock, not a count of sleeps: seeding is many
+  # process spawns, a loaded host stretches it, and an early exit fails at once.
+  wait_deadline=$((SECONDS + 60))
   while [ ! -f "$entered" ]; do
     kill -0 "$seed_pid" 2>/dev/null \
       || fail "local seeding exited before its identity completion marker: $(cat "$manifest_out")"
-    wait_count=$((wait_count + 1))
-    [ "$wait_count" -le 250 ] || fail "local seeding never reached its identity completion marker"
+    [ "$SECONDS" -lt "$wait_deadline" ] || fail "local seeding never reached its identity completion marker"
     sleep 0.02
   done
   assert_local_secondmate_parent_record "$child" "$parent_resolved"
