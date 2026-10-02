@@ -71,12 +71,18 @@ cp "$ROOT/bin/fm-remote-doctor.sh" "$ROOT/bin/fm-tasks-axi-lib.sh" \
   "$ROOT/bin/fm-backend.sh" "$REMOTE_ROOT/bin/"
 mkdir -p "$REMOTE_ROOT/bin/backends"
 cp "$ROOT/bin/backends/herdr.sh" "$REMOTE_ROOT/bin/backends/herdr.sh"
+# A host that really has herdr and jq makes the doctor load this adapter from the
+# fixture root, and the adapter sources these two libraries at load. The fake
+# herdr (first on the entrypoint's child PATH) keeps that load from ever reading
+# the host's real Herdr, so the transport cases do not depend on what is installed.
+cp "$ROOT/bin/fm-composer-lib.sh" "$ROOT/bin/fm-transition-lib.sh" "$REMOTE_ROOT/bin/"
+printf '#!/usr/bin/env bash\nprintf "{\\"server\\":{\\"running\\":false}}\\n"\n' > "$REMOTE_ROOT/bin/herdr"
 cat > "$REMOTE_ROOT/bin/fm-mutate.sh" <<'SH'
 #!/usr/bin/env bash
 printf 'mutation\n' >> "$1"
 SH
 chmod +x "$REMOTE_ROOT/bin"/*.sh
-chmod +x "$REMOTE_ROOT/bin/tasks-axi"
+chmod +x "$REMOTE_ROOT/bin/tasks-axi" "$REMOTE_ROOT/bin/herdr"
 git -C "$REMOTE_ROOT" init -q -b main
 git -C "$REMOTE_ROOT" config user.email test@example.com
 git -C "$REMOTE_ROOT" config user.name Test
@@ -311,6 +317,8 @@ set -e
 assert_contains "$out" "path=$EXPECTED_PATH" "the remote doctor did not report the entrypoint child PATH"
 assert_contains "$out" 'entrypoint=yes' "the remote doctor did not detect its entrypoint launch"
 assert_contains "$out" 'required git=' "the remote doctor did not report the required tool"
+assert_contains "$out" "required herdr=$REMOTE_ROOT/bin/herdr" \
+  "the remote doctor did not resolve the fixture herdr, so it may have read this host's real Herdr"
 pass "the remote doctor reports the same PATH the entrypoint hands its children"
 
 fm_on ios fm-probe-two.sh >/dev/null
