@@ -578,6 +578,55 @@ test_park_stands_down_after_session_takeover() {
   pass "cursor park: session takeover stops polling without output or state mutation"
 }
 
+# A Cursor session whose lock a captain-confirmed takeover moved to another live
+# session. The ownership gate keeps the park inert, and the shared guard's
+# one-time displaced-session notice arrives as one plain follow-up: never the
+# repair nag, never exit 2, and without claiming the park or its repair budget.
+# A session that merely observes a foreign holder is not told anything.
+DISPLACED_PARK_CHILD='
+  printf "%s\n" "$FOREIGN_PID" > "$FM_HOME/state/.lock"
+  [ "$FM_DISPLACED" != 1 ] || printf "at=2026-10-01T20:00:00Z\tnew_pid=%s\tnew_command=claude\tprev_pid=%s\tprev_holder=command: cursor-agent\n" "$FOREIGN_PID" "$$" > "$FM_HOME/state/.lock-takeovers"
+  "$FM_HOME/bin/fm-turnend-guard-cursor.sh"
+'
+
+run_displaced_park() {  # <dir> <foreign-pid> <session-id> <displaced:0|1>
+  local dir=$1 foreign=$2 session=$3 displaced=$4 payload
+  payload=$(printf '{"session_id":"%s","generation_id":"gen-0","loop_count":0,"status":"completed","hook_event_name":"stop","cursor_version":"2026.08.11-e8db854"}' "$session")
+  printf '%s' "$payload" | env -u PI_CODING_AGENT FM_HOME="$dir" TMPDIR="$dir/tmp" FOREIGN_PID="$foreign" \
+    FM_DISPLACED="$displaced" FM_CURSOR_PARK_POLL=1 "$FAKE_CURSOR" -c "$DISPLACED_PARK_CHILD" 2>/dev/null
+}
+
+test_park_delivers_displaced_notice_once_without_repair_wording() {
+  local dir foreign first first_rc second second_rc observer body
+  dir=$(make_primary_dir "$TMP_ROOT/park-displaced")
+  : > "$dir/state/task1.meta"
+  mkdir -p "$dir/tmp"
+  write_arm_fixture "$dir" actionable
+  "$FAKE_CURSOR" -c 'while kill -0 "$PPID" 2>/dev/null; do sleep 1; done' >/dev/null 2>&1 &
+  foreign=$!
+  first=$(run_displaced_park "$dir" "$foreign" sess-displaced 1); first_rc=$?
+  second=$(run_displaced_park "$dir" "$foreign" sess-displaced 1); second_rc=$?
+  rm -f "$dir/state/.lock-takeovers"
+  observer=$(run_displaced_park "$dir" "$foreign" sess-observer 0)
+  kill "$foreign" 2>/dev/null || true
+  wait "$foreign" 2>/dev/null || true
+  expect_code 0 "$first_rc" "the park must never exit 2, including for the displaced notice"
+  expect_code 0 "$second_rc" "the park must never exit 2 after the displaced notice"
+  [ "$(kind_of_followup "$first")" = turn-end-guard ] || fail "the displaced session got no typed turn-end-guard follow-up: $first"
+  body=$(followup_of "$first")
+  assert_contains "$body" 'THIS SESSION NO LONGER OWNS THE FLEET' "the displaced follow-up did not say the lock was taken over"
+  assert_contains "$body" 'must stop acting on the fleet now' "the displaced follow-up did not tell the session to stop acting"
+  assert_not_contains "$body" 'TURN WOULD END BLIND' "the displaced follow-up was framed as a blind-turn alarm"
+  assert_not_contains "$body" 'could not establish a live cycle' "the displaced follow-up reused the repair nag"
+  assert_not_contains "$body" 'repair' "the displaced follow-up demanded supervision repair"
+  [ -z "$second" ] || fail "the displaced notice repeated for the same session: $second"
+  [ -z "$observer" ] || fail "a session that only observes a foreign holder was told something: $observer"
+  [ ! -e "$dir/state/arm-ran" ] || fail "a displaced session armed supervision"
+  [ ! -e "$dir/state/.turnend-cursor-blocks" ] || fail "the displaced notice consumed the repair budget"
+  [ ! -e "$dir/state/.cursor-park-owner" ] || fail "a displaced session claimed the park"
+  pass "cursor park: a displaced session gets the stop-acting notice once, as a plain follow-up"
+}
+
 test_park_inert_in_child_worktree() {
   local base child out
   base=$(make_primary_dir "$TMP_ROOT/park-base")
@@ -700,6 +749,7 @@ test_park_still_parks_with_pi_leak_and_cursor_identity
 test_park_stands_down_when_away_mode_activates_before_commit
 test_park_inert_without_session_lock
 test_park_stands_down_after_session_takeover
+test_park_delivers_displaced_notice_once_without_repair_wording
 test_park_inert_in_child_worktree
 test_park_ignores_malformed_payload
 test_sessionstart_emits_additional_context

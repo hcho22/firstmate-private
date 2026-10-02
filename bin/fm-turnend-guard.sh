@@ -14,10 +14,15 @@
 # OpenCode and pi adapters use the same predicate and force one bounded
 # follow-up because their turn-end events are passive. Grok delegates native
 # blocking when its running Stop payload advertises that capability, with one
-# bounded resume fallback for payloads from pre-native processes. Cursor calls
-# this guard back with --cursor from bin/fm-turnend-guard-cursor.sh and renders
-# exit 2 as one bounded follow-up, because exit 2 is a silent no-op on Cursor's
-# stop step; without that flag a Cursor-shaped payload is the Claude-settings
+# bounded resume fallback for payloads from pre-native processes. The
+# follow-up renderers (OpenCode, pi, Grok's resume fallback, and the Cursor
+# park) pass --followup: exit 2 is then the blind-turn alarm they prefix with their own
+# repair heading, and exit 3 is the one-time displaced-session notice they
+# forward unchanged, so a session that lost the lock is never told to repair
+# supervision. Cursor calls this guard back with --cursor from
+# bin/fm-turnend-guard-cursor.sh and renders exit 2 as one bounded follow-up,
+# because exit 2 is a silent no-op on Cursor's stop step; without that flag a
+# Cursor-shaped payload is the Claude-settings
 # duplicate Cursor also loads, and this guard stands down.
 # See docs/turnend-guard.md for the per-harness mechanics, validation evidence,
 # and fail-open tradeoffs.
@@ -83,6 +88,7 @@ GRACE=${FM_GUARD_GRACE:-300}
 WATCH="$SCRIPT_DIR/fm-watch.sh"
 CLAUDE_MODE=0
 CURSOR_MODE=0
+FOLLOWUP_MODE=0
 SYNC_WAIT_MS=${FM_CLAUDE_AUTOARM_SYNC_WAIT_MS:-800}
 EPOCH_FRESH=${FM_CLAUDE_AUTOARM_EPOCH_FRESH:-15}
 BLOCK_BUDGET=${FM_CLAUDE_TURNEND_BLOCK_BUDGET:-3}
@@ -94,7 +100,8 @@ for arg in "$@"; do
   case "$arg" in
     --claude) CLAUDE_MODE=1 ;;
     --cursor) CURSOR_MODE=1 ;;
-    *) echo "usage: $(basename "$0") [--claude|--cursor]" >&2; exit 2 ;;
+    --followup) FOLLOWUP_MODE=1 ;;
+    *) echo "usage: $(basename "$0") [--claude|--cursor|--followup]" >&2; exit 2 ;;
   esac
 done
 
@@ -104,6 +111,8 @@ done
 . "$SCRIPT_DIR/fm-primary-scope-lib.sh"
 # shellcheck source=bin/fm-hook-host-lib.sh
 . "$SCRIPT_DIR/fm-hook-host-lib.sh"
+# shellcheck source=bin/fm-session-lock-lib.sh
+. "$SCRIPT_DIR/fm-session-lock-lib.sh"
 
 # Read the whole turn-end hook payload once; never block on unreadable/absent
 # stdin.
@@ -168,7 +177,74 @@ budget_reset() {
   fm_lock_release "$BUDGET_LOCK"
 }
 
+# A session that does not hold this home's fleet lock is read-only: it may not
+# arm, drain, or repair supervision, so demanding that repair would only trap it
+# in a loop it cannot satisfy. In --claude mode the block budget cannot bound
+# that loop either, because it counts auto-arm event epochs and a lock-refused
+# session never advances one. Recovery belongs to the lock holder or to a
+# captain-confirmed takeover, so this session neither blocks nor touches any
+# state/ file, and says so at most once per session, naming the holder exactly as
+# the session-start refusal does and asking the captain, who is the one who reads
+# this notice, to have firstmate in this session run the takeover. It says so only
+# once the watcher beat is stale beyond grace: a fresh beat with no live watcher
+# process is the Stop auto-arm's healthy between-turns state, and the takeover
+# itself refuses while the beat is fresh. The once-only markers live in the temp
+# directory, keyed by home and session id, precisely so a read-only session
+# writes nothing into the fleet's state.
+notice_once() {  # <kind>: succeed only the first time this session asks
+  local marker
+  marker="${TMPDIR:-/tmp}/.fm-$1-guard-notice.$(printf '%s' "$STATE" | cksum | cut -d' ' -f1).$(printf '%s' "$SESSION_ID" | tr -c 'A-Za-z0-9_.-' '_')"
+  (set -C; : > "$marker") 2>/dev/null
+}
+
+readonly_session_notice() {
+  local holder need
+  [ "$CLAUDE_MODE" -eq 1 ] || return 0
+  holder=$(fm_session_lock_holder_pid "$STATE") || return 0
+  notice_once readonly || return 0
+  if [ "$FM_SUP_IN_FLIGHT" -gt 0 ]; then
+    need="$FM_SUP_IN_FLIGHT task(s) in flight"
+  elif [ "$FM_SUP_SOURCES" -gt 0 ]; then
+    need="$FM_SUP_SOURCES process-event source(s) registered"
+  else
+    need="X-mode relay polling active"
+  fi
+  jq -cn --arg m "FIRSTMATE SUPERVISION IS OFF in this home ($need, last watcher beat: $FM_SUP_BEACON_DESC), and this session is read-only: another live process holds the fleet lock, so this session will not arm or repair supervision and its turn may end. Supervision stays off for as long as that holder keeps the lock.
+$(fm_session_lock_takeover_guidance captain "$STATE" "$holder")" '{systemMessage: $m}'
+}
+
+# The one lock-refused case that must reach the MODEL, not just the captain: this
+# session held the lock and an explicit takeover (bin/fm-lock.sh takeover) moved
+# it away, so a session that is still running would otherwise keep mutating the
+# fleet. One bounded notice per session carries the news; the stop is allowed
+# after it.
+displaced_session_notice() {  # <takeover record>
+  local record=$1 at new_pid rule
+  notice_once displaced || return 0
+  at=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^at=//p')
+  new_pid=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^new_pid=//p')
+  rule='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+  {
+    printf '●%s\n' "$rule"
+    printf '●  THIS SESSION NO LONGER OWNS THE FLEET - ITS LOCK WAS TAKEN OVER\n'
+    printf '●  At %s a captain-confirmed takeover moved this home'"'"'s fleet lock to pid %s, so this session is now read-only.\n' "$at" "$new_pid"
+    printf '●  This session must stop acting on the fleet now: do not spawn, steer, merge, tear down, drain wakes, arm the watcher, or otherwise mutate it from here. Tell the captain, and let the lock holder supervise.\n'
+    printf '●%s\n' "$rule"
+  } >&2
+  [ "$FOLLOWUP_MODE" -eq 0 ] || exit 3
+  exit 2
+}
+
 fm_supervision_status "$STATE" "$GRACE"
+if fm_session_lock_held_by_other "$STATE"; then
+  if displaced_record=$(fm_session_lock_displaced_record "$STATE"); then
+    displaced_session_notice "$displaced_record"
+  fi
+  if [ "$FM_SUP_NEEDED" = true ] && [ "$FM_SUP_WATCHER_FRESH" = false ]; then
+    readonly_session_notice
+  fi
+  exit 0
+fi
 if [ "$FM_SUP_NEEDED" = false ]; then
   [ -e "$FAILURE_NOTICE" ] || budget_reset
   exit 0

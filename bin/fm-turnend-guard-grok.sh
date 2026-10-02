@@ -3,7 +3,10 @@
 #
 # The exact running Stop payload selects one path. A typed native capability
 # field delegates the shared guard's exit status and stderr directly back to
-# that Grok process. Field absence preserves the pre-native one-resume fallback.
+# that Grok process. Field absence preserves the pre-native one-resume fallback,
+# which runs the guard with --followup: exit 2 is the blind-turn alarm it frames
+# with its repair heading, and exit 3 is the displaced-session notice it forwards
+# unchanged.
 # Invalid or unreadable input starts neither path. Camel case has typed
 # precedence over the legacy snake-case spelling when both are present.
 set -u
@@ -68,19 +71,25 @@ command -v grok >/dev/null 2>&1 || exit 0
 ERR=$(mktemp "${TMPDIR:-/tmp}/fm-turnend-grok.XXXXXX") || exit 0
 trap 'rm -f "$ERR"' EXIT
 
-printf '%s' "$PAYLOAD" | "$ROOT/bin/fm-turnend-guard.sh" 2>"$ERR"
+printf '%s' "$PAYLOAD" | "$ROOT/bin/fm-turnend-guard.sh" --followup 2>"$ERR"
 RC=$?
-[ "$RC" -eq 2 ] || exit 0
-
 REASON=$(cat "$ERR" 2>/dev/null || true)
-[ -n "$REASON" ] || REASON='tasks in flight, no live watcher - repair missing watcher supervision according to the session-start operating block before ending the turn'
+case "$RC" in
+  2)
+    [ -n "$REASON" ] || REASON='tasks in flight, no live watcher - repair missing watcher supervision according to the session-start operating block before ending the turn'
+    NOTICE="TURN WOULD END BLIND - supervision is off. Repair missing watcher supervision according to the session-start operating block before ending the turn.
+
+$REASON"
+    ;;
+  3)
+    [ -n "$REASON" ] || exit 0
+    NOTICE=$REASON
+    ;;
+  *) exit 0 ;;
+esac
 # shellcheck source=bin/fm-operational-input.sh
 . "$ROOT/bin/fm-operational-input.sh"
-fm_operational_input_encode turn-end-guard \
-  "TURN WOULD END BLIND - supervision is off. Repair missing watcher supervision according to the session-start operating block before ending the turn.
-
-$REASON" \
-  PROMPT || exit 0
+fm_operational_input_encode turn-end-guard "$NOTICE" PROMPT || exit 0
 
 GROK_TURNEND_GUARD_ACTIVE=1 \
   GROK_HOME="${GROK_HOME:-$HOME/.grok}" \

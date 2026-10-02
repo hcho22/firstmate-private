@@ -317,11 +317,12 @@ The current Stop-owned main/secondmate inclusion and child-worktree exclusion ar
 Session-lock ownership in `bin/fm-session-lock-lib.sh` is decided against a session's whole contiguous harness ancestry rather than one chosen pid, so the Stop auto-arm reaches its lock owner wherever that owner sits: the outermost pid of Claude Code's multi-level `bg-spare` hook worker chain, or an inner pid when a harness-named daemon parents the session.
 Harness identity is read from the executable path and `argv[0]` as well as the command basename, because Claude Code's native installer names the per-session executable by its version (`.../share/claude/versions/2.1.220`): `ps -o comm=` reports that path on macOS and the bare version string on Linux, and neither basename names a harness.
 `tests/fm-session-lock-ancestry.test.sh` pins both platforms' reporting semantics behind a deterministic process table and runs the real Stop auto-arm in version-named, daemon-parented, and combined real process trees.
+The same suite pins the takeover contract with real session processes: a live idle holder (a stand-in for the reproduced idle `codex app-server --managed-daemon`) is named with its command and age and never displaced automatically, `bin/fm-lock.sh takeover --confirm-holder <pid>` refuses without the confirmation, for a stale confirmation, while a watcher beat is fresh, and outside any firstmate session (saying where it must run), a confirmed takeover records who replaced whom and leaves the one-line lock format and the previous holder untouched, a displaced session is refused and its auto-arm stays inert, and a dead holder is still reclaimed automatically.
 `tests/fm-watch-arm.test.sh` runs real watcher and arm cycles against durable on-disk state to verify that a delivered reason survives until post-handling acknowledgement and stops replaying after acknowledgement, while an unrelated queue append cannot make a watcher cycle that delivered nothing look successful.
 The same suite ingests a keyed remote-secondmate parent reply through the real adapter, establishes the incremental OPEN DECISIONS cursor, interrupts supervision, and proves re-arm replays every unacknowledged queue row plus the still-open decision through the ordinary drain path.
 It also covers decision-only recovery, interrupted handling, handling-window generation reuse, non-fatal moved-generation acknowledgement with sequence-bounded consumption, and a persistent successor remaining live after recovery is acknowledged.
 
-The Claude product live path ran with Claude Code 2.1.219 on 2026-07-24:
+The Claude product live path ran with Claude Code 2.1.284 on 2026-10-01:
 
 ```sh
 claude --version
@@ -331,9 +332,13 @@ FM_CLAUDE_LIVE_E2E=1 tests/fm-claude-stop-autoarm-live-e2e.test.sh
 Observed output:
 
 ```text
-2.1.219 (Claude Code)
-ok - Claude 2.1.219 (Claude Code) live E2E reclaimed a stale session lock through session start, completed two tokenless Stop-owned rewake cycles, and preserved the competing-live-owner boundary
+2.1.284 (Claude Code)
+ok - Claude 2.1.284 (Claude Code) live E2E reclaimed a stale session lock through session start, completed two tokenless Stop-owned rewake cycles, preserved the competing-live-owner boundary, and ended a lock-refused session after its refusal without a blind-turn loop
 ```
+
+The lock-refused scenario starts a real Claude session in a home whose lock a live process named like Codex holds, with work in flight and no watcher.
+Session start leaves that session read-only and prints the holder and the one takeover command, and the session ends its turn: the transcript carries no `TURN WOULD END BLIND` block, the shared block budget and auto-arm ledger are never written, and the holder keeps the lock.
+Claude Code 2.1.284 also runs the registered `SessionStart` hook in headless `-p` mode, so the fixture counts only model-issued wake drains toward ending the in-flight need.
 
 Current entry points:
 
@@ -451,8 +456,8 @@ grok 0.2.103 (89c3d36fb6f1) [stable]
 
 | Harness | Exact opt-in command | Observed guarantee |
 | --- | --- | --- |
-| Claude | `FM_CLAUDE_LIVE_E2E=1 tests/fm-claude-stop-autoarm-live-e2e.test.sh` | Session start reclaimed a stale owner before two Stop-owned cycles, and a competing live owner prevented arm, rewake, epoch write, or lock replacement. |
-| Codex | `FM_CODEX_LIVE_E2E=1 tests/fm-codex-continuity-live-e2e.test.sh` | The one-second foreground checkpoint returned without switching to the arm wrapper. |
+| Claude | `FM_CLAUDE_LIVE_E2E=1 tests/fm-claude-stop-autoarm-live-e2e.test.sh` | Session start reclaimed a stale owner before two Stop-owned cycles, a competing live owner prevented arm, rewake, epoch write, or lock replacement, and a lock-refused session ended its turn without a blind-turn loop. |
+| Codex | `FM_CODEX_LIVE_E2E=1 tests/fm-codex-continuity-live-e2e.test.sh` | The one-second foreground checkpoint returned without switching to the arm wrapper, and codex-cli 0.160.0 resolved the same session-lock harness pid for a shell tool call and for the Stop hook of that turn (2026-10-01), which the turn-end guard's lock-refused stand-down relies on. |
 | OpenCode | `FM_OPENCODE_LIVE_E2E=1 tests/fm-opencode-primary-live-e2e.test.sh` | A verified successor existed before prompt handling, with no model re-arm or turn-end fallback. |
 | Pi | `FM_PI_LIVE_E2E=1 tests/fm-pi-primary-live-e2e.test.sh` | One initial tool call led to extension-owned successors and clean child retirement on exit. |
 | Grok | `FM_GROK_LIVE_E2E=1 tests/fm-grok-continuity-live-e2e.test.sh` | Native task completion surfaced the actionable close and the cycle ledger recorded `reason=actionable-signal`. |

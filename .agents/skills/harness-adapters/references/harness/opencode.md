@@ -34,7 +34,7 @@ The live Herdr guard is `FM_HERDR_SUBMIT_CONFIRM_LIVE=1 ../../../tests/fm-herdr-
 
 The primary integration was verified on 2026-07-08 with OpenCode 1.17.6.
 `.opencode/plugins/fm-primary-turnend-guard.js` listens for `session.idle`.
-Throwing from `session.idle` does not block `opencode run`, so the primary adapter treats the event as passive and uses `client.session.promptAsync` to force one follow-up turn when `../../../bin/fm-turnend-guard.sh` returns 2.
+Throwing from `session.idle` does not block `opencode run`, so the primary adapter treats the event as passive and uses `client.session.promptAsync` to force one follow-up turn when `../../../bin/fm-turnend-guard.sh --followup` returns 2, or to forward its one-time displaced-session notice unchanged when it returns 3; `../../../docs/turnend-guard.md` owns that contract.
 The follow-up was verified in the interactive TUI.
 `opencode run` can exit before displaying a queued follow-up, so the adapter steps aside in headless mode.
 

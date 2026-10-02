@@ -42,7 +42,7 @@ Pi sets `PI_CODING_AGENT=true` for its children as its harness-detection marker.
 ## Primary integration
 
 The primary turn-end behavior was verified on 2026-07-09 with Pi 0.80.5.
-`.pi/extensions/fm-primary-turnend-guard.ts` listens for logical-run `agent_settled`, not per-tool-loop `turn_end`, and uses `pi.sendUserMessage(..., { deliverAs: "followUp" })` to force one guarded follow-up when `../../../bin/fm-turnend-guard.sh` returns 2.
+`.pi/extensions/fm-primary-turnend-guard.ts` listens for logical-run `agent_settled`, not per-tool-loop `turn_end`, and uses `pi.sendUserMessage(..., { deliverAs: "followUp" })` to force one guarded follow-up when `../../../bin/fm-turnend-guard.sh --followup` returns 2, or to forward its one-time displaced-session notice unchanged when it returns 3; `../../../docs/turnend-guard.md` owns that contract.
 Without `deliverAs: "followUp"`, Pi rejects the send while the agent is still processing.
 
 The primary watcher protocol also requires `.pi/extensions/fm-primary-pi-watch.ts`.

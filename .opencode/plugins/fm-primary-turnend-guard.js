@@ -44,7 +44,7 @@ function resolvePath(anchor) {
 
 function runGuard(root) {
   if (!root) return Promise.resolve({ code: 0, stderr: "" });
-  return runProcess(`${root}/bin/fm-turnend-guard.sh`, [], '{"stop_hook_active":false}');
+  return runProcess(`${root}/bin/fm-turnend-guard.sh`, ["--followup"], '{"stop_hook_active":false}');
 }
 
 async function letWatchArmRun(sessionID, client) {
@@ -72,15 +72,17 @@ export const FmPrimaryTurnendGuard = async ({ client, directory, worktree }) => 
       if (await letWatchArmRun(sessionID, client)) return;
 
       const result = await runGuard(root);
-      if (result.code !== 2) return;
+      if (result.code !== 2 && result.code !== 3) return;
 
       try {
         const text = await encodeFirstmateOperationalInput(
           root,
           "turn-end-guard",
-          "TURN WOULD END BLIND - supervision is off. " +
-            "The watcher cycle is missing, failed, or unhealthy. Follow the harness recovery instruction below before ending the turn.\n\n" +
-            result.stderr,
+          result.code === 3
+            ? result.stderr
+            : "TURN WOULD END BLIND - supervision is off. " +
+                "The watcher cycle is missing, failed, or unhealthy. Follow the harness recovery instruction below before ending the turn.\n\n" +
+                result.stderr,
         );
         await client.session.promptAsync({
           path: { id: sessionID },

@@ -60,8 +60,8 @@ Secondmates skip it because idle is healthy and ordinary stale-pane detection do
 
 Verified on 2026-07-28 with 0.2.112 and genuine pre-native 0.2.73.
 `.grok/hooks/fm-primary-turnend-guard.json` invokes `../../../bin/fm-turnend-guard-grok.sh`.
-The exact running Stop payload selects same-process continuation on 0.2.112; 0.2.73 omits that capability and needs one guarded `grok --resume`.
-`../../../docs/turnend-guard.md` owns adaptive and malformed-input behavior.
+The exact running Stop payload selects same-process continuation on 0.2.112; 0.2.73 omits that capability and needs one guarded `grok --resume`, which calls the guard with `--followup` and resumes its one-time displaced-session notice unchanged.
+`../../../docs/turnend-guard.md` owns adaptive and malformed-input behavior and that `--followup` contract.
 
 Grok also loads Claude project settings, so Claude entries for Grok-covered events stand down under `GROK_AGENT` or `GROK_HOOK_EVENT`; that owner records the exact set and why `GROK_SESSION_ID` is excluded.
 Project-local hooks require launch-time `--trust`; without it the guard steps aside and `../../../bin/fm-guard.sh` is the next-command alarm.

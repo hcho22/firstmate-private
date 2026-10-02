@@ -705,15 +705,18 @@ $rec
 EOF
   printf '%s\n' $$ > "$home/state/.lock"
 
-  FM_STARTUP_NETWORK_TIMEOUT=1 FM_SESSION_START_TIMEOUT=2 \
-    FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=20 \
+  # The bound has to be long enough for the fake sweep to START and record its
+  # timing before the kill even on a loaded host; a 1s bound made this case fail
+  # whenever the machine was busy, so it proved load rather than the contract.
+  FM_STARTUP_NETWORK_TIMEOUT=4 FM_SESSION_START_TIMEOUT=6 \
+    FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=30 \
     FM_FAKE_TIMING_PHASE=secondmate-liveness FM_FAKE_TIMING_DETAIL='mate-a@host-one' \
     run_stage "$home" "$root" run --locked 1
 
   [ "$(sed -n 's/^state=//p' "$home/state/.startup-network.status")" = timeout ] \
     || fail "the bounded run did not record itself as timed out"
   report_out=$(run_stage "$home" "$root" report)
-  assert_contains "$report_out" "hit the 1s bound" "the bound stopped being reported"
+  assert_contains "$report_out" "hit the 4s bound" "the bound stopped being reported"
   assert_contains "$report_out" "secondmate-liveness mate-a@host-one" \
     "a timed-out run discarded the partial timings its sweeps had already recorded"
   pass "fm-startup-network: a timed-out run still publishes the partial timings it recorded"

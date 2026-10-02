@@ -26,6 +26,9 @@
 # Follow-up sources, in priority order, at most one per invocation:
 #   1. an actionable watcher wake from the park;
 #   2. the bounded repair instruction when supervision could not be established.
+# A session that does not own the lock never parks; its only possible follow-up
+# is the shared guard's one-time displaced-session notice, when a
+# captain-confirmed takeover moved the lock away from this very session.
 #
 # LOOP BOUNDING IS DOUBLE, because either bound alone is insufficient:
 #   - `loop_limit` in .cursor/hooks.json is Cursor's own ceiling. Once
@@ -215,6 +218,20 @@ $reason"
   exit 0
 }
 
+# Ask the SHARED turn-end guard about this stop. --cursor tells it this is
+# Cursor's own registration rather than the Claude-settings duplicate, and
+# --followup tells it this park renders its outcome as a follow-up: exit 2 is the
+# blind-turn alarm, exit 3 the one-time displaced-session notice. Sets GUARD_RC
+# and GUARD_REASON (the guard's stderr).
+run_shared_guard() {
+  local err
+  err=$(mktemp "${TMPDIR:-/tmp}/fm-turnend-cursor.XXXXXX") || return 1
+  printf '%s' "$PAYLOAD" | "$SCRIPT_DIR/fm-turnend-guard.sh" --cursor --followup 2>"$err"
+  GUARD_RC=$?
+  GUARD_REASON=$(cat "$err" 2>/dev/null || true)
+  rm -f "$err" 2>/dev/null || true
+}
+
 # --- park ownership ----------------------------------------------------------
 # Last arrival wins. The short owner lock serializes publication with only the
 # final ownership, away-mode, output, and repair-budget commit.
@@ -255,7 +272,15 @@ current_session_still_ours() {
 if ! fm_session_lock_owned_by_self "$STATE"; then
   LOCK_PID=$(cat "$STATE/.lock" 2>/dev/null || true)
   case "$LOCK_PID" in ''|*[!0-9]*) exit 0 ;; esac
-  fm_harness_pid_alive "$LOCK_PID" && exit 0
+  if fm_harness_pid_alive "$LOCK_PID"; then
+    run_shared_guard || exit 0
+    [ "$GUARD_RC" -eq 3 ] || exit 0
+    [ -n "$GUARD_REASON" ] || exit 0
+    fm_operational_input_encode turn-end-guard "$GUARD_REASON" DISPLACED_NOTICE || exit 0
+    DISPLACED_RESPONSE=$(jq -n --arg m "$DISPLACED_NOTICE" '{followup_message:$m}' 2>/dev/null) || exit 0
+    printf '%s\n' "$DISPLACED_RESPONSE" || true
+    exit 0
+  fi
   "$SCRIPT_DIR/fm-lock.sh" >/dev/null 2>&1 || exit 0
   fm_session_lock_owned_by_self "$STATE" || exit 0
 fi
@@ -374,14 +399,10 @@ fi
 # The park could not establish supervision. Ask the SHARED predicate whether
 # this turn would genuinely end blind, rather than deciding that here a second
 # time: bin/fm-turnend-guard.sh owns the block decision and its banner for every
-# harness, and --cursor tells it this is Cursor's own registration rather than
-# the Claude-settings duplicate.
-GUARD_ERR=$(mktemp "${TMPDIR:-/tmp}/fm-turnend-cursor.XXXXXX") || exit 0
-printf '%s' "$PAYLOAD" | "$SCRIPT_DIR/fm-turnend-guard.sh" --cursor 2>"$GUARD_ERR"
-GUARD_RC=$?
-REASON=$(cat "$GUARD_ERR" 2>/dev/null || true)
-rm -f "$GUARD_ERR" 2>/dev/null || true
+# harness.
+run_shared_guard || exit 0
 [ "$GUARD_RC" -eq 2 ] || exit 0
+REASON=$GUARD_REASON
 
 # Bounded so a persistent failure nags a few times and then stops, instead of
 # turning every turn end into another unproductive continuation.

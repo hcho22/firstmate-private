@@ -792,6 +792,12 @@ EOF
   expect_code 0 "$status" "fm-session-start.sh must exit 0 even on a lock refusal"
   assert_contains "$out" "READ-ONLY SESSION" "read-only banner missing on lock refusal"
   assert_contains "$out" "another live firstmate session holds the lock" "read-only banner did not surface fm-lock.sh's own error text"
+  assert_contains "$out" "holder: pid $holder_pid, command:" "read-only banner did not name what holds the lock"
+  assert_contains "$out" "holding the lock since" "read-only banner did not say when the holder took the lock"
+  assert_contains "$out" "fm-lock.sh takeover --confirm-holder $holder_pid" "read-only banner did not print the one explicit takeover command"
+  [ "$(printf '%s\n' "$out" | grep -c -F -- "takeover --confirm-holder $holder_pid")" = 1 ] \
+    || fail "the lock refusal and its takeover command must appear exactly once in the digest"
+  assert_contains "$out" "●    holder: pid $holder_pid" "every line of the multi-line refusal must stay inside the read-only banner"
   assert_contains "$out" "Skipping every mutating step" "read-only banner did not explain what was skipped"
   assert_contains "$out" "skipped (read-only session)" "wake-queue section did not report itself skipped"
   assert_contains "$out" "WATCHER DOWN - SUPERVISION IS OFF" "read-only guard did not surface watcher-liveness alarm"

@@ -2150,7 +2150,9 @@ SH
       "$ROOT/bin/fm-config-push.sh" > "$first_out" 2>&1
   ) &
   first_pid=$!
-  for _ in $(seq 1 100); do
+  # Wait for the first push to reach delivery for as long as a loaded host needs:
+  # a 2s window made this case a load detector instead of a serialization test.
+  for _ in $(seq 1 1500); do
     [ -e "$entered" ] && break
     sleep 0.02
   done
