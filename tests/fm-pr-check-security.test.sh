@@ -614,11 +614,20 @@ SH
   pass "valid direct and merge flows record exact metadata and reject multiline head metadata"
 }
 
+# The watcher exits by itself once it surfaces or retires a poll, so both bounds
+# below are only hang guards and never part of an assertion. One cycle is hundreds
+# of short-lived processes (retiring a merged poll alone re-validates and hashes
+# every artifact), so its wall time scales with host load: roughly 8 s once the
+# load average is in the hundreds, which a 10 s bound turned into a silent exit 124.
+HANG_GUARD_WATCHER_SECS=120
+HANG_GUARD_CHECK_SECS=30
+
 run_watcher_bounded() {
   local home=$1 fakebin=$2 check_interval=${FM_TEST_CHECK_INTERVAL:-0} watch_root=${FM_TEST_WATCH_ROOT:-$ROOT}
   shift 2
-  perl -e 'my $pid=fork; die unless defined $pid; if (!$pid) { exec @ARGV } local $SIG{ALRM}=sub { kill "TERM", $pid; waitpid $pid, 0; exit 124 }; alarm 10; waitpid $pid, 0; alarm 0; exit($? >> 8)' \
-    env FM_HOME="$home" FM_ROOT_OVERRIDE="$watch_root" FM_CHECK_INTERVAL="$check_interval" FM_CHECK_TIMEOUT=1 \
+  perl -e 'my $t=shift; my $pid=fork; die unless defined $pid; if (!$pid) { exec @ARGV } local $SIG{ALRM}=sub { kill "TERM", $pid; waitpid $pid, 0; exit 124 }; alarm $t; waitpid $pid, 0; alarm 0; exit($? >> 8)' \
+    "$HANG_GUARD_WATCHER_SECS" \
+    env FM_HOME="$home" FM_ROOT_OVERRIDE="$watch_root" FM_CHECK_INTERVAL="$check_interval" FM_CHECK_TIMEOUT="$HANG_GUARD_CHECK_SECS" \
       FM_POLL=0.02 FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 PATH="$fakebin:$BASE_PATH" "$WATCH" "$@"
 }
 
