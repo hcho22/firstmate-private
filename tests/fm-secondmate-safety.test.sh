@@ -1340,7 +1340,7 @@ test_home_seed_preserves_existing_parent_binding() {
     cmp -s "$before/$leaf" "$child/$leaf" \
       || fail "mismatched-parent reseed changed $leaf"
   done
-  [ ! -e "$parent_b/data/mate/brief.md" ] \
+  [ ! -e "$(task_data_path "$parent_b" mate brief.md)" ] \
     || fail "mismatched-parent reseed created a replacement parent brief"
   [ ! -e "$parent_b/data/secondmates.md" ] \
     || fail "mismatched-parent reseed registered the child to the replacement parent"
