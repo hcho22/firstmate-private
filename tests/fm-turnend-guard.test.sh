@@ -1937,17 +1937,27 @@ stop_foreign_session() {  # <pid>
 # state/.lock-takeovers records a takeover by that process of THIS session, the
 # way fm-lock.sh takeover does). Sets GUARD_OUT (stdout and stderr) and GUARD_RC.
 # The trailing echo keeps the fake harness alive as the command's parent instead
-# of letting bash exec the command in its place.
+# of letting bash exec the command in its place. Pi's harness names are anchored
+# (pi, pi-signed), so its fake carries the exact name in a per-case directory;
+# every fake must pass the real harness-identity predicate before the command
+# runs, or the case would only pass through whatever harness runs this suite.
 run_in_harness() {  # <dir> <harness> <lock-mode> <command...>
-  local dir=$1 harness=$2 lock_mode=$3 home raw
+  local dir=$1 harness=$2 lock_mode=$3 home raw fake
   shift 3
   home=$(cd "$dir" && pwd)
   mkdir -p "$dir/tmp"
-  ln -sf /bin/bash "$dir/fake-$harness"
+  case "$harness" in
+    pi|pi-signed) fake="$dir/harness-bin/$harness" ;;
+    *) fake="$dir/fake-$harness" ;;
+  esac
+  mkdir -p "$(dirname "$fake")"
+  ln -sf /bin/bash "$fake"
   # shellcheck disable=SC2016 # the fake harness expands FM_HOME and $$ inside its child shell.
   raw=$(CLAUDECODE=1 TMPDIR="$dir/tmp" FM_HOME="$home" FM_CLAUDE_AUTOARM_SYNC_WAIT_MS=100 FM_LOCK_MODE="$lock_mode" \
-      FOREIGN_PID="${GUARD_FOREIGN_PID:-}" \
-      "$dir/fake-$harness" -c '
+      FOREIGN_PID="${GUARD_FOREIGN_PID:-}" LOCK_LIB="$ROOT/bin/fm-session-lock-lib.sh" \
+      "$fake" -c '
+        . "$LOCK_LIB"
+        fm_harness_process_matches "$(ps -o comm= -p $$)" "$(ps -o args= -p $$)" || { echo "__rc=unrecognized-harness"; exit 0; }
         [ "$FM_LOCK_MODE" != self ] || printf "%s\n" "$$" > "$FM_HOME/state/.lock"
         if [ "$FM_LOCK_MODE" = displaced ]; then
           printf "%s\n" "$FOREIGN_PID" > "$FM_HOME/state/.lock"
@@ -1958,6 +1968,7 @@ run_in_harness() {  # <dir> <harness> <lock-mode> <command...>
       ' fake-harness "$@" 2>&1)
   GUARD_RC=${raw##*__rc=}
   GUARD_OUT=${raw%__rc=*}
+  [ "$GUARD_RC" != unrecognized-harness ] || fail "the fake $harness process $fake is not recognized as a harness"
 }
 
 # Run the guard itself through run_in_harness with a turn-end payload.

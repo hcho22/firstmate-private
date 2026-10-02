@@ -14,9 +14,9 @@
 # OpenCode and pi adapters use the same predicate and force one bounded
 # follow-up because their turn-end events are passive. Grok delegates native
 # blocking when its running Stop payload advertises that capability, with one
-# bounded resume fallback for payloads from pre-native processes. Those three
-# follow-up renderers (OpenCode, pi, and Grok's resume fallback) pass
-# --followup: exit 2 is then the blind-turn alarm they prefix with their own
+# bounded resume fallback for payloads from pre-native processes. The
+# follow-up renderers (OpenCode, pi, Grok's resume fallback, and the Cursor
+# park) pass --followup: exit 2 is then the blind-turn alarm they prefix with their own
 # repair heading, and exit 3 is the one-time displaced-session notice they
 # forward unchanged, so a session that lost the lock is never told to repair
 # supervision. Cursor calls this guard back with --cursor from

@@ -70,6 +70,6 @@ Primary supervision is the stop-hook park in `../../../docs/supervision-protocol
 Cursor exposes 20 project events plus a Claude-Code compatibility map that loads `.claude/settings.json`.
 Tracked hooks register `stop`, `sessionStart`, and two `preToolUse` seatbelts through `$CURSOR_PROJECT_DIR`; Claude entries stand down on Cursor payloads under `../../../docs/turnend-guard.md`.
 
-`stop` cannot block because exit 2 is a silent no-op, so `../../../bin/fm-turnend-guard-cursor.sh` parks on supervision and returns one bounded `followup_message`.
+`stop` cannot block because exit 2 is a silent no-op, so `../../../bin/fm-turnend-guard-cursor.sh` parks on supervision and returns one bounded `followup_message`; it calls the shared guard with `--followup`, so a displaced session's one-time notice arrives as a plain follow-up, and `../../../docs/turnend-guard.md` owns that contract.
 It does not fire in headless `cursor-agent -p`.
 `preCompact` is unregistered because it cannot inject context, so digest re-emission after Cursor compaction remains deferred.
