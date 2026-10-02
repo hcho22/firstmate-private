@@ -111,8 +111,50 @@ test_existing_singleton_watcher_is_not_success() {
   pass "checkpoint rejects an existing watcher singleton as unowned"
 }
 
+# Hosts with neither timeout nor gtimeout (stock macOS) use the perl fallback. GNU
+# timeout never follows TERM with KILL, so the watcher always finishes its exit
+# cleanup; the fallback used to KILL it 0.2 s after TERM, which cut the cleanup
+# short on a slow host and left the watch lock behind. A stub watcher whose
+# cleanup deliberately takes a full second shows the difference without depending
+# on how fast the host is.
+test_perl_fallback_lets_the_watcher_finish_its_cleanup() {
+  local home root toolbin tool real status out
+  home=$(make_home perl-fallback)
+  root="$home/root"
+  toolbin="$home/toolbin"
+  out="$home/out.txt"
+  mkdir -p "$root/bin" "$toolbin"
+  cp "$CHECKPOINT" "$root/bin/fm-watch-checkpoint.sh"
+  cat > "$root/bin/fm-watch.sh" <<'SH'
+#!/usr/bin/env bash
+[ "${1:-}" != --warm ] || exit 0
+: > "$FM_FIXTURE/started"
+trap 'sleep 1; : > "$FM_FIXTURE/cleaned"; exit 143' TERM
+while :; do sleep 0.05; done
+SH
+  chmod +x "$root/bin/fm-watch-checkpoint.sh" "$root/bin/fm-watch.sh"
+  # The first run of a freshly written executable is slow on macOS (about a second
+  # and a half); run the stub once now so the checkpoint's own bound cannot expire
+  # before the stub has started.
+  "$root/bin/fm-watch.sh" --warm
+  for tool in bash env mktemp grep cat rm dirname perl sleep; do
+    real=$(command -v "$tool" || true)
+    [ -n "$real" ] || fail "missing tool for the perl-fallback path: $tool"
+    ln -s "$real" "$toolbin/$tool"
+  done
+  [ ! -e "$toolbin/timeout" ] && [ ! -e "$toolbin/gtimeout" ] || fail "the fixture PATH still offers a timeout command"
+  status=0
+  PATH="$toolbin" FM_FIXTURE="$home" "$root/bin/fm-watch-checkpoint.sh" --seconds 2 >"$out" 2>/dev/null || status=$?
+  expect_code 124 "$status" "perl-fallback checkpoint exit"
+  assert_contains "$(cat "$out")" "checkpoint: no actionable wake within 2s" "perl-fallback checkpoint line missing"
+  assert_present "$home/started" "the stub watcher never started"
+  assert_present "$home/cleaned" "the perl fallback ended the watcher before its exit cleanup finished"
+  pass "the perl fallback lets the watcher finish its exit cleanup after TERM"
+}
+
 test_quiet_checkpoint_exits_124_cleanly
 test_startup_timeout_releases_an_acquired_lock
 test_signal_passes_through_and_exits_zero
 test_registered_check_uses_preserved_watcher_environment
 test_existing_singleton_watcher_is_not_success
+test_perl_fallback_lets_the_watcher_finish_its_cleanup

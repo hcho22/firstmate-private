@@ -51,8 +51,16 @@ ERR=$(mktemp "${TMPDIR:-/tmp}/fm-watch-checkpoint.err.XXXXXX") || {
 }
 trap 'rm -f "$OUT" "$ERR"' EXIT
 
+# The fallback for hosts with neither timeout nor gtimeout, which includes stock
+# macOS. GNU timeout sends TERM and never follows it with KILL, so the watcher
+# always finishes its exit cleanup (releasing its lock and publishing recovery
+# state, many process spawns). Ending it 0.2 s after TERM cut that cleanup short
+# on a slow host and left a stale watch lock behind, so this waits for the
+# watcher to exit and keeps the final signal only as a bounded backstop for a
+# hung one.
 run_with_perl_timeout() {
   perl -e '
+    use POSIX qw(WNOHANG);
     my $seconds = shift;
     my $pid = fork;
     die "fork failed\n" unless defined $pid;
@@ -63,7 +71,11 @@ run_with_perl_timeout() {
     }
     local $SIG{ALRM} = sub {
       kill "TERM", -$pid;
-      select undef, undef, undef, 0.2;
+      my $deadline = time + 10;
+      while (time < $deadline) {
+        last if waitpid($pid, WNOHANG) == $pid;
+        select undef, undef, undef, 0.05;
+      }
       kill "KILL", -$pid;
       exit 124;
     };
