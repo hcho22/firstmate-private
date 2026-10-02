@@ -51,7 +51,7 @@ SH
 #!/usr/bin/env bash
 echo "gh $*" >> "$NET_LOG"
 if [ "${FAKE_GH_FAIL:-0}" = 1 ]; then exit 1; fi
-if [ "${FAKE_GH_SLEEP:-0}" = 1 ]; then sleep 30; fi
+if [ "${FAKE_GH_SLEEP:-0}" = 1 ]; then sleep "${FAKE_GH_SLEEP_SECONDS:-30}"; fi
 if [ "${FAKE_GH_MANY:-0}" = 1 ]; then
   cat <<'JSON'
 [{"number":1,"title":"One","url":"https://github.com/acme/repo/pull/1","headRefName":"fm/one","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]},{"number":2,"title":"Two","url":"https://github.com/acme/repo/pull/2","headRefName":"fm/two","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]},{"number":3,"title":"Three","url":"https://github.com/acme/repo/pull/3","headRefName":"fm/three","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]}]
@@ -1274,25 +1274,31 @@ test_partial_github_failure_degrades() {
 }
 
 test_perl_fallback_bounds_github_call() {
-  local home fakebin toolbin cmd json started elapsed
+  local home fakebin toolbin cmd json
   home=$(make_home perl-timeout); write_fixture "$home"
   fakebin=$(make_fakebin "$home")
   toolbin="$home/toolbin"
   mkdir -p "$toolbin"
-  for cmd in bash dirname basename jq date sed git grep tail cut tr head sort wc perl sleep cat find mktemp rm mkdir chmod mv cp awk; do
+  # env belongs here because the bounded gh call runs through it: without it on
+  # this restricted PATH the call fails to start at all, which reads as the same
+  # "unavailable" a timeout produces and leaves the bound unexercised.
+  for cmd in bash dirname basename jq date sed git grep tail cut tr head sort wc perl sleep cat find mktemp rm mkdir chmod mv cp awk env; do
     ln -s "$(command -v "$cmd")" "$toolbin/$cmd"
   done
   for cmd in shasum sha256sum; do
     command -v "$cmd" >/dev/null 2>&1 || continue
     ln -s "$(command -v "$cmd")" "$toolbin/$cmd"
   done
-  started=$(date +%s)
+  # The stalled gh would answer after ten seconds: far past the one-second bound
+  # this case sets, and before the twenty-second default that bound replaces. A
+  # real answer therefore means the configured bound was not honored, so the
+  # unavailable note below can only come from the call being cut off first, with
+  # no host-dependent clock reading involved.
   json=$(PATH="$fakebin:$toolbin" FM_HOME="$home" FM_BEARINGS_NOW=2026-07-11T18:00:00Z \
-    FM_BEARINGS_PR_TIMEOUT=1 NET_LOG="$home/net.log" FAKE_GH_SLEEP=1 "$BEARINGS" --include-prs --json)
-  elapsed=$(( $(date +%s) - started ))
-  [ "$elapsed" -lt 10 ] || fail "Perl fallback did not bound a stalled gh call (${elapsed}s)"
+    FM_BEARINGS_PR_TIMEOUT=1 NET_LOG="$home/net.log" FAKE_GH_SLEEP=1 FAKE_GH_SLEEP_SECONDS=10 \
+    "$BEARINGS" --include-prs --json)
   printf '%s' "$json" | jq -e '.prs | test("unavailable")' >/dev/null \
-    || fail "timed-out gh call did not fail soft: $json"
+    || fail "Perl fallback did not bound a stalled gh call to the configured timeout: $json"
   pass "Perl fallback bounds stalled GitHub calls without coreutils timeout"
 }
 
