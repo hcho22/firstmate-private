@@ -2143,12 +2143,16 @@ fm_run_timed 1 "$@"
 SH
   chmod +x "$driver"
 
+  # The outer alarm is only a hang guard for a command that ignores TERM and
+  # never gets killed (exit 99); the 1 s bound under test sits inside it. A 5 s
+  # guard also covered the start-up of the driver chain, so a slow host reported
+  # the guard's own 99 although the escalation worked.
   perl -e '
     my $pid = fork;
     die "fork failed" unless defined $pid;
     if (!$pid) { setpgrp(0, 0); exec @ARGV }
     local $SIG{ALRM} = sub { kill "KILL", -$pid; waitpid $pid, 0; exit 99 };
-    alarm 5;
+    alarm 60;
     waitpid $pid, 0;
     exit($? >> 8);
   ' env PATH="$fakebin:$BASE_PATH" "$driver" "$ROOT/bin/fm-timeout-lib.sh" \
