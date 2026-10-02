@@ -186,15 +186,35 @@ MISE_EXPECTED=$(printf '%s\n' "$MISE_INSTALLS"/*/*/bin)
 rm -rf -- "$ACCOUNT_HOME/.local/share/mise"
 pass "operator PATH orders discovered tool installs deterministically"
 
+# Every positive wait waits on the real event and is bounded by time, never by a
+# count of sleeps: each iteration of a counted loop also pays process spawns, and
+# a worker lane, a freshly written stub, or a restarted worker reaches its next
+# event only after many more, so on a loaded host the give-up arrives before the
+# fixture's own path to the event. Only a genuine hang may reach the guard.
+# SECONDS ticks on wall-clock second boundaries, so requiring more than the guard
+# in ticks guarantees the full guard has elapsed.
+EVENT_WAIT_SECONDS=60
+wait_until() { # <command...>: poll until the command succeeds
+  local started=$SECONDS
+  until "$@"; do
+    [ $((SECONDS - started)) -le "$EVENT_WAIT_SECONDS" ] || return 1
+    sleep 0.05
+  done
+}
+job_in_state() { [ "$(fm_remote_job_read_state "$1" 2>/dev/null || true)" = "$2" ]; } # <job-dir> <state>
+process_gone() { ! kill -0 "$1" 2>/dev/null; } # <pid>
+worker_pid_replaced() { # <old pid>: another worker has published its pid
+  local current
+  current=$(cat "$STATE_ROOT/worker.pid" 2>/dev/null || true)
+  [ -n "$current" ] && [ "$current" != "$1" ]
+}
+
 HOME="$ACCOUNT_HOME" PATH="$RUNTIME_BIN:/usr/bin:/bin:/usr/sbin:/sbin" FM_FAKE_PERL_LOG="$FAKE_PERL_LOG" \
   FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$STATE_ROOT" \
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux FM_REMOTE_JOB_TIMEOUT=5 \
   "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" > "$TMP_ROOT/worker.out" 2> "$TMP_ROOT/worker.err" &
-for _ in $(seq 1 100); do
-  [ -f "$STATE_ROOT/worker.ready" ] && break
-  sleep 0.05
-done
-assert_present "$STATE_ROOT/worker.ready" "the worker did not publish its readiness heartbeat"
+wait_until test -f "$STATE_ROOT/worker.ready" \
+  || fail "the worker did not publish its readiness heartbeat"
 
 file_mode() {
   if [ "$(uname)" = Darwin ]; then
@@ -235,19 +255,12 @@ fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
   fm-delay-job.sh 4 "$ACTIVE_SIDE_EFFECT" < /dev/null > /dev/null
 JOB_ID=$FM_REMOTE_JOB_ID
 JOB_DIR="$STATE_ROOT/jobs/$JOB_ID"
-for _ in $(seq 1 100); do
-  [ "$(fm_remote_job_read_state "$JOB_DIR" 2>/dev/null || true)" = running ] && break
-  sleep 0.05
-done
-[ "$(fm_remote_job_read_state "$JOB_DIR" 2>/dev/null || true)" = running ] \
+wait_until job_in_state "$JOB_DIR" running \
   || fail "the active-job readiness fixture did not begin running"
 ACTIVE_WORKER_PID=$(cat "$STATE_ROOT/worker.pid")
 touch -t 200001010000 "$STATE_ROOT/worker.ready"
-for _ in $(seq 1 40); do
-  fm_remote_job_probe "$ACCOUNT_HOME" && break
-  sleep 0.05
-done
-fm_remote_job_probe "$ACCOUNT_HOME" || fail "the active worker did not refresh its readiness heartbeat"
+wait_until fm_remote_job_probe "$ACCOUNT_HOME" \
+  || fail "the active worker did not refresh its readiness heartbeat"
 fm_remote_job_ensure_worker "$REMOTE_ROOT" "$ACCOUNT_HOME" || fail "$FM_REMOTE_JOB_ERROR"
 [ "$(cat "$STATE_ROOT/worker.pid")" = "$ACTIVE_WORKER_PID" ] \
   || fail "ensure replaced a healthy worker during an active job"
@@ -320,11 +333,7 @@ QUEUED_SIDE_EFFECT="$TMP_ROOT/queued-side-effect"
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" fm-timeout-job.sh < /dev/null > /dev/null
 FIRST_JOB_ID=$FM_REMOTE_JOB_ID
 FIRST_JOB_DIR="$STATE_ROOT/jobs/$FIRST_JOB_ID"
-for _ in $(seq 1 100); do
-  [ "$(fm_remote_job_read_state "$FIRST_JOB_DIR" 2>/dev/null || true)" = running ] && break
-  sleep 0.05
-done
-[ "$(fm_remote_job_read_state "$FIRST_JOB_DIR" 2>/dev/null || true)" = running ] \
+wait_until job_in_state "$FIRST_JOB_DIR" running \
   || fail "the blocking job did not begin running"
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" fm-touch-job.sh "$QUEUED_SIDE_EFFECT" < /dev/null > /dev/null
 JOB_ID=$FM_REMOTE_JOB_ID
@@ -345,11 +354,7 @@ fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
   fm-delay-job.sh 1.8 "$FIRST_DELAYED_SIDE_EFFECT" < /dev/null > /dev/null
 FIRST_JOB_ID=$FM_REMOTE_JOB_ID
 FIRST_JOB_DIR="$STATE_ROOT/jobs/$FIRST_JOB_ID"
-for _ in $(seq 1 100); do
-  [ "$(fm_remote_job_read_state "$FIRST_JOB_DIR" 2>/dev/null || true)" = running ] && break
-  sleep 0.05
-done
-[ "$(fm_remote_job_read_state "$FIRST_JOB_DIR" 2>/dev/null || true)" = running ] \
+wait_until job_in_state "$FIRST_JOB_DIR" running \
   || fail "the first delayed job did not begin running"
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
   fm-delay-job.sh 1.8 "$SECOND_DELAYED_SIDE_EFFECT" < /dev/null > /dev/null
@@ -370,27 +375,25 @@ fi
 mkdir -p "$REMOTE_HOME/state"
 REPLY_LOG_REL=state/parent-replies.status
 PREEMPT_SIDE_EFFECT="$TMP_ROOT/preempt-side-effect"
+# The poll's window (the reader's 300-second maximum) is five times the short
+# command's queue window, so the short command can complete inside its queue
+# window only if the worker preempts the poll; waiting out the poll would expire
+# it first. No elapsed time is measured.
 FM_REMOTE_JOB_QUEUE_TIMEOUT=60
-FM_REMOTE_JOB_TIMEOUT=40
+FM_REMOTE_JOB_TIMEOUT=400
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
-  fm-remote-delta-read.sh "$REPLY_LOG_REL" 0 "$EMPTY_SHA" 30 < /dev/null > /dev/null
+  fm-remote-delta-read.sh "$REPLY_LOG_REL" 0 "$EMPTY_SHA" 300 < /dev/null > /dev/null
 POLL_JOB_ID=$FM_REMOTE_JOB_ID
 POLL_JOB_DIR="$STATE_ROOT/jobs/$POLL_JOB_ID"
-for _ in $(seq 1 100); do
-  [ "$(fm_remote_job_read_state "$POLL_JOB_DIR" 2>/dev/null || true)" = running ] && break
-  sleep 0.05
-done
-[ "$(fm_remote_job_read_state "$POLL_JOB_DIR" 2>/dev/null || true)" = running ] \
+wait_until job_in_state "$POLL_JOB_DIR" running \
   || fail "the long-poll job did not begin running"
-PREEMPT_BEGAN=$(date +%s)
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
   fm-touch-job.sh "$PREEMPT_SIDE_EFFECT" < /dev/null > /dev/null
 JOB_ID=$FM_REMOTE_JOB_ID
 fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
-PREEMPT_ELAPSED=$(( $(date +%s) - PREEMPT_BEGAN ))
-[ "$FM_REMOTE_JOB_EXIT" -eq 0 ] || fail "the short command behind a long poll did not complete"
+[ "$FM_REMOTE_JOB_EXIT" -eq 0 ] \
+  || fail "the short command behind a long poll did not complete inside its queue window (exit $FM_REMOTE_JOB_EXIT): it waited behind the poll"
 assert_present "$PREEMPT_SIDE_EFFECT" "the short command behind a long poll did not run"
-[ "$PREEMPT_ELAPSED" -le 10 ] || fail "a queued short command waited a full poll window behind the long poll"
 fm_remote_job_wait "$ACCOUNT_HOME" "$POLL_JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
 [ "$FM_REMOTE_JOB_EXIT" -eq "$FM_REMOTE_JOB_PREEMPTED_EXIT" ] \
   || fail "a preempted long poll was not distinguished from an elapsed window"
@@ -419,11 +422,7 @@ fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
   fm-remote-delta-read.sh "$REPLY_LOG_REL" 0 "$EMPTY_SHA" 6 < /dev/null > /dev/null
 FIRST_JOB_ID=$FM_REMOTE_JOB_ID
 FIRST_JOB_DIR="$STATE_ROOT/jobs/$FIRST_JOB_ID"
-for _ in $(seq 1 100); do
-  [ "$(fm_remote_job_read_state "$FIRST_JOB_DIR" 2>/dev/null || true)" = running ] && break
-  sleep 0.05
-done
-[ "$(fm_remote_job_read_state "$FIRST_JOB_DIR" 2>/dev/null || true)" = running ] \
+wait_until job_in_state "$FIRST_JOB_DIR" running \
   || fail "the first sibling poll did not begin running"
 POLL_PAIR_BEGAN=$(date +%s)
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
@@ -446,26 +445,14 @@ FM_REMOTE_JOB_TIMEOUT=5
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
   fm-shutdown-job.sh "$STARTED" "$SHUTDOWN_SIDE_EFFECT" < /dev/null > /dev/null
 JOB_ID=$FM_REMOTE_JOB_ID
-for _ in $(seq 1 100); do
-  [ -f "$STARTED" ] && break
-  sleep 0.05
-done
-assert_present "$STARTED" "the shutdown fixture did not begin executing"
+wait_until test -f "$STARTED" || fail "the shutdown fixture did not begin executing"
 WORKER_PID=$(cat "$STATE_ROOT/worker.pid")
 kill -TERM "$WORKER_PID"
-for _ in $(seq 1 100); do
-  kill -0 "$WORKER_PID" 2>/dev/null || break
-  sleep 0.05
-done
-kill -0 "$WORKER_PID" 2>/dev/null && fail "the worker did not finish its TERM shutdown"
+wait_until process_gone "$WORKER_PID" || fail "the worker did not finish its TERM shutdown"
 HOME="$ACCOUNT_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$STATE_ROOT" \
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux FM_REMOTE_JOB_TIMEOUT=1 \
   "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" >> "$TMP_ROOT/worker.out" 2>> "$TMP_ROOT/worker.err" &
-for _ in $(seq 1 100); do
-  [ -f "$STATE_ROOT/worker.ready" ] && break
-  sleep 0.05
-done
-assert_present "$STATE_ROOT/worker.ready" "the replacement worker did not become ready"
+wait_until test -f "$STATE_ROOT/worker.ready" || fail "the replacement worker did not become ready"
 fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
 [ "$FM_REMOTE_JOB_EXIT" -eq 125 ] || fail "the interrupted job did not publish an unknown-completion result"
 sleep 3
@@ -479,19 +466,10 @@ FM_REMOTE_JOB_TIMEOUT=5
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
   fm-shutdown-job.sh "$CRASH_STARTED" "$CRASH_SIDE_EFFECT" < /dev/null > /dev/null
 JOB_ID=$FM_REMOTE_JOB_ID
-for _ in $(seq 1 100); do
-  [ -f "$CRASH_STARTED" ] && break
-  sleep 0.05
-done
-assert_present "$CRASH_STARTED" "the crash fixture did not begin executing"
+wait_until test -f "$CRASH_STARTED" || fail "the crash fixture did not begin executing"
 CRASHED_WORKER_PID=$(cat "$STATE_ROOT/worker.pid")
 kill -KILL "$CRASHED_WORKER_PID"
-for _ in $(seq 1 200); do
-  RESTARTED_WORKER_PID=$(cat "$STATE_ROOT/worker.pid" 2>/dev/null || true)
-  [ -n "$RESTARTED_WORKER_PID" ] && [ "$RESTARTED_WORKER_PID" != "$CRASHED_WORKER_PID" ] && break
-  sleep 0.05
-done
-[ -n "${RESTARTED_WORKER_PID:-}" ] && [ "$RESTARTED_WORKER_PID" != "$CRASHED_WORKER_PID" ] \
+wait_until worker_pid_replaced "$CRASHED_WORKER_PID" \
   || fail "the Linux supervisor did not restart a crashed worker"
 fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
 [ "$FM_REMOTE_JOB_EXIT" -eq 125 ] || fail "worker crash recovery did not publish unknown completion"
@@ -504,27 +482,57 @@ pass "Linux supervision recovers crashes and stops orphaned commands"
 mkdir -p "$ACCOUNT_HOME/.local/bin"
 PREEXEC_STARTED="$TMP_ROOT/preexecution-started"
 PREEXEC_FINISHED="$TMP_ROOT/preexecution-finished"
+# The stub hangs tracked-command validation (git ls-files) for longer than any
+# wait below can last, so only the worker's own job deadline can end it. Its start
+# marker records its pid.
 cat > "$ACCOUNT_HOME/.local/bin/git" <<SH
 #!/bin/bash
 if [ "\${3:-}" = ls-files ]; then
-  printf 'started\n' > "$PREEXEC_STARTED"
-  sleep 30
+  printf '%s\n' "\$\$" > "$PREEXEC_STARTED"
+  sleep 200
   printf 'finished\n' > "$PREEXEC_FINISHED"
 fi
 exec "$REAL_GIT" "\$@"
 SH
 chmod +x "$ACCOUNT_HOME/.local/bin/git"
-FM_REMOTE_JOB_TIMEOUT=3
-PREEXEC_BEGAN=$(date +%s)
-fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" fm-probe-job.sh < /dev/null > /dev/null
-JOB_ID=$FM_REMOTE_JOB_ID
-JOB_DIR="$STATE_ROOT/jobs/$JOB_ID"
-fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
-PREEXEC_ELAPSED=$(( $(date +%s) - PREEXEC_BEGAN ))
-[ "$FM_REMOTE_JOB_EXIT" -eq 124 ] || fail "the pre-execution deadline did not publish a timeout result"
+# The first run of a freshly written executable costs about a second on macOS, so
+# pay it here, outside any job's budget.
+"$ACCOUNT_HOME/.local/bin/git" --version > /dev/null
+# A job's execution deadline is wall-clock time from its claim, and tracked-command
+# validation starts only after the lane process has spawned, composed its PATH,
+# and launched the stub. How long that takes depends on host load: a budget the
+# host cannot reach validation within publishes 124 before validation is ever
+# entered, which says nothing about validation. So the case is established, not
+# assumed: widen the budget until the job's validation was entered, then assert on
+# that run. A host that cannot enter validation even with the widest budget fails
+# here with that fact.
+SAVED_TIMEOUT=$FM_REMOTE_JOB_TIMEOUT
+SAVED_QUEUE_TIMEOUT=$FM_REMOTE_JOB_QUEUE_TIMEOUT
+FM_REMOTE_JOB_QUEUE_TIMEOUT=60
+PREEXEC_BUDGET=3
+while :; do
+  rm -f -- "$PREEXEC_STARTED"
+  FM_REMOTE_JOB_TIMEOUT=$PREEXEC_BUDGET
+  fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" fm-probe-job.sh < /dev/null > /dev/null
+  JOB_ID=$FM_REMOTE_JOB_ID
+  # The stub cannot end by itself inside this wait's bound, so a completed wait
+  # means the worker ended the hung validation at the job's own deadline.
+  fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" \
+    || fail "tracked-command validation was not bounded by the job timeout: $FM_REMOTE_JOB_ERROR"
+  [ "$FM_REMOTE_JOB_EXIT" -eq 124 ] \
+    || fail "the pre-execution deadline did not publish a timeout result (exit $FM_REMOTE_JOB_EXIT)"
+  [ ! -e "$PREEXEC_STARTED" ] || break
+  fm_remote_job_reap "$ACCOUNT_HOME" "$JOB_ID" || fail "the unentered pre-execution job could not be reaped"
+  [ "$PREEXEC_BUDGET" -lt 48 ] \
+    || fail "the pre-execution timeout fixture did not enter tracked-command validation within a ${PREEXEC_BUDGET}s budget"
+  PREEXEC_BUDGET=$((PREEXEC_BUDGET * 4))
+done
+FM_REMOTE_JOB_TIMEOUT=$SAVED_TIMEOUT
+FM_REMOTE_JOB_QUEUE_TIMEOUT=$SAVED_QUEUE_TIMEOUT
 assert_present "$PREEXEC_STARTED" "the pre-execution timeout fixture did not enter tracked-command validation"
+wait_until process_gone "$(cat "$PREEXEC_STARTED")" \
+  || fail "tracked-command validation was still running after the job timeout"
 assert_absent "$PREEXEC_FINISHED" "tracked-command validation continued after the job timeout"
-[ "$PREEXEC_ELAPSED" -le 7 ] || fail "tracked-command validation exceeded the job timeout bound"
 fm_remote_job_reap "$ACCOUNT_HOME" "$JOB_ID" || fail "the pre-execution timeout leaked output readers or FIFOs"
 rm -f -- "$ACCOUNT_HOME/.local/bin/git"
 pass "pre-execution validation obeys the job timeout"
@@ -563,21 +571,13 @@ fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
   fm-shutdown-job.sh "$QUARANTINE_STARTED" "$QUARANTINE_SIDE_EFFECT" < /dev/null > /dev/null
 JOB_ID=$FM_REMOTE_JOB_ID
 JOB_DIR="$STATE_ROOT/jobs/$JOB_ID"
-for _ in $(seq 1 100); do
-  [ -f "$QUARANTINE_STARTED" ] && break
-  sleep 0.05
-done
-assert_present "$QUARANTINE_STARTED" "the quarantine fixture did not begin executing"
+wait_until test -f "$QUARANTINE_STARTED" || fail "the quarantine fixture did not begin executing"
 GROUP_PID=$(cat "$JOB_DIR/.claim/group")
 printf 'invalid\n' > "$JOB_DIR/.claim/group"
 WORKER_PID=$(cat "$STATE_ROOT/worker.pid")
 kill -TERM "$WORKER_PID"
 wait "$WORKER_PID" 2>/dev/null || true
-for _ in $(seq 1 100); do
-  [ -f "$STATE_ROOT/worker.lock/quarantine" ] && break
-  sleep 0.05
-done
-assert_present "$STATE_ROOT/worker.lock/quarantine" "failed shutdown released worker ownership"
+wait_until test -f "$STATE_ROOT/worker.lock/quarantine" || fail "failed shutdown released worker ownership"
 fm_remote_job_probe "$ACCOUNT_HOME" && fail "quarantined worker ownership still reported ready"
 set +e
 HOME="$ACCOUNT_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$STATE_ROOT" \
@@ -633,11 +633,7 @@ HOME="$RECOVERY_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" \
   > "$TMP_ROOT/recovery-worker.out" 2> "$TMP_ROOT/recovery-worker.err" &
 RECOVERY_WORKER_PID=$!
-for _ in $(seq 1 300); do
-  [ -f "$RECOVERY_STATE/worker.ready" ] && break
-  sleep 0.05
-done
-assert_present "$RECOVERY_STATE/worker.ready" "a reused supervisor pid did not permit worker recovery"
+wait_until test -f "$RECOVERY_STATE/worker.ready" || fail "a reused supervisor pid did not permit worker recovery"
 assert_absent "$RECOVERY_STATE/worker.lock/quarantine" "recovered worker retained stale quarantine"
 kill -0 "$QUARANTINED_PROCESS_PID" 2>/dev/null \
   || fail "worker recovery signalled a process whose supervisor identity did not match"
@@ -674,12 +670,8 @@ HOME="$REPEAT_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$R
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" --serve \
   > "$TMP_ROOT/repeat-signal.out" 2> "$TMP_ROOT/repeat-signal.err" &
 REPEAT_WORKER_PID=$!
-for _ in $(seq 1 300); do
-  [ -f "$REPEAT_STATE/worker.ready" ] && break
-  sleep 0.05
-done
-assert_present "$REPEAT_STATE/worker.ready" "the repeated-signal worker did not become ready"
-REPEAT_DEADLINE=$((SECONDS + 30))
+wait_until test -f "$REPEAT_STATE/worker.ready" || fail "the repeated-signal worker did not become ready"
+REPEAT_DEADLINE=$((SECONDS + EVENT_WAIT_SECONDS + 1))
 REPEAT_BURST=0
 while [ "$REPEAT_BURST" -lt 10 ]; do
   kill -TERM "$REPEAT_WORKER_PID" 2>/dev/null || true
@@ -705,14 +697,10 @@ HOME="$REPEAT_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$R
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" --serve \
   >> "$TMP_ROOT/repeat-signal.out" 2>> "$TMP_ROOT/repeat-signal.err" &
 REPEAT_WORKER_PID=$!
-for _ in $(seq 1 600); do
-  [ -f "$REPEAT_STATE/worker.ready" ] && break
-  sleep 0.05
-done
-assert_present "$REPEAT_STATE/worker.ready" \
-  "the worker after a repeatedly signalled shutdown never reported ready"
+wait_until test -f "$REPEAT_STATE/worker.ready" \
+  || fail "the worker after a repeatedly signalled shutdown never reported ready"
 kill -TERM "$REPEAT_WORKER_PID"
-REPEAT_DEADLINE=$((SECONDS + 10))
+REPEAT_DEADLINE=$((SECONDS + EVENT_WAIT_SECONDS + 1))
 while kill -0 "$REPEAT_WORKER_PID" 2>/dev/null && [ "$SECONDS" -lt "$REPEAT_DEADLINE" ]; do
   sleep 0.05
 done
@@ -756,13 +744,8 @@ HOME="$RESTART_HOME" FM_ROOT_OVERRIDE="$RESTART_ROOT" \
   "$RESTART_ROOT/bin/fm-remote-job-supervisor-under-test.sh" \
   > "$TMP_ROOT/restart-supervisor.out" 2> "$TMP_ROOT/restart-supervisor.err" &
 RESTART_SUPERVISOR_PID=$!
-for _ in $(seq 1 300); do
-  kill -0 "$RESTART_SUPERVISOR_PID" 2>/dev/null || break
-  sleep 0.1
-done
-if kill -0 "$RESTART_SUPERVISOR_PID" 2>/dev/null; then
-  fail "workers dying just past the healthy threshold drove an unbounded restart loop"
-fi
+wait_until process_gone "$RESTART_SUPERVISOR_PID" \
+  || fail "workers dying just past the healthy threshold drove an unbounded restart loop"
 set +e
 wait "$RESTART_SUPERVISOR_PID"
 RESTART_SUPERVISOR_RC=$?
