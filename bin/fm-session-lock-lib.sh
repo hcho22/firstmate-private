@@ -5,7 +5,9 @@
 # lock, and does the current process descend from that same harness?" decision.
 # bin/fm-lock.sh uses it to acquire and inspect state/.lock;
 # bin/fm-claude-stop-autoarm.sh uses it to prove a Stop hook fires inside the
-# lock-owning primary session before it may arm or rewake.
+# lock-owning primary session before it may arm or rewake;
+# bin/fm-turnend-guard.sh uses it to tell a lock-refused (read-only) session,
+# which must not be held to a repair it may not perform, from the lock holder.
 # This file is sourced by scripts and has no side effects on source.
 
 # Cursor process identity is NOT expressible as a command-name pattern and is
@@ -152,6 +154,111 @@ fm_harness_pid_alive() {
   fm_harness_process_matches "$comm" "$args"
 }
 
+# Print the numeric holder pid recorded in state dir $1's session lock, or fail
+# when the lock is absent or malformed.
+fm_session_lock_holder_pid() {
+  local lock_pid
+  lock_pid=$(cat "$1/.lock" 2>/dev/null || true)
+  case "$lock_pid" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  printf '%s\n' "$lock_pid"
+}
+
+# True when pid $2, recorded in state dir $1's session lock, still holds a LIVE
+# firstmate session. THE single owner of the question every lock reader asks
+# before it defers to, or reclaims from, a recorded holder: bin/fm-lock.sh, the
+# Claude Stop auto-arm, the Cursor park, and the turn-end guard all call it, so
+# no caller can drift into a looser or stricter test of its own.
+fm_session_holder_live() {  # <state> <pid>
+  fm_harness_pid_alive "$2"
+}
+
+# Print pid $1's command line as one printable line capped at 300 characters
+# (a harness launched with a whole brief on its command line stays readable), or
+# a placeholder when ps cannot report it.
+fm_session_lock_process_args() {  # <pid>
+  local args
+  args=$(ps -o args= -p "$1" 2>/dev/null | head -n 1 | tr -c '[:print:]' ' ' | cut -c1-300 | sed 's/[[:space:]]*$//')
+  [ -n "$args" ] || args='(command unavailable)'
+  printf '%s' "$args"
+}
+
+# Print one plain fragment naming WHAT holds state dir $1's session lock (pid
+# $2): its command and when it took the lock. A bare pid tells a refused
+# session nothing about whether the holder is a working session or an idle
+# background service (an idle Codex app-server daemon looks exactly like a live
+# Codex session by name alone), so the captain needs the command and the age to
+# decide. Time taken is the lock file's mtime: only acquisition rewrites it.
+# Needs fm_path_mtime from bin/fm-wake-lib.sh in the caller.
+fm_session_lock_holder_summary() {  # <state> <pid>
+  local state=$1 pid=$2 args since now age taken
+  args=$(fm_session_lock_process_args "$pid")
+  since=$(fm_path_mtime "$state/.lock" 2>/dev/null || true)
+  case "$since" in
+    ''|*[!0-9]*) printf 'command: %s, lock acquisition time unknown' "$args"; return 0 ;;
+  esac
+  now=$(date +%s)
+  age=$(( (now - since) / 60 ))
+  taken=$(date -u -r "$since" '+%Y-%m-%dT%H:%MZ' 2>/dev/null || date -u -d "@$since" '+%Y-%m-%dT%H:%MZ' 2>/dev/null || printf 'epoch %s' "$since")
+  if [ "$age" -ge 120 ]; then
+    age="$((age / 60))h $((age % 60))m"
+  elif [ "$age" -ge 1 ]; then
+    age="${age}m"
+  else
+    age='under 1m'
+  fi
+  printf 'command: %s, holding the lock since %s (%s ago)' "$args" "$taken" "$age"
+}
+
+# True when pid $1 is this process or ANY ancestor of it, at any depth (up to 64
+# hops). Wider than the contiguous harness run fm_session_lock_owned_by_self
+# uses: the stand-down decisions below silence a guard, so they must treat a
+# holder anywhere above this process as "this is the holder's own session" and
+# silence it only for a holder that is provably not an ancestor.
+fm_session_lock_pid_in_ancestry() {  # <pid>
+  local want=$1 pid=$$ _
+  for _ in $(seq 1 64); do
+    [ "$pid" = "$want" ] && return 0
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+    [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null || break
+  done
+  [ "$pid" = "$want" ]
+}
+
+# True when state dir $1's session lock is held by a DIFFERENT live firstmate
+# session: the lock names a live holder that is not this process or any ancestor
+# of it. This is exactly the lock-refused (read-only) session. An absent or
+# malformed lock, a dead holder, and an ancestry in which no harness can be
+# located are all "cannot tell" and return false, so a session that never
+# acquired the lock, or whose hook cannot be tied to a harness, keeps its guard
+# rather than being silenced by uncertainty.
+fm_session_lock_held_by_other() {
+  local state=$1 lock_pid
+  lock_pid=$(fm_session_lock_holder_pid "$state") || return 1
+  fm_session_holder_live "$state" "$lock_pid" || return 1
+  fm_harness_ancestry_pids >/dev/null || return 1
+  ! fm_session_lock_pid_in_ancestry "$lock_pid"
+}
+
+# Print the newest takeover record (bin/fm-lock.sh appends one to
+# state/.lock-takeovers per explicit takeover) when THIS process descends from the
+# very pid that takeover displaced and the takeover's new pid is still the
+# recorded lock holder; fail otherwise. This is how a displaced session that is
+# still running learns it was replaced instead of merely observing a foreign lock.
+fm_session_lock_displaced_record() {
+  local state=$1 record holder prev_pid new_pid
+  record=$(tail -n 1 "$state/.lock-takeovers" 2>/dev/null) || return 1
+  [ -n "$record" ] || return 1
+  holder=$(fm_session_lock_holder_pid "$state") || return 1
+  new_pid=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^new_pid=//p')
+  prev_pid=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^prev_pid=//p')
+  [ -n "$prev_pid" ] && [ "$new_pid" = "$holder" ] || return 1
+  fm_harness_ancestry_pids >/dev/null || return 1
+  fm_session_lock_pid_in_ancestry "$prev_pid" || return 1
+  printf '%s\n' "$record"
+}
+
 # True when state dir $1 holds a session lock whose pid is ANY harness ancestor
 # of the current process: this script runs inside the session that owns the
 # home's fleet lock. Membership is the honest test of that question, because the
@@ -162,10 +269,7 @@ fm_harness_pid_alive() {
 # ancestry that cannot be resolved all fail closed.
 fm_session_lock_owned_by_self() {
   local state=$1 lock_pid pids pid
-  lock_pid=$(cat "$state/.lock" 2>/dev/null || true)
-  case "$lock_pid" in
-    ''|*[!0-9]*) return 1 ;;
-  esac
+  lock_pid=$(fm_session_lock_holder_pid "$state") || return 1
   pids=$(fm_harness_ancestry_pids) || return 1
   while IFS= read -r pid; do
     [ "$pid" = "$lock_pid" ] && return 0

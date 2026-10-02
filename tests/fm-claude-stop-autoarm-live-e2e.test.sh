@@ -5,8 +5,10 @@
 # registration: a fresh session with in-flight work, no watcher, and a stale
 # session lock can run fm-session-start.sh first; session start reclaims the
 # dead owner; at least two tokenless auto-arm and rewake cycles then complete
-# with zero model-issued arm commands; and the cooperative guard consumes no
-# forced continuation while the hook's launch is healthy.
+# with zero model-issued arm commands; the cooperative guard consumes no
+# forced continuation while the hook's launch is healthy; and a session refused
+# the lock by another live session ends its turn after at most one notice instead
+# of being blocked turn after turn for a repair it may not perform.
 # The project and FM_HOME are isolated; Claude keeps using its existing managed
 # authentication. No live fleet home, worktree, or session is touched.
 # shellcheck disable=SC2016 # the model, not this test shell, reads the prompt text
@@ -30,6 +32,7 @@ LAB="$ROOT/.claude-autoarm-live-e2e.$$"
 PROJECT="$LAB/project"
 HOME_DIR="$LAB/fmhome"
 LIVE_OWNER_HOME="$LAB/live-owner-home"
+READONLY_HOME="$LAB/readonly-home"
 TRANSCRIPT="$LAB/claude.jsonl"
 CLAUDE_VERSION=$(claude --version)
 
@@ -93,14 +96,18 @@ printf 'watcher: started pid=%s (beacon fresh)\n' "$$"
 printf 'stale: fixture-rapid-%s\n' "$N"
 exit 0
 SH
-# Drain fixture: session start invokes it once, then the model invokes it once
-# per rewake. The third total drain ends the in-flight need after two complete
-# Stop-owned cycles.
+# Drain fixture: every session start drains once, and the model drains once per
+# rewake. Newer Claude Code builds also run the registered SessionStart hook in
+# headless mode, so the number of session-start drains is not fixed (the hook's
+# start plus the model's explicit one); only the model-issued drains, recorded by
+# the PreToolUse logger above, count toward ending the in-flight need after two
+# complete Stop-owned cycles.
 cat > "$PROJECT/bin/fm-wake-drain.sh" <<'SH'
 #!/usr/bin/env bash
 N=$(cat "$FM_HOME/state/drain-count" 2>/dev/null || echo 0); N=$((N+1)); echo "$N" > "$FM_HOME/state/drain-count"
 echo "drain-run=$N" >> "$FM_HOME/state/drain-ran"
-if [ "$N" -ge 3 ]; then
+MODEL_DRAINS=$(grep -c 'fm-wake-drain.sh' "$FM_HOME/state/tool-calls.log" 2>/dev/null || true)
+if [ "${MODEL_DRAINS:-0}" -ge 2 ]; then
   rm -f "$FM_HOME/state/task.meta"
 fi
 printf 'stale: fixture-rapid drained\n'
@@ -119,7 +126,9 @@ PROMPT='Run exactly `bin/fm-session-start.sh` with Bash as your first tool call.
 ARM_RUNS=$(wc -l < "$HOME_DIR/state/arm-ran" 2>/dev/null | tr -d ' ')
 [ "$ARM_RUNS" = 2 ] || fail "expected exactly 2 hook-owned arm cycles, got $ARM_RUNS: $(cat "$HOME_DIR/state/arm-ran" 2>/dev/null)"
 DRAIN_RUNS=$(wc -l < "$HOME_DIR/state/drain-ran" 2>/dev/null | tr -d ' ')
-[ "$DRAIN_RUNS" = 3 ] || fail "expected one session-start drain plus two model wake drains, got $DRAIN_RUNS drains"
+MODEL_DRAIN_RUNS=$(grep -c 'fm-wake-drain.sh' "$HOME_DIR/state/tool-calls.log" 2>/dev/null || true)
+[ "$MODEL_DRAIN_RUNS" = 2 ] || fail "expected exactly two model wake drains, got $MODEL_DRAIN_RUNS: $(cat "$HOME_DIR/state/tool-calls.log" 2>/dev/null)"
+[ "$DRAIN_RUNS" -ge 3 ] || fail "expected at least one session-start drain plus the two model wake drains, got $DRAIN_RUNS drains"
 REWAKES=$(grep -c 'Stop hook feedback' "$TRANSCRIPT" 2>/dev/null || true)
 [ "$REWAKES" -ge 2 ] || fail "expected at least 2 exit-2 rewake deliveries, got $REWAKES"
 grep -q 'stale: fixture-rapid-1' "$TRANSCRIPT" || fail "first rapid rewake reason missing from the transcript"
@@ -162,4 +171,37 @@ printf '%s\n' '{"session_id":"live-owner-control"}' \
 [ ! -s "$LAB/live-owner.out" ] && [ ! -s "$LAB/live-owner.err" ] || fail "competing Stop hook produced a rewake while another live session owned the home"
 wait "$LIVE_OWNER_PID"
 
-printf 'ok - Claude %s live E2E reclaimed a stale session lock through session start, completed two tokenless Stop-owned rewake cycles, and preserved the competing-live-owner boundary\n' "$CLAUDE_VERSION"
+# Lock-refused session: a real Claude session starts in a home whose lock another
+# live harness process (an idle daemon named like Codex) holds, with work in
+# flight and no watcher. Session start must leave it read-only, and every Stop
+# after that must end the turn: before the guard stood down, each stop was blocked
+# with TURN WOULD END BLIND for a repair this session is forbidden to perform, and
+# the block budget never ran out.
+mkdir -p "$READONLY_HOME/state" "$READONLY_HOME/config" "$READONLY_HOME/data" "$LAB/ro-tmp"
+printf 'project=fixture\nwindow=fixture\nbackend=tmux\n' > "$READONLY_HOME/state/task.meta"
+FAKE_CODEX="$LAB/codex"
+ln -s /bin/bash "$FAKE_CODEX"
+"$FAKE_CODEX" -c 'sleep 240; :' app-server --listen unix:// --managed-daemon &
+IDLE_DAEMON_PID=$!
+printf '%s\n' "$IDLE_DAEMON_PID" > "$READONLY_HOME/state/.lock"
+RO_TRANSCRIPT="$LAB/claude-readonly.jsonl"
+RO_PROMPT='Run exactly `bin/fm-session-start.sh` with Bash as your first tool call. After reading its digest, reply with exactly READONLY and stop. Never run any other command and never use any other tool.'
+(
+  cd "$PROJECT" || exit 1
+  TMPDIR="$LAB/ro-tmp" FM_HOME="$READONLY_HOME" CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false CLAUDE_CODE_SEND_FEEDBACK=0 \
+    claude -p "$RO_PROMPT" --dangerously-skip-permissions --settings '{"feedbackDrafts":"off"}' \
+    --effort low --output-format stream-json --verbose
+) > "$RO_TRANSCRIPT" 2>&1 || { kill "$IDLE_DAEMON_PID" 2>/dev/null; fail "Claude lock-refused session failed: $(tail -20 "$RO_TRANSCRIPT")"; }
+RO_LOCK=$(cat "$READONLY_HOME/state/.lock" 2>/dev/null)
+kill "$IDLE_DAEMON_PID" 2>/dev/null
+wait "$IDLE_DAEMON_PID" 2>/dev/null
+[ "$RO_LOCK" = "$IDLE_DAEMON_PID" ] || fail "the lock-refused session displaced the live holder: lock now $RO_LOCK"
+grep -q 'READ-ONLY SESSION' "$RO_TRANSCRIPT" || fail "session start did not leave the refused session read-only: $(tail -20 "$RO_TRANSCRIPT")"
+grep -q 'takeover --confirm-holder' "$RO_TRANSCRIPT" || fail "the refusal did not print the explicit takeover command"
+! grep -q 'TURN WOULD END BLIND' "$RO_TRANSCRIPT" \
+  || fail "the turn-end guard blocked a lock-refused session for a repair it may not perform"
+[ ! -e "$READONLY_HOME/state/.turnend-claude-blocks" ] || fail "the lock-refused session consumed the shared block budget"
+[ ! -e "$READONLY_HOME/state/arm-ran" ] || fail "the lock-refused session armed supervision"
+[ ! -e "$READONLY_HOME/state/.claude-autoarm-epoch" ] || fail "the lock-refused session wrote an auto-arm epoch"
+
+printf 'ok - Claude %s live E2E reclaimed a stale session lock through session start, completed two tokenless Stop-owned rewake cycles, preserved the competing-live-owner boundary, and ended a lock-refused session after its refusal without a blind-turn loop\n' "$CLAUDE_VERSION"

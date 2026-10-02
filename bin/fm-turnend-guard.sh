@@ -104,6 +104,8 @@ done
 . "$SCRIPT_DIR/fm-primary-scope-lib.sh"
 # shellcheck source=bin/fm-hook-host-lib.sh
 . "$SCRIPT_DIR/fm-hook-host-lib.sh"
+# shellcheck source=bin/fm-session-lock-lib.sh
+. "$SCRIPT_DIR/fm-session-lock-lib.sh"
 
 # Read the whole turn-end hook payload once; never block on unreadable/absent
 # stdin.
@@ -168,7 +170,69 @@ budget_reset() {
   fm_lock_release "$BUDGET_LOCK"
 }
 
+# A session that does not hold this home's fleet lock is read-only: it may not
+# arm, drain, or repair supervision, so demanding that repair would only trap it
+# in a loop it cannot satisfy. In --claude mode the block budget cannot bound
+# that loop either, because it counts auto-arm event epochs and a lock-refused
+# session never advances one. The lock holder owns recovery, so this session
+# neither blocks nor touches any state/ file, and says so at most once per
+# session. The once-only markers live in the temp directory, keyed by home and
+# session id, precisely so a read-only session writes nothing into the fleet's
+# state.
+notice_once() {  # <kind>: succeed only the first time this session asks
+  local marker
+  marker="${TMPDIR:-/tmp}/.fm-$1-guard-notice.$(printf '%s' "$STATE" | cksum | cut -d' ' -f1).$(printf '%s' "$SESSION_ID" | tr -c 'A-Za-z0-9_.-' '_')"
+  (set -C; : > "$marker") 2>/dev/null
+}
+
+readonly_session_notice() {
+  local holder need
+  [ "$CLAUDE_MODE" -eq 1 ] || return 0
+  notice_once readonly || return 0
+  holder=$(fm_session_lock_holder_pid "$STATE" || printf 'unknown')
+  if [ "$FM_SUP_IN_FLIGHT" -gt 0 ]; then
+    need="$FM_SUP_IN_FLIGHT task(s) in flight"
+  elif [ "$FM_SUP_SOURCES" -gt 0 ]; then
+    need="$FM_SUP_SOURCES process-event source(s) registered"
+  else
+    need="X-mode relay polling active"
+  fi
+  printf '{"systemMessage":"FIRSTMATE SUPERVISION IS OFF in this home (%s, no live watcher), but this session is read-only: another live session (pid %s) holds the fleet lock, so this session will not arm or repair supervision and its turn may end. Recovery belongs to the lock holder; it resumes when that session is gone and a new session takes the lock."}\n' "$need" "$holder"
+}
+
+# The one lock-refused case that must reach the MODEL, not just the captain: this
+# session held the lock and an explicit takeover (bin/fm-lock.sh takeover) moved
+# it away, so a session that is still running would otherwise keep mutating the
+# fleet. One bounded block per session carries the news; the stop is allowed
+# after it.
+displaced_session_notice() {  # <takeover record>
+  local record=$1 at new_pid rule
+  notice_once displaced || return 0
+  at=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^at=//p')
+  new_pid=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^new_pid=//p')
+  rule='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+  {
+    printf '●%s\n' "$rule"
+    printf '●  THIS SESSION NO LONGER OWNS THE FLEET - ITS LOCK WAS TAKEN OVER\n'
+    printf '●  At %s a captain-confirmed takeover moved this home'"'"'s fleet lock to pid %s, so this session is now read-only.\n' "$at" "$new_pid"
+    printf '●  This session must stop acting on the fleet now: do not spawn, steer, merge, tear down, drain wakes, arm the watcher, or otherwise mutate it from here. Tell the captain, and let the lock holder supervise.\n'
+    printf '●%s\n' "$rule"
+  } >&2
+  exit 2
+}
+
 fm_supervision_status "$STATE" "$GRACE"
+if fm_session_lock_held_by_other "$STATE"; then
+  if displaced_record=$(fm_session_lock_displaced_record "$STATE"); then
+    displaced_session_notice "$displaced_record"
+  fi
+  if [ "$FM_SUP_NEEDED" = true ] \
+    && ! fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME" \
+    && ! { [ "$FM_SUP_WATCHER_FRESH" = true ] && fm_afk_daemon_owns_supervision "$STATE"; }; then
+    readonly_session_notice
+  fi
+  exit 0
+fi
 if [ "$FM_SUP_NEEDED" = false ]; then
   [ -e "$FAILURE_NOTICE" ] || budget_reset
   exit 0

@@ -220,6 +220,81 @@ SH
   pass "session-lock: a live version-named session holding the lock is not mistaken for a stale owner"
 }
 
+test_lock_held_by_other_and_displaced_record_decisions() {
+  local dir fakebin
+  dir="$TMP_ROOT/held-by-other"
+  fakebin=$(fm_fakebin "$dir")
+  mkdir -p "$dir/state"
+  cat > "$fakebin/ps" <<'SH'
+#!/usr/bin/env bash
+set -u
+field= pid=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o) field=$2; shift 2 ;;
+    -p) pid=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+case "$pid:$field" in
+  600:comm=) printf '%s\n' codex ;;
+  600:args=) printf '%s\n' 'codex app-server --listen unix:// --managed-daemon' ;;
+  600:ppid=) printf '%s\n' 1 ;;
+  650:comm=) printf '%s\n' claude ;;
+  650:args=) printf '%s\n' claude ;;
+  650:ppid=) printf '%s\n' 1 ;;
+  *:comm=) printf '%s\n' bash ;;
+  *:args=) printf '%s\n' bash ;;
+  *:ppid=) printf '%s\n' "${FM_TEST_LEAF_PARENT:-650}" ;;
+esac
+SH
+  chmod +x "$fakebin/ps"
+
+  # held_by_other: a live foreign harness holds the lock, and this process's own
+  # harness (650) is not it.
+  printf '600\n' > "$dir/state/.lock"
+  lib_eval "$fakebin" "fm_session_lock_held_by_other '$dir/state'" \
+    || fail "a live foreign holder was not reported as holding the lock against this session"
+  printf '650\n' > "$dir/state/.lock"
+  if lib_eval "$fakebin" "fm_session_lock_held_by_other '$dir/state'"; then
+    fail "the session's own lock was reported as held by another"
+  fi
+  printf '777\n' > "$dir/state/.lock"
+  if lib_eval "$fakebin" "fm_session_lock_held_by_other '$dir/state'"; then
+    fail "a holder that is not a live harness was reported as holding the lock against this session"
+  fi
+  printf 'junk\n' > "$dir/state/.lock"
+  if lib_eval "$fakebin" "fm_session_lock_held_by_other '$dir/state'"; then
+    fail "a malformed lock was reported as held by another"
+  fi
+  rm -f "${dir:?}/state/.lock"
+  if lib_eval "$fakebin" "fm_session_lock_held_by_other '$dir/state'"; then
+    fail "an absent lock was reported as held by another"
+  fi
+  # Uncertainty keeps the guard: with no harness anywhere in this process's
+  # ancestry the session cannot prove it is the one locked out.
+  printf '600\n' > "$dir/state/.lock"
+  if FM_TEST_LEAF_PARENT=1 lib_eval "$fakebin" "fm_session_lock_held_by_other '$dir/state'"; then
+    fail "a session with no locatable harness ancestry was treated as lock-refused"
+  fi
+
+  # displaced_record: only the session that descends from the displaced pid, and
+  # only while the takeover's new pid still holds the lock.
+  printf '600\n' > "$dir/state/.lock"
+  printf 'at=2026-10-01T20:00:00Z\tnew_pid=600\tnew_command=codex\tprev_pid=650\tprev_holder=command: claude\n' > "$dir/state/.lock-takeovers"
+  lib_eval "$fakebin" "fm_session_lock_displaced_record '$dir/state' | grep -q 'new_pid=600'" \
+    || fail "the displaced session did not find the takeover record that displaced it"
+  printf 'at=2026-10-01T20:00:00Z\tnew_pid=600\tnew_command=codex\tprev_pid=111\tprev_holder=command: claude\n' > "$dir/state/.lock-takeovers"
+  if lib_eval "$fakebin" "fm_session_lock_displaced_record '$dir/state'"; then
+    fail "a session that was not the displaced pid was told it was displaced"
+  fi
+  printf 'at=2026-10-01T20:00:00Z\tnew_pid=999\tnew_command=codex\tprev_pid=650\tprev_holder=command: claude\n' > "$dir/state/.lock-takeovers"
+  if lib_eval "$fakebin" "fm_session_lock_displaced_record '$dir/state'"; then
+    fail "a takeover whose new pid no longer holds the lock was reported as the current displacement"
+  fi
+  pass "session-lock: lock-refused and displaced decisions follow the lock holder and this session's own harness"
+}
+
 # --- end-to-end layer: the real Stop auto-arm in real process trees ----------
 
 install_autoarm_scripts() {
@@ -356,10 +431,239 @@ test_e2e_daemon_parented_version_named_session_keeps_its_lock() {
   pass "session-lock e2e: a version-named session under a harness-named daemon keeps its own lock"
 }
 
+# --- takeover layer: a live holder is never displaced automatically ---------
+#
+# The reproduced incident: an idle `codex app-server --managed-daemon` held the
+# lock after its conversation had stopped supervising, and every later session
+# started read-only. A live pid cannot prove whether it hosts a working session or
+# an idle service, so these cases pin the captain-decided contract with REAL
+# processes: a refused session is told who holds the lock and the one takeover
+# command, nothing displaces a live holder without the explicit confirmation, and
+# a displaced session finds itself read-only. Each "session" is a long-lived
+# process named like its harness that runs commands handed to it over a fifo, so
+# the same pid acts on its home more than once, exactly like a real session.
+
+CODEX_BIN="$FAKEBIN/codex"
+ln -sf /bin/bash "$CODEX_BIN"
+
+# Every fake session this suite starts, so a failing case can never leave one
+# running (a leftover session keeps the suite's output pipe open for ever).
+SESSION_PIDS=()
+cleanup_sessions() {
+  local pid
+  for pid in "${SESSION_PIDS[@]:-}"; do
+    [ -z "$pid" ] || kill "$pid" 2>/dev/null || true
+  done
+}
+trap 'cleanup_sessions; fm_test_cleanup' EXIT
+trap 'cleanup_sessions; fm_test_cleanup; exit 130' INT
+trap 'cleanup_sessions; fm_test_cleanup; exit 143' TERM
+
+# The loop every fake session runs: take one command line at a time from its
+# fifo, run it inside this very process, and publish its output and status.
+SESSION_LOOP_FILE="$TMP_ROOT/session-loop.sh"
+cat > "$SESSION_LOOP_FILE" <<'SH'
+while :; do
+  IFS= read -r cmd < "$SESSION_FIFO" || exit 0
+  [ "$cmd" != exit ] || exit 0
+  rm -f "${SESSION_BASE:?}.done"
+  eval "$cmd" > "$SESSION_BASE.out" 2>&1
+  echo "$?" > "$SESSION_BASE.rc"
+  : > "$SESSION_BASE.done"
+done
+SH
+
+# session_start <dir> <name> <harness-bin> [extra argv shown in ps]
+# Sets SESSION_PID. The process is started by a short relative path with a short
+# script so its ps command line stays readable, and the extra argv lets the
+# idle-daemon case carry the real daemon's command line (app-server --listen
+# unix:// --managed-daemon).
+session_start() {
+  local dir=$1 name=$2 bin=$3 back=$PWD
+  shift 3
+  mkfifo "$dir/$name.fifo"
+  cd "$(dirname "$bin")" || fail "cannot enter the fake harness directory"
+  FM_HOME="$dir" SESSION_FIFO="$dir/$name.fifo" SESSION_BASE="$dir/$name" SESSION_LOOP="$SESSION_LOOP_FILE" \
+    "./$(basename "$bin")" -c '. "$SESSION_LOOP"' session "$@" >/dev/null 2>&1 &
+  SESSION_PID=$!
+  cd "$back" || fail "cannot return to the suite directory"
+  SESSION_PIDS+=("$SESSION_PID")
+}
+
+# session_run <dir> <name> <command>: run it inside that session's process.
+# Sets SESSION_OUT and SESSION_RC.
+session_run() {
+  local dir=$1 name=$2 cmd=$3 i=0
+  rm -f "${dir:?}/${name:?}.done"
+  printf '%s\n' "$cmd" > "$dir/$name.fifo"
+  while [ "$i" -lt 400 ] && [ ! -e "$dir/$name.done" ]; do
+    sleep 0.05
+    i=$((i + 1))
+  done
+  [ -e "$dir/$name.done" ] || fail "session $name never finished: $cmd"
+  SESSION_OUT=$(cat "$dir/$name.out")
+  SESSION_RC=$(tr -d '[:space:]' < "$dir/$name.rc")
+}
+
+session_stop() {  # <dir> <name> <pid>
+  printf 'exit\n' > "$1/$2.fifo" 2>/dev/null || true
+  wait "$3" 2>/dev/null || true
+}
+
+# A home with an idle codex app-server daemon holding the lock, and a second
+# session (a claude) that has not yet tried to take it. Sets DAEMON_PID and
+# CLAUDE_PID; the caller stops both.
+make_idle_daemon_home() {  # <dir>
+  local dir=$1
+  make_primary_home "$dir"
+  rm -f "${dir:?}/state/task.meta"
+  session_start "$dir" daemon "$CODEX_BIN" app-server --listen unix:// --managed-daemon
+  DAEMON_PID=$SESSION_PID
+  session_run "$dir" daemon '"$FM_HOME/bin/fm-lock.sh"'
+  [ "$SESSION_RC" = 0 ] || fail "the daemon-hosted session could not take the lock: $SESSION_OUT"
+  # The conversation is long gone: the lock is hours old and nothing beats.
+  touch -t 202610010900 "$dir/state/.lock"
+  session_start "$dir" claude "$NAMED_CLAUDE"
+  CLAUDE_PID=$SESSION_PID
+}
+
+stop_idle_daemon_home() {  # <dir>
+  session_stop "$1" claude "$CLAUDE_PID"
+  session_stop "$1" daemon "$DAEMON_PID"
+}
+
+test_live_idle_holder_is_named_and_never_displaced_automatically() {
+  local dir
+  dir="$TMP_ROOT/takeover-refusal"
+  make_idle_daemon_home "$dir"
+  session_run "$dir" claude '"$FM_HOME/bin/fm-lock.sh"'
+  expect_code 1 "$SESSION_RC" "a live holder must refuse a second session, however idle it looks"
+  assert_contains "$SESSION_OUT" "another live firstmate session holds the lock (pid $DAEMON_PID)" "the stable first diagnostic line changed"
+  assert_contains "$SESSION_OUT" "holder: pid $DAEMON_PID, command:" "the refusal did not name the holder's pid and command"
+  assert_contains "$SESSION_OUT" "app-server --listen unix:// --managed-daemon" "the refusal did not show what the holder is running"
+  assert_contains "$SESSION_OUT" "holding the lock since 2026-" "the refusal did not say when the holder took the lock"
+  assert_contains "$SESSION_OUT" "fm-lock.sh takeover --confirm-holder $DAEMON_PID" "the refusal did not print the one explicit takeover command"
+  [ "$(cat "$dir/state/.lock")" = "$DAEMON_PID" ] || fail "an idle live holder was displaced without a takeover"
+  session_run "$dir" claude '"$FM_HOME/bin/fm-lock.sh" status'
+  assert_contains "$SESSION_OUT" "lock: held by live harness pid $DAEMON_PID (command:" "status lost its stable prefix or the holder's command"
+  stop_idle_daemon_home "$dir"
+  pass "session-lock takeover: a live idle holder is named with its command and age and is never displaced automatically"
+}
+
+test_takeover_requires_explicit_confirmation_of_the_current_holder() {
+  local dir
+  dir="$TMP_ROOT/takeover-confirmation"
+  make_idle_daemon_home "$dir"
+  session_run "$dir" claude '"$FM_HOME/bin/fm-lock.sh" takeover'
+  expect_code 2 "$SESSION_RC" "takeover without the confirmation flag must be refused as a usage error"
+  assert_contains "$SESSION_OUT" "--confirm-holder" "the refusal did not name the confirmation flag"
+  session_run "$dir" claude '"$FM_HOME/bin/fm-lock.sh" takeover --confirm-holder 1'
+  expect_code 1 "$SESSION_RC" "a confirmation naming a different pid must not displace the holder"
+  assert_contains "$SESSION_OUT" "not the confirmed pid 1" "the stale-confirmation refusal did not explain itself"
+  [ "$(cat "$dir/state/.lock")" = "$DAEMON_PID" ] || fail "an unconfirmed takeover displaced the holder"
+  assert_absent "$dir/state/.lock-takeovers" "a refused takeover left a record"
+  stop_idle_daemon_home "$dir"
+  pass "session-lock takeover: refuses without the flag and when the confirmed pid is not the current holder"
+}
+
+test_takeover_refuses_while_a_watcher_beat_is_fresh() {
+  local dir
+  dir="$TMP_ROOT/takeover-fresh-beat"
+  make_idle_daemon_home "$dir"
+  touch "$dir/state/.last-watcher-beat"
+  session_run "$dir" claude "\"\$FM_HOME/bin/fm-lock.sh\" takeover --confirm-holder $DAEMON_PID"
+  expect_code 1 "$SESSION_RC" "a fresh watcher beat means a live session is supervising; takeover must refuse"
+  assert_contains "$SESSION_OUT" "watcher beat is fresh" "the refusal did not name the fresh watcher beat"
+  [ "$(cat "$dir/state/.lock")" = "$DAEMON_PID" ] || fail "takeover displaced a holder whose watcher was beating"
+  assert_absent "$dir/state/.lock-takeovers" "a refused takeover left a record"
+  # A beat older than the grace window no longer protects the holder.
+  touch -t 202001010000 "$dir/state/.last-watcher-beat"
+  session_run "$dir" claude "\"\$FM_HOME/bin/fm-lock.sh\" takeover --confirm-holder $DAEMON_PID"
+  expect_code 0 "$SESSION_RC" "a stale beat must not block a confirmed takeover: $SESSION_OUT"
+  stop_idle_daemon_home "$dir"
+  pass "session-lock takeover: a fresh watcher beat blocks it and a stale beat does not"
+}
+
+test_confirmed_takeover_records_who_replaced_whom_and_keeps_the_lock_format() {
+  local dir record
+  dir="$TMP_ROOT/takeover-record"
+  make_idle_daemon_home "$dir"
+  session_run "$dir" claude "\"\$FM_HOME/bin/fm-lock.sh\" takeover --confirm-holder $DAEMON_PID"
+  expect_code 0 "$SESSION_RC" "a confirmed takeover of an idle holder must succeed: $SESSION_OUT"
+  assert_contains "$SESSION_OUT" "lock taken over: harness pid $CLAUDE_PID replaced pid $DAEMON_PID" "the takeover did not report who replaced whom"
+  assert_contains "$SESSION_OUT" "was not signalled" "the takeover must state that it never signals the previous holder"
+  assert_contains "$SESSION_OUT" "must stop acting on the fleet now" "the takeover must tell the captain the displaced session has to stop acting"
+  # Backward compatibility: the lock is still ONE bare numeric line that every
+  # older reader parses unchanged, and the previous holder was left running.
+  [ "$(cat "$dir/state/.lock")" = "$CLAUDE_PID" ] || fail "the lock does not name the new holder"
+  [ "$(wc -l < "$dir/state/.lock" | tr -d ' ')" = 1 ] || fail "the lock file is no longer a single line"
+  kill -0 "$DAEMON_PID" 2>/dev/null || fail "takeover signalled or killed the previous holder"
+  [ "$(wc -l < "$dir/state/.lock-takeovers" | tr -d ' ')" = 1 ] || fail "expected exactly one takeover record"
+  record=$(cat "$dir/state/.lock-takeovers")
+  assert_contains "$record" "new_pid=$CLAUDE_PID" "the record did not name the new holder"
+  assert_contains "$record" "prev_pid=$DAEMON_PID" "the record did not name the previous holder"
+  assert_contains "$record" "app-server --listen unix:// --managed-daemon" "the record did not keep what the previous holder was running"
+  assert_contains "$record" "at=20" "the record did not carry a timestamp"
+  session_run "$dir" claude "\"\$FM_HOME/bin/fm-lock.sh\" takeover --confirm-holder $DAEMON_PID"
+  expect_code 0 "$SESSION_RC" "repeating a takeover the session already completed must be a no-op"
+  [ "$(wc -l < "$dir/state/.lock-takeovers" | tr -d ' ')" = 1 ] || fail "a repeated takeover appended a second record"
+  stop_idle_daemon_home "$dir"
+  pass "session-lock takeover: records who replaced whom, keeps the one-line lock, and never signals the previous holder"
+}
+
+test_displaced_session_is_read_only_at_its_next_lock_checks() {
+  local dir
+  dir="$TMP_ROOT/takeover-displaced"
+  make_idle_daemon_home "$dir"
+  : > "$dir/state/task.meta"
+  session_run "$dir" claude "\"\$FM_HOME/bin/fm-lock.sh\" takeover --confirm-holder $DAEMON_PID"
+  expect_code 0 "$SESSION_RC" "setup takeover failed: $SESSION_OUT"
+  # The displaced session re-checks the lock the only ways the fleet's guarded
+  # paths do today: it is refused on re-acquiring, no longer recognizes itself as
+  # the owner, and its Stop auto-arm stays inert instead of arming or rewaking.
+  session_run "$dir" daemon '"$FM_HOME/bin/fm-lock.sh"'
+  expect_code 1 "$SESSION_RC" "the displaced session must be refused when it re-checks the lock"
+  assert_contains "$SESSION_OUT" "holds the lock (pid $CLAUDE_PID)" "the displaced session was not told who holds the lock now"
+  session_run "$dir" daemon '. "$FM_HOME/bin/fm-session-lock-lib.sh"; fm_session_lock_owned_by_self "$FM_HOME/state"'
+  expect_code 1 "$SESSION_RC" "the displaced session still recognizes itself as the lock owner"
+  session_run "$dir" daemon '"$FM_HOME/bin/fm-claude-stop-autoarm.sh" </dev/null'
+  expect_code 0 "$SESSION_RC" "a displaced session's Stop auto-arm must exit silently"
+  [ ! -e "$dir/state/arm-ran" ] || fail "a displaced session armed supervision"
+  [ "$(cat "$dir/state/.lock")" = "$CLAUDE_PID" ] || fail "the displaced session took the lock back"
+  stop_idle_daemon_home "$dir"
+  pass "session-lock takeover: a displaced session is refused, stops recognizing itself as owner, and its auto-arm stays inert"
+}
+
+test_dead_holder_is_still_reclaimed_automatically() {
+  local dir dead
+  dir="$TMP_ROOT/takeover-dead-holder"
+  make_primary_home "$dir"
+  rm -f "${dir:?}/state/task.meta"
+  dead=999991
+  while kill -0 "$dead" 2>/dev/null; do dead=$((dead + 1)); done
+  printf '%s\n' "$dead" > "$dir/state/.lock"
+  session_start "$dir" claude "$NAMED_CLAUDE"
+  session_run "$dir" claude '"$FM_HOME/bin/fm-lock.sh"'
+  expect_code 0 "$SESSION_RC" "a dead holder's lock must still be reclaimed with no flag: $SESSION_OUT"
+  [ "$(cat "$dir/state/.lock")" = "$SESSION_PID" ] || fail "the stale lock was not replaced by the new session"
+  assert_absent "$dir/state/.lock-takeovers" "an automatic stale-lock reclaim was recorded as a takeover"
+  session_run "$dir" claude "\"\$FM_HOME/bin/fm-lock.sh\" takeover --confirm-holder $dead"
+  expect_code 0 "$SESSION_RC" "takeover over our own lock should be a harmless no-op"
+  session_stop "$dir" claude "$SESSION_PID"
+  pass "session-lock takeover: a dead holder's stale lock is reclaimed automatically exactly as before"
+}
+
 test_version_named_session_is_identified_on_both_platforms
 test_ordinary_paths_are_never_harness_processes
 test_harness_beyond_a_gap_never_owns_the_lock
 test_competing_version_named_session_is_seen_as_live
+test_lock_held_by_other_and_displaced_record_decisions
 test_e2e_version_named_session_claims_the_home
 test_e2e_daemon_parented_session_claims_the_home
 test_e2e_daemon_parented_version_named_session_keeps_its_lock
+test_live_idle_holder_is_named_and_never_displaced_automatically
+test_takeover_requires_explicit_confirmation_of_the_current_holder
+test_takeover_refuses_while_a_watcher_beat_is_fresh
+test_confirmed_takeover_records_who_replaced_whom_and_keeps_the_lock_format
+test_displaced_session_is_read_only_at_its_next_lock_checks
+test_dead_holder_is_still_reclaimed_automatically
