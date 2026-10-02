@@ -1,0 +1,174 @@
+
+==================== SETUP (head = 4121cfa) ====================
+$ ps -o pid=,args= -p 62913   # the idle Codex app-server daemon
+62913 codex app-server --listen unix:// --managed-daemon
+$ (inside the daemon's Codex conversation) bin/fm-lock.sh
+lock acquired: harness pid 62913
+[exit 0]
+$ cat state/.lock ; ls state/*.meta
+62913
+state/alpha.meta
+state/beta.meta
+$ ps -o pid=,args= -p 63372   # a later Claude firstmate session
+63372 claude firstmate-session
+
+==================== S1: later Claude session runs bin/fm-session-start.sh ====================
+LOCK
+--------------------------------------------------------------------------------
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  READ-ONLY SESSION - FLEET LOCK OWNERSHIP WAS NOT VERIFIED
+●  error: another live firstmate session holds the lock (pid 62913); operate read-only until resolved
+●    holder: pid 62913, command: codex app-server --listen unix:// --managed-daemon, holding the lock since 2026-10-02T13:16Z (90m ago)
+●    This session never takes over a live holder on its own. Only with the captain's OK, once the captain confirms that process is not a working firstmate session (for example an idle background service), take over with:
+●      /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3YBJ5QV8H3KHA5PEPD92Y0Z/scratchpad-test/live-head/home/bin/fm-lock.sh takeover --confirm-holder 62913
+●    The takeover refuses while a watcher beat is fresh, and records who took over from whom.
+●  Skipping every mutating step: stale Herdr child cleanup,
+●  secondmate convergence, secondmate liveness, pending remote handoff retry,
+●  X-mode artifacts, fleet sync, and wake-queue drain. Detect-only bootstrap
+●  diagnostics and the rest of this read-only-safe digest still ran below.
+●  Operate read-only until this resolves - do not spawn, steer, merge, or
+●  otherwise mutate fleet state from this session.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[exit 0]
+$ cat state/.lock   # still the daemon? (never taken over automatically)
+62913
+daemon pid 62913 still alive
+
+==================== S2: 30 consecutive Stop events in the read-only Claude session (bin/fm-turnend-guard.sh --claude) ====================
+--- stop 1 (stop_hook_active=false) ---
+FIRSTMATE SUPERVISION IS OFF in this home (2 task(s) in flight, last watcher beat: 5404s ago), and this session is read-only: another live process holds the fleet lock, so this session will not arm or repair supervision and its turn may end. Supervision stays off for as long as that holder keeps the lock.
+holder: pid 62913, command: codex app-server --listen unix:// --managed-daemon, holding the lock since 2026-10-02T13:16Z (90m ago)
+This session never takes over a live holder on its own. If you confirm that process is not a working firstmate session (for example an idle background service), ask firstmate in this session to take over the fleet lock from pid 62913. The takeover must be run by the firstmate session that will hold the lock, so it does not work from a separate terminal.
+The takeover refuses while a watcher beat is fresh, and records who took over from whom.
+[exit 0]
+--- stop 2 (stop_hook_active=true) ---
+
+[exit 0]
+--- stop 30 (stop_hook_active=true) ---
+
+[exit 0]
+SUMMARY: 0 stops blocked (exit 2), 1 ended with a notice, 29 ended silently
+$ cat state/.turnend-claude-blocks
+(absent)
+$ ls -a state/
+. .. .last-watcher-beat .lock alpha.meta beta.meta 
+$ (the paired Stop hook) bin/fm-claude-stop-autoarm.sh in the read-only session
+
+[exit 0]
+no auto-arm epoch written (the read-only session armed nothing)
+
+==================== S3: takeover attempts that must be refused ====================
+$ bin/fm-lock.sh status
+lock: held by live harness pid 62913 (command: codex app-server --listen unix:// --managed-daemon, holding the lock since 2026-10-02T13:16Z (90m ago))
+[exit 0]
+$ bin/fm-lock.sh takeover            # no confirmation
+error: takeover needs the explicit confirmation --confirm-holder <pid> naming the live holder; read it from 'fm-lock.sh status'
+[exit 2]
+$ bin/fm-lock.sh takeover --confirm-holder=62913   # undocumented spelling
+usage: fm-lock.sh takeover --confirm-holder <pid>
+[exit 2]
+$ bin/fm-lock.sh takeover --confirm-holder 4242   # stale/wrong pid
+error: the lock is now held by pid 62913, not the confirmed pid 4242; re-read 'fm-lock.sh status' and confirm again
+[exit 1]
+$ touch state/.last-watcher-beat ; bin/fm-lock.sh takeover --confirm-holder 62913   # a watcher beat is fresh
+error: takeover refused: a watcher beat is fresh (last beat: 0s ago), so a live session is supervising this home right now; retry only after the beat has gone stale
+[exit 1]
+$ (from a separate terminal, not inside any firstmate session) bin/fm-lock.sh takeover --confirm-holder 62913
+error: cannot locate harness process in ancestry: a takeover must be run by the firstmate session that will take the lock, and this command is not running inside one; ask firstmate in that session to run it
+[exit 1]
+$ cat state/.lock ; ls state/.lock-takeovers
+62913
+(no takeover record)
+
+==================== S4: captain confirms; firstmate in the Claude session runs the takeover ====================
+$ bin/fm-lock.sh takeover --confirm-holder 62913
+lock taken over: harness pid 63372 replaced pid 62913 (command: codex app-server --listen unix:// --managed-daemon, holding the lock since 2026-10-02T13:16Z (90m ago))
+The previous holder was not signalled. If it is still a firstmate session it must stop acting on the fleet now: it is read-only and must not spawn, steer, merge, tear down, drain wakes, or arm the watcher, so tell it to stop. Run /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3YBJ5QV8H3KHA5PEPD92Y0Z/scratchpad-test/live-head/home/bin/fm-session-start.sh now to complete the locked session start.
+[exit 0]
+$ cat state/.lock
+63372
+$ cat state/.lock-takeovers
+at=2026-10-02T14:46:58Z
+new_pid=63372
+new_command=claude firstmate-session
+prev_pid=62913
+prev_holder=command: codex app-server --listen unix:// --managed-daemon, holding the lock since 2026-10-02T13:16Z (90m ago)
+daemon pid 62913 still alive (not signalled)
+$ bin/fm-lock.sh   # the new holder re-verifies
+lock acquired: harness pid 63372
+[exit 0]
+$ bin/fm-lock.sh status
+lock: held by live harness pid 63372 (command: claude firstmate-session, holding the lock since 2026-10-02T14:46Z (under 1m ago))
+[exit 0]
+
+==================== S5: the new lock holder's turn-end guard still demands repair ====================
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  TURN WOULD END BLIND - SUPERVISION IS OFF
+●  2 task(s) in flight, but no live watcher holds this home lock (last beat: 5420s ago).
+●  The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[exit 2]
+$ cat state/.turnend-claude-blocks
+session=sess-holder-b
+count=1
+epoch=
+
+==================== S6: the displaced previous holder's Stop hook (Codex native, then follow-up adapter shape) ====================
+$ (inside pid 62913) printf '{"session_id":"codex-old","stop_hook_active":false}' | bin/fm-turnend-guard.sh   # stop 1
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  THIS SESSION NO LONGER OWNS THE FLEET - ITS LOCK WAS TAKEN OVER
+●  At 2026-10-02T14:46:58Z a captain-confirmed takeover moved this home's fleet lock to pid 63372, so this session is now read-only.
+●  This session must stop acting on the fleet now: do not spawn, steer, merge, tear down, drain wakes, arm the watcher, or otherwise mutate it from here. Tell the captain, and let the lock holder supervise.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[exit 2]
+$ (inside pid 62913) printf '{"session_id":"codex-old","stop_hook_active":false}' | bin/fm-turnend-guard.sh   # stop 2
+
+[exit 0]
+$ (inside pid 62913) bin/fm-lock.sh   # the displaced session tries to take the lock back
+error: another live firstmate session holds the lock (pid 63372); operate read-only until resolved
+  holder: pid 63372, command: claude firstmate-session, holding the lock since 2026-10-02T14:46Z (under 1m ago)
+  This session never takes over a live holder on its own. Only with the captain's OK, once the captain confirms that process is not a working firstmate session (for example an idle background service), take over with:
+    /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3YBJ5QV8H3KHA5PEPD92Y0Z/scratchpad-test/live-head/home/bin/fm-lock.sh takeover --confirm-holder 63372
+  The takeover refuses while a watcher beat is fresh, and records who took over from whom.
+[exit 1]
+63372
+
+==================== S7: a holder whose process died is reclaimed automatically ====================
+old holder: lock acquired: harness pid 77550
+pid 77550 is now dead; state/.lock still says 77550
+$ (new Claude session pid 78041) bin/fm-lock.sh
+lock acquired: harness pid 78041
+[exit 0]
+$ cat state/.lock ; ls state/.lock-takeovers
+78041
+(no takeover record - plain reclaim)
+
+==================== S8: Claude session A held the lock; Claude session D takes over; A's next stops ====================
+session A: lock acquired: harness pid 79933
+session D first try: error: another live firstmate session holds the lock (pid 79933); operate read-only until resolved
+  holder: pid 79933, command: claude firstmate-session, holding the lock since 2026-10-02T13:16Z (90m ago)
+  This session never takes over a live holder on its own. Only with the captain's OK, once the captain confirms that process is not a working firstmate session (for example an idle background service), take over with:
+    /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3YBJ5QV8H3KHA5PEPD92Y0Z/scratchpad-test/live-head/home-claude/bin/fm-lock.sh takeover --confirm-holder 79933
+  The takeover refuses while a watcher beat is fresh, and records who took over from whom.
+[exit 1]
+session D takeover (captain confirmed):
+lock taken over: harness pid 79939 replaced pid 79933 (command: claude firstmate-session, holding the lock since 2026-10-02T13:16Z (90m ago))
+The previous holder was not signalled. If it is still a firstmate session it must stop acting on the fleet now: it is read-only and must not spawn, steer, merge, tear down, drain wakes, or arm the watcher, so tell it to stop. Run /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3YBJ5QV8H3KHA5PEPD92Y0Z/scratchpad-test/live-head/home-claude/bin/fm-session-start.sh now to complete the locked session start.
+[exit 0]
+$ (session A, stop 1) bin/fm-turnend-guard.sh --claude
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  THIS SESSION NO LONGER OWNS THE FLEET - ITS LOCK WAS TAKEN OVER
+●  At 2026-10-02T14:47:07Z a captain-confirmed takeover moved this home's fleet lock to pid 79939, so this session is now read-only.
+●  This session must stop acting on the fleet now: do not spawn, steer, merge, tear down, drain wakes, arm the watcher, or otherwise mutate it from here. Tell the captain, and let the lock holder supervise.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[exit 2]
+$ (session A, stop 2) bin/fm-turnend-guard.sh --claude
+{"systemMessage":"FIRSTMATE SUPERVISION IS OFF in this home (1 task(s) in flight, last watcher beat: never), and this session is read-only: another live process holds the fleet lock, so this session will not arm or repair supervision and its turn may end. Supervision stays off for as long as that holder keeps the lock.\nholder: pid 79939, command: claude firstmate-session, holding the lock since 2026-10-02T14:47Z (under 1m ago)\nThis session never takes over a live holder on its own. If you confirm that process is not a working firstmate session (for example an idle background service), ask firstmate in this session to take over the fleet lock from pid 79939. The takeover must be run by the firstmate session that will hold the lock, so it does not work from a separate terminal.\nThe takeover refuses while a watcher beat is fresh, and records who took over from whom."}
+[exit 0]
+$ (session A, stop 3) bin/fm-turnend-guard.sh --claude
+
+[exit 0]
+
+DONE

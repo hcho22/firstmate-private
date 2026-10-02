@@ -1,0 +1,46 @@
+
+==================== SETUP ====================
+$ ps -o pid=,args= -p 67286   # a Cursor primary session
+67286 cursor-agent firstmate-session
+lock acquired: harness pid 67286
+[exit 0]
+
+==================== C1: captain confirms; Claude session F takes over from Cursor session E ====================
+lock taken over: harness pid 68066 replaced pid 67286 (command: cursor-agent firstmate-session, holding the lock since 2026-10-02T13:23Z (90m ago))
+The previous holder was not signalled. If it is still a firstmate session it must stop acting on the fleet now: it is read-only and must not spawn, steer, merge, tear down, drain wakes, or arm the watcher, so tell it to stop. Run /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3YBJ5QV8H3KHA5PEPD92Y0Z/scratchpad-test/live-cursor/home/bin/fm-session-start.sh now to complete the locked session start.
+[exit 0]
+
+==================== C2: displaced Cursor session E ends turns (real bin/fm-turnend-guard-cursor.sh stop hook) ====================
+$ (Cursor E, stop 1) printf '<cursor stop payload>' | bin/fm-turnend-guard-cursor.sh
+stdout JSON keys: ["followup_message"]
+followup_message:
+⁣FIRSTMATE_OP: v1 turn-end-guard: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  THIS SESSION NO LONGER OWNS THE FLEET - ITS LOCK WAS TAKEN OVER
+●  At 2026-10-02T14:53:22Z a captain-confirmed takeover moved this home's fleet lock to pid 68066, so this session is now read-only.
+●  This session must stop acting on the fleet now: do not spawn, steer, merge, tear down, drain wakes, arm the watcher, or otherwise mutate it from here. Tell the captain, and let the lock holder supervise.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[exit 0]
+$ (Cursor E, stop 2) printf '<cursor stop payload>' | bin/fm-turnend-guard-cursor.sh
+(no stdout - no follow-up)
+[exit 0]
+$ (Cursor E, stop 3) printf '<cursor stop payload>' | bin/fm-turnend-guard-cursor.sh
+(no stdout - no follow-up)
+[exit 0]
+
+==================== C3: Cursor session G, which never held the lock, ends turns while supervision is off ====================
+$ (Cursor G, stop 1) printf '<cursor stop payload>' | bin/fm-turnend-guard-cursor.sh
+(no stdout - no follow-up)
+[exit 0]
+$ (Cursor G, stop 2) printf '<cursor stop payload>' | bin/fm-turnend-guard-cursor.sh
+(no stdout - no follow-up)
+[exit 0]
+
+==================== STATE after all Cursor stops ====================
+$ cat state/.lock ; ls -a state/
+68066
+. .. .last-watcher-beat .lock .lock-takeovers alpha.meta beta.meta 
+absent: state/.turnend-cursor-blocks
+absent: state/.cursor-park-owner
+absent: state/.watch.lock
+
+DONE

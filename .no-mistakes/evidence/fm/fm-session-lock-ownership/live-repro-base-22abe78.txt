@@ -1,0 +1,76 @@
+
+==================== SETUP (base = 22abe78) ====================
+$ ps -o pid=,args= -p 95378   # the idle Codex app-server daemon
+95378 codex app-server --listen unix:// --managed-daemon
+$ (inside the daemon's Codex conversation) bin/fm-lock.sh
+lock acquired: harness pid 95378
+[exit 0]
+$ cat state/.lock ; ls state/*.meta
+95378
+state/alpha.meta
+state/beta.meta
+$ ps -o pid=,args= -p 96054   # a later Claude firstmate session
+96054 claude firstmate-session
+
+==================== S1: later Claude session runs bin/fm-session-start.sh ====================
+LOCK
+--------------------------------------------------------------------------------
+error: another live firstmate session holds the lock (pid 95378); operate read-only until resolved
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  READ-ONLY SESSION - FLEET LOCK OWNERSHIP WAS NOT VERIFIED
+●  error: another live firstmate session holds the lock (pid 95378); operate read-only until resolved
+●  Skipping every mutating step: stale Herdr child cleanup,
+●  secondmate convergence, secondmate liveness, pending remote handoff retry,
+●  X-mode artifacts, fleet sync, and wake-queue drain. Detect-only bootstrap
+●  diagnostics and the rest of this read-only-safe digest still ran below.
+●  Operate read-only until this resolves - do not spawn, steer, merge, or
+●  otherwise mutate fleet state from this session.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[exit 0]
+$ cat state/.lock   # still the daemon? (never taken over automatically)
+95378
+daemon pid 95378 still alive
+
+==================== S2: 30 consecutive Stop events in the read-only Claude session (bin/fm-turnend-guard.sh --claude) ====================
+--- stop 1 (stop_hook_active=false) ---
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  TURN WOULD END BLIND - SUPERVISION IS OFF
+●  2 task(s) in flight, but no live watcher holds this home lock (last beat: 5405s ago).
+●  The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[exit 2]
+--- stop 2 (stop_hook_active=true) ---
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  TURN WOULD END BLIND - SUPERVISION IS OFF
+●  2 task(s) in flight, but no live watcher holds this home lock (last beat: 5407s ago).
+●  The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[exit 2]
+--- stop 30 (stop_hook_active=true) ---
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  TURN WOULD END BLIND - SUPERVISION IS OFF
+●  2 task(s) in flight, but no live watcher holds this home lock (last beat: 5462s ago).
+●  The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[exit 2]
+SUMMARY: 30 stops blocked (exit 2), 0 ended with a notice, 0 ended silently
+$ cat state/.turnend-claude-blocks
+session=sess-readonly-b
+count=30
+epoch=
+$ ls -a state/
+. .. .last-watcher-beat .lock .turnend-claude-blocks alpha.meta beta.meta 
+$ (the paired Stop hook) bin/fm-claude-stop-autoarm.sh in the read-only session
+
+[exit 0]
+no auto-arm epoch written (the read-only session armed nothing)
+
+==================== base: no takeover command exists ====================
+$ bin/fm-lock.sh takeover --confirm-holder 95378
+error: another live firstmate session holds the lock (pid 95378); operate read-only until resolved
+[exit 1]
+95378
