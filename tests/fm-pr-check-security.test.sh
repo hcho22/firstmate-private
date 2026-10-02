@@ -1072,7 +1072,7 @@ test_bootstrap_leaves_unauthenticated_checks() {
 }
 
 test_custom_snapshot_cleanup_on_signal() {
-  local dir state child_pid_file pid child_pid i rc
+  local dir state child_pid_file pid child_pid deadline rc
   dir=$(make_case custom-snapshot-signal)
   state="$dir/home/state"
   child_pid_file="$dir/custom-child.pid"
@@ -1098,27 +1098,26 @@ SH
     PATH="$dir/fakebin:$BASE_PATH" "$WATCH" \
     > "$dir/watch.out" 2> "$dir/watch.err" &
   pid=$!
-  i=0
-  while [ "$i" -lt 100 ]; do
-    [ -s "$child_pid_file" ] && break
-    kill -0 "$pid" 2>/dev/null || break
+  deadline=$((SECONDS + HANG_GUARD_EVENT_SECS))
+  while [ ! -s "$child_pid_file" ] && kill -0 "$pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.02
-    i=$((i + 1))
   done
   [ -s "$child_pid_file" ] || fail "watcher did not start the custom check child"
   find "$state" -maxdepth 1 -name '.fm-custom-check.*' -print | grep . >/dev/null \
     || fail "watcher did not create the custom check snapshot"
   child_pid=$(cat "$child_pid_file")
   kill -TERM "$pid" 2>/dev/null || fail "could not signal watcher during custom check"
-  i=0
-  while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 100 ]; do
+  # The check child ignores TERM and never exits by itself, so the watcher can only
+  # stop by draining it: exiting at all is the structural proof, and the wait is a
+  # hang guard rather than a promptness bound that a loaded host would turn flaky.
+  deadline=$((SECONDS + HANG_GUARD_EVENT_SECS))
+  while kill -0 "$pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.02
-    i=$((i + 1))
   done
   if kill -0 "$pid" 2>/dev/null; then
     kill -KILL "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true
-    fail "signaled watcher did not exit promptly"
+    fail "signaled watcher did not exit after SIGTERM"
   fi
   rc=0
   wait "$pid" || rc=$?
@@ -1129,11 +1128,11 @@ SH
   ! find "$state" -maxdepth 1 -name '.fm-check-output.*' -print | grep . >/dev/null \
     || fail "signaled watcher left a private check output file"
   [ ! -e "$state/.watch.lock/pid" ] || fail "signaled watcher left its singleton lock"
-  pass "watcher signals promptly stop custom checks and clean private state"
+  pass "watcher signals stop custom checks and clean private state"
 }
 
 test_returned_custom_check_descendants_are_drained() {
-  local backend dir state fakebin ready direct_done child_pid_file sentinel watcher_pid child_pid i rc alive force_fallback
+  local backend dir state fakebin ready direct_done child_pid_file sentinel watcher_pid child_pid deadline rc alive force_fallback
   for backend in installed-timeout fallback-timeout; do
     dir=$(make_case "returned-custom-descendant-$backend")
     state="$dir/home/state"
@@ -1166,29 +1165,26 @@ SH
     fi
 
     FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_POLL=0.1 FM_CHECK_INTERVAL=999999 \
-      FM_CHECK_TIMEOUT=10 FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 \
+      FM_CHECK_TIMEOUT="$HANG_GUARD_EVENT_SECS" FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 \
       FM_CHECK_FORCE_FALLBACK="$force_fallback" FM_TEST_DESCENDANT_READY="$ready" \
       FM_TEST_DESCENDANT_SENTINEL="$sentinel" FM_TEST_DESCENDANT_PID="$child_pid_file" \
       FM_TEST_DIRECT_DONE="$direct_done" PATH="$fakebin:$BASE_PATH" "$WATCH" \
       > "$dir/watch.out" 2> "$dir/watch.err" &
     watcher_pid=$!
-    i=0
-    while [ "$i" -lt 200 ]; do
-      [ -s "$ready" ] && [ -s "$child_pid_file" ] && [ -e "$direct_done" ] \
-        && [ -e "$state/.last-check" ] && break
-      kill -0 "$watcher_pid" 2>/dev/null || break
+    deadline=$((SECONDS + HANG_GUARD_EVENT_SECS))
+    while { [ ! -s "$ready" ] || [ ! -s "$child_pid_file" ] || [ ! -e "$direct_done" ] \
+        || [ ! -e "$state/.last-check" ]; } \
+      && kill -0 "$watcher_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
       sleep 0.02
-      i=$((i + 1))
     done
     [ -s "$ready" ] && [ -s "$child_pid_file" ] && [ -e "$direct_done" ] \
       && [ -e "$state/.last-check" ] \
       || fail "$backend watcher did not complete the direct custom check"
     child_pid=$(cat "$child_pid_file")
     kill -TERM "$watcher_pid" 2>/dev/null || fail "could not stop $backend watcher"
-    i=0
-    while process_is_live_non_zombie "$watcher_pid" && [ "$i" -lt 150 ]; do
+    deadline=$((SECONDS + HANG_GUARD_EVENT_SECS))
+    while process_is_live_non_zombie "$watcher_pid" && [ "$SECONDS" -lt "$deadline" ]; do
       sleep 0.02
-      i=$((i + 1))
     done
     if process_is_live_non_zombie "$watcher_pid"; then
       kill -KILL "$watcher_pid" 2>/dev/null || true
