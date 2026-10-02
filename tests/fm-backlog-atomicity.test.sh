@@ -2404,84 +2404,201 @@ test_a_persistent_secondmate_is_never_a_backlog_item() {
   pass "dispatching a persistent secondmate needs no backlog item"
 }
 
-test_dispatch_moves_the_item_in_flight_in_the_same_run
-test_dispatch_omits_the_file_for_a_beads_show
-test_dispatch_refuses_a_pending_authoritative_close
-test_dispatch_refuses_a_held_row_before_creating_resources
-test_dispatch_refuses_a_blocked_row_before_creating_resources
-test_dispatch_refuses_a_held_in_flight_row_before_relaunch
-test_dispatch_reads_the_row_from_the_backlog_root
-test_recovery_uses_the_parent_of_a_trailing_slash_data_record
-test_completion_targets_a_nested_relative_data_directory
-test_immediate_child_absolute_data_dispatches_and_completes
-test_bare_relative_data_dispatches_and_completes
-test_dispatch_refuses_a_symlinked_backlog_without_crossing_homes
-test_automatic_backend_refuses_incompatible_tasks_axi_before_mutation
-test_dispatch_refuses_an_unresolvable_data_directory
-test_completion_refuses_an_unresolvable_data_directory
-test_dispatch_refuses_an_id_this_home_has_no_item_for
-test_dispatch_reports_a_backlog_read_failure
-test_dispatch_refuses_a_closed_item
-test_dispatch_refuses_to_commit_without_a_published_record
-test_dispatch_leaves_no_record_when_the_transition_fails
-test_dispatch_reports_an_incomplete_record_rollback
-test_dispatch_reports_an_incomplete_busy_rollback
-test_dispatch_rolls_back_before_a_failed_launch_delivery
-test_dispatch_defers_interruption_across_backlog_commit
-test_dispatch_interruption_during_kimi_readiness_fails_before_commit
-test_dispatch_does_not_resurrect_a_row_closed_after_preflight
-test_dispatch_fails_when_its_row_vanishes_after_preflight
-test_completion_closes_a_local_only_ship_before_reporting_success
-test_completion_closes_a_scout_with_its_report
-test_new_layout_scout_brief_to_teardown
-test_new_layout_ship_launch_brief_lands_beside_the_brief
-test_completion_refuses_a_legacy_record_without_an_incarnation
-test_completion_refuses_ambiguous_incarnation_metadata
-test_completion_records_a_relative_report_for_relocated_data
-test_space_containing_scout_report_marker_replays
-test_trailing_newline_data_path_fails_closed
-test_control_character_data_path_is_refused_before_cleanup
-test_completion_preserves_records_when_meta_removal_fails
-test_completion_fails_loudly_and_records_the_close_it_still_owes
-test_interrupted_destructive_cleanup_leaves_a_recoverable_close
-test_completion_refuses_a_close_target_symlinked_to_a_directory
-test_completion_fails_when_its_close_marker_cannot_be_removed
-test_recovery_retries_when_a_close_marker_cannot_be_removed
-test_recovery_reports_an_owned_row_read_failure
-test_orca_cleanup_recovery_never_transitions_the_backlog
-test_recovery_marks_an_owned_record_in_flight
-test_recovery_rejects_an_internal_worker_record_symlink
-test_recovery_ignores_a_symlinked_worker_record
-test_recovery_replays_a_close_an_interrupted_cleanup_left_open
-test_recovery_backfills_a_recorded_link_on_an_already_done_item
-test_recovery_preserves_a_close_when_the_backlog_cannot_be_read
-test_recovery_retry_preserves_incomplete_cleanup_warning
-test_recovery_finishes_a_close_for_the_same_meta_incarnation
-test_recovery_preserves_a_close_for_ambiguous_incarnation_metadata
-test_recovery_preserves_both_records_when_meta_removal_fails
-test_recovery_preserves_a_close_beside_symlinked_metadata
-test_recovery_rejects_a_marker_for_another_task_identity
-test_recovery_rejects_a_foreign_data_directory
-test_recovery_rejects_an_unterminated_unknown_field
-test_recovery_rejects_lexical_data_traversal
-test_recovery_rejects_raw_control_bytes
-test_recovery_rejects_malformed_pr_urls
-test_failed_close_replay_is_not_started_as_live_work
-test_recovery_rejects_invalid_close_arguments
-test_recovery_rejects_a_symlinked_close_marker
-test_recovery_drops_a_close_for_a_newer_meta_incarnation
-test_recovery_rejects_a_legacy_close_without_an_incarnation
-test_bootstrap_rechecks_worker_record_boundary_after_locking
-test_lifecycle_refuses_ancestor_symlinks_outside_home_roots
-test_same_home_state_override_remains_supported
-test_bootstrap_refuses_a_symlinked_state_directory_before_reconciliation
-test_bootstrap_stops_when_data_disappears_before_reconciliation
-test_bootstrap_addressing_exemptions_remain_nonfatal
-test_recovery_leaves_a_captain_held_item_alone
-test_no_backlog_teardown_refuses_a_symlinked_task_record_at_entry
-test_teardown_rechecks_record_parent_after_lock_acquisition
-test_teardown_refuses_a_symlinked_state_directory_at_entry
-test_home_without_a_backlog_dispatches_and_completes
-test_manual_backend_home_dispatches_and_completes_without_touching_the_backlog
-test_a_secondmate_home_keeps_its_own_books
-test_a_persistent_secondmate_is_never_a_backlog_item
+# --- run --------------------------------------------------------------------
+
+# The cases share nothing. Each builds its own world under its own
+# $TMP_ROOT/<name>, addresses its own backlog through an explicit path, and uses
+# a task id no other case uses (fm-spawn.sh keys its /tmp/fm-<id> root by it).
+# The only shared inputs are read-only: the stubs written above and the
+# production scripts under test. A case spends its time waiting on node, git,
+# and those scripts' own sleeps, so the file runs them in a few concurrent
+# lanes instead of one after another. Each lane claims the next unclaimed case
+# in the order listed here and runs it in its own subshell with its output in a
+# private file. The cases' output is then printed in this same order, so the
+# result reads exactly as a serial run does.
+#
+# FM_TEST_BACKLOG_LANES sets the lane count (default 4). 1 runs every case in
+# this shell, in order, with no lane machinery at all.
+CASES=(
+  test_dispatch_moves_the_item_in_flight_in_the_same_run
+  test_dispatch_omits_the_file_for_a_beads_show
+  test_dispatch_refuses_a_pending_authoritative_close
+  test_dispatch_refuses_a_held_row_before_creating_resources
+  test_dispatch_refuses_a_blocked_row_before_creating_resources
+  test_dispatch_refuses_a_held_in_flight_row_before_relaunch
+  test_dispatch_reads_the_row_from_the_backlog_root
+  test_recovery_uses_the_parent_of_a_trailing_slash_data_record
+  test_completion_targets_a_nested_relative_data_directory
+  test_immediate_child_absolute_data_dispatches_and_completes
+  test_bare_relative_data_dispatches_and_completes
+  test_dispatch_refuses_a_symlinked_backlog_without_crossing_homes
+  test_automatic_backend_refuses_incompatible_tasks_axi_before_mutation
+  test_dispatch_refuses_an_unresolvable_data_directory
+  test_completion_refuses_an_unresolvable_data_directory
+  test_dispatch_refuses_an_id_this_home_has_no_item_for
+  test_dispatch_reports_a_backlog_read_failure
+  test_dispatch_refuses_a_closed_item
+  test_dispatch_refuses_to_commit_without_a_published_record
+  test_dispatch_leaves_no_record_when_the_transition_fails
+  test_dispatch_reports_an_incomplete_record_rollback
+  test_dispatch_reports_an_incomplete_busy_rollback
+  test_dispatch_rolls_back_before_a_failed_launch_delivery
+  test_dispatch_defers_interruption_across_backlog_commit
+  test_dispatch_interruption_during_kimi_readiness_fails_before_commit
+  test_dispatch_does_not_resurrect_a_row_closed_after_preflight
+  test_dispatch_fails_when_its_row_vanishes_after_preflight
+  test_completion_closes_a_local_only_ship_before_reporting_success
+  test_completion_closes_a_scout_with_its_report
+  test_new_layout_scout_brief_to_teardown
+  test_new_layout_ship_launch_brief_lands_beside_the_brief
+  test_completion_refuses_a_legacy_record_without_an_incarnation
+  test_completion_refuses_ambiguous_incarnation_metadata
+  test_completion_records_a_relative_report_for_relocated_data
+  test_space_containing_scout_report_marker_replays
+  test_trailing_newline_data_path_fails_closed
+  test_control_character_data_path_is_refused_before_cleanup
+  test_completion_preserves_records_when_meta_removal_fails
+  test_completion_fails_loudly_and_records_the_close_it_still_owes
+  test_interrupted_destructive_cleanup_leaves_a_recoverable_close
+  test_completion_refuses_a_close_target_symlinked_to_a_directory
+  test_completion_fails_when_its_close_marker_cannot_be_removed
+  test_recovery_retries_when_a_close_marker_cannot_be_removed
+  test_recovery_reports_an_owned_row_read_failure
+  test_orca_cleanup_recovery_never_transitions_the_backlog
+  test_recovery_marks_an_owned_record_in_flight
+  test_recovery_rejects_an_internal_worker_record_symlink
+  test_recovery_ignores_a_symlinked_worker_record
+  test_recovery_replays_a_close_an_interrupted_cleanup_left_open
+  test_recovery_backfills_a_recorded_link_on_an_already_done_item
+  test_recovery_preserves_a_close_when_the_backlog_cannot_be_read
+  test_recovery_retry_preserves_incomplete_cleanup_warning
+  test_recovery_finishes_a_close_for_the_same_meta_incarnation
+  test_recovery_preserves_a_close_for_ambiguous_incarnation_metadata
+  test_recovery_preserves_both_records_when_meta_removal_fails
+  test_recovery_preserves_a_close_beside_symlinked_metadata
+  test_recovery_rejects_a_marker_for_another_task_identity
+  test_recovery_rejects_a_foreign_data_directory
+  test_recovery_rejects_an_unterminated_unknown_field
+  test_recovery_rejects_lexical_data_traversal
+  test_recovery_rejects_raw_control_bytes
+  test_recovery_rejects_malformed_pr_urls
+  test_failed_close_replay_is_not_started_as_live_work
+  test_recovery_rejects_invalid_close_arguments
+  test_recovery_rejects_a_symlinked_close_marker
+  test_recovery_drops_a_close_for_a_newer_meta_incarnation
+  test_recovery_rejects_a_legacy_close_without_an_incarnation
+  test_bootstrap_rechecks_worker_record_boundary_after_locking
+  test_lifecycle_refuses_ancestor_symlinks_outside_home_roots
+  test_same_home_state_override_remains_supported
+  test_bootstrap_refuses_a_symlinked_state_directory_before_reconciliation
+  test_bootstrap_stops_when_data_disappears_before_reconciliation
+  test_bootstrap_addressing_exemptions_remain_nonfatal
+  test_recovery_leaves_a_captain_held_item_alone
+  test_no_backlog_teardown_refuses_a_symlinked_task_record_at_entry
+  test_teardown_rechecks_record_parent_after_lock_acquisition
+  test_teardown_refuses_a_symlinked_state_directory_at_entry
+  test_home_without_a_backlog_dispatches_and_completes
+  test_manual_backend_home_dispatches_and_completes_without_touching_the_backlog
+  test_a_secondmate_home_keeps_its_own_books
+  test_a_persistent_secondmate_is_never_a_backlog_item
+)
+
+LANES=${FM_TEST_BACKLOG_LANES:-4}
+case "$LANES" in
+  ''|*[!0-9]*|0) fail "FM_TEST_BACKLOG_LANES must be a positive whole number, got '$LANES'" ;;
+esac
+[ "$LANES" -le "${#CASES[@]}" ] || LANES=${#CASES[@]}
+
+LANE_DIR="$TMP_ROOT/lanes"
+LANE_PIDS=()
+
+# The pids of every process in the trees rooted at the arguments, one per line.
+tree_pids() {  # <pid>...
+  ps -A -o pid= -o ppid= | awk -v roots="$*" '
+    BEGIN { n = split(roots, r, " "); for (k = 1; k <= n; k++) seen[r[k]] = 1 }
+    { pid[NR] = $1; ppid[NR] = $2 }
+    END {
+      do {
+        grew = 0
+        for (k = 1; k <= NR; k++)
+          if (!(pid[k] in seen) && (ppid[k] in seen)) { seen[pid[k]] = 1; grew = 1 }
+      } while (grew)
+      for (p in seen) print p
+    }' | sort -n
+}
+
+# Stop every lane and everything it started, by exact pid. The trees are frozen
+# first and read again until they stop growing, so nothing can fork a
+# replacement between reading a tree and killing it, and no pid in it can be
+# recycled before the kill lands.
+stop_lanes() {
+  local pids next
+  [ "${#LANE_PIDS[@]}" -gt 0 ] || return 0
+  pids=$(tree_pids "${LANE_PIDS[@]}")
+  while :; do
+    # shellcheck disable=SC2086  # a list of pids, one word each
+    kill -STOP $pids 2>/dev/null || :
+    next=$(tree_pids "${LANE_PIDS[@]}")
+    [ "$next" != "$pids" ] || break
+    pids=$next
+  done
+  # shellcheck disable=SC2086
+  kill -KILL $pids 2>/dev/null || :
+  wait "${LANE_PIDS[@]}" 2>/dev/null || :
+  LANE_PIDS=()
+}
+
+# One lane: claim cases in order until none is left, or one has failed. A lane
+# subshell does not inherit the EXIT, INT, or TERM traps tests/lib.sh arms, so
+# only the parent ever removes $TMP_ROOT.
+run_lane() {
+  local i rc
+  for i in "${!CASES[@]}"; do
+    [ ! -e "$LANE_DIR/failed" ] || return 0
+    mkdir "$LANE_DIR/claim/$i" 2>/dev/null || continue
+    ( "${CASES[$i]}" ) > "$LANE_DIR/out/$i.out" 2> "$LANE_DIR/out/$i.err"
+    rc=$?
+    [ "$rc" -eq 0 ] || : > "$LANE_DIR/failed"
+    printf '%s\n' "$rc" > "$LANE_DIR/out/$i.rc"
+  done
+}
+
+run_lanes() {
+  local lane pid i rc status=0
+  mkdir -p "$LANE_DIR/claim" "$LANE_DIR/out"
+  trap 'stop_lanes; fm_test_cleanup; exit 130' INT
+  trap 'stop_lanes; fm_test_cleanup; exit 143' TERM
+  trap 'stop_lanes; fm_test_cleanup' EXIT
+  for ((lane = 0; lane < LANES; lane++)); do
+    run_lane &
+    LANE_PIDS+=("$!")
+  done
+  for pid in "${LANE_PIDS[@]}"; do
+    wait "$pid" || { printf 'not ok - a lane ended abnormally (%s)\n' "$?" >&2; status=1; }
+  done
+  LANE_PIDS=()
+
+  # Print every case's output in the order listed, and fail with the first
+  # failing case's status. A case with no result is one that never started
+  # because an earlier failure stopped the lanes; with no failure, it is lost
+  # coverage and fails the file.
+  for i in "${!CASES[@]}"; do
+    if [ ! -e "$LANE_DIR/out/$i.rc" ]; then
+      [ -e "$LANE_DIR/failed" ] || { printf 'not ok - %s reported no result\n' "${CASES[$i]}" >&2; status=1; }
+      continue
+    fi
+    cat "$LANE_DIR/out/$i.out"
+    cat "$LANE_DIR/out/$i.err" >&2
+    rc=$(cat "$LANE_DIR/out/$i.rc")
+    [ "$rc" -eq 0 ] || [ "$status" -ne 0 ] || status=$rc
+  done
+  return "$status"
+}
+
+if [ "$LANES" -eq 1 ]; then
+  for case_name in "${CASES[@]}"; do
+    "$case_name"
+  done
+else
+  run_lanes
+fi
