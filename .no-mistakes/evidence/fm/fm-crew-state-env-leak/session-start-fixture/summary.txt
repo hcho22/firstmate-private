@@ -1,0 +1,5 @@
+head-oldfix rc=1 secs=25 ok - instruction baselines require SHA-256 and successful startup completion not ok - the digest called the slow state reader on its blocking path 
+head-newfix rc=0 secs=25 ok - instruction baselines require SHA-256 and successful startup completion ok - session start: inactive reconciliation runs after the digest and retains its durable wake 
+head-mutant rc=1 secs=23 ok - instruction baselines require SHA-256 and successful startup completion not ok - the digest called the slow state reader on its blocking path 
+base-newfix rc=0 secs=24 ok - instruction baselines require SHA-256 and successful startup completion ok - session start: inactive reconciliation runs after the digest and retains its durable wake 
+head full fm-session-start rc=0 secs=360

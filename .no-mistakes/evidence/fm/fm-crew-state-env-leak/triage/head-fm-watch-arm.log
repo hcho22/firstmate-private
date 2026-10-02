@@ -1,0 +1,12 @@
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-10-02T06:32:58Z tests/fm-watch-arm.test.sh family=watcher-wake-lock expected_gate_skip=none
+ok - watch-arm: an attached arm reports the wake its cycle delivered instead of a false failure
+ok - watch-arm: a delivered wake consumed by the handling turn still closes the attached arm cleanly
+ok - watch-arm: a cycle that delivered no wake of its own still fails loudly
+/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3XEP8PB80JBAS3EVK1MH5WC/bin/fm-watch-arm.sh: line 566: 17846 Killed: 9               "$WATCH" > "$child_out"
+not ok - re-arm stayed live instead of surfacing durable wakes and the still-open remote decision
+FM_TEST_END 2026-10-02T06:33:28Z tests/fm-watch-arm.test.sh exit=1 duration_ms=30701 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=1 skipped_gate=0 duration_ms=31640
+FM_TEST_SUMMARY_FAMILY family=watcher-wake-lock count=1 duration_ms=30701 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-watch-arm.test.sh duration_ms=30701

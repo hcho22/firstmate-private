@@ -1,0 +1,1 @@
+not ok - the digest called the slow state reader on its blocking path

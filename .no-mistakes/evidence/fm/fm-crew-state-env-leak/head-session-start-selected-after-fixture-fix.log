@@ -1,0 +1,5 @@
+ok - session start: inactive reconciliation runs after the digest and retains its durable wake
+ok - startup keeps its internal variables out of the backend server environment, so later sessions read every task's real record
+ok - a deferred secondmate relaunch starts its backend server without startup's internal variables
+# selected: all assertions passed
+bash tests/.select-session-start.test.sh  9.04s user 14.08s system 51% cpu 45.243 total

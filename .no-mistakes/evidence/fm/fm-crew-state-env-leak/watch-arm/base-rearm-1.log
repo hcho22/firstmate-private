@@ -1,0 +1,4 @@
+/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-base-ce3403a.HOhteQ/bin/fm-watch-arm.sh: line 566: 24946 Killed: 9               "$WATCH" > "$child_out"
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 25434.1790929441.7WxIbF
+ok - watch-arm: re-arm surfaces every queued wake and an open remote decision after downtime
+SINGLE-DONE

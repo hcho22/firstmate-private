@@ -1,0 +1,37 @@
+# live herdr session-env check: head-a7c6c0b-round2
+# source tree: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M3XEP8PB80JBAS3EVK1MH5WC (a7c6c0b)
+# isolated HOME: /tmp/fmlv.hjyj/h (herdr sockets resolve under it)
+
+## before startup: isolated herdr server running?
+{"running":false,"socket":"/tmp/fmlv.hjyj/h/.config/herdr/sessions/lv/herdr.sock"}
+
+## run the Claude SessionStart hook entry point: bin/fm-sessionstart-run.sh
+exit=0 (digest saved to session-start.out; first lines:)
+
+================================================================================
+SESSION START - /tmp/fmlv.hjyj/m
+================================================================================
+
+
+## after startup: did startup launch the isolated herdr server?
+{"running":true,"socket":"/tmp/fmlv.hjyj/h/.config/herdr/sessions/lv/herdr.sock"}
+server pid: 53606
+server process environment, FM_* names (ps eww):
+  (end)
+
+## open a fresh pane in that server (what a later captain session gets)
+pane: w1:p1
+pane transcript (herdr pane read):
+  | --- FM_ vars in this pane ---
+  | --- end ---
+  | $ fm-crew-state.sh alpha
+  | state: unknown · source: none · backend target gone:
+  | lv:p-alpha
+  | $ fm-crew-state.sh beta
+  | state: unknown · source: none · backend target gone:
+  | lv:p-beta
+  | PANE-DONE
+  | Chos-iMac-9711:fmlv.hjyj hcho$
+
+## teardown: stop only the isolated session
+stopped session lv

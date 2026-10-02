@@ -1,0 +1,18 @@
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-10-02T06:29:58Z tests/fm-session-start.test.sh family=session-bootstrap expected_gate_skip=none
+ok - context digest distinguishes ABSENT, empty-but-present, and populated files
+ok - a lock refusal prints a loud read-only banner, skips every mutating step, and still completes the digest
+ok - session start stays read-only when lock ownership cannot be published
+ok - locked session start freezes trace context and lock refusal leaves it unchanged
+ok - concurrent session-lock acquisition admits exactly one live harness
+ok - digest sections are ordered safety-preamble first, live fleet state before curated memory
+ok - the read-once contract is stated once, ahead of the sources it governs
+ok - session start: configured and auto-detected Herdr homes never require tmux
+ok - session start: an absent recorded tmux window relaunches its Pi secondmate exactly once, off the blocking path
+ok - session start: a deferred relaunch is always reported, so the digest's stale endpoint record cannot stand
+not ok - the digest called the slow state reader on its blocking path
+FM_TEST_END 2026-10-02T06:31:01Z tests/fm-session-start.test.sh exit=1 duration_ms=62406 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=1 skipped_gate=0 duration_ms=62948
+FM_TEST_SUMMARY_FAMILY family=session-bootstrap count=1 duration_ms=62406 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-session-start.test.sh duration_ms=62406

@@ -1,0 +1,51 @@
+# live herdr session-env check: base-ce3403a
+# source tree: /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-base-ce3403a.feWDB3 (a7e47f1)
+# isolated HOME: /tmp/fmlv.q9Z0/h (herdr sockets resolve under it)
+
+## before startup: isolated herdr server running?
+{"running":false,"socket":"/tmp/fmlv.q9Z0/h/.config/herdr/sessions/lv/herdr.sock"}
+
+## run the Claude SessionStart hook entry point: bin/fm-sessionstart-run.sh
+exit=0 (digest saved to session-start.out; first lines:)
+
+================================================================================
+SESSION START - /tmp/fmlv.q9Z0/m
+================================================================================
+
+
+## after startup: did startup launch the isolated herdr server?
+{"running":true,"socket":"/tmp/fmlv.q9Z0/h/.config/herdr/sessions/lv/herdr.sock"}
+server pid: 55164
+server process environment, FM_* names (ps eww):
+  FM_CREW_STATE_META_OVERRIDE
+  FM_CREW_STATE_STATUS_OVERRIDE
+  FM_HOME_SUMMARY_IF_IDLE
+  FM_HOME_SUMMARY_WORKER_BEST_EFFORT
+  FM_SESSION_START_STAGE_FILE
+  (end)
+
+## open a fresh pane in that server (what a later captain session gets)
+pane: w1:p1
+pane transcript (herdr pane read):
+  | --- FM_ vars in this pane ---
+  | FM_CREW_STATE_META_OVERRIDE=/var/folders/9t/k_yy9fqs5
+  | vd27rf12jx_rzqh0000gn/T//fm-fleet-tasks.oII8EX/alpha.
+  | meta
+  | FM_CREW_STATE_STATUS_OVERRIDE=/var/folders/9t/k_yy9fq
+  | s5vd27rf12jx_rzqh0000gn/T//fm-fleet-tasks.oII8EX/alph
+  | a.status
+  | FM_HOME_SUMMARY_IF_IDLE=0
+  | FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  | FM_SESSION_START_STAGE_FILE=/var/folders/9t/k_yy9fqs5
+  | vd27rf12jx_rzqh0000gn/T//fm-session-start-stage.JZo1W
+  | A
+  | --- end ---
+  | $ fm-crew-state.sh alpha
+  | state: unknown · source: none · no metadata for alpha
+  | $ fm-crew-state.sh beta
+  | state: unknown · source: none · no metadata for beta
+  | PANE-DONE
+  | Chos-iMac-9711:fmlv.q9Z0 hcho$
+
+## teardown: stop only the isolated session
+stopped session lv

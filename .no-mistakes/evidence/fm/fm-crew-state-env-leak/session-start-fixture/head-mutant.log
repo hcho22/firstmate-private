@@ -1,0 +1,3 @@
+ok - instruction baselines require SHA-256 and successful startup completion
+# fm-session-start.test.sh: all assertions passed
+not ok - the digest called the slow state reader on its blocking path

@@ -1,0 +1,14 @@
+head run=1 rc=0 secs=18 ok - watch-arm: re-arm surfaces every queued wake and an open remote decision after downtime 
+base run=1 rc=0 secs=21 ok - watch-arm: re-arm surfaces every queued wake and an open remote decision after downtime 
+head run=2 rc=0 secs=17 ok - watch-arm: re-arm surfaces every queued wake and an open remote decision after downtime 
+base run=2 rc=0 secs=17 ok - watch-arm: re-arm surfaces every queued wake and an open remote decision after downtime 
+head run=3 rc=0 secs=18 ok - watch-arm: re-arm surfaces every queued wake and an open remote decision after downtime 
+base run=3 rc=0 secs=20 ok - watch-arm: re-arm surfaces every queued wake and an open remote decision after downtime 
+head run=4 rc=0 secs=19 ok - watch-arm: re-arm surfaces every queued wake and an open remote decision after downtime 
+base run=4 rc=0 secs=20 ok - watch-arm: re-arm surfaces every queued wake and an open remote decision after downtime 
+head run=5 rc=0 secs=18 ok - watch-arm: re-arm surfaces every queued wake and an open remote decision after downtime 
+base run=5 rc=0 secs=16 ok - watch-arm: re-arm surfaces every queued wake and an open remote decision after downtime 
+head run=6 rc=0 secs=19 ok - watch-arm: re-arm surfaces every queued wake and an open remote decision after downtime 
+base run=6 rc=0 secs=19 ok - watch-arm: re-arm surfaces every queued wake and an open remote decision after downtime 
+head full rc=0 secs=96 notok=0
+base full rc=0 secs=110 notok=0
