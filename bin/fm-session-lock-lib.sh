@@ -252,9 +252,9 @@ fm_session_lock_pid_in_ancestry() {  # <pid>
 fm_session_lock_held_by_other() {
   local state=$1 lock_pid
   lock_pid=$(fm_session_lock_holder_pid "$state") || return 1
+  fm_session_lock_pid_in_ancestry "$lock_pid" && return 1
   fm_harness_pid_alive "$lock_pid" || return 1
-  fm_harness_ancestry_pids >/dev/null || return 1
-  ! fm_session_lock_pid_in_ancestry "$lock_pid"
+  fm_harness_ancestry_pids >/dev/null
 }
 
 # Print the newest takeover record (bin/fm-lock.sh appends one to

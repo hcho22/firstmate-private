@@ -232,9 +232,7 @@ if fm_session_lock_held_by_other "$STATE"; then
   if displaced_record=$(fm_session_lock_displaced_record "$STATE"); then
     displaced_session_notice "$displaced_record"
   fi
-  if [ "$FM_SUP_NEEDED" = true ] && [ "$FM_SUP_WATCHER_FRESH" = false ] \
-    && ! fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME" \
-    && ! { [ "$FM_SUP_WATCHER_FRESH" = true ] && fm_afk_daemon_owns_supervision "$STATE"; }; then
+  if [ "$FM_SUP_NEEDED" = true ] && [ "$FM_SUP_WATCHER_FRESH" = false ]; then
     readonly_session_notice
   fi
   exit 0
