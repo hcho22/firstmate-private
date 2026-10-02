@@ -42,6 +42,25 @@ command -v tasks-axi >/dev/null 2>&1 || {
 
 # --- fixture ----------------------------------------------------------------
 
+# Every case starts from the same five stand-in tools, so they are written once,
+# read-only, and linked into each case's fakebin instead of re-created per case.
+# That matters on a host that assesses a newly created executable the first time
+# it runs (0.5-1.5 s each on macOS, for a file a sandboxed process wrote): a fresh
+# copy per case paid that for most of them in nearly every case. A case that needs
+# different behavior removes the link and writes its own file; a redirect into the
+# link fails on the read-only target rather than rewriting the stub every later
+# case shares.
+SHARED_STUBS="$TMP_ROOT/shared-stubs"
+mkdir -p "$SHARED_STUBS"
+cat > "$SHARED_STUBS/tmux" <<'SH'
+#!/usr/bin/env bash
+case "$*" in *"#{pane_current_path}"*) printf '%s\n' "${FM_FAKE_PANE_PATH:-}"; exit 0 ;; esac
+case "${1:-}" in display-message) printf 'firstmate\n'; exit 0 ;; esac
+exit 0
+SH
+fm_fake_exit0 "$SHARED_STUBS" treehouse gh gh-axi no-mistakes
+chmod 0555 "$SHARED_STUBS"/*
+
 # A real project clone with an origin and a pooled worktree. Only a spawn reads
 # them, so run_spawn builds them on first use instead of every case paying for
 # the git setup.
@@ -55,7 +74,7 @@ ensure_project() {  # <case-dir>
 
 # A home with a real backlog and stubs for every tool the spawn path shells out to.
 make_home() {  # <name> [task-id...]
-  local name=$1 case_dir home fakebin id
+  local name=$1 case_dir home fakebin id tool
   shift
   case_dir="$TMP_ROOT/$name"
   home="$case_dir/home"
@@ -80,14 +99,9 @@ Delivery contract: mode=no-mistakes
 EOF
   done
 
-  cat > "$fakebin/tmux" <<'SH'
-#!/usr/bin/env bash
-case "$*" in *"#{pane_current_path}"*) printf '%s\n' "${FM_FAKE_PANE_PATH:-}"; exit 0 ;; esac
-case "${1:-}" in display-message) printf 'firstmate\n'; exit 0 ;; esac
-exit 0
-SH
-  chmod +x "$fakebin/tmux"
-  fm_fake_exit0 "$fakebin" treehouse gh gh-axi no-mistakes
+  for tool in tmux treehouse gh gh-axi no-mistakes; do
+    ln -s "$SHARED_STUBS/$tool" "$fakebin/$tool"
+  done
 
   printf '%s\n' "$case_dir"
 }
@@ -247,6 +261,7 @@ SH
 
 break_launch_delivery() {  # <case-dir>
   local case_dir=$1
+  rm -f "$case_dir/fakebin/tmux"
   cat > "$case_dir/fakebin/tmux" <<'SH'
 #!/usr/bin/env bash
 case "$*" in *"#{pane_current_path}"*) printf '%s\n' "${FM_FAKE_PANE_PATH:-}"; exit 0 ;; esac
@@ -261,11 +276,13 @@ SH
 
 track_teardown_resource_actions() {  # <case-dir>
   local case_dir=$1
+  rm -f "$case_dir/fakebin/tmux"
   cat > "$case_dir/fakebin/tmux" <<SH
 #!/usr/bin/env bash
 : > "$case_dir/backend-resource-action"
 exit 0
 SH
+  rm -f "$case_dir/fakebin/treehouse"
   cat > "$case_dir/fakebin/treehouse" <<SH
 #!/usr/bin/env bash
 : > "$case_dir/local-copy-resource-action"
@@ -276,6 +293,7 @@ SH
 
 interrupt_teardown_during_treehouse_return() {  # <case-dir>
   local case_dir=$1
+  rm -f "$case_dir/fakebin/treehouse"
   cat > "$case_dir/fakebin/treehouse" <<SH
 #!/usr/bin/env bash
 if [ "\${1:-}" = return ] && [ ! -f "$case_dir/teardown-interrupted" ]; then
@@ -296,6 +314,7 @@ interrupt_kimi_readiness() {  # <case-dir>
   mkdir -p "$home/.kimi-code"
   printf '# test config\n' > "$home/.kimi-code/config.toml"
   fm_fake_exit0 "$case_dir/fakebin" kimi
+  rm -f "$case_dir/fakebin/tmux"
   cat > "$case_dir/fakebin/tmux" <<SH
 #!/usr/bin/env bash
 case "\$*" in
@@ -484,6 +503,7 @@ test_dispatch_refuses_a_pending_authoritative_close() {
   marker="$(home_of "$case_dir")/state/$id.backlog-close"
   printf 'id=%s\ndata=%s\nspawn_gen=spawn-closing\narg=--pr\narg=https://github.com/example/repo/pull/12\n' \
     "$id" "$(home_of "$case_dir")/data" > "$marker"
+  rm -f "$case_dir/fakebin/tmux"
   cat > "$case_dir/fakebin/tmux" <<SH
 #!/usr/bin/env bash
 case "\$*" in
@@ -519,6 +539,7 @@ test_dispatch_refuses_a_held_row_before_creating_resources() {
   add_item "$case_dir" "$id"
   tasks-axi hold "$id" --reason "captain decision pending" --kind captain \
     --file "$(backlog_of "$case_dir")" >/dev/null
+  rm -f "$case_dir/fakebin/tmux"
   cat > "$case_dir/fakebin/tmux" <<SH
 #!/usr/bin/env bash
 case "\$*" in
@@ -554,6 +575,7 @@ test_dispatch_refuses_a_blocked_row_before_creating_resources() {
   add_item "$case_dir" "$blocker"
   tasks-axi add "$id" "item for $id" --kind ship --blocked-by "$blocker" \
     --file "$(backlog_of "$case_dir")" >/dev/null
+  rm -f "$case_dir/fakebin/tmux"
   cat > "$case_dir/fakebin/tmux" <<SH
 #!/usr/bin/env bash
 case "\$*" in
@@ -589,6 +611,7 @@ test_dispatch_refuses_a_held_in_flight_row_before_relaunch() {
   start_item "$case_dir" "$id"
   tasks-axi hold "$id" --reason "captain decision pending" --kind captain \
     --file "$(backlog_of "$case_dir")" >/dev/null
+  rm -f "$case_dir/fakebin/tmux"
   cat > "$case_dir/fakebin/tmux" <<SH
 #!/usr/bin/env bash
 case "\$*" in
