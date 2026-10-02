@@ -695,6 +695,18 @@ test_arm_starts_and_self_heals() {
   pass "arm starts cleanly and resurfaces recovery after a dead-pid lock"
 }
 
+# exec_with_default_hup <command...>: replace the calling (background) subshell
+# with <command> under the default HUP disposition, so the pid the caller captured
+# with $! is the command's. A suite started under nohup, or by a daemon or
+# pipeline, hands every child an ignored SIGHUP, and bash cannot trap a signal that
+# was ignored on entry: an arm started by such a suite never sees a HUP the case
+# sends it, the case waits on it forever, and the arm and its watcher outlive the
+# suite. Every arm a case signals with HUP starts here so the case does not depend
+# on how the suite was launched.
+exec_with_default_hup() {
+  exec perl -e '$SIG{HUP} = "DEFAULT"; exec @ARGV' "$@"
+}
+
 # arm_hup_diagnostics <arm-pid> <arm-output> <state-dir>: what an arm that did not
 # exit on HUP is waiting on - its output, every process under it, the lock files,
 # and the lifecycle ledger. Printed only when the assertion fails.
@@ -752,15 +764,9 @@ wait() {
 }
 SH
     fi
-    # A suite started under nohup, or by a daemon or pipeline, hands every child an
-    # ignored SIGHUP, and bash cannot trap a signal that was ignored on entry: the
-    # arm would never see this HUP and the case would wait out its hang guard no
-    # matter what the arm does. Give the arm under test the default HUP
-    # disposition (the exec keeps its pid) so the case does not depend on how the
-    # suite was launched.
     BASH_ENV="$seam" FM_TEST_WAIT_WINDOW_ONCE="$dir/wait-window-once" FM_TEST_WAIT_WINDOW_SECS=2 \
       PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
-      perl -e '$SIG{HUP} = "DEFAULT"; exec @ARGV' "$WATCH_ARM" > "$armout" &
+      exec_with_default_hup "$WATCH_ARM" > "$armout" &
     armpid=$!
     # Wait on the events themselves, bounded by time rather than by a count of
     # sleeps: a loaded host stretches each wait, and only a genuine hang reaches
@@ -923,7 +929,7 @@ SH
 
   rm -f "$check_file" "$state/task.check-trust"
   armout="$dir/successor-arm.out"
-  PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_WATCH_PREDECESSOR_ARM_PID="$first_arm" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH_ARM" > "$armout" &
+  PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_WATCH_PREDECESSOR_ARM_PID="$first_arm" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 exec_with_default_hup "$WATCH_ARM" > "$armout" &
   successor_arm=$!
   i=0
   while [ "$i" -lt 80 ]; do
@@ -936,7 +942,8 @@ SH
   grep -q "arm_pid=$first_arm.*successor=started:$successor_pid" "$state/.watch-cycle-exits.log" \
     || fail "predecessor ledger record was not linked to its verified successor"
   kill -HUP "$successor_arm" 2>/dev/null || true
-  wait "$successor_arm" 2>/dev/null || true
+  wait_for_exit "$successor_arm" 80 > /dev/null || [ "$?" -ne 124 ] \
+    || fail "the successor ledger arm did not exit on HUP"
   # The forced interruption is a watcher-down interval. Consume the prior
   # delivered wake before beginning independent ledger cycles, just as the
   # recovery handling turn does, so this fixture does not intentionally carry a
@@ -948,7 +955,7 @@ SH
   iteration=0
   while [ "$iteration" -lt 6 ]; do
     armout="$dir/bounded-$iteration.out"
-    PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_WATCH_CYCLE_LOG_MAX_BYTES=1400 FM_WATCH_CYCLE_LOG_KEEP_LINES=2 FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH_ARM" > "$armout" &
+    PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_WATCH_CYCLE_LOG_MAX_BYTES=1400 FM_WATCH_CYCLE_LOG_KEEP_LINES=2 FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 exec_with_default_hup "$WATCH_ARM" > "$armout" &
     successor_arm=$!
     i=0
     while [ "$i" -lt 80 ]; do
@@ -958,7 +965,8 @@ SH
     done
     grep -qF 'watcher: started pid=' "$armout" || fail "bounded ledger cycle $iteration did not start"
     kill -HUP "$successor_arm" 2>/dev/null || true
-    wait "$successor_arm" 2>/dev/null || true
+    wait_for_exit "$successor_arm" 80 > /dev/null || [ "$?" -ne 124 ] \
+      || fail "bounded ledger arm $iteration did not exit on HUP"
     drain_and_ack "$state" \
       || fail "recovery drain after bounded ledger cycle $iteration failed"
     iteration=$((iteration + 1))
