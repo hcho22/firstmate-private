@@ -696,32 +696,66 @@ test_arm_starts_and_self_heals() {
 }
 
 test_arm_hup_cleans_child_and_temp_output() {
-  local dir state fakebin armout i armpid lock_pid status
-  dir=$(make_case arm-hup-cleanup)
-  state="$dir/state"
-  fakebin="$dir/fakebin"
-  armout="$dir/arm.out"
-  PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH_ARM" > "$armout" &
-  armpid=$!
-  i=0
-  while [ "$i" -lt 80 ]; do
-    grep -qF 'watcher: started pid=' "$armout" 2>/dev/null && break
-    sleep 0.1
-    i=$((i + 1))
+  # Two rows, one assertion block. "settled" sends HUP once the arm is blocked
+  # following its watcher. "entering" sends it while the arm is in the instant
+  # between its last command boundary and that follow starting, which stock
+  # macOS bash 3.2 mishandles for a bare `wait`: a trapped signal that is already
+  # pending when the builtin starts blocking is not noticed until the child
+  # exits, which for a live watcher is never, so the arm would ignore the HUP and
+  # keep the watcher running. The seam below stretches that instant for the
+  # arm's first `wait` (a real arm reaches it within microseconds of printing
+  # 'started', so a signal landing there is rare but not impossible, and a loaded
+  # host makes it likelier). Bash 5 delivers the pending trap when the builtin
+  # starts, so only 3.2 can fail the row.
+  local row dir state fakebin armout seam guard armpid lock_pid status
+  for row in settled entering; do
+    dir=$(make_case "arm-hup-cleanup-$row")
+    state="$dir/state"
+    fakebin="$dir/fakebin"
+    armout="$dir/arm.out"
+    seam="$dir/wait-window.sh"
+    : > "$seam"
+    if [ "$row" = entering ]; then
+      cat > "$seam" <<'SH'
+wait() {
+  case "${BASH_SOURCE[1]##*/}" in
+    fm-watch-arm.sh)
+      if mkdir "$FM_TEST_WAIT_WINDOW_ONCE" 2>/dev/null; then
+        builtin wait "$(sleep "$FM_TEST_WAIT_WINDOW_SECS"; printf '%s' "${1:-}")"
+        return
+      fi
+      ;;
+  esac
+  builtin wait "$@"
+}
+SH
+    fi
+    BASH_ENV="$seam" FM_TEST_WAIT_WINDOW_ONCE="$dir/wait-window-once" FM_TEST_WAIT_WINDOW_SECS=2 \
+      PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH_ARM" > "$armout" &
+    armpid=$!
+    # Wait on the events themselves, bounded by time rather than by a count of
+    # sleeps: a loaded host stretches each wait, and only a genuine hang reaches
+    # the 60 s guard.
+    guard=$((SECONDS + 60))
+    until grep -qF 'watcher: started pid=' "$armout" 2>/dev/null; do
+      [ "$SECONDS" -lt "$guard" ] || fail "arm ($row) did not start before HUP cleanup check"
+      sleep 0.02
+    done
+    lock_pid=$(cat "$state/.watch.lock/pid" 2>/dev/null || true)
+    kill -HUP "$armpid" 2>/dev/null || fail "could not send HUP to arm ($row)"
+    wait_for_exit "$armpid" 80
+    status=$?
+    [ "$status" -eq 129 ] || fail "arm ($row) did not exit with HUP status (got $status)"
+    if [ "$row" = entering ]; then
+      [ -d "$dir/wait-window-once" ] || fail "arm ($row) never reached the stretched wait, so the row checked nothing"
+    fi
+    guard=$((SECONDS + 60))
+    while is_live_non_zombie "$lock_pid"; do
+      [ "$SECONDS" -lt "$guard" ] || fail "HUP cleanup ($row) left watcher child running"
+      sleep 0.02
+    done
+    ! ls "$state"/.watch-arm-output.* >/dev/null 2>&1 || fail "HUP cleanup ($row) left temp output behind"
   done
-  grep -qF 'watcher: started pid=' "$armout" || fail "arm did not start before HUP cleanup check"
-  lock_pid=$(cat "$state/.watch.lock/pid" 2>/dev/null || true)
-  kill -HUP "$armpid" 2>/dev/null || fail "could not send HUP to arm"
-  wait_for_exit "$armpid" 80
-  status=$?
-  [ "$status" -eq 129 ] || fail "arm did not exit with HUP status (got $status)"
-  i=0
-  while [ "$i" -lt 80 ] && is_live_non_zombie "$lock_pid"; do
-    sleep 0.1
-    i=$((i + 1))
-  done
-  ! is_live_non_zombie "$lock_pid" || fail "HUP cleanup left watcher child running"
-  ! ls "$state"/.watch-arm-output.* >/dev/null 2>&1 || fail "HUP cleanup left temp output behind"
   pass "arm cleans child watcher and temp output on HUP"
 }
 
