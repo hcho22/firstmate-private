@@ -102,9 +102,12 @@
 # pane behaves like a run in CI instead of failing on, or touching, the live
 # session it was launched from. Test-owned controls pass through: FM_TEST_* and
 # FM_ISOLATION_*, and the opt-in gates (*_LIVE, *_LIVE_E2E, *_E2E, *_EVAL,
-# FM_HARNESS_LIVENESS_DRIFT). A line names whatever was dropped. Running a test
-# directly with bash does not go through this runner and inherits the caller's
-# environment.
+# FM_HARNESS_LIVENESS_DRIFT). A line names whatever was dropped. Every script
+# also gets its own private mode-0700 TMPDIR (and TMP) under this run's
+# temporary root, so temp roots never collide and the orphaned-worker sweeps a
+# test's fixtures run, which tests/lib.sh scopes to TMPDIR, never reach another
+# script's or another run's fixtures. Running a test directly with bash does not
+# go through this runner and inherits the caller's environment.
 #
 # Per-script machine-parseable markers (stdout):
 #   FM_TEST_BEGIN <iso8601> <script> family=<family> expected_gate_skip=<class>
@@ -2250,7 +2253,7 @@ run_script_bounded() {  # <script> <out> <stream> <id>
 
 run_one_serial() {
   local script=$1
-  local base family expected out begin_iso begin_ms end_ms end_iso duration rc
+  local base family expected out work begin_iso begin_ms end_ms end_iso duration rc
   base=$(basename "$script")
   family=$(family_for_basename "$base")
   expected=$(expected_gate_skip_for_family "$family")
@@ -2261,9 +2264,14 @@ run_one_serial() {
   printf 'FM_TEST_BEGIN %s %s family=%s expected_gate_skip=%s\n' \
     "$begin_iso" "$script" "$family" "$expected"
 
+  # A private TMPDIR, as every concurrent worker gets (see the header).
+  work="$RUN_TMP/s$TOTAL"
+  mkdir -p "$work/tmp"
+  chmod 0700 "$work" "$work/tmp" || die "could not chmod 0700 serial script root $work"
+
   set +e
   # Stream live output while retaining a copy for gate-skip detection.
-  run_script_bounded "$script" "$out" 1 "s$TOTAL"
+  TMPDIR="$work/tmp" TMP="$work/tmp" run_script_bounded "$script" "$out" 1 "s$TOTAL"
   rc=$?
   set -e
   : "${rc:=1}"
@@ -2283,8 +2291,8 @@ if [ "$JOBS" -eq 1 ]; then
   done
 else
   # Bounded concurrent execution for admitted scripts. Each worker gets a
-  # private mode-0700 TMPDIR so mktemp roots cannot collide. Retries are never
-  # used as a green strategy.
+  # private mode-0700 TMPDIR (see the header). Retries are never used as a green
+  # strategy.
   worker_n=0
   active_workers=0
 

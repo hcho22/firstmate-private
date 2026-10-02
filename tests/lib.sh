@@ -35,6 +35,13 @@ FM_TEST_LIB_SOURCED=1
 # strips this to verify real refusal.
 export FM_GATE_REFUSE_BYPASS=1
 
+# Keep every orphaned-worker sweep a test triggers (each fm-teardown.sh runs one)
+# inside this test's own TMPDIR instead of the whole host, so parallel scripts
+# and other suite runs cannot stop each other's stand-in workers and a test run
+# never stops a real process. bin/fm-remote-job-reap-orphans.sh owns the scope
+# rule; tests/fm-remote-job-orphan-reap.test.sh covers both scoped and host-wide.
+export FM_REMOTE_JOB_REAP_SCOPE="${TMPDIR:-/tmp}"
+
 # Startup passes these to its own children and withdraws them once read. A shell
 # that inherited them from a pane started before that was true would otherwise
 # point every fm-crew-state.sh read here at one task's long-gone snapshot.

@@ -669,6 +669,64 @@ PYJSON
   pass "a plain script list defaults to bounded automatic concurrency without an automatic timeout"
 }
 
+# Every script, serial or concurrent, runs with its own private mode-0700 TMPDIR
+# under the run's temporary root, never the caller's shared one: temp roots
+# cannot collide, and the orphaned-worker sweeps a test's fixtures run (which
+# tests/lib.sh scopes to TMPDIR) cannot reach another script's or run's fixtures.
+test_every_script_gets_a_private_tmpdir() {
+  local tmp repo script report caller_tmp count distinct row name dir tmpvar mode
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-private-tmp.XXXXXX")
+  tmp=$(cd "$tmp" && pwd -P)
+  repo="$tmp/repo"
+  caller_tmp="$tmp/caller-tmp"
+  report="$tmp/report.tsv"
+  mkdir -p "$caller_tmp"
+  init_changed_fixture_repo "$repo"
+  # fm-cd-pretool-check and fm-pr-merge are individually proven isolated, so a
+  # plain list runs them concurrently; fm-backend-orca is not, so it runs in the
+  # serial tail, and --jobs 1 runs all three serially.
+  for script in fm-cd-pretool-check.test.sh fm-pr-merge.test.sh fm-backend-orca.test.sh; do
+    cat >"$repo/tests/$script" <<'SH'
+#!/usr/bin/env bash
+mode=$(stat -f %Lp "$TMPDIR" 2>/dev/null || stat -c %a "$TMPDIR" 2>/dev/null)
+printf '%s\t%s\t%s\t%s\n' "$(basename "$0")" "$TMPDIR" "${TMP:-}" "$mode" >>"$FM_TEST_TMPDIR_REPORT"
+echo "ok - private tmpdir fixture"
+SH
+    chmod +x "$repo/tests/$script"
+  done
+
+  for jobs in 1 auto; do
+    : >"$report"
+    if [ "$jobs" = 1 ]; then
+      set -- --jobs 1
+    else
+      set --
+    fi
+    (cd "$repo" && TMPDIR="$caller_tmp" FM_TEST_TMPDIR_REPORT="$report" bin/fm-test-run.sh \
+        tests/fm-cd-pretool-check.test.sh tests/fm-pr-merge.test.sh tests/fm-backend-orca.test.sh "$@") \
+      >"$tmp/run-$jobs.out" 2>"$tmp/run-$jobs.err" \
+      || fail "the private-tmpdir run (jobs=$jobs) failed: $(cat "$tmp/run-$jobs.err")"
+    count=$(wc -l <"$report" | tr -d ' ')
+    [ "$count" = 3 ] || fail "expected 3 private-tmpdir reports (jobs=$jobs), got $count: $(cat "$report")"
+    distinct=$(cut -f2 "$report" | sort -u | wc -l | tr -d ' ')
+    [ "$distinct" = 3 ] || fail "scripts shared a TMPDIR (jobs=$jobs): $(cat "$report")"
+    while IFS= read -r row; do
+      IFS=$'\t' read -r name dir tmpvar mode <<EOF
+$row
+EOF
+      case "$dir" in
+        "$caller_tmp"/fm-test-run.*/*) ;;
+        *) fail "$name ran with TMPDIR outside the run's own root (jobs=$jobs): $dir" ;;
+      esac
+      [ "$tmpvar" = "$dir" ] || fail "$name saw TMP=$tmpvar beside TMPDIR=$dir (jobs=$jobs)"
+      [ "$mode" = 700 ] || fail "$name's TMPDIR was mode $mode, not 700 (jobs=$jobs)"
+    done <"$report"
+  done
+
+  rm -rf "$tmp"
+  pass "every script, serial or concurrent, runs with its own private TMPDIR"
+}
+
 test_family_proofs_run_in_separate_concurrent_phases() {
   local tmp repo script
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-family-phases.XXXXXX")
@@ -1625,6 +1683,7 @@ test_changed_bin_reference_selects_per_script_not_per_family
 test_changed_bound_scales_with_the_duration_hint
 test_changed_uses_bounded_automatic_concurrency
 test_script_list_uses_bounded_automatic_concurrency
+test_every_script_gets_a_private_tmpdir
 test_family_proofs_run_in_separate_concurrent_phases
 test_empty_selection_emits_summary
 test_timing_markers_and_json

@@ -3,6 +3,8 @@
 #
 # Usage: fm-remote-job-reap-orphans.sh [--dry-run]
 #   --dry-run reports what would be reaped and signals nothing.
+#   FM_REMOTE_JOB_REAP_SCOPE=<dir> (optional) limits the sweep to workers whose
+#   code root lies inside <dir>; unset or empty keeps the host-wide sweep.
 #
 # A remote job worker (bin/fm-remote-job-worker.sh) is launched from a specific
 # Firstmate code root: the account's own checkout under the LaunchAgent, a
@@ -28,6 +30,17 @@
 # once (TERM first, KILL only for a survivor) and a group whose leader is not
 # itself a worker is stopped as a single process instead.
 #
+# FM_REMOTE_JOB_REAP_SCOPE narrows the candidates to code roots inside one
+# existing directory, matched against both its spelling and its physical path
+# so a root recorded through a symlinked prefix (macOS /var -> /private/var)
+# still matches. Nothing outside the scope is inspected further or signalled,
+# and a scope that is not an absolute existing directory refuses the whole sweep
+# (exit 2) rather than widening it. Production leaves it unset, so every caller,
+# including fm-teardown.sh's sweep, stays host-wide. tests/lib.sh sets it to the
+# test's own TMPDIR, so a test's fixture teardowns sweep only that test's
+# fixtures: parallel scripts and other suite runs cannot stop each other's
+# stand-in workers, and a test run never stops a real process on the host.
+#
 # Prints one line per reaped or surviving candidate and nothing when there is
 # nothing to do. Exits 0 unless the process scan itself could not run, so a
 # caller can sweep without risking its own outcome.
@@ -40,6 +53,8 @@ SCRIPT_DIR=$(CDPATH='' cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
 DRY_RUN=0
 REAP_SUFFIX=/bin/fm-remote-job-worker.sh
+REAP_SCOPE=
+REAP_SCOPE_PHYSICAL=
 
 reap_die() { printf 'fm-remote-job-reap-orphans: %s\n' "$1" >&2; exit 2; }
 
@@ -50,8 +65,32 @@ Usage: fm-remote-job-reap-orphans.sh [--dry-run]
 Stop every remote job worker whose Firstmate code root has been pruned. A
 worker whose root still exists - the account's LaunchAgent worker, a live
 remote secondmate's worker - is never a candidate. --dry-run reports the
-candidates and signals nothing. Read this script's header for the full rule.
+candidates and signals nothing. FM_REMOTE_JOB_REAP_SCOPE=<dir> limits the
+sweep to code roots inside <dir>. Read this script's header for the full rule.
 TXT
+}
+
+# Resolve FM_REMOTE_JOB_REAP_SCOPE once. Unset or empty means host-wide.
+reap_resolve_scope() {
+  local scope=${FM_REMOTE_JOB_REAP_SCOPE:-}
+  [ -n "$scope" ] || return 0
+  case "$scope" in /*) ;; *) reap_die "FM_REMOTE_JOB_REAP_SCOPE must be an absolute directory: $scope" ;; esac
+  [ -d "$scope" ] || reap_die "FM_REMOTE_JOB_REAP_SCOPE is not an existing directory: $scope"
+  REAP_SCOPE_PHYSICAL=$(CDPATH='' cd "$scope" && pwd -P) ||
+    reap_die "cannot resolve FM_REMOTE_JOB_REAP_SCOPE: $scope"
+  while [ "${scope%/}" != "$scope" ] && [ "$scope" != / ]; do scope=${scope%/}; done
+  REAP_SCOPE=$scope
+}
+
+# 0 when <root> lies inside the configured scope, or when no scope is set.
+reap_root_in_scope() { # <root>
+  local root=$1 base
+  [ -n "$REAP_SCOPE" ] || return 0
+  for base in "$REAP_SCOPE" "$REAP_SCOPE_PHYSICAL"; do
+    [ "$base" != / ] || return 0
+    case "$root" in "$base" | "$base"/*) return 0 ;; esac
+  done
+  return 1
 }
 
 # The code root a worker command line was launched from, echoed only when the
@@ -101,6 +140,7 @@ reap_orphans() {
     case "$pid" in ''|*[!0-9]*) continue ;; esac
     [ -n "$command" ] || continue
     root=$(reap_worker_root "$command") || continue
+    reap_root_in_scope "$root" || continue
     fm_remote_job_root_is_live "$root" && continue
     [ "$pid" != "$$" ] || continue
     reap_is_self_or_ancestor "$pid" && continue
@@ -134,4 +174,5 @@ case "${1:-}" in
   *) reap_die "unexpected argument: $1" ;;
 esac
 
+reap_resolve_scope
 reap_orphans

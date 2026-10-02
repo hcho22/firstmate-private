@@ -7,10 +7,10 @@
 # stops it. Observed 2026-08-07 as 29 workers at ppid 1, 1-2 days old, each
 # still appending to a log in a pruned no-mistakes gate worktree.
 #
-# bin/fm-remote-job-reap-orphans.sh is a machine-wide sweep by design, so these
-# cases assert only about their own fixture processes. Any other worker it
-# stops during the run had a pruned code root too, which is exactly the
-# contract.
+# bin/fm-remote-job-reap-orphans.sh is a machine-wide sweep by design. tests/lib.sh
+# scopes every sweep a test runs to its own TMPDIR (FM_REMOTE_JOB_REAP_SCOPE), so
+# these cases reap only their own fixtures and no other script's sweep can stop
+# them; the scope cases below also prove the unscoped sweep still reaches them.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -159,9 +159,12 @@ pass "a worker stops its whole tree once its code root is pruned"
 # that presents the same command line from a pruned root without that
 # self-termination - the shape of every worker started before it shipped.
 
-CASE2="$TMP_ROOT/case2"
-mkdir -p "$CASE2/remote-root/bin"
-cat > "$CASE2/remote-root/bin/fm-remote-job-worker.sh" <<'SH'
+# start_stand_in <remote-root>: start the stand-in as its own process group
+# leader and set STAND_IN to its supervisor pid.
+start_stand_in() {
+  local root=$1
+  mkdir -p "$root/bin"
+  cat > "$root/bin/fm-remote-job-worker.sh" <<'SH'
 #!/bin/bash
 # Stand-in for a worker predating self-termination: a supervisor that always
 # respawns its serving child and never inspects its own code root.
@@ -175,15 +178,19 @@ while :; do
   sleep 0.2
 done
 SH
-chmod +x "$CASE2/remote-root/bin/fm-remote-job-worker.sh"
-printf 'fixture\n' > "$CASE2/remote-root/AGENTS.md"
+  chmod +x "$root/bin/fm-remote-job-worker.sh"
+  printf 'fixture\n' > "$root/AGENTS.md"
+  set -m
+  "$root/bin/fm-remote-job-worker.sh" >/dev/null 2>&1 &
+  STAND_IN=$!
+  set +m
+  track "$STAND_IN"
+  wait_child "$STAND_IN" 10 || fail "the stand-in worker never started its serving child"
+}
 
-set -m
-"$CASE2/remote-root/bin/fm-remote-job-worker.sh" >/dev/null 2>&1 &
-STALE=$!
-set +m
-track "$STALE"
-wait_child "$STALE" 10 || fail "the stand-in worker never started its serving child"
+CASE2="$TMP_ROOT/case2"
+start_stand_in "$CASE2/remote-root"
+STALE=$STAND_IN
 STALE_SERVE=$(pgrep -P "$STALE" | head -n 1)
 
 rm -rf "$CASE2/remote-root"
@@ -203,3 +210,44 @@ pass "the reaper stops an abandoned worker's whole tree"
 out=$("$REAPER" 2>&1) || fail "a repeat reaper run failed: $out"
 assert_not_contains "$out" "$STALE" "the reaper reported an already-stopped worker"
 pass "the reaper is idempotent"
+
+# --- the sweep scope -----------------------------------------------------------
+
+CASE3="$TMP_ROOT/case3"
+mkdir -p "$TMP_ROOT/elsewhere"
+start_stand_in "$CASE3/remote-root"
+SCOPED=$STAND_IN
+SCOPED_SERVE=$(pgrep -P "$SCOPED" | head -n 1)
+rm -rf "$CASE3/remote-root"
+
+out=$(FM_REMOTE_JOB_REAP_SCOPE="$TMP_ROOT/elsewhere" "$REAPER" 2>&1) ||
+  fail "a sweep scoped to another directory failed: $out"
+assert_not_contains "$out" "$SCOPED" "a sweep scoped to another directory reported an out-of-scope worker"
+alive "$SCOPED" || fail "a sweep scoped to another directory stopped an out-of-scope worker"
+# Host-wide reach is proven with a dry run, so the case signals nothing outside
+# its own fixtures.
+out=$(env -u FM_REMOTE_JOB_REAP_SCOPE "$REAPER" --dry-run 2>&1) ||
+  fail "an unscoped dry run failed: $out"
+assert_contains "$out" "would reap abandoned remote job worker $SCOPED" \
+  "an unscoped sweep did not reach the abandoned worker"
+alive "$SCOPED" || fail "the unscoped dry run stopped the abandoned worker"
+pass "a scoped sweep leaves an out-of-scope worker alone and an unscoped sweep still reaches it"
+
+for scope in relative/dir "$TMP_ROOT/no-such-directory"; do
+  rc=0
+  out=$(FM_REMOTE_JOB_REAP_SCOPE="$scope" "$REAPER" 2>&1) || rc=$?
+  [ "$rc" -eq 2 ] || fail "an invalid sweep scope ($scope) did not refuse the sweep: rc=$rc $out"
+  assert_contains "$out" "FM_REMOTE_JOB_REAP_SCOPE" "an invalid sweep scope refusal did not name the setting"
+  alive "$SCOPED" || fail "an invalid sweep scope ($scope) stopped a worker instead of refusing"
+done
+pass "an invalid sweep scope refuses the whole sweep instead of widening it"
+
+# A scope spelled through a symlink still matches the physical code root.
+ln -s "$CASE3" "$TMP_ROOT/case3-link"
+out=$(FM_REMOTE_JOB_REAP_SCOPE="$TMP_ROOT/case3-link" "$REAPER" 2>&1) ||
+  fail "a sweep scoped through a symlink failed: $out"
+assert_contains "$out" "reaped abandoned remote job worker $SCOPED" \
+  "a sweep scoped through a symlink did not reap the abandoned worker inside it"
+wait_gone "$SCOPED" 20 || fail "the in-scope abandoned worker survived its scoped sweep"
+wait_gone "$SCOPED_SERVE" 20 || fail "the in-scope worker's serving child survived its scoped sweep"
+pass "a scoped sweep reaps an abandoned worker inside its scope, however the scope is spelled"
