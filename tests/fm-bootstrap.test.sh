@@ -149,6 +149,10 @@ make_fake_fleet_sync_root() {
 [ -z "${FM_FAKE_FLEET_SYNC_STARTED_MARKER:-}" ] || : > "$FM_FAKE_FLEET_SYNC_STARTED_MARKER"
 printf '%s\n' 'alpha: synced'
 printf '%s\n' 'beta: skipped: no origin remote'
+# Announce that the partial output is durable in the sweep's output file, so the
+# simulated clock in run_bootstrap_timeout_case may now be allowed to reach the
+# deadline.
+[ -z "${FM_FAKE_FLEET_SYNC_PRINTED_MARKER:-}" ] || : > "$FM_FAKE_FLEET_SYNC_PRINTED_MARKER"
 exec perl -e 'sleep 300'
 SH
   chmod +x "$fake_root/bin/fm-fleet-sync.sh"
@@ -178,21 +182,39 @@ add_no_origin_projects() {
   done
 }
 
+# Drives bootstrap's fleet-sync timeout on a simulated clock: the `sleep` it
+# exports advances SECONDS by the requested seconds in a few real milliseconds,
+# so a 20 s or 59 s aggregate bound runs fast. The simulated clock never runs
+# ahead of the fake sweep, though: the stub holds the first tick until the sweep
+# reports through FM_FAKE_FLEET_SYNC_PRINTED_MARKER that its partial output is in
+# the output file. Without that, the deadline is a race between a handful of
+# real milliseconds and the cost of launching the fake sweep (fork, env, a fresh
+# shell), which a loaded host loses, and the timeout then fires before the sweep
+# has printed anything. The wait is on the event itself; only a sweep that never
+# prints reaches its 60 s hang guard, and the caller's own assertion then names
+# the missing output. The guard reads the wall clock because SECONDS is the
+# simulated one here.
 run_bootstrap_timeout_case() {
-  local home=$1 fake_root=$2 fakebin=$3 override started_marker git_record wait_for_marker
+  local home=$1 fake_root=$2 fakebin=$3 override started_marker git_record wait_for_marker printed_marker
   override=__unset__
   started_marker=${5:-}
   git_record=${6:-}
   wait_for_marker=${7:-0}
+  printed_marker="$fake_root/fleet-sync-printed"
+  rm -f "$printed_marker"
   [ "$#" -lt 4 ] || override=$4
   (
     # shellcheck disable=SC2317,SC2329 # Exported and invoked by the bootstrap subprocess.
     sleep() {
-      local inc=${1:-1}
+      local inc=${1:-1} hang_deadline
+      if [ -n "${FM_FAKE_FLEET_SYNC_PRINTED_MARKER:-}" ] && [ ! -e "$FM_FAKE_FLEET_SYNC_PRINTED_MARKER" ]; then
+        hang_deadline=$(($(date +%s) + 60))
+        until [ -e "$FM_FAKE_FLEET_SYNC_PRINTED_MARKER" ]; do
+          [ "$(date +%s)" -lt "$hang_deadline" ] || break
+          command sleep 0.01
+        done
+      fi
       SECONDS=$((SECONDS + inc))
-      # Advance fake time quickly, but yield on every tick so the background
-      # fleet-sync process can deterministically write its partial output before
-      # the simulated timeout kills it, even on a busy full-suite runner.
       command sleep 0.01
     }
     # shellcheck disable=SC2317,SC2329 # Exported and invoked by the bootstrap subprocess.
@@ -215,6 +237,7 @@ run_bootstrap_timeout_case() {
     if [ "$override" = __unset__ ]; then
       PATH="$fakebin:$BASE_PATH" FM_HOME="$home" FM_ROOT_OVERRIDE="$fake_root" \
         FM_FAKE_FLEET_SYNC_STARTED_MARKER="$started_marker" \
+        FM_FAKE_FLEET_SYNC_PRINTED_MARKER="$printed_marker" \
         FM_FAKE_GIT_SYNC_STARTED_RECORD="$git_record" \
         FM_FAKE_GIT_WAIT_FOR_FLEET_START="$wait_for_marker" \
         FM_FAKE_TREEHOUSE_LEASE_HELP=1 "$ROOT/bin/fm-bootstrap.sh" 2>/dev/null
@@ -222,6 +245,7 @@ run_bootstrap_timeout_case() {
       PATH="$fakebin:$BASE_PATH" FM_HOME="$home" FM_ROOT_OVERRIDE="$fake_root" \
         FM_FLEET_SYNC_BOOTSTRAP_TIMEOUT="$override" \
         FM_FAKE_FLEET_SYNC_STARTED_MARKER="$started_marker" \
+        FM_FAKE_FLEET_SYNC_PRINTED_MARKER="$printed_marker" \
         FM_FAKE_GIT_SYNC_STARTED_RECORD="$git_record" \
         FM_FAKE_GIT_WAIT_FOR_FLEET_START="$wait_for_marker" \
         FM_FAKE_TREEHOUSE_LEASE_HELP=1 "$ROOT/bin/fm-bootstrap.sh" 2>/dev/null
