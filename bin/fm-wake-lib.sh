@@ -33,7 +33,39 @@ _fm_wake_require_timeout() {
 }
 
 fm_current_pid() {
-  printf '%s\n' "${BASHPID:-$$}"
+  # shellcheck disable=SC2016 # $PPID is expanded by the sh child, not here.
+  printf '%s\n' "${BASHPID:-$(exec sh -c 'echo $PPID')}"
+}
+
+# fm_frame_pid: set FM_FRAME_PID to the real pid of the calling shell frame, the
+# identity every lock record and ownership check in this library compares.
+# Bash 4+ names it BASHPID. Stock macOS bash 3.2 has no BASHPID and keeps $$
+# naming the top-level shell inside every subshell, background job, and pipeline
+# stage, so a subshell would read as the owner of its parent's or its sibling's
+# live hold and reclaim it. There, a command substitution that execs sh reports
+# its own parent, which is exactly the frame that evaluated the substitution.
+# That costs a fork, and a lock cycle asks several times, so the answer is kept
+# per frame: BASH_SUBSHELL rises in every subshell, background job, and pipeline
+# stage, so the cache key (depth and $$) never matches a child frame, and a
+# cached value can only be read by the frame that computed it or by a descendant
+# that immediately fails the key and recomputes. The watcher's TERM cleanup has a
+# 0.2 s grace before KILL (bin/fm-watch-checkpoint.sh), which a fork per lock
+# operation exceeded. Call it as a plain statement and read the variable, never
+# through $(fm_frame_pid): that would resolve in a throwaway subshell and record a
+# process that exits immediately.
+_FM_FRAME_PID_KEY=
+_FM_FRAME_PID_CACHE=
+fm_frame_pid() {
+  FM_FRAME_PID=${BASHPID:-}
+  if [ -z "$FM_FRAME_PID" ]; then
+    if [ "$_FM_FRAME_PID_KEY" != "$BASH_SUBSHELL:$$" ]; then
+      # shellcheck disable=SC2016 # $PPID is expanded by the sh child, not here.
+      _FM_FRAME_PID_CACHE=$(exec sh -c 'echo $PPID')
+      _FM_FRAME_PID_KEY="$BASH_SUBSHELL:$$"
+    fi
+    FM_FRAME_PID=$_FM_FRAME_PID_CACHE
+  fi
+  return 0
 }
 
 fm_pid_alive() {
@@ -348,7 +380,8 @@ fm_lock_set_role() {
     autoarm|terminal-check) : ;;
     *) return 1 ;;
   esac
-  current=${BASHPID:-$$}
+  fm_frame_pid
+  current=$FM_FRAME_PID
   pid=$(cat "$lockdir/pid" 2>/dev/null || true)
   [ "$pid" = "$current" ] || return 1
   printf '%s\n' "$role" > "$lockdir/role" 2>/dev/null || return 1
@@ -376,7 +409,8 @@ fm_lock_owner_dir() {
 
 fm_lock_prepare_owner() {
   local ownerdir=$1 mypid back
-  mypid=${BASHPID:-$$}
+  fm_frame_pid
+  mypid=$FM_FRAME_PID
   printf '%s\n' "$mypid" > "$ownerdir/pid" 2>/dev/null || return 1
   back=$(cat "$ownerdir/pid" 2>/dev/null || true)
   [ "$back" = "$mypid" ]
@@ -425,7 +459,8 @@ fm_lock_claim_blocked_by_steal() {
 
 fm_lock_claim() {
   local lockdir=$1 ownerdir=$2 allowed_steal_owner=${3:-} mypid back
-  mypid=${BASHPID:-$$}
+  fm_frame_pid
+  mypid=$FM_FRAME_PID
   if ! { printf '%s\n' "$mypid" > "$ownerdir/pid"; } 2>/dev/null; then
     fm_lock_discard_owner "$ownerdir"
     return 1
@@ -838,10 +873,10 @@ fm_lock_try_acquire() {
     return 0
   fi
 
-  # Compare against ${BASHPID:-$$} inline, never via a command substitution:
-  # $() forks a subshell whose BASHPID is not this frame's pid.
+  # Compare against this frame's own pid (fm_frame_pid), never one resolved
+  # inside a command substitution: $() forks a subshell with a different pid.
   pid=$(cat "$lockdir/pid" 2>/dev/null || true)
-  if [ -n "$pid" ] && [ "$pid" = "${BASHPID:-$$}" ]; then
+  if [ -n "$pid" ] && fm_frame_pid && [ "$pid" = "$FM_FRAME_PID" ]; then
     # The recorded holder is THIS very process. Single-threaded bash can only
     # observe that when an interrupting trap abandoned the frame that held the
     # lock mid-critical-section (e.g. TERM inside a recovery-marker section,
@@ -954,7 +989,8 @@ _fm_lock_acquire_wait_handoff() {  # <lockdir> <caller-pid>
   else
     ownerdir=$lockdir
   fi
-  current=${BASHPID:-$$}
+  fm_frame_pid
+  current=$FM_FRAME_PID
   back=$(cat "$ownerdir/pid" 2>/dev/null || true)
   if [ "$back" != "$current" ] \
     || ! printf '%s\n' "$caller_pid" > "$ownerdir/pid" 2>/dev/null \
@@ -982,7 +1018,8 @@ fm_lock_acquire_wait_bounded() {
     return 0
   fi
 
-  caller_pid=${BASHPID:-$$}
+  fm_frame_pid
+  caller_pid=$FM_FRAME_PID
   # shellcheck disable=SC2016 # Positional parameters expand in the child shell.
   if fm_run_timed "$seconds" env \
     "FM_STATE_OVERRIDE=$STATE" \
@@ -1027,7 +1064,8 @@ fm_lock_acquire_wait_bounded() {
 
 fm_lock_release() {
   local lockdir=$1 pid current ownerdir
-  current=${BASHPID:-$$}
+  fm_frame_pid
+  current=$FM_FRAME_PID
   if [ -L "$lockdir" ]; then
     ownerdir=$(fm_lock_link_owner "$lockdir" 2>/dev/null || true)
     [ -n "$ownerdir" ] || return 0
@@ -1089,7 +1127,8 @@ fm_failure_episode_reset() {
       acquired=1
       ;;
     held)
-      current=${BASHPID:-$$}
+      fm_frame_pid
+      current=$FM_FRAME_PID
       pid=$(cat "$lock/pid" 2>/dev/null || true)
       [ "$pid" = "$current" ] || return 1
       ;;
@@ -1265,10 +1304,11 @@ fm_autoarm_claim_next() {  # <state-dir> [grace]
   lock="$state/.claude-autoarm.lock"
   epoch="$state/.claude-autoarm-epoch"
   FM_AUTOARM_MY_GEN=
-  # Resolve the pid into a variable FIRST: expanding ${BASHPID:-$$} inside a
-  # command substitution would resolve it in that subshell, recording the
-  # identity of a process that exits immediately.
-  pid=${BASHPID:-$$}
+  # Resolve the pid into a variable FIRST: resolving it inside a command
+  # substitution would name that subshell, recording the identity of a process
+  # that exits immediately.
+  fm_frame_pid
+  pid=$FM_FRAME_PID
   identity=$(fm_pid_identity "$pid" 2>/dev/null) || return 1
   [ -n "$identity" ] || return 1
   fm_lock_try_acquire "$lock" || return 1
@@ -1307,7 +1347,8 @@ fm_autoarm_write_owned() {  # <state-dir> <gen> <outcome> [marker-file]
   local state=$1 gen=$2 outcome=$3 marker=${4:-} lock epoch pid identity tmp i
   lock="$state/.claude-autoarm.lock"
   epoch="$state/.claude-autoarm-epoch"
-  pid=${BASHPID:-$$}
+  fm_frame_pid
+  pid=$FM_FRAME_PID
   i=0
   while ! fm_lock_try_acquire "$lock"; do
     [ "$i" -lt 20 ] || return 1
@@ -1343,7 +1384,8 @@ fm_autoarm_write_owned() {  # <state-dir> <gen> <outcome> [marker-file]
 # arming, mutating shared state, or emitting.
 fm_autoarm_still_owner() {  # <state-dir> <gen>
   local state=$1 gen=$2 pid
-  pid=${BASHPID:-$$}
+  fm_frame_pid
+  pid=$FM_FRAME_PID
   fm_autoarm_ledger_read "$state" || return 1
   [ "$FM_AUTOARM_GEN" = "$gen" ] && [ "$FM_AUTOARM_OWNER" = "$pid" ]
 }
@@ -1351,7 +1393,8 @@ fm_autoarm_still_owner() {  # <state-dir> <gen>
 fm_autoarm_reset_owned() {  # <state-dir> <gen>
   local state=$1 gen=$2 lock pid
   lock="$state/.claude-autoarm.lock"
-  pid=${BASHPID:-$$}
+  fm_frame_pid
+  pid=$FM_FRAME_PID
   fm_lock_try_acquire "$lock" || return 2
   if ! fm_autoarm_ledger_read "$state" \
     || [ "$FM_AUTOARM_GEN" != "$gen" ] || [ "$FM_AUTOARM_OWNER" != "$pid" ]; then
