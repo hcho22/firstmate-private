@@ -573,7 +573,7 @@ test_positive_recovery_budget_contention_preserves_episode() {
 }
 
 test_owner_mutex_contention_preserves_failure_episode_reset() {
-  local dir out hook_pid status watcher watcher_id holder i
+  local dir out hook_pid status watcher watcher_id holder deadline
   dir=$(make_primary_dir "$TMP_ROOT/reset-owner-contention")
   : > "$dir/state/task.meta"
   : > "$dir/state/.turnend-claude-blocks"
@@ -588,11 +588,14 @@ test_owner_mutex_contention_preserves_failure_episode_reset() {
   out="$dir/state/hook.out"
   run_autoarm_bg "$dir" "$out"
   hook_pid=$RUN_AUTOARM_BG_PID
-  i=0
+  # Waits on a background hook's milestone are bounded by time, not by a count
+  # of sleeps: the hook is many process spawns, a loaded host stretches them,
+  # and only a genuine hang should reach the 60 s guard.
+  deadline=$((SECONDS + 60))
   while [ ! -e "$dir/state/arm-waiting" ]; do
-    [ "$i" -lt 50 ] || fail "healthy owner never reached the reset boundary"
+    kill -0 "$hook_pid" 2>/dev/null || fail "healthy owner exited before the reset boundary: $(cat "$out")"
+    [ "$SECONDS" -lt "$deadline" ] || fail "healthy owner never reached the reset boundary"
     sleep 0.05
-    i=$((i + 1))
   done
   sleep 60 &
   holder=$!
@@ -924,7 +927,7 @@ test_stuck_live_legacy_owner_is_retired_and_reclaimed() {
 # pending TERM on the verified owner is retirement-safe because delivery
 # precedes any further user code when the process continues.
 test_stopped_legacy_owner_is_reclaimed_with_term_pending() {
-  local dir out status pid i
+  local dir out status pid deadline
   dir=$(make_primary_dir "$TMP_ROOT/legacy-term-stopped")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" actionable
@@ -940,10 +943,9 @@ test_stopped_legacy_owner_is_reclaimed_with_term_pending() {
   [ -e "$dir/state/arm-ran" ] || fail "the reclaimed home did not re-arm past the stopped owner"
   assert_absent "$dir/state/.claude-autoarm.lock" "reclaim left the stopped owner's lock behind"
   kill -CONT "$pid" 2>/dev/null || true
-  i=0
-  while [ "$i" -lt 40 ] && kill -0 "$pid" 2>/dev/null; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && kill -0 "$pid" 2>/dev/null; do
     sleep 0.05
-    i=$((i + 1))
   done
   kill -0 "$pid" 2>/dev/null && fail "the queued TERM did not retire the owner on continue"
   wait "$pid" 2>/dev/null || true
@@ -1070,18 +1072,18 @@ test_superseded_owner_never_reinvokes_the_arm() {
 #      superseded and goes completely silent (exit 0, no banner, no ledger
 #      write), so one supersession episode produces exactly one translation.
 test_superseded_owner_goes_silent_and_never_double_translates() {
-  local dir a_out a_pid b_out b_status c_out c_status a_status i count
+  local dir a_out a_pid b_out b_status c_out c_status a_status deadline count
   dir=$(make_primary_dir "$TMP_ROOT/v2-superseded-silence")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" blocking-actionable
   a_out="$dir/state/a.out"
   run_autoarm_bg "$dir" "$a_out"
   a_pid=$RUN_AUTOARM_BG_PID
-  i=0
+  deadline=$((SECONDS + 60))
   while [ "$(epoch_outcome "$dir")" != arming ] || [ ! -e "$dir/state/arm-ran" ]; do
-    [ "$i" -lt 50 ] || fail "owner A never published its arming claim"
+    kill -0 "$a_pid" 2>/dev/null || fail "owner A exited before publishing its arming claim: $(cat "$a_out")"
+    [ "$SECONDS" -lt "$deadline" ] || fail "owner A never published its arming claim"
     sleep 0.1
-    i=$((i + 1))
   done
   b_out=$(run_autoarm "$dir" 2>/dev/null); b_status=$?
   expect_code 0 "$b_status" "a firing during a live open claim must defer promptly (no mutex is held across arming)"
