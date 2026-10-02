@@ -250,6 +250,74 @@ SH
   chmod +x "$fakebin/$tool"
 }
 
+# --- shared stub executables ------------------------------------------------
+#
+# fm_shared_stub <dir> <name>: install an executable stub, its body read from
+# stdin, as a link to one shared read-only copy per distinct body. On macOS the
+# first run of a newly created executable costs about 1 s (0.9 to 2.2 s
+# measured on a loaded host) and later runs about 0.05 s, per file, and a run
+# through a link to an already-run file is as fast as the later runs. A fake
+# toolchain rebuilt for every case therefore pays that cost for each stub in
+# each case; linking to shared copies pays it once per distinct body.
+# fm_shared_stub_exit0 and fm_shared_stub_version_tool are the shared forms of
+# fm_fake_exit0 and fm_fake_version_tool, with identical stub bodies.
+#
+# A case that needs a different stub calls fm_shared_stub again, which replaces
+# its link. Never write, truncate, or chmod through such a link: the shared copy
+# is read-only, so a write fails loudly, but a chmod would change the stub for
+# every case. The store lives in the test's TMPDIR, keyed by the test process
+# ($$ names it in subshells too), and is removed with the other temp roots.
+fm_shared_stub_store() {
+  local store="${TMPDIR:-/tmp}/fm-shared-stubs.$$"
+  if mkdir -m 0700 "$store" 2>/dev/null; then
+    printf '%s\n%s\n' "$$" "$FM_TEST_OWNER_IDENTITY" > "$store/.fm-test-fixture"
+    printf '%s\n' "$store" >> "$FM_TEST_CLEANUP_REGISTRY"
+  fi
+  [ -d "$store" ] || return 1
+  printf '%s\n' "$store"
+}
+
+fm_shared_stub() {  # <dir> <name>; the stub body is read from stdin
+  local dir=$1 name=$2 store staged key cached n=0
+  store=$(fm_shared_stub_store) || fail "could not create the shared stub store"
+  staged=$(mktemp "$store/.staged.XXXXXX") || fail "could not stage a shared stub for $name"
+  cat > "$staged"
+  key=$(cksum < "$staged" | tr -s ' \t' '--')
+  cached="$store/$key"
+  while [ -e "$cached" ] && ! cmp -s "$staged" "$cached"; do
+    n=$((n + 1))
+    cached="$store/$key.$n"
+  done
+  if [ -e "$cached" ]; then
+    rm -f "$staged"
+  else
+    chmod 0555 "$staged"
+    mv "$staged" "$cached"
+  fi
+  mkdir -p "$dir"
+  rm -f "$dir/$name"
+  ln -s "$cached" "$dir/$name"
+}
+
+fm_shared_stub_exit0() {  # <dir> <tool>...
+  local dir=$1 tool
+  shift
+  for tool in "$@"; do
+    printf '#!/usr/bin/env bash\nexit 0\n' | fm_shared_stub "$dir" "$tool"
+  done
+}
+
+fm_shared_stub_version_tool() {  # <dir> <tool> <override-env-var> <default-version>
+  fm_shared_stub "$1" "$2" <<SH
+#!/usr/bin/env bash
+if [ "\${1:-}" = --version ]; then
+  printf '%s\n' "\${$3:-$4}"
+  exit 0
+fi
+exit 0
+SH
+}
+
 # --- deterministic git identity and fixtures --------------------------------
 
 # fm_git_identity [name] [email]: export a fixed author/committer identity so

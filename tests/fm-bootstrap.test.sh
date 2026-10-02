@@ -39,14 +39,17 @@ export FM_BACKEND_CMUX_BUNDLE_BIN="$TMP_ROOT/no-bundled-cmux"
 unset TMUX TMUX_PANE HERDR_ENV HERDR_PANE_ID HERDR_SESSION HERDR_SOCKET_PATH \
   CMUX_WORKSPACE_ID CMUX_SURFACE_ID CMUX_SOCKET_PATH CMUX_TAB_ID CMUX_PANEL_ID 2>/dev/null || true
 
+# Each case builds its own fake toolchain from shared stubs (fm_shared_stub in
+# tests/lib.sh): written afresh per case, the toolchain's first runs alone put
+# this file at 557 to 1597 s on a macOS host against a 25 s CI hint.
 # A fake toolchain where every required tool is present and gh is authenticated.
 # treehouse's `get --help` advertises --lease only when FM_FAKE_TREEHOUSE_LEASE_HELP=1.
 make_fake_toolchain() {
   local dir=$1 fakebin
   fakebin=$(fm_fakebin "$dir")
-  fm_fake_exit0 "$fakebin" tmux node chrome-devtools-axi
-  fm_fake_version_tool "$fakebin" lavish-axi FM_FAKE_LAVISH_AXI_VERSION 0.1.46
-  cat > "$fakebin/gh-axi" <<'SH'
+  fm_shared_stub_exit0 "$fakebin" tmux node chrome-devtools-axi
+  fm_shared_stub_version_tool "$fakebin" lavish-axi FM_FAKE_LAVISH_AXI_VERSION 0.1.46
+  fm_shared_stub "$fakebin" gh-axi <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = --version ]; then
   printf '%s\n' "${FM_FAKE_GH_AXI_VERSION:-0.1.29}"
@@ -54,16 +57,14 @@ if [ "${1:-}" = --version ]; then
 fi
 exit 0
 SH
-  chmod +x "$fakebin/gh-axi"
-  cat > "$fakebin/gh" <<'SH'
+  fm_shared_stub "$fakebin" gh <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = auth ] && [ "${2:-}" = status ]; then
   exit 0
 fi
 exit 0
 SH
-  chmod +x "$fakebin/gh"
-  cat > "$fakebin/treehouse" <<'SH'
+  fm_shared_stub "$fakebin" treehouse <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = get ] && [ "${2:-}" = --help ]; then
   if [ "${FM_FAKE_TREEHOUSE_LEASE_HELP:-}" = 1 ]; then
@@ -75,8 +76,7 @@ if [ "${1:-}" = get ] && [ "${2:-}" = --help ]; then
 fi
 exit 0
 SH
-  chmod +x "$fakebin/treehouse"
-  cat > "$fakebin/no-mistakes" <<'SH'
+  fm_shared_stub "$fakebin" no-mistakes <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = --version ]; then
   printf '%s\n' "${FM_FAKE_NO_MISTAKES_VERSION:-no-mistakes version v1.46.0 (fake) 2026-06-27T00:02:18Z}"
@@ -84,7 +84,6 @@ if [ "${1:-}" = --version ]; then
 fi
 exit 0
 SH
-  chmod +x "$fakebin/no-mistakes"
   add_tasks_axi "$fakebin" "0.2.4"
   add_quota_axi "$fakebin"
   printf '%s\n' "$fakebin"
@@ -92,7 +91,7 @@ SH
 
 add_quota_axi() {
   local fakebin=$1
-  cat > "$fakebin/quota-axi" <<'SH'
+  fm_shared_stub "$fakebin" quota-axi <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = --version ]; then
   printf '%s\n' "${FM_FAKE_QUOTA_AXI_VERSION:-0.1.29}"
@@ -100,7 +99,6 @@ if [ "${1:-}" = --version ]; then
 fi
 exit 0
 SH
-  chmod +x "$fakebin/quota-axi"
 }
 
 add_tasks_axi() {
@@ -109,7 +107,7 @@ add_tasks_axi() {
   [ "$archive_body" = yes ] && archive_line='  --archive-body'
   mv_usage='usage: tasks-axi mv <id> [<id>...] --to <path-or-dir>'
   [ "$multi_id" = yes ] || mv_usage='usage: tasks-axi mv <id> --to <path-or-dir>'
-  cat > "$fakebin/tasks-axi" <<SH
+  fm_shared_stub "$fakebin" tasks-axi <<SH
 #!/usr/bin/env bash
 if [ "\${1:-}" = --version ]; then
   printf '%s\n' '$version'
@@ -127,17 +125,15 @@ if [ "\${1:-}" = mv ] && [ "\${2:-}" = --help ]; then
 fi
 exit 0
 SH
-  chmod +x "$fakebin/tasks-axi"
 }
 
 add_real_jq() {
   local fakebin=$1 real_jq
   real_jq=$(command -v jq 2>/dev/null) || fail "jq is required for dispatch profile validation tests"
-  cat > "$fakebin/jq" <<SH
+  fm_shared_stub "$fakebin" jq <<SH
 #!/usr/bin/env bash
 exec '$real_jq' "\$@"
 SH
-  chmod +x "$fakebin/jq"
 }
 
 make_fake_fleet_sync_root() {
@@ -567,7 +563,7 @@ make_fake_toolchain_no_tmux() {  # <case-dir> <extra-cli...>
   shift
   fakebin=$(make_fake_toolchain "$dir")
   rm -f "$fakebin/tmux"
-  fm_fake_exit0 "$fakebin" jq "$@"
+  fm_shared_stub_exit0 "$fakebin" jq "$@"
   printf '%s\n' "$fakebin"
 }
 
@@ -644,7 +640,7 @@ test_cmux_bundled_cli_satisfies_dependency() {
   printf '%s\n' manual > "$case_dir/home/config/backlog-backend"
   printf '%s\n' cmux > "$case_dir/home/config/backend"
   fakebin=$(make_fake_toolchain_no_tmux "$case_dir")
-  fm_fake_exit0 "$case_dir/bundle" cmux
+  fm_shared_stub_exit0 "$case_dir/bundle" cmux
   bundle="$case_dir/bundle/cmux"
   out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$case_dir/home" \
     FM_BACKEND_CMUX_BUNDLE_BIN="$bundle" FM_FAKE_TREEHOUSE_LEASE_HELP=1 "$ROOT/bin/fm-bootstrap.sh")
@@ -682,7 +678,7 @@ test_json_backends_require_jq_not_tmux() {
     # Session CLI present, tmux absent, jq deliberately NOT stubbed and masked below.
     fakebin=$(make_fake_toolchain "$case_dir")
     rm -f "$fakebin/tmux"
-    fm_fake_exit0 "$fakebin" "$backend"
+    fm_shared_stub_exit0 "$fakebin" "$backend"
     bash_env="$case_dir/no-jq.bash"
     cat > "$bash_env" <<'SH'
 command() {
@@ -718,7 +714,7 @@ test_treehouse_lease_check_follows_resolved_backend() {
   printf '%s\n' orca > "$case_dir/home/config/backend"
   fakebin=$(make_fake_toolchain "$case_dir")
   rm -f "$fakebin/tmux"
-  fm_fake_exit0 "$fakebin" orca
+  fm_shared_stub_exit0 "$fakebin" orca
   # FM_FAKE_TREEHOUSE_LEASE_HELP unset: the fake treehouse advertises NO --lease.
   out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$case_dir/home" \
     "$ROOT/bin/fm-bootstrap.sh")
@@ -860,7 +856,7 @@ make_routine_bootstrap_fixture() {
   } > "$home/state/sm.meta"
   fakebin=$(make_fake_toolchain "$case_dir")
   add_real_jq "$fakebin"
-  cat > "$fakebin/tmux" <<'SH'
+  fm_shared_stub "$fakebin" tmux <<'SH'
 #!/usr/bin/env bash
 case "${1:-}" in
   display-message)
@@ -874,7 +870,6 @@ case "${1:-}" in
 esac
 exit 0
 SH
-  chmod +x "$fakebin/tmux"
   printf '%s|%s|%s\n' "$root" "$home" "$fakebin"
 }
 
@@ -919,11 +914,10 @@ test_network_phase_partitions_the_run() {
   # Break the two diagnostics that stand for the two halves: a local tool floor
   # and the network GitHub-auth probe.
   rm -f "$fakebin/node"
-  cat > "$fakebin/gh" <<'SH'
+  fm_shared_stub "$fakebin" gh <<'SH'
 #!/usr/bin/env bash
 exit 1
 SH
-  chmod +x "$fakebin/gh"
 
   all_out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$case_dir/home" \
     FM_FAKE_TREEHOUSE_LEASE_HELP=1 "$ROOT/bin/fm-bootstrap.sh")
@@ -1058,13 +1052,12 @@ test_tasks_axi_verdict_handoff_is_consumed_once() {
   mkdir -p "$case_dir/home/config"
   fakebin=$(make_fake_toolchain "$case_dir")
   log="$case_dir/tasks-axi.log"
-  cat > "$fakebin/tasks-axi" <<'SH'
+  fm_shared_stub "$fakebin" tasks-axi <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${FM_FAKE_TASKS_AXI_LOG:?}"
 printf '0.0.1\n'
 exit 0
 SH
-  chmod +x "$fakebin/tasks-axi"
 
   # Without the handoff, the incompatible stub is probed and reported.
   : > "$log"

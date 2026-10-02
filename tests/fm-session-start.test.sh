@@ -71,9 +71,9 @@ new_world() {
 # test deliberately breaks one. Mirrors fm-bootstrap.test.sh's fixture.
 make_fake_toolchain() {
   local fakebin=$1
-  fm_fake_exit0 "$fakebin" tmux node chrome-devtools-axi
-  fm_fake_version_tool "$fakebin" lavish-axi FM_FAKE_LAVISH_AXI_VERSION 0.1.46
-  cat > "$fakebin/gh-axi" <<'SH'
+  fm_shared_stub_exit0 "$fakebin" tmux node chrome-devtools-axi
+  fm_shared_stub_version_tool "$fakebin" lavish-axi FM_FAKE_LAVISH_AXI_VERSION 0.1.46
+  fm_shared_stub "$fakebin" "gh-axi" <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = --version ]; then
   printf '%s\n' '0.1.29'
@@ -81,13 +81,11 @@ if [ "${1:-}" = --version ]; then
 fi
 exit 0
 SH
-  chmod +x "$fakebin/gh-axi"
-  cat > "$fakebin/gh" <<'SH'
+  fm_shared_stub "$fakebin" "gh" <<'SH'
 #!/usr/bin/env bash
 exit 0
 SH
-  chmod +x "$fakebin/gh"
-  cat > "$fakebin/treehouse" <<'SH'
+  fm_shared_stub "$fakebin" "treehouse" <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = get ] && [ "${2:-}" = --help ]; then
   printf '%s\n' 'Usage: treehouse get [--lease]'
@@ -95,8 +93,7 @@ if [ "${1:-}" = get ] && [ "${2:-}" = --help ]; then
 fi
 exit 0
 SH
-  chmod +x "$fakebin/treehouse"
-  cat > "$fakebin/no-mistakes" <<'SH'
+  fm_shared_stub "$fakebin" "no-mistakes" <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = --version ]; then
   printf '%s\n' 'no-mistakes version v1.46.0 (fake) 2026-06-27T00:02:18Z'
@@ -104,7 +101,6 @@ if [ "${1:-}" = --version ]; then
 fi
 exit 0
 SH
-  chmod +x "$fakebin/no-mistakes"
   printf '%s\n' manual > "${fakebin%/*}/home-placeholder" 2>/dev/null || true
 }
 
@@ -116,7 +112,7 @@ SH
 # can be driven past its limit.
 make_fake_tasks_axi_compact() {
   local fakebin=$1
-  cat > "$fakebin/tasks-axi" <<'SH'
+  fm_shared_stub "$fakebin" "tasks-axi" <<'SH'
 #!/usr/bin/env bash
 set -u
 log=${FM_FAKE_TASKS_AXI_LOG:-}
@@ -202,7 +198,6 @@ case "${1:-}" in
 esac
 exit 1
 SH
-  chmod +x "$fakebin/tasks-axi"
 }
 
 # make_fake_ps_claude <fakebin>: harness_pid()/holder_alive() (fm-lock.sh) walk
@@ -215,7 +210,7 @@ make_fake_ps_claude() {
 
 make_fake_ps_harness() {
   local fakebin=$1 harness=$2
-  cat > "$fakebin/ps" <<'SH'
+  fm_shared_stub "$fakebin" "ps" <<'SH'
 #!/usr/bin/env bash
 set -u
 harness=${FM_FAKE_HARNESS:-claude}
@@ -251,13 +246,12 @@ case "$*" in
 esac
 exit 1
 SH
-  chmod +x "$fakebin/ps"
   printf '%s\n' "$harness" > "$fakebin/.harness-name"
 }
 
 make_fake_ps_pi_holder() {
   local fakebin=$1 holder_pid=$2
-  cat > "$fakebin/ps" <<SH
+  fm_shared_stub "$fakebin" "ps" <<SH
 #!/usr/bin/env bash
 set -u
 pid=""
@@ -287,7 +281,6 @@ case "\$*" in
 esac
 exit 1
 SH
-  chmod +x "$fakebin/ps"
 }
 
 # make_fake_tmux <fakebin> <live-target>: display-message succeeds only for
@@ -295,7 +288,7 @@ SH
 # fm_backend_target_exists uses for a tmux endpoint liveness read.
 make_fake_tmux() {
   local fakebin=$1 live=$2
-  cat > "$fakebin/tmux" <<SH
+  fm_shared_stub "$fakebin" "tmux" <<SH
 #!/usr/bin/env bash
 set -u
 case "\${1:-}" in
@@ -312,7 +305,6 @@ case "\${1:-}" in
 esac
 exit 1
 SH
-  chmod +x "$fakebin/tmux"
 }
 
 # make_fake_tmux_secondmate_recovery <fakebin>: a stateful tmux boundary
@@ -323,7 +315,7 @@ SH
 # recording the environment it was started with in <spawned>.server.env.
 make_fake_tmux_secondmate_recovery() {
   local fakebin=$1
-  cat > "$fakebin/tmux" <<'SH'
+  fm_shared_stub "$fakebin" "tmux" <<'SH'
 #!/usr/bin/env bash
 set -u
 mode=${FM_FAKE_TMUX_MODE:?}
@@ -418,7 +410,6 @@ case "${1:-}" in
 esac
 exit 0
 SH
-  chmod +x "$fakebin/tmux"
 }
 
 make_fake_herdr_secondmate_recovery() {
@@ -426,7 +417,7 @@ make_fake_herdr_secondmate_recovery() {
   # The recovery kill now requires the shared named-session lock and an exact
   # focus snapshot. Keep a focused sibling tab so this test's husk close is
   # provably non-workspace-emptying and never needs to signal a fake shell pid.
-  cat > "$fakebin/herdr" <<'SH'
+  fm_shared_stub "$fakebin" "herdr" <<'SH'
 #!/usr/bin/env bash
 set -u
 log=${FM_FAKE_HERDR_LOG:?}
@@ -497,7 +488,6 @@ case "${1:-} ${2:-}" in
 esac
 exit 0
 SH
-  chmod +x "$fakebin/herdr"
 }
 
 # make_fake_herdr <fakebin> <live-pane>: `herdr pane get <pane>` succeeds only
@@ -506,7 +496,7 @@ SH
 # liveness check must never auto-start a server (fm-backend.sh's contract).
 make_fake_herdr() {
   local fakebin=$1 live=$2
-  cat > "$fakebin/herdr" <<SH
+  fm_shared_stub "$fakebin" "herdr" <<SH
 #!/usr/bin/env bash
 set -u
 if [ "\${1:-}" = pane ] && [ "\${2:-}" = get ]; then
@@ -515,7 +505,6 @@ if [ "\${1:-}" = pane ] && [ "\${2:-}" = get ]; then
 fi
 exit 1
 SH
-  chmod +x "$fakebin/herdr"
 }
 
 # run_session_start <home> <root> <path>
@@ -586,7 +575,7 @@ EOF
   ln -s "$ROOT/bin" "$root/bin"
   make_fake_toolchain "$fakebin"
   make_fake_ps_claude "$fakebin"
-  fm_fake_exit0 "$fakebin" pi
+  fm_shared_stub_exit0 "$fakebin" pi
   make_fake_tmux_secondmate_recovery "$fakebin"
   : > "$log"
   printf '%s|%s|%s|%s|%s|%s\n' "$root" "$home" "$fakebin" "$mate" "$log" "$spawned"
@@ -633,7 +622,7 @@ EOF
   ln -s "$ROOT/bin" "$root/bin"
   make_fake_toolchain "$fakebin"
   make_fake_ps_claude "$fakebin"
-  fm_fake_exit0 "$fakebin" pi
+  fm_shared_stub_exit0 "$fakebin" pi
   make_fake_herdr_secondmate_recovery "$fakebin"
   : > "$log"
   printf '%s|%s|%s|%s|%s|%s\n' "$root" "$home" "$fakebin" "$mate" "$log" "$state"
@@ -898,7 +887,7 @@ EOF
   winners="$home/winners"
   mkdir -p "$ready" "$completed"
   : > "$winners"
-  cat > "$fakebin/ps" <<'SH'
+  fm_shared_stub "$fakebin" "ps" <<'SH'
 #!/usr/bin/env bash
 set -u
 pid=
@@ -926,7 +915,6 @@ case "$*" in
   *) exit 1 ;;
 esac
 SH
-  chmod +x "$fakebin/ps"
 
   pids=
   i=1
@@ -1059,7 +1047,7 @@ EOF
     make_fake_toolchain "$fakebin"
     make_fake_ps_claude "$fakebin"
     rm -f "$fakebin/tmux"
-    fm_fake_exit0 "$fakebin" herdr jq
+    fm_shared_stub_exit0 "$fakebin" herdr jq
     printf '%s\n' manual > "$home/config/backlog-backend"
     mask="$home/mask-tmux.bash"
     cat > "$mask" <<'SH'
@@ -1382,7 +1370,7 @@ EOF
 # exactly that environment.
 make_fake_herdr_server_recorder() {  # <fakebin>
   local fakebin=$1
-  cat > "$fakebin/herdr" <<'SH'
+  fm_shared_stub "$fakebin" "herdr" <<'SH'
 #!/usr/bin/env bash
 set -u
 dir=${FM_FAKE_HERDR_DIR:?}
@@ -1405,7 +1393,6 @@ case "${args[0]:-} ${args[1]:-}" in
     ;;
 esac
 SH
-  chmod +x "$fakebin/herdr"
 }
 
 # startup_variables_in_server_env <server-env-file> <allowed-pattern>...: the FM_
@@ -1615,7 +1602,7 @@ EOF
 # case forgot, and the hold also ends once the case's world is gone.
 install_held_gh() {
   local fakebin=$1 release=$2 finished_marker=${3:-}
-  cat > "$fakebin/gh" <<SH
+  fm_shared_stub "$fakebin" "gh" <<SH
 #!/usr/bin/env bash
 if [ "\${1:-}" = auth ]; then
   deadline=\$((SECONDS + 120))
@@ -1628,7 +1615,6 @@ if [ "\${1:-}" = auth ]; then
 fi
 exit 0
 SH
-  chmod +x "$fakebin/gh"
 }
 
 # The locked startup scan may need the same expensive current-state read that a
@@ -1656,7 +1642,7 @@ EOF
 
   release_gate="$world/slow-state-read.release"
   read_finished="$world/slow-state-read.finished"
-  cat > "$fakebin/no-mistakes" <<'SH'
+  fm_shared_stub "$fakebin" "no-mistakes" <<'SH'
 #!/usr/bin/env bash
 set -u
 if [ "${1:-}" = --version ]; then
@@ -1697,7 +1683,7 @@ set -u
 no-mistakes axi status >/dev/null
 printf '%s\n' 'state: done · source: run-step · passed'
 SH
-  chmod +x "$fakebin/no-mistakes" "$crew_state"
+  chmod +x "$crew_state"
 
   fm_write_meta "$home/state/slow-child.meta" \
     'window=firstmate:fm-slow-child' "worktree=$worktree" 'project=firstmate' \
@@ -1804,7 +1790,7 @@ EOF
   make_fake_toolchain "$fakebin"
   make_fake_ps_claude "$fakebin"
   printf '999999\n' > "$home/state/.lock"
-  cat > "$fakebin/ps" <<'SH'
+  fm_shared_stub "$fakebin" "ps" <<'SH'
 #!/usr/bin/env bash
 set -u
 case "$*" in
@@ -1813,7 +1799,6 @@ case "$*" in
 esac
 exit 0
 SH
-  chmod +x "$fakebin/ps"
 
   out=$(run_session_start "$home" "$root" "$fakebin:$BASE_PATH")
 
@@ -2052,17 +2037,16 @@ EOF
 # bootstrap runs it inside its own command substitution.
 make_hanging_tool() {
   local fakebin=$1 name=$2
-  cat > "$fakebin/$name" <<'SH'
+  fm_shared_stub "$fakebin" "$name" <<'SH'
 #!/usr/bin/env bash
 trap '' TERM
 sleep 600
 SH
-  chmod +x "$fakebin/$name"
 }
 
 make_term_escalating_timeout() {
   local fakebin=$1
-  cat > "$fakebin/timeout" <<'SH'
+  fm_shared_stub "$fakebin" "timeout" <<'SH'
 #!/usr/bin/env perl
 use strict;
 use warnings;
@@ -2087,7 +2071,6 @@ waitpid $pid, 0;
 alarm 0;
 exit($? >> 8);
 SH
-  chmod +x "$fakebin/timeout"
 }
 
 test_runtime_bound_truncates_loudly_and_exits_zero() {
@@ -2209,7 +2192,7 @@ EOF
   # fm-session-lock-lib.sh walks a BOUNDED sixteen parents to find it, and the
   # runtime bound spends some of that budget on its own wrapper processes, so
   # this pins that the budget still reaches a realistically deep session.
-  cat > "$fakebin/ps" <<'SH'
+  fm_shared_stub "$fakebin" "ps" <<'SH'
 #!/usr/bin/env bash
 set -u
 pid=
@@ -2231,7 +2214,6 @@ case "$*" in
   *) exit 1 ;;
 esac
 SH
-  chmod +x "$fakebin/ps"
 
   # Each level forks rather than execs, so the counter really is process depth.
   nest="$home/nest.sh"
@@ -2476,14 +2458,13 @@ EOF
     "a missing SHA-256 baseline did not conservatively refresh a supported rebuild"
 
   rm -f "$fakebin/shasum" "$fakebin/sha256sum" "$home/state/.session-start-complete"
-  cat > "$fakebin/mv" <<SH
+  fm_shared_stub "$fakebin" "mv" <<SH
 #!/usr/bin/env bash
 case "\${*: -1}" in
   "$home/state/.session-start-complete") exit 1 ;;
 esac
 exec /bin/mv "\$@"
 SH
-  chmod +x "$fakebin/mv"
   FM_FAKE_HARNESS=pi run_pi_session_start "$home" "$root" "$fakebin:$BASE_PATH" --source startup >/dev/null
   assert_absent "$home/state/.session-start-complete" \
     "startup published completion despite the atomic completion write failure"
@@ -2558,7 +2539,7 @@ $rec
 EOF
   make_fake_toolchain "$fakebin"
   make_fake_ps_claude "$fakebin"
-  fm_fake_exit0 "$fakebin" curl jq
+  fm_shared_stub_exit0 "$fakebin" curl jq
   printf 'FMX_PAIRING_TOKEN=tok-next-step\n' > "$home/.env"
 
   out=$(run_session_start "$home" "$root" "$fakebin:$BASE_PATH")
