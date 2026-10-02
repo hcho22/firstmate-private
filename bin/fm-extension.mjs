@@ -2542,7 +2542,11 @@ async function cmdProcessEventLocked(args) {
       process.exitCode = result.value ? 0 : 1;
     }
   } catch (error) {
-    if (operation === "source.poll") {
+    // A failed host step is not a verdict: source.poll, result.terminal, and
+    // result.silent report it as evidence with exit 70, distinct from the
+    // verdict exits 0 and 1, so the runner can record it instead of reading a
+    // timeout as "not terminal" with no trace.
+    if (operation === "source.poll" || operation === "result.terminal" || operation === "result.silent") {
       process.stdout.write(errorEvidence(error, extensionId, operation));
       process.exitCode = 70;
       return;

@@ -229,6 +229,12 @@ elif mode in ("timeout", "leak", "foreground-leak"):
         while True: time.sleep(1)
     if mode == "leak": time.sleep(.1)
     raw(success({"status":"result", "output":"must not be accepted\n"}))
+elif mode == "flag-slow-handshake":
+    # Raise the flag the handshake-slow-when-flagged scenario reads, then answer:
+    # the poll succeeds and every LATER handshake is slow, which is the order of a
+    # terminal check that follows a captured result.
+    with open(release, "w", encoding="utf-8") as output: output.write("slow\n")
+    raw(success({"status":"result", "output":"evidence ahead of a slow terminal check\n"}))
 elif mode == "overlap":
     os.makedirs(state, exist_ok=True)
     with open(os.path.join(state, "overlap-ready"), "w", encoding="utf-8") as output: output.write("ready\n")
@@ -2231,6 +2237,41 @@ for bound in FM_EXTENSION_HANDSHAKE_TIMEOUT_MS FM_EXTENSION_LAUNCH_READY_WAIT_MS
   done
 done
 pass "the host startup bounds keep their defaults, accept overrides, and refuse malformed ones"
+
+# A terminal check whose handshake fails to answer is not a verdict. It must keep
+# the registration armed (the safe false path) AND leave a durable record, where
+# before it was discarded without a trace and the source silently stayed registered.
+P_SLOWT="$PACKAGES/slow-terminal"
+SLOWT_FLAG="$TMP_ROOT/slow-terminal.flag"
+make_package "$P_SLOWT" org.example.slowterm ext-slowterm "$(printf 'handshake-slow-when-flagged\n20\n%s' "$SLOWT_FLAG")"
+H_SLOWT="$HOMES/slow-terminal"; new_home "$H_SLOWT"
+bind_package "$H_SLOWT" "$P_SLOWT" ext-slowterm >/dev/null
+slowt_registration=$(FM_HOME="$H_SLOWT" "$PROCEVENT" register-extension ext-slowterm slow-terminal --config-ref flag-slow-handshake)
+slowt_token=$(printf '%s\n' "$slowt_registration" | sed -n 's/^owner-token: //p')
+# 15 s is far above a healthy handshake and below the fixture's 20 s delay, so only
+# the deliberately slow terminal-check handshake can reach it.
+FM_EXTENSION_HANDSHAKE_TIMEOUT_MS=15000 FM_HOME="$H_SLOWT" "$PROCEVENT" start slow-terminal \
+  > "$TMP_ROOT/slow-terminal-start.out" 2>&1 || fail "a failed terminal check made the runner fail"
+slowt_result=$(first_result "$H_SLOWT" slow-terminal) || fail "the slow-terminal source captured no result"
+assert_grep 'evidence ahead of a slow terminal check' "$slowt_result" "the captured evidence was lost"
+assert_present "$H_SLOWT/state/procevent/slow-terminal.source" "a terminal check that failed to answer retired its source"
+slowt_base=${slowt_result%.result}
+slowt_record="$slowt_base.terminal-check-failed"
+assert_present "$slowt_record" "a terminal check that failed to answer left no durable record"
+[ "$(stat -c '%a' "$slowt_record" 2>/dev/null || stat -f '%Lp' "$slowt_record")" = 600 ] \
+  || fail "the failed-terminal-check record is not private"
+assert_grep '"operation":"result.terminal"' "$slowt_record" "the record did not name the failed operation"
+assert_grep '"code":"timeout"' "$slowt_record" "the record did not name the failure code"
+assert_grep '"extension_id":"org.example.slowterm"' "$slowt_record" "the record did not name the extension"
+assert_no_grep 'evidence ahead' "$slowt_record" "the record copied source output"
+assert_contains "$(cat "$TMP_ROOT/slow-terminal-start.out")" "terminal-check-failed: slow-terminal" \
+  "the runner did not report the failed terminal check"
+slowt_list=$(FM_HOME="$H_SLOWT" "$PROCEVENT" list)
+assert_contains "$slowt_list" "FAILED-TERMINAL-CHECKS" "list omitted the failed-terminal-check column"
+printf '%s\n' "$slowt_list" | awk '$1 == "slow-terminal" && $NF == 1 { found = 1 } END { exit !found }' \
+  || fail "list did not count the failed terminal check for its source: $slowt_list"
+FM_HOME="$H_SLOWT" "$PROCEVENT" retire slow-terminal --if-owner "$slowt_token" >/dev/null
+pass "a terminal check that fails to answer keeps the registration armed and leaves a durable record"
 fi
 
 printf '\nall extension-binding tests passed\n'
