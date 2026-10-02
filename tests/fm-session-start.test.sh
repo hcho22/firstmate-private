@@ -1650,11 +1650,20 @@ if [ "${1:-}" = --version ]; then
   exit 0
 fi
 if [ "${1:-} ${2:-}" = 'axi status' ]; then
-  if [ "${FM_BOOTSTRAP_NETWORK:-}" = only ]; then
-    printf '%s\n' 'deferred' >> "${FM_FAKE_NM_CALLS:?}"
-  else
-    printf '%s\n' 'blocking' >> "${FM_FAKE_NM_CALLS:?}"
-  fi
+  # A read is deferred exactly when the detached startup worker is one of its
+  # ancestors. Ask the real ps (command -p skips this case's fake one), and decide
+  # by process lineage rather than by any variable, since the worker deliberately
+  # hands its own settings to bootstrap alone.
+  where=blocking
+  pid=$$
+  while [ -n "$pid" ] && [ "$pid" -gt 1 ]; do
+    case "$(command -p ps -o command= -p "$pid" 2>/dev/null)" in
+      *'fm-startup-network.sh run'*) where=deferred; break ;;
+    esac
+    pid=$(command -p ps -o ppid= -p "$pid" 2>/dev/null)
+    pid=${pid//[!0-9]/}
+  done
+  printf '%s\n' "$where" >> "${FM_FAKE_NM_CALLS:?}"
   # Stay outstanding until the case releases this read. A caller that waits for
   # it therefore waits indefinitely rather than for a fixed interval a loaded
   # host could out-run. The tick bound only stops a broken case hanging forever.
