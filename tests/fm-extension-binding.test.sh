@@ -459,19 +459,27 @@ run_extension_section_lane() {
   return "$section_rc"
 }
 
+# The coordinator's deadline is a hang guard, never a speed check: no
+# assertion depends on how long a section takes, and the sections spawn many
+# node and bash processes, so on a loaded macOS host the aggregate measured
+# 88 to 92 s against a 7 s CI hint. A section that is still running when the
+# guard expires is reported by name.
+EXTENSION_SECTION_HANG_GUARD_SECS=600
+
 run_extension_section_lanes() {
   local section result_file section_rc timeout_seconds deadline index remaining launched total maximum_sections
-  local active maximum_concurrent
+  local active maximum_concurrent unfinished
   local -a sections=("$@")
   local -a section_pids=()
   local -a section_results=()
   local -a section_complete=()
+  local -a section_names=()
   local section_result_root
-  timeout_seconds=${FM_EXTENSION_BINDING_COORDINATOR_TIMEOUT_SECONDS:-90}
+  timeout_seconds=${FM_EXTENSION_BINDING_COORDINATOR_TIMEOUT_SECONDS:-$EXTENSION_SECTION_HANG_GUARD_SECS}
   case "$timeout_seconds" in
     ''|*[!0-9]*) return 64 ;;
   esac
-  [ "$timeout_seconds" -gt 0 ] && [ "$timeout_seconds" -le 90 ] || return 64
+  [ "$timeout_seconds" -gt 0 ] && [ "$timeout_seconds" -le "$EXTENSION_SECTION_HANG_GUARD_SECS" ] || return 64
   section_result_root=$(mktemp -d "$TMP_ROOT/section-lanes.XXXXXX") || return 1
   total=${#sections[@]}
   # Sixteen selectors are validated here. The bounded aggregate keeps its
@@ -489,6 +497,7 @@ run_extension_section_lanes() {
     section_pids+=("$!")
     section_results+=("$result_file")
     section_complete+=("")
+    section_names+=("$section")
     launched=$((launched + 1))
     active=$((active + 1))
   done
@@ -512,10 +521,12 @@ run_extension_section_lanes() {
           active=$((active - 1))
           ;;
         ''|*[!0-9]*)
+          printf 'section coordinator: section %s published an invalid result\n' "${section_names[$index]}" >&2
           terminate_section_lanes
           return 125
           ;;
         *)
+          printf 'section coordinator: section %s failed (exit %s)\n' "${section_names[$index]}" "$section_rc" >&2
           terminate_section_lanes
           return "$section_rc"
           ;;
@@ -528,11 +539,18 @@ run_extension_section_lanes() {
       section_pids+=("$!")
       section_results+=("$result_file")
       section_complete+=("")
+      section_names+=("$section")
       launched=$((launched + 1))
       active=$((active + 1))
     done
     [ "$remaining" -eq 0 ] && break
     if [ "$SECONDS" -ge "$deadline" ]; then
+      unfinished=
+      for index in "${!section_pids[@]}"; do
+        [ -n "${section_complete[$index]:-}" ] || unfinished="$unfinished ${section_names[$index]}"
+      done
+      printf 'section coordinator: %ss deadline reached with unfinished sections:%s\n' \
+        "$timeout_seconds" "${unfinished:- (none launched)}" >&2
       terminate_section_lanes
       return 124
     fi
