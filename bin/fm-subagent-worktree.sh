@@ -67,19 +67,21 @@
 #         itself. Each <dir> is resolved through symlinks even after it is
 #         gone, so a vanished scratch root still matches its copies. Exits 1
 #         when git cannot list the repository's worktrees. <state> is:
-#           landed    clean (ignored files allowed; submodules are checked
-#                     whatever their `ignore` setting), every populated
-#                     submodule's HEAD and local branches, recursively, are on
-#                     that submodule's remote-tracking refs, and its HEAD is
-#                     contained in <anchor>'s HEAD or in any remote-tracking
-#                     ref - no work would be lost by removing it;
+#           landed    clean (ignored files allowed; untracked files and
+#                     submodules are checked whatever `showUntrackedFiles` or
+#                     `ignore` settings say), every populated submodule's HEAD
+#                     and local branches, recursively, are on that submodule's
+#                     remote-tracking refs, and its HEAD is contained in
+#                     <anchor>'s HEAD or in any remote-tracking ref - no work
+#                     would be lost by removing it;
 #           unlanded  uncommitted or untracked changes, commits found nowhere
-#                     else, or a copy that cannot be inspected - including a
-#                     vanished copy whose git admin dir still holds submodule
+#                     else, or a copy that cannot be inspected - including one
+#                     whose directory still exists without its `.git` file, and
+#                     a vanished copy whose git admin dir still holds submodule
 #                     git dirs, or whose detached HEAD is the only ref to a
 #                     commit that fails the landed test;
 #           locked    git-locked, so it is never removed without --discard;
-#           missing   registered but its directory is gone, and its admin
+#           missing   registered but its path is gone entirely, and its admin
 #                     dir holds no work of its own.
 #         <branch> is the checked-out branch name, or `detached`.
 # retire  Removes every listed `landed` copy, with --force so populated
@@ -89,10 +91,12 @@
 #         when anything was refused or failed. --discard is for callers that
 #         already hold discard authority (teardown --force, or a scout's
 #         declared-scratch copy): it force-removes every listed copy whatever
-#         its state. After every removal, the copy's `worktree-*` branch is
-#         deleted only while its tip is contained in <anchor>'s HEAD or in a
-#         remote-tracking ref, so a branch holding commits found nowhere else
-#         is always kept. Prints `retired: <path>` per removed copy on stdout.
+#         its state, first restoring a lost `.git` file with `git worktree
+#         repair` so git can remove the copy. After every removal, the copy's
+#         `worktree-*` branch is deleted only while its tip is contained in
+#         <anchor>'s HEAD or in a remote-tracking ref, so a branch holding
+#         commits found nowhere else is always kept. Prints `retired: <path>`
+#         per removed copy on stdout.
 #
 # bin/fm-teardown.sh uses `<task-worktree>` (or the project checkout when that
 # copy is gone) as <anchor> and both the task worktree and its scratch root as
@@ -270,7 +274,8 @@ commit_landed() {  # <anchor> <commit>
 # Classify one existing copy. Echoes landed|unlanded.
 classify_copy() {  # <anchor> <path> <head>
   local anchor=$1 path=$2 head=$3 status unpushed
-  status=$(git -C "$path" status --porcelain --ignore-submodules=none 2>/dev/null) || { echo unlanded; return; }
+  status=$(git -c status.showUntrackedFiles=normal -C "$path" status --porcelain --ignore-submodules=none 2>/dev/null) \
+    || { echo unlanded; return; }
   unpushed=$(git -C "$path" submodule foreach --quiet --recursive \
     'git log --format=%H -1 HEAD --branches --not --remotes --' 2>/dev/null) || { echo unlanded; return; }
   if [ -z "$status" ] && [ -z "$unpushed" ] && [ -n "$head" ] && commit_landed "$anchor" "$head"; then
@@ -303,7 +308,7 @@ worktree_admin_dir() {  # <anchor> <path>
   return 1
 }
 
-# Classify one registered copy whose directory is gone. Echoes missing|unlanded.
+# Classify one registered copy whose path is gone. Echoes missing|unlanded.
 # Its admin dir outlives it and is deleted on removal, so submodule git dirs
 # there, or a detached HEAD there that is the only ref to its commit, make it
 # unlanded.
@@ -344,8 +349,10 @@ record_copy() {  # <anchor> <path> <head> <branch> <locked> <prunable>
     fi
   done
   [ "$in_scope" -eq 1 ] || return 0
-  if [ "$prunable" -eq 1 ] || [ ! -d "$path" ]; then
+  if [ ! -e "$path" ]; then
     state=$(classify_missing_copy "$anchor" "$path" "$head" "$branch")
+  elif [ "$prunable" -eq 1 ]; then
+    state=unlanded
   elif [ "$locked" -eq 1 ]; then
     state=locked
   else
@@ -414,6 +421,9 @@ cmd_retire() {
     [ -n "$path" ] || continue
     if [ "$discard" -eq 1 ]; then
       force=(--force --force)
+      if [ -e "$path" ] && [ ! -e "$path/.git" ]; then
+        git -C "$anchor" worktree repair "$path" >/dev/null 2>&1 || true
+      fi
     else
       case "$state" in
         landed) force=(--force) ;;

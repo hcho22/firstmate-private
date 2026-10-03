@@ -314,6 +314,54 @@ test_submodule_commit_only_in_copy_is_unlanded() {
   pass "list/retire: a submodule commit that exists only in the copy keeps it unlanded, even after it vanishes"
 }
 
+test_hidden_untracked_files_keep_a_copy_unlanded() {
+  local dir top subcopy listing out
+  dir=$(make_world hidden-untracked)
+  add_origin_submodule "$dir"
+  git -C "$dir/main" config status.showUntrackedFiles no
+  top=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-hidden"}' 2>/dev/null)
+  printf 'work\n' > "$top/newfile.txt"
+  subcopy=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-hidden-sub"}' 2>/dev/null)
+  git -C "$subcopy" -c protocol.file.allow=always submodule update -q --init
+  git -C "$subcopy/sub" config status.showUntrackedFiles no
+  printf 'work\n' > "$subcopy/sub/newfile.txt"
+
+  listing=$("$HELPER" list "$dir/task" "$dir/tmp")
+  assert_row "$listing" unlanded "$top" worktree-agent-hidden \
+    "a new file hidden by status.showUntrackedFiles=no must list as unlanded"
+  assert_row "$listing" unlanded "$subcopy" worktree-agent-hidden-sub \
+    "a new submodule file hidden by status.showUntrackedFiles=no must list as unlanded"
+  out=$("$HELPER" retire "$dir/task" "$dir/tmp" 2>&1)
+  expect_code 1 $? "retire must refuse copies whose new files a config setting hides: $out"
+  assert_contains "$out" "REFUSED: worktree $top" "a copy with a hidden new file was not refused"
+  assert_contains "$out" "REFUSED: worktree $subcopy" "a copy with a hidden new submodule file was not refused"
+  assert_present "$top/newfile.txt" "a new file hidden by config was discarded"
+  assert_present "$subcopy/sub/newfile.txt" "a new submodule file hidden by config was discarded"
+  pass "list/retire: status.showUntrackedFiles=no cannot hide a copy's new files from the landed test"
+}
+
+test_copy_without_its_git_file_is_unlanded() {
+  local dir copy out
+  dir=$(make_world lost-gitfile)
+  copy=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-lost"}' 2>/dev/null)
+  printf 'work\n' > "$copy/untracked.txt"
+  rm -f "$copy/.git"
+
+  assert_row "$("$HELPER" list "$dir/task" "$dir/tmp")" unlanded "$copy" worktree-agent-lost \
+    "a copy whose directory survives without its .git file must list as unlanded"
+  out=$("$HELPER" retire "$dir/task" "$dir/tmp" 2>&1)
+  expect_code 1 $? "retire must refuse a copy whose directory survives without its .git file: $out"
+  assert_contains "$out" "REFUSED: worktree $copy" "a copy without its .git file was not refused"
+  assert_present "$copy/untracked.txt" "a copy without its .git file lost its files"
+
+  out=$("$HELPER" retire --discard "$dir/task" "$dir/tmp" 2>&1)
+  expect_code 0 $? "retire --discard must remove a copy whose directory survives without its .git file: $out"
+  assert_contains "$out" "retired: $copy" "a discard did not retire the copy without its .git file"
+  assert_absent "$copy" "a discard left the copy without its .git file on disk"
+  [ -z "$("$HELPER" list "$dir/task" "$dir/tmp")" ] || fail "a discarded copy without its .git file is still registered"
+  pass "list/retire: a copy that lost its .git file is refused, and a discard still removes it"
+}
+
 test_vanished_detached_copy_keeps_its_only_ref() {
   local dir kept dropped kept_tip listing out
   dir=$(make_world vanished-detached)
@@ -470,6 +518,8 @@ test_list_and_retire_classify_copies
 test_retire_forces_past_submodules_and_locks
 test_submodule_commit_only_in_copy_is_unlanded
 test_vanished_detached_copy_keeps_its_only_ref
+test_hidden_untracked_files_keep_a_copy_unlanded
+test_copy_without_its_git_file_is_unlanded
 test_retire_deletes_branch_landed_on_remote
 test_list_matches_a_vanished_scratch_root
 test_inventory_fails_closed_without_worktree_list_z
