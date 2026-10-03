@@ -316,7 +316,7 @@ Claude also never dispatched WorktreeRemove for a hook-created agent copy, inclu
 ```
 
 A print-mode session started with `claude --worktree <name>` from a hooked task worktree was routed through the same helper into `<task temp root>/worktrees/<name>`, ran there, and its copy was likewise kept at exit.
-Those copies therefore stay under the task's temp root until `bin/fm-teardown.sh` retires them, and `tests/fm-teardown.test.sh` pins that retirement.
+`bin/fm-spawn.sh` therefore wires no WorktreeRemove hook, and those copies stay under the task's temp root until `bin/fm-teardown.sh` retires them, which `tests/fm-teardown.test.sh` pins.
 The installed build also lacks the `worktreeBaseDir` setting the hook reference mentions, so the hook is the only placement control available.
 
 The other supported harnesses were inspected for a comparable feature on the same date.

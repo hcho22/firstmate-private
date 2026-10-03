@@ -32,7 +32,7 @@ When any diagnostic needs captain attention, report the plain consequence and re
 - `TANGLE: <remediation>` - a worker's work landed in the primary checkout; `AGENTS.md` section 8 explains why this guard exists and what it protects.
   A `primary checkout on feature branch` line means the primary is stranded off its default branch: the work is safe on that branch ref, so restore the primary with the printed `git -C <root> checkout <default>`, then re-validate that branch in a proper worktree.
   A `worktree '<path>' ... is registered inside the primary checkout` line names a linked worktree nested in the primary, such as an isolated subagent's `.claude/worktrees/*` copy.
-  Run the printed `fm-subagent-worktree.sh retire <root>`: it removes only copies whose state is `landed`, meaning clean with nothing found nowhere else, and refuses the rest.
+  Run the printed `fm-subagent-worktree.sh retire <root>`: it removes only copies whose state is `landed`, meaning clean with every commit already on the primary's HEAD or a remote, deregisters `missing` ones whose directory is gone, and refuses the rest.
   Never force a refused `unlanded` or `locked` copy; inspect it, route any real work to the worker or task that owns it, and escalate to the captain before anything would discard it.
   These two printed remedies are the only sanctioned firstmate-initiated git writes to the primary, and neither discards or strands work.
 - `STARTUP_MEMORY_BUDGET: invalid config/startup-memory-budget - <reason>` - the visible startup-memory budget is not a safe one-line positive decimal file; do not infer the default or propagate it.

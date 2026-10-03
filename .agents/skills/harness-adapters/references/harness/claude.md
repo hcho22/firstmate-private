@@ -32,7 +32,8 @@ Inspect the pane to identify which dialog is on screen, and report it rather tha
 ## Isolated-subagent worktrees
 
 From a linked task worktree, Claude resolves the repository's main checkout and, unhooked, creates every worktree it isolates work into under that checkout's `.claude/worktrees/`.
-A ship or scout spawn therefore writes WorktreeCreate and WorktreeRemove hooks into the worker's `.claude/settings.local.json`, placing those copies under the task's temp root instead.
+A ship or scout spawn therefore writes a WorktreeCreate hook into the worker's `.claude/settings.local.json`, placing those copies under the task's temp root instead.
+Claude keeps each copy after its subagent ends without dispatching WorktreeRemove, so no WorktreeRemove hook is wired and teardown retires them.
 `../../../../../bin/fm-subagent-worktree.sh` owns the placement and its verified Claude facts, and `../../../../../tests/fm-subagent-worktree-live-e2e.test.sh` re-proves them.
 A worker may therefore use isolated subagents freely; a failed placement stops that one copy rather than falling back to the main checkout.
 

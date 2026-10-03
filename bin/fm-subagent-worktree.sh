@@ -12,9 +12,9 @@
 # and untracked in the primary checkout. For firstmate-on-itself the main
 # checkout is the primary firstmate home, which must never hold project work.
 #
-# The structural fix: bin/fm-spawn.sh writes `create` and `remove` below as a
-# Claude worker's WorktreeCreate and WorktreeRemove hooks in the task
-# worktree's `.claude/settings.local.json`. A configured WorktreeCreate hook
+# The structural fix: bin/fm-spawn.sh writes `create` below as a Claude
+# worker's WorktreeCreate hook in the task worktree's
+# `.claude/settings.local.json`. A configured WorktreeCreate hook
 # replaces Claude's own placement, so the copy lands in the task's own scratch
 # root instead: `<scratch-root>/worktrees/<slug>`, where <scratch-root> is the
 # task's tasktmp (`/tmp/fm-<id>`). Outside every checkout, such a copy never
@@ -38,13 +38,11 @@
 #     printed because Claude screens symlinked components.
 #   - Claude keeps every hook-created agent worktree when its subagent ends, and
 #     a print-mode `--worktree` session's copy at exit, without dispatching
-#     WorktreeRemove, so these copies accumulate in the scratch root until
-#     teardown retires them. `remove` stays implemented for any flow or later
-#     Claude build that does dispatch it.
+#     WorktreeRemove, so no WorktreeRemove hook is wired: these copies
+#     accumulate in the scratch root until teardown retires them.
 #
 # Usage:
 #   fm-subagent-worktree.sh create <task-worktree> <scratch-root>   < hook JSON
-#   fm-subagent-worktree.sh remove <task-worktree> <scratch-root>   < hook JSON
 #   fm-subagent-worktree.sh list <anchor> [<dir>...]
 #   fm-subagent-worktree.sh retire [--discard] <anchor> [<dir>...]
 #
@@ -63,13 +61,6 @@
 #         anything, a destination inside the repository's main checkout or the
 #         task worktree, a missing or relative scratch root, a task worktree
 #         that is not a git work tree, an invalid name or payload, or missing jq.
-# remove  WorktreeRemove hook. Reads `.worktree_path`. Acts only on a path
-#         directly under <scratch-root>/worktrees/ that is registered in this
-#         repository, and removes it without --force, so uncommitted or
-#         untracked work makes git refuse and the copy stays. A `worktree-*`
-#         branch is then deleted with `git branch -d`, which keeps any branch
-#         holding commits the task worktree's HEAD does not contain. A path
-#         that is already gone is deregistered and reported as removed.
 # list    Prints one `<state>\t<path>\t<branch>` line per registered worktree of
 #         <anchor>'s repository whose path lies inside one of the <dir>s
 #         (default: <anchor>), excluding the main checkout and each <dir>
@@ -82,14 +73,17 @@
 #           locked    git-locked, so it is never removed without --discard;
 #           missing   registered but its directory is gone.
 #         <branch> is the checked-out branch name, or `detached`.
-# retire  Removes every listed `landed` and `missing` copy (deleting a landed
-#         copy's `worktree-*` branch with `git branch -d`), and refuses every
-#         `unlanded` or `locked` one with a REFUSED line on stderr, exiting 1
-#         when anything was refused or failed. --discard is for callers that
-#         already hold discard authority (teardown --force, or a scout's
-#         declared-scratch copy): it force-removes every listed copy and keeps
-#         every branch, so commits stay reachable. Prints `retired: <path>` per
-#         removed copy on stdout.
+# retire  Removes every listed `landed` copy, with --force so populated
+#         submodules cannot block a copy just verified clean, and deregisters
+#         every `missing` one even when it is locked. A retired landed copy's
+#         `worktree-*` branch is deleted only while its tip passes the same
+#         landed test, so a branch holding commits found nowhere else is kept.
+#         Every `unlanded` or `locked` copy is refused with a REFUSED line on
+#         stderr, exiting 1 when anything was refused or failed. --discard is
+#         for callers that already hold discard authority (teardown --force, or
+#         a scout's declared-scratch copy): it force-removes every listed copy
+#         whatever its state and keeps every branch, so commits stay
+#         reachable. Prints `retired: <path>` per removed copy on stdout.
 #
 # bin/fm-teardown.sh uses `<task-worktree>` (or the project checkout when that
 # copy is gone) as <anchor> and both the task worktree and its scratch root as
@@ -245,48 +239,37 @@ cmd_create() {
   printf '%s\n' "$dest_real"
 }
 
-cmd_remove() {
-  local path worktrees parent path_real branch
-  resolve_task_args "$@"
-  read_hook_payload
-  path=$(hook_field "$HOOK_PAYLOAD" '.worktree_path')
-  [ -n "$path" ] || die "worktree hook payload names no worktree_path"
-  worktrees=$(canonical_dir "$SCRATCH_ROOT/worktrees") \
-    || die "refusing to remove a worktree outside this task's scratch root: $path"
-  parent=$(canonical_dir "$(dirname -- "$path")") \
-    || die "refusing to remove a worktree outside this task's scratch root: $path"
-  [ "$parent" = "$worktrees" ] || die "refusing to remove a worktree outside this task's scratch root: $path"
-  path_real="$parent/$(basename -- "$path")"
-  if [ ! -e "$path_real" ]; then
-    git -C "$TASK_WT_REAL" worktree remove "$path_real" >/dev/null 2>&1 || true
-    return 0
-  fi
-  registered_worktree "$TASK_WT_REAL" "$path_real" \
-    || die "refusing to remove a path that is not a registered worktree of this repository: $path_real"
-  branch=$(git -C "$path_real" symbolic-ref --quiet --short HEAD 2>/dev/null || true)
-  git -C "$TASK_WT_REAL" worktree remove "$path_real" >&2 \
-    || die "git kept $path_real (it holds uncommitted or untracked work)"
-  case "$branch" in
-    worktree-*) git -C "$TASK_WT_REAL" branch -d "$branch" >/dev/null 2>&1 || true ;;
-  esac
+# True when <commit> is contained in <anchor>'s HEAD or in any remote-tracking
+# ref, so dropping every other reference to it loses nothing.
+commit_landed() {  # <anchor> <commit>
+  local contained
+  git -C "$1" merge-base --is-ancestor "$2" HEAD >/dev/null 2>&1 && return 0
+  contained=$(git -C "$1" for-each-ref --count=1 --contains "$2" --format='%(refname)' refs/remotes 2>/dev/null || true)
+  [ -n "$contained" ]
 }
 
 # Classify one existing copy. Echoes landed|unlanded.
 classify_copy() {  # <anchor> <path> <head>
-  local anchor=$1 path=$2 head=$3 status contained
+  local anchor=$1 path=$2 head=$3 status
   status=$(git -C "$path" status --porcelain 2>/dev/null) || { echo unlanded; return; }
-  [ -z "$status" ] || { echo unlanded; return; }
-  [ -n "$head" ] || { echo unlanded; return; }
-  if git -C "$anchor" merge-base --is-ancestor "$head" HEAD >/dev/null 2>&1; then
-    echo landed
-    return
-  fi
-  contained=$(git -C "$anchor" for-each-ref --count=1 --contains "$head" --format='%(refname)' refs/remotes 2>/dev/null || true)
-  if [ -n "$contained" ]; then
+  if [ -z "$status" ] && [ -n "$head" ] && commit_landed "$anchor" "$head"; then
     echo landed
   else
     echo unlanded
   fi
+}
+
+# Delete a retired copy's `worktree-*` branch while its tip still passes the
+# landed test; the delete compares against that tested tip.
+retire_branch() {  # <anchor> <branch>
+  local tip
+  case "$2" in
+    worktree-*) ;;
+    *) return 0 ;;
+  esac
+  tip=$(git -C "$1" rev-parse --verify --quiet "refs/heads/$2" 2>/dev/null) || return 0
+  commit_landed "$1" "$tip" || return 0
+  git -C "$1" update-ref -d "refs/heads/$2" "$tip" >/dev/null 2>&1 || true
 }
 
 # Append one list line to LIST_OUT for a registered worktree record when it
@@ -356,6 +339,7 @@ cmd_list() {
 
 cmd_retire() {
   local discard=0 anchor state path branch failed=0
+  local -a force
   if [ "${1:-}" = --discard ]; then
     discard=1
     shift
@@ -365,35 +349,29 @@ cmd_retire() {
   collect_copies "$@"
   while IFS=$'\t' read -r state path branch; do
     [ -n "$path" ] || continue
-    case "$state" in
-      landed|missing)
-        if git -C "$anchor" worktree remove "$path" >/dev/null 2>&1; then
-          printf 'retired: %s\n' "$path"
-          if [ "$state" = landed ]; then
-            case "$branch" in
-              worktree-*) git -C "$anchor" branch -d "$branch" >/dev/null 2>&1 || true ;;
-            esac
-          fi
-        else
-          printf 'REFUSED: could not remove worktree %s (git kept it)\n' "$path" >&2
-          failed=1
-        fi
-        ;;
-      *)
-        if [ "$discard" -eq 1 ]; then
-          if git -C "$anchor" worktree remove --force --force "$path" >/dev/null 2>&1; then
-            printf 'retired: %s\n' "$path"
-          else
-            printf 'REFUSED: could not discard worktree %s\n' "$path" >&2
-            failed=1
-          fi
-        else
+    if [ "$discard" -eq 1 ]; then
+      force=(--force --force)
+    else
+      case "$state" in
+        landed) force=(--force) ;;
+        missing) force=(--force --force) ;;
+        *)
           printf 'REFUSED: worktree %s (branch %s) is %s; inspect it and land or preserve its work first\n' \
             "$path" "$branch" "$state" >&2
           failed=1
-        fi
-        ;;
-    esac
+          continue
+          ;;
+      esac
+    fi
+    if git -C "$anchor" worktree remove "${force[@]}" "$path" >/dev/null 2>&1; then
+      printf 'retired: %s\n' "$path"
+      if [ "$discard" -eq 0 ] && [ "$state" = landed ]; then
+        retire_branch "$anchor" "$branch"
+      fi
+    else
+      printf 'REFUSED: could not remove worktree %s (git kept it)\n' "$path" >&2
+      failed=1
+    fi
   done <<EOF
 $LIST_OUT
 EOF
@@ -402,7 +380,6 @@ EOF
 
 case "${1:-}" in
   create) shift; cmd_create "$@" ;;
-  remove) shift; cmd_remove "$@" ;;
   list) shift; cmd_list "$@" ;;
   retire) shift; cmd_retire "$@" ;;
   -h|--help) usage; exit 0 ;;

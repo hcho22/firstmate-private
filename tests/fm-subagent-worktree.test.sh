@@ -10,11 +10,12 @@
 #     main checkout or the task worktree, mirrors Claude's branch naming and
 #     default base, resumes and attaches without resetting, and fails closed on
 #     every malformed or unsafe request;
-#   - remove deletes only a clean copy it owns;
 #   - list and retire classify and retire copies with the landed test teardown
-#     and the primary-checkout remedy rely on;
-#   - the real fm-spawn writes the hooks into a Claude worker's local settings,
-#     and running them the way Claude does keeps the main checkout untouched.
+#     and the primary-checkout remedy rely on, forcing past populated
+#     submodules and locks only where removal is already authorized;
+#   - the real fm-spawn writes the hook into a Claude worker's local settings,
+#     and running it the way Claude does keeps the main checkout untouched and
+#     fails closed.
 # tests/fm-subagent-worktree-live-e2e.test.sh proves the same wiring against the
 # installed Claude binary.
 set -u
@@ -150,33 +151,6 @@ test_create_fails_closed() {
   pass "create: fails closed on unsafe names, payloads, roots, placements, and missing jq"
 }
 
-test_remove_deletes_only_clean_owned_copies() {
-  local dir clean dirty out
-  dir=$(make_world remove)
-  clean=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-clean"}' 2>/dev/null)
-  dirty=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-dirty"}' 2>/dev/null)
-  printf 'work\n' > "$dirty/new.txt"
-
-  hook remove "$dir/task" "$dir/tmp" "{\"worktree_path\":\"$clean\"}" >/dev/null 2>&1
-  expect_code 0 $? "removing a clean copy should succeed"
-  assert_absent "$clean" "the clean copy is still on disk"
-  git -C "$dir/main" show-ref --verify --quiet refs/heads/worktree-agent-clean \
-    && fail "a clean copy's merged branch should be deleted"
-
-  out=$(hook remove "$dir/task" "$dir/tmp" "{\"worktree_path\":\"$dirty\"}" 2>&1)
-  expect_code 1 $? "removing a copy with untracked work must be refused"
-  assert_present "$dirty/new.txt" "the dirty copy's work was discarded"
-
-  out=$(hook remove "$dir/task" "$dir/tmp" "{\"worktree_path\":\"$dir/task\"}" 2>&1)
-  expect_code 1 $? "removing a path outside the scratch root must be refused"
-  assert_contains "$out" "outside this task's scratch root" "outside-root refusal lacked its reason"
-  assert_present "$dir/task/.git" "the task worktree was touched"
-
-  hook remove "$dir/task" "$dir/tmp" "{\"worktree_path\":\"$dir/tmp/worktrees/agent-gone\"}" >/dev/null 2>&1
-  expect_code 0 $? "an already-gone copy should count as removed"
-  pass "remove: deletes a clean owned copy and its merged branch, keeps everything else"
-}
-
 test_list_and_retire_classify_copies() {
   local dir landed unlanded dirty locked missing nested listing out branch_tip
   dir=$(make_world retire)
@@ -189,6 +163,7 @@ test_list_and_retire_classify_copies() {
   locked=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-locked"}' 2>/dev/null)
   git -C "$dir/main" worktree lock "$locked"
   missing=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-missing"}' 2>/dev/null)
+  git -C "$dir/main" worktree lock "$missing"
   rm -rf "$missing"
   # A copy nested inside the task worktree itself is in scope too.
   nested="$dir/task/.nested-copy"
@@ -210,7 +185,7 @@ test_list_and_retire_classify_copies() {
   out=$("$HELPER" retire "$dir/task" "$dir/task" "$dir/tmp" 2>&1)
   expect_code 1 $? "retire must refuse while unlanded or locked copies remain"
   assert_contains "$out" "retired: $landed" "a landed copy was not retired"
-  assert_contains "$out" "retired: $missing" "a vanished copy was not deregistered"
+  assert_contains "$out" "retired: $missing" "a vanished locked copy was not deregistered"
   assert_contains "$out" "retired: $nested" "a landed nested copy was not retired"
   assert_contains "$out" "REFUSED: worktree $unlanded" "an unlanded copy was not refused"
   assert_contains "$out" "REFUSED: worktree $locked" "a locked copy was not refused"
@@ -229,8 +204,63 @@ test_list_and_retire_classify_copies() {
   pass "list/retire: classify landed, unlanded, locked, and missing copies; retire only what is safe"
 }
 
+test_retire_forces_past_submodules_and_locks() {
+  local dir copy gone out
+  dir=$(make_world forced)
+  git init -q "$dir/sub"
+  git -C "$dir/sub" commit -q --allow-empty -m sub
+  git -C "$dir/main" -c protocol.file.allow=always submodule add -q "$dir/sub" sub
+  git -C "$dir/main" commit -q -m "add submodule"
+  git -C "$dir/main" push -q origin main
+
+  copy=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-sub-ship"}' 2>/dev/null)
+  git -C "$copy" -c protocol.file.allow=always submodule update -q --init
+  assert_row "$("$HELPER" list "$dir/task" "$dir/tmp")" landed "$copy" worktree-agent-sub-ship \
+    "a clean copy with a populated submodule must list as landed"
+  out=$("$HELPER" retire "$dir/task" "$dir/tmp" 2>&1)
+  expect_code 0 $? "retire must remove a landed copy with a populated submodule: $out"
+  assert_absent "$copy" "a landed copy with a populated submodule was kept"
+  git -C "$dir/main" show-ref --verify --quiet refs/heads/worktree-agent-sub-ship \
+    && fail "a retired landed copy's branch should be deleted"
+
+  copy=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-sub-scout"}' 2>/dev/null)
+  git -C "$copy" -c protocol.file.allow=always submodule update -q --init
+  gone=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-gone"}' 2>/dev/null)
+  git -C "$dir/main" worktree lock "$gone"
+  rm -rf "$gone"
+  out=$("$HELPER" retire --discard "$dir/task" "$dir/tmp" 2>&1)
+  expect_code 0 $? "retire --discard must remove a submodule copy and a locked vanished copy: $out"
+  assert_contains "$out" "retired: $copy" "a discard did not retire the copy with a populated submodule"
+  assert_contains "$out" "retired: $gone" "a discard did not deregister the locked vanished copy"
+  [ -z "$("$HELPER" list "$dir/task" "$dir/tmp")" ] || fail "copies remain registered after a discard"
+  git -C "$dir/main" show-ref --verify --quiet refs/heads/worktree-agent-sub-scout \
+    || fail "a discard must keep every branch"
+  pass "retire: populated submodules and locks never block a removal that is already authorized"
+}
+
+test_retire_deletes_branch_landed_on_remote() {
+  local dir copy out
+  dir=$(make_world remote-landed)
+  git clone -q "$dir/origin.git" "$dir/other" 2>/dev/null
+  git -C "$dir/other" commit -q --allow-empty -m "landed after the task branched"
+  git -C "$dir/other" push -q origin main
+  git -C "$dir/main" fetch -q origin
+  copy=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-ahead"}' 2>/dev/null)
+  [ "$(git -C "$copy" rev-parse HEAD)" = "$(git -C "$dir/main" rev-parse origin/main)" ] \
+    || fail "fixture: the copy must be based on the fetched origin/main"
+  git -C "$dir/task" merge-base --is-ancestor "$(git -C "$copy" rev-parse HEAD)" HEAD \
+    && fail "fixture: the copy's base must not be in the task HEAD"
+
+  out=$("$HELPER" retire "$dir/task" "$dir/tmp" 2>&1)
+  expect_code 0 $? "retire must remove a copy landed on a remote: $out"
+  assert_contains "$out" "retired: $copy" "a copy landed on a remote was not retired"
+  git -C "$dir/main" show-ref --verify --quiet refs/heads/worktree-agent-ahead \
+    && fail "a retired copy's branch whose tip is on a remote must be deleted"
+  pass "retire: deletes a retired copy's branch whose tip landed only on a remote"
+}
+
 test_spawn_wires_claude_worker_hooks() {
-  local case_dir home proj wt fakebin id=swt-claude-k7 out settings create_cmd remove_cmd copy scratch
+  local case_dir home proj wt fakebin id=swt-claude-k7 out settings create_cmd copy scratch registered rc
   case_dir="$TMP_ROOT/spawn"
   home="$case_dir/home"
   proj="$case_dir/project"
@@ -248,16 +278,22 @@ test_spawn_wires_claude_worker_hooks() {
   settings="$wt/.claude/settings.local.json"
   assert_present "$settings" "claude spawn did not write its local settings"
   create_cmd=$(jq -r '.hooks.WorktreeCreate[0].hooks[0].command' "$settings")
-  remove_cmd=$(jq -r '.hooks.WorktreeRemove[0].hooks[0].command' "$settings")
-  assert_contains "$create_cmd" "fm-subagent-worktree.sh" "WorktreeCreate does not run the placement helper"
-  assert_contains "$remove_cmd" "fm-subagent-worktree.sh" "WorktreeRemove does not run the placement helper"
-  assert_not_contains "$create_cmd" "|| true" "WorktreeCreate must fail closed, never tolerate a failure"
   for ev in UserPromptSubmit Stop StopFailure SessionEnd; do
     jq -e ".hooks[\"$ev\"]" "$settings" >/dev/null || fail "the busy hook $ev was lost"
   done
 
   # Run the hook the way Claude does: /bin/sh -c from the worker's directory,
-  # with the event payload on stdin.
+  # with the event payload on stdin. Claude fails the creation on a non-zero
+  # exit or an empty stdout, so a refusal must surface as both.
+  registered=$(git -C "$proj" worktree list --porcelain)
+  out=$(cd "$wt" && printf '{"hook_event_name":"WorktreeCreate","name":"../x"}' | sh -c "$create_cmd" 2>/dev/null)
+  rc=$?
+  [ "$rc" -ne 0 ] || fail "the generated WorktreeCreate command exited 0 on an unsafe name instead of failing closed"
+  [ -z "$out" ] || fail "the generated WorktreeCreate command printed '$out' on an unsafe name"
+  [ "$(git -C "$proj" worktree list --porcelain)" = "$registered" ] \
+    || fail "a refused WorktreeCreate registered a worktree"
+  assert_absent "$scratch/x" "a refused WorktreeCreate made a copy"
+
   copy=$(cd "$wt" && printf '{"hook_event_name":"WorktreeCreate","name":"agent-spawned"}' | sh -c "$create_cmd")
   expect_code 0 $? "the generated WorktreeCreate command failed"
   [ "$copy" = "$(cd "$scratch" && pwd -P)/worktrees/agent-spawned" ] \
@@ -265,10 +301,6 @@ test_spawn_wires_claude_worker_hooks() {
   [ -z "$(git -C "$proj" status --porcelain --untracked-files=all)" ] \
     || fail "the project's main checkout was dirtied by the generated hook"
   assert_absent "$proj/.claude/worktrees" "the generated hook used the main checkout's .claude/worktrees"
-
-  (cd "$wt" && printf '{"hook_event_name":"WorktreeRemove","worktree_path":"%s"}' "$copy" | sh -c "$remove_cmd") \
-    || fail "the generated WorktreeRemove command failed"
-  assert_absent "$copy" "the generated WorktreeRemove command left the copy"
   rm -rf "$scratch"
   pass "fm-spawn: a Claude worker's local settings route isolated worktrees into the task scratch root"
 }
@@ -276,6 +308,7 @@ test_spawn_wires_claude_worker_hooks() {
 test_create_places_copy_in_scratch_root
 test_create_resumes_and_attaches_without_reset
 test_create_fails_closed
-test_remove_deletes_only_clean_owned_copies
 test_list_and_retire_classify_copies
+test_retire_forces_past_submodules_and_locks
+test_retire_deletes_branch_landed_on_remote
 test_spawn_wires_claude_worker_hooks
