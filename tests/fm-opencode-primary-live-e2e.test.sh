@@ -58,11 +58,10 @@ wait_for_text() {
 }
 
 wait_for_absent() {
-  local unexpected=$1 attempts=${2:-60} i=0
-  while [ "$i" -lt "$attempts" ]; do
+  local unexpected=$1 deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     capture | grep -Fq "$unexpected" || return 0
     sleep 0.5
-    i=$((i + 1))
   done
   capture >&2
   return 1
@@ -73,7 +72,7 @@ dismiss_update_offer() {
   # Choose Skip explicitly. Escape merely hides the offer until the next idle
   # event, which can obstruct the watcher follow-up under test.
   "$TMUX" -L "$SOCKET" send-keys -t "$SESSION" Left Enter
-  wait_for_absent "Update Available" 60
+  wait_for_absent "Update Available"
 }
 
 wait_for_handled() {

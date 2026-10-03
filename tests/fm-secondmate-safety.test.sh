@@ -2348,11 +2348,12 @@ hold_task_set_lock() {  # <state-dir> -> echoes "<holder-pid> <lock-path>"
     # shellcheck source=/dev/null
     . "$ROOT/bin/fm-wake-lib.sh"
     fm_lock_try_acquire "$lock" || exit 1
-    sleep 30
+    deadline=$((SECONDS + 600))
+    while [ -d "$state" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   ) >/dev/null 2>&1 &
   holder=$!
   local deadline=$((SECONDS + 60))
-  while [ ! -e "$lock" ] && [ "$SECONDS" -lt "$deadline" ]; do
+  while [ ! -e "$lock" ] && kill -0 "$holder" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
   done
   [ -e "$lock" ] || {

@@ -1093,8 +1093,7 @@ test_custom_snapshot_cleanup_on_signal() {
   # shellcheck disable=SC2016  # The generated child expands $$ when it runs.
   printf '%s\n' '#!/usr/bin/env bash' 'trap "" TERM' \
     'printf "%s\n" "$$" > "$FM_TEST_CUSTOM_CHILD_PID"' \
-    'deadline=$((SECONDS + FM_TEST_HANG_GUARD_SECS))' \
-    'while [ "$SECONDS" -lt "$deadline" ]; do sleep 1; done' \
+    'while [ -d "${FM_TEST_CUSTOM_CHILD_PID%/*}" ]; do sleep 1; done' \
     > "$state/custom.check.sh"
   chmod 0700 "$state/custom.check.sh"
   cat > "$dir/fakebin/timeout" <<'SH'
@@ -1111,7 +1110,6 @@ SH
 
   FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_POLL=0 FM_CHECK_INTERVAL=0 \
     FM_SIGNAL_GRACE=0 FM_TEST_CUSTOM_CHILD_PID="$child_pid_file" \
-    FM_TEST_HANG_GUARD_SECS="$HANG_GUARD_EVENT_SECS" \
     PATH="$dir/fakebin:$BASE_PATH" "$WATCH" \
     > "$dir/watch.out" 2> "$dir/watch.err" &
   pid=$!
@@ -1124,9 +1122,10 @@ SH
     || fail "watcher did not create the custom check snapshot"
   child_pid=$(cat "$child_pid_file")
   kill -TERM "$pid" 2>/dev/null || fail "could not signal watcher during custom check"
-  # The check child ignores TERM and never exits by itself, so the watcher can only
-  # stop by draining it: exiting at all is the structural proof, and the wait is a
-  # hang guard rather than a promptness bound that a loaded host would turn flaky.
+  # The check child ignores TERM and exits by itself only once its case is gone,
+  # so the watcher can only stop by draining it: exiting at all is the structural
+  # proof, and the wait is a hang guard rather than a promptness bound that a
+  # loaded host would turn flaky.
   deadline=$((SECONDS + HANG_GUARD_EVENT_SECS))
   while kill -0 "$pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.02

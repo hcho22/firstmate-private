@@ -85,7 +85,7 @@ printf '%s\n' "$1" >> "$2"
 if [ -n "${4:-}" ]; then
   printf '%s\n' "$$" > "$4.tmp" && mv -f -- "$4.tmp" "$4"
 fi
-while [ ! -e "$3" ]; do sleep 0.1; done
+while [ ! -e "$3" ] && [ -d "${3%/*}" ]; do sleep 0.1; done
 SH
 cat > "$REMOTE_ROOT/bin/fm-stdin-probe.sh" <<'SH'
 #!/bin/bash

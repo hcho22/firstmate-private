@@ -1282,7 +1282,7 @@ SH
   PATH="$dir/fakebin:$PATH" FM_HANDOFF_SLEEP_LOG="$sleep_log" FM_HANDOFF_REAL_SLEEP="$real_sleep" \
     FM_STATE_OVERRIDE="$state" bash -c '
     . "$1"
-    fm_lock_acquire_wait_bounded "$2" 5 || exit 11
+    fm_lock_acquire_wait_bounded "$2" 60 || exit 11
     current=${BASHPID:-$$}
     printf "%s\n" "$current" > "$3"
     while [ ! -e "$4" ]; do sleep 0.05; done
@@ -1361,7 +1361,7 @@ test_live_presentation_holder_is_deadlined_without_weakening_ack() {
     || { kill "$queue_holder" 2>/dev/null || true; fail "bounded queue presentation drain failed"; }
   kill -0 "$queue_holder" 2>/dev/null || fail "queue lock delayed the drain"
   advisory_count=$(grep -Fc \
-    "WAKE DRAIN SKIPPED: queue lock remains held by live pid $queue_holder" \
+    "WAKE DRAIN SKIPPED: queue lock remains held by live pid $queue_holder after 1s;" \
     "$queue_out" || true)
   [ "$advisory_count" -eq 1 ] \
     || { kill "$queue_holder" 2>/dev/null || true; fail "queue deadline did not emit exactly one holder advisory"; }
@@ -1398,7 +1398,7 @@ test_live_presentation_holder_is_deadlined_without_weakening_ack() {
     || { kill "$presentation_holder" 2>/dev/null || true; fail "bounded presentation drain failed"; }
   kill -0 "$presentation_holder" 2>/dev/null || fail "presentation lock delayed the drain"
   advisory_count=$(grep -Fc \
-    "STATUS PRESENTATION SKIPPED: lock remains held by live pid $presentation_holder" \
+    "STATUS PRESENTATION SKIPPED: lock remains held by live pid $presentation_holder after 1s;" \
     "$first_out" || true)
   [ "$advisory_count" -eq 1 ] \
     || { kill "$presentation_holder" 2>/dev/null || true; fail "presentation deadline did not emit exactly one holder advisory"; }

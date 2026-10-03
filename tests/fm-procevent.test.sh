@@ -1274,7 +1274,8 @@ assert_present "$FM_PROCEVENT_CLAIM_ROOT/sweep-one.claim" "home sweep preflight 
 out=$(pe "$HM" sweep-home)
 assert_contains "$out" "swept: attempted=2" "home sweep retires registrations and owned claim-only sources"
 for sweep_pid in "$sweep_pid_one" "$sweep_pid_two"; do
-  for _ in $(seq 1 40); do kill -0 "$sweep_pid" 2>/dev/null || break; sleep 0.1; done
+  deadline=$((SECONDS + 60))
+  while kill -0 "$sweep_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   kill -0 "$sweep_pid" 2>/dev/null && fail "home sweep left a runner alive"
 done
 assert_absent "$HM/state/procevent/sweep-one.source" "home sweep removes registrations"
@@ -1378,7 +1379,8 @@ FM_PROCEVENT_MAX_OUTPUT_BYTES=100 pe "$HG" reconcile >/dev/null
 wait_for "$NOISY_PID" || fail "noisy source child did not start"
 noisy_child=$(cat "$NOISY_PID")
 staged=
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   for candidate in "$HG/state/procevent"/.noisy-src.*.output; do
     if [ -f "$candidate" ]; then staged=$candidate; break; fi
   done

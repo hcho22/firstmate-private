@@ -903,11 +903,13 @@ while [ ! -e "$RESTART_HOME/state/.last-watcher-beat" ] && [ "$SECONDS" -lt "$de
 done
 [ -e "$RESTART_HOME/state/.last-watcher-beat" ] \
   || fail "the replacement restart watcher did not begin polling"
-# Two complete polls behind the live lock, however long a loaded host takes. A
-# watcher that exits meanwhile is replaced below.
-if ! wait_for_polls "$RESTART_HOME/state/.last-watcher-beat" "$WATCH_PID" 2; then
+# Five complete polls behind the live lock, however long a loaded host takes:
+# longer than the 2 s refresh timeout, so a refresh wrongly started at the first
+# poll has timed out and logged by now. A watcher that exits meanwhile is
+# replaced below.
+if ! wait_for_polls "$RESTART_HOME/state/.last-watcher-beat" "$WATCH_PID" 5; then
   kill -0 "$WATCH_PID" 2>/dev/null \
-    && fail "the replacement restart watcher did not complete two polls"
+    && fail "the replacement restart watcher did not complete five polls"
 fi
 [ ! -s "$RESTART_HOME/state/.home-summary-refresh.log" ] \
   || fail "watcher restart queued refreshes behind a live publication lock: $(cat "$RESTART_HOME/state/.home-summary-refresh.log")"
@@ -1038,14 +1040,14 @@ EOF
 REAL_DATE=$(command -v date)
 cat > "$ORDER_DATE_BIN/date" <<'SH'
 #!/usr/bin/env bash
+# The attempt's own stamp is the first one taken; every later stamp reads as
+# after the newer ledger, however long the host takes between them.
 if [ "$#" -eq 2 ] && [ "$1" = -u ] && [ "$2" = +%Y-%m-%dT%H:%M:%SZ ]; then
-  python3 - "$FM_TEST_ORDER_START" "$FM_TEST_ORDER_EARLY" "$FM_TEST_ORDER_LATE" <<'PY'
-import sys
-import time
-
-started = float(sys.argv[1])
-print(sys.argv[2] if time.time() - started < 1 else sys.argv[3])
-PY
+  if mkdir "$FM_TEST_ORDER_FIRST_STAMP" 2>/dev/null; then
+    printf '%s\n' "$FM_TEST_ORDER_EARLY"
+  else
+    printf '%s\n' "$FM_TEST_ORDER_LATE"
+  fi
   exit 0
 fi
 exec "$FM_TEST_REAL_DATE" "$@"
@@ -1066,9 +1068,8 @@ while [ ! -e "$ORDER_LOCK_MARKER" ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.05
 done
 [ -e "$ORDER_LOCK_MARKER" ] || fail "could not hold the publication lock for ordering coverage"
-order_started=$(python3 -c 'import time; print(time.time())')
 PATH="$ORDER_DATE_BIN:$FAKEBIN:$PATH" FM_TEST_REAL_DATE="$REAL_DATE" \
-  FM_TEST_ORDER_START="$order_started" FM_TEST_ORDER_EARLY="$NOW_ONE" \
+  FM_TEST_ORDER_FIRST_STAMP="$TMP_ROOT/order-first-stamp" FM_TEST_ORDER_EARLY="$NOW_ONE" \
   FM_TEST_ORDER_LATE="$NOW_THREE" FM_ROOT_OVERRIDE="$ROOT" \
   FM_HOME="$ORDER_HOME" FM_HOME_SUMMARY_TIMEOUT=2 \
   "$WRITER" --best-effort \

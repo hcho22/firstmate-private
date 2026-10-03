@@ -199,7 +199,7 @@ test_gemini_process_identity_reads_the_script_argument() {
 test_gemini_process_identity_preserves_whitespace_in_script_path() {
   command -v node >/dev/null 2>&1 || return 0
   [ -r /proc/self/cmdline ] || return 0
-  local dir="$TMP_ROOT/path with spaces" node_bin pid attempts=0
+  local dir="$TMP_ROOT/path with spaces" node_bin pid deadline
   mkdir -p "$dir"
   node_bin=$(command -v node)
   ln -s "$node_bin" "$dir/node"
@@ -208,9 +208,9 @@ setTimeout(() => {}, 30000);
 JS
   "$dir/node" "$dir/gemini" &
   pid=$!
+  deadline=$((SECONDS + 60))
   while ! fm_gemini_pid_is_gemini "$pid"; do
-    attempts=$((attempts + 1))
-    if [ "$attempts" -ge 100 ]; then
+    if [ "$SECONDS" -ge "$deadline" ]; then
       kill "$pid" 2>/dev/null || true
       wait "$pid" 2>/dev/null || true
       fail "Gemini interpreter and script paths containing spaces must retain process identity"

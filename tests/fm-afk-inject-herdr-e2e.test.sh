@@ -102,7 +102,8 @@ SUPERVISOR_TARGET="$SESSION:$PANE_ID"
 # fixture, or the command can remain typed but unsubmitted in the shell buffer.
 PANE_READY=false
 READY_SAMPLES=0
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   PROCESS_INFO=$(fm_backend_herdr_cli "$SESSION" pane process-info --pane "$PANE_ID" 2>/dev/null || true)
   if printf '%s' "$PROCESS_INFO" | jq -e '
     .result.process_info as $process

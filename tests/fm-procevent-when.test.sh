@@ -165,8 +165,8 @@ assert_grep 'action ran against' "$RESULT" "the outcome carries the action outpu
 assert_contains "$(when "$H" classify "$RESULT")" fired "classify reads the outcome"
 when "$H" terminal "$RESULT" || fail "a fired outcome must be terminal"
 # The generic runner retires a terminal source: no restart, no second fire.
-for _ in $(seq 1 100); do
-  [ ! -e "$H/state/procevent/when-fire.source" ] && break
+deadline=$((SECONDS + 60))
+while [ -e "$H/state/procevent/when-fire.source" ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.1
 done
 assert_absent "$H/state/procevent/when-fire.source" "a fired watch retires its registration"
@@ -197,8 +197,8 @@ when "$H" arm flap --interval 0.1 --stable 2 \
   --condition "$FLAP" "$TMP_ROOT/flap-count" \
   --action "$ACT" "$FLAPLOG" >/dev/null
 pe "$H" reconcile >/dev/null
-for _ in $(seq 1 150); do
-  [ "$(count_lines "$TMP_ROOT/flap-count")" -ge 5 ] && break
+deadline=$((SECONDS + 60))
+while [ "$(count_lines "$TMP_ROOT/flap-count")" -lt 5 ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.1
 done
 [ "$(count_lines "$TMP_ROOT/flap-count")" -ge 5 ] || fail "the flapping condition was not polled enough to judge"

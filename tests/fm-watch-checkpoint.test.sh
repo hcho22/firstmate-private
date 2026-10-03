@@ -63,12 +63,15 @@ test_signal_passes_through_and_exits_zero() {
   home=$(make_home signal)
   out="$home/out.txt"
   err="$home/err.txt"
+  # The wake is written once the watcher has begun polling, however long a loaded
+  # host takes to start it, and the checkpoint's bound is only a hang guard.
   (
-    sleep 1
+    deadline=$((SECONDS + 60))
+    while [ ! -e "$home/state/.last-watcher-beat" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.05; done
     printf 'done: synthetic wake\n' > "$home/state/demo.status"
   ) &
   status=0
-  FM_HOME="$home" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 "$CHECKPOINT" --seconds 8 >"$out" 2>"$err" || status=$?
+  FM_HOME="$home" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 "$CHECKPOINT" --seconds 60 >"$out" 2>"$err" || status=$?
   expect_code 0 "$status" "signal checkpoint exit"
   assert_contains "$(cat "$out")" "signal:" "signal wake was not passed through"
   drained=$(FM_HOME="$home" "$ROOT/bin/fm-wake-drain.sh")
@@ -89,7 +92,7 @@ SH
   FM_HOME="$home" "$ROOT/bin/fm-check-register.sh" env-check >/dev/null \
     || fail "could not register checkpoint custom check"
   status=0
-  FM_HOME="$home" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=1 "$CHECKPOINT" --seconds 5 >"$out" 2>"$err" || status=$?
+  FM_HOME="$home" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=1 "$CHECKPOINT" --seconds 60 >"$out" 2>"$err" || status=$?
   expect_code 0 "$status" "check checkpoint exit"
   assert_contains "$(cat "$out")" "check:" "check wake was not passed through"
   assert_contains "$(cat "$out")" "FM_CHECK_INTERVAL=1" "watcher environment was not preserved"
@@ -128,8 +131,8 @@ test_perl_fallback_lets_the_watcher_finish_its_cleanup() {
   cat > "$root/bin/fm-watch.sh" <<'SH'
 #!/usr/bin/env bash
 [ "${1:-}" != --warm ] || exit 0
-: > "$FM_FIXTURE/started"
 trap 'sleep 1; : > "$FM_FIXTURE/cleaned"; exit 143' TERM
+: > "$FM_FIXTURE/started"
 while :; do sleep 0.05; done
 SH
   chmod +x "$root/bin/fm-watch-checkpoint.sh" "$root/bin/fm-watch.sh"
@@ -144,9 +147,9 @@ SH
   done
   [ ! -e "$toolbin/timeout" ] && [ ! -e "$toolbin/gtimeout" ] || fail "the fixture PATH still offers a timeout command"
   status=0
-  PATH="$toolbin" FM_FIXTURE="$home" "$root/bin/fm-watch-checkpoint.sh" --seconds 2 >"$out" 2>/dev/null || status=$?
+  PATH="$toolbin" FM_FIXTURE="$home" "$root/bin/fm-watch-checkpoint.sh" --seconds 15 >"$out" 2>/dev/null || status=$?
   expect_code 124 "$status" "perl-fallback checkpoint exit"
-  assert_contains "$(cat "$out")" "checkpoint: no actionable wake within 2s" "perl-fallback checkpoint line missing"
+  assert_contains "$(cat "$out")" "checkpoint: no actionable wake within 15s" "perl-fallback checkpoint line missing"
   assert_present "$home/started" "the stub watcher never started"
   assert_present "$home/cleaned" "the perl fallback ended the watcher before its exit cleanup finished"
   pass "the perl fallback lets the watcher finish its exit cleanup after TERM"

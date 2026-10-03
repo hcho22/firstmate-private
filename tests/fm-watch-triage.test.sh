@@ -54,6 +54,7 @@ watch_bg() {  # <state> <fakebin> <out> [extra env assignments...]
 # Wait up to <limit> 0.1s ticks while <pid> stays alive; 0 if still alive, 1 if it died.
 wait_live() {
   local pid=$1 limit=${2:-30} i=0
+  # fm-lint-waits: allow an observation window the live process must outlast
   while [ "$i" -lt "$limit" ]; do
     kill -0 "$pid" 2>/dev/null || return 1
     sleep 0.1

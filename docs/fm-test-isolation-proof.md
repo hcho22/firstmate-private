@@ -23,7 +23,7 @@ This record owns concurrent isolation evidence for the portable parallel candida
 ### 2026-10-03: the captain-hold suite split in two
 
 `tests/fm-captain-hold-lifecycle.test.sh` was split into itself and `tests/fm-captain-hold-records.test.sh`, sharing `tests/captain-hold-helpers.sh`, and the new file joined the candidate set.
-Both proofs were re-run at commit `8472221` with the runtimes `bin/fm-test-run.sh` selects on this host (python 3.11 with `tomllib`, node 26) first on `PATH`, because the harness itself does not select runtimes and the host's first `python3` and `node` are older.
+Both proofs were re-run on the commit that made the split, with the runtimes `bin/fm-test-run.sh` selects on this host (python 3.11 with `tomllib`, node 26) first on `PATH`, because the harness itself does not select runtimes and the host's first `python3` and `node` are older.
 The host was under heavy external load throughout (load averages 150 to 250 on 20 cores, mostly another crew's iOS simulators and builds).
 
 - Portable pool: `FM_ISOLATION_SUMMARY total=25 failed=1 concurrency=4 duration_ms=1138394`.

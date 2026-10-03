@@ -347,7 +347,7 @@ EXTENSION_WAIT_SECONDS=60
 # The host's own startup bounds (5 s by default, docs/extension-bindings.md) are
 # a speed expectation the sections below do not test, and a starved host can
 # exceed them while a package merely starts. Widen them to the same hang guard so
-# only a genuine hang fails; the startup-bounds section runs the defaults.
+# only a genuine hang fails; the startup-bounds section runs the handshake default.
 FM_EXTENSION_HANDSHAKE_TIMEOUT_MS=$((EXTENSION_WAIT_SECONDS * 1000))
 FM_EXTENSION_LAUNCH_READY_WAIT_MS=$((EXTENSION_WAIT_SECONDS * 1000))
 FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS=$((EXTENSION_WAIT_SECONDS * 1000))
@@ -433,6 +433,7 @@ terminate_section_lanes() {
 terminate_section_lane_child() {
   local section_child_pid=$1 cleanup_attempt
   kill -TERM "$section_child_pid" 2>/dev/null || true
+  # fm-lint-waits: allow a reap grace before the forced kill below
   for ((cleanup_attempt = 0; cleanup_attempt < 20; cleanup_attempt++)); do
     kill -0 "$section_child_pid" 2>/dev/null || break
     sleep 0.05
@@ -2254,7 +2255,7 @@ for bound in FM_EXTENSION_HANDSHAKE_TIMEOUT_MS FM_EXTENSION_LAUNCH_READY_WAIT_MS
       env "$bound=$invalid" FM_HOME="$H_SLOW" "$HOST" list
   done
 done
-pass "the host startup bounds keep their defaults, accept overrides, and refuse malformed ones"
+pass "the handshake bound keeps its 5000 ms default and accepts overrides, and every startup bound refuses malformed values"
 
 # A terminal check whose handshake fails to answer is not a verdict. It must keep
 # the registration armed (the safe false path) AND leave a durable record, where

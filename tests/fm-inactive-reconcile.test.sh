@@ -621,7 +621,7 @@ test_nonterminal_and_captain_held_states_do_not_report() {
 # The actual watcher poll invokes the helper, while an idle secondmate remains
 # exempt from wedge escalation and emits no false wake.
 test_watcher_hook_and_idle_secondmate_exemption() {
-  local out pid i
+  local out pid deadline
   make_world watcher; write_child "$MAIN" child 'done: green'; prime_seen "$MAIN/state" "$MAIN/state/child.status"
   out="$WORLD/watch.out"
   PATH="$WORLD/fakebin:$PATH" FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" \
@@ -629,13 +629,12 @@ test_watcher_hook_and_idle_secondmate_exemption() {
     FM_FORGE_LOG="$WORLD/forge.log" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
     FM_FAKE_CREW_STATE='done' "$WATCH" > "$out" 2>&1 &
   pid=$!
+  # The watcher exits once it surfaces the wake; the deadline only bounds a hang.
   deadline=$((SECONDS + 60))
-  while [ "$SECONDS" -lt "$deadline" ]; do
-    kill -0 "$pid" 2>/dev/null || break
-    [ "$(wake_count "$MAIN" 'inactive-outcome:')" = 1 ] && break
+  while kill -0 "$pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
   done
-  wait "$pid" 2>/dev/null || true
+  reap "$pid"
   grep -Fq 'check: inactive-outcome' "$out" || fail "watcher did not surface its reconciliation result"
 
   make_world idle-secondmate; bind_secondmate local; write_mate_meta; prime_seen "$MAIN/state" "$MAIN/state/mate.status"
@@ -651,7 +650,7 @@ test_watcher_hook_and_idle_secondmate_exemption() {
 # line to the parent channel on its first cycle, with no line appended by the
 # mate and no wake needed in the mate home for it.
 test_watcher_poll_delivers_child_ledger_line_to_parent() {
-  local pid i key
+  local pid deadline key
   make_world watcher-ledger; bind_secondmate local
   write_child "$MATE" child 'done: PR https://example.test/owner/repo/pull/1 checks green'
   prime_seen "$MATE/state" "$MATE/state/child.status"
@@ -679,26 +678,31 @@ test_watcher_poll_delivers_child_ledger_line_to_parent() {
 # A stalled authoritative state read consumes only the aggregate scan budget.
 # The durable scan position lets the next invocation reach the following child.
 test_stalled_state_read_is_bounded_and_scan_progresses() {
-  local started elapsed
   make_world bounded
   write_child "$MAIN" a 'working: state read will stall'
-  cat > "$WORLD/fakebin/fm-crew-state.sh" <<'SH'
+  # The stalled read records that it started and, only if it is ever let run to
+  # its end, that it finished. It stalls until the world is gone (or 600 s).
+  cat > "$WORLD/fakebin/fm-crew-state.sh" <<SH
 #!/usr/bin/env bash
-if [ "$1" = a ]; then
-  sleep 30
+if [ "\$1" = a ]; then
+  : > '$WORLD/stall-started'
+  deadline=\$((SECONDS + 600))
+  while [ -d '$WORLD' ] && [ "\$SECONDS" -lt "\$deadline" ]; do sleep 0.1; done
+  [ ! -d '$WORLD' ] || : > '$WORLD/stall-finished'
 else
   printf 'state: done · source: fake\n'
 fi
 SH
   chmod +x "$WORLD/fakebin/fm-crew-state.sh"
 
-  started=$(date +%s)
-  FM_INACTIVE_RECONCILE_BUDGET_SECS=1 run_reconcile "$MAIN" --startup
-  elapsed=$(( $(date +%s) - started ))
-  [ "$elapsed" -le 3 ] || fail "stalled state read exceeded aggregate scan budget (${elapsed}s)"
+  # The budget is the production default, which a loaded host's scan reaches the
+  # stalled read within; the read stalls far longer than it.
+  FM_INACTIVE_RECONCILE_BUDGET_SECS=10 run_reconcile "$MAIN" --startup
+  [ -e "$WORLD/stall-started" ] || fail "the scan never reached the stalled state read"
+  [ ! -e "$WORLD/stall-finished" ] || fail "stalled state read exceeded aggregate scan budget"
 
   write_child "$MAIN" b 'done: green'
-  FM_INACTIVE_RECONCILE_BUDGET_SECS=1 run_reconcile "$MAIN" --startup
+  FM_INACTIVE_RECONCILE_BUDGET_SECS=10 run_reconcile "$MAIN" --startup
   grep -Fq 'child=b state=done' "$MAIN/state/.wake-queue" \
     || fail "next bounded scan did not resume with the following child"
   pass "stalled state reads are bounded without starving later children"

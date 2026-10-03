@@ -11,10 +11,12 @@ set -u
 LINTW="$ROOT/bin/fm-lint-waits.sh"
 
 # write_case <dir> <name>: the case body from stdin, as a test file. Fixtures
-# spell -lt and -le as -LT and -LE, so this file's own text is not a finding of
-# the repository-wide check below.
+# spell -lt, -le, -ge and -gt as -LT, -LE, -GE and -GT, and a line-leading for or
+# until as FOR or UNTIL, so this file's own text is not a finding of the
+# repository-wide check below.
 write_case() {
-  sed -e 's/ -LT / -lt /g' -e 's/ -LE / -le /g' >"$1/$2"
+  sed -e 's/ -LT / -lt /g' -e 's/ -LE / -le /g' -e 's/ -GE / -ge /g' -e 's/ -GT / -gt /g' \
+    -e 's/^\( *\)FOR /\1for /' -e 's/^\( *\)UNTIL /\1until /' >"$1/$2"
 }
 
 test_flags_a_counted_short_wait() {
@@ -121,6 +123,122 @@ SH
   pass "fm-lint-waits finds counted waits with multi-line conditions and on one line"
 }
 
+test_flags_counted_for_loops_that_leave_early() {
+  local tmp out rc=0
+  tmp=$(fm_test_tmproot fm-lint-waits-for)
+  write_case "$tmp" for.test.sh <<'SH'
+#!/usr/bin/env bash
+FOR _ in $(seq 1 50); do [ -e "$m" ] && break; sleep 0.1; done
+FOR _ in {1..20}; do
+  [ -e "$m" ] && break
+  sleep 0.2
+done
+FOR _ in 1 2 3 4 5; do [ -e "$m" ] && return 0; sleep 1; done
+FOR ((n = 0; n < 20; n++)); do kill -0 "$pid" 2>/dev/null || break; sleep 0.05; done
+FOR _ in $(seq 1 100); do
+  FOR job in "$dir"/*; do
+    [ -e "$job" ] && break 2
+  done
+  sleep 0.05
+done
+FOR _ in $(seq 1 6); do probe; sleep 0.3; done
+SH
+  out=$("$LINTW" "$tmp/for.test.sh" 2>&1) || rc=$?
+  [ "$rc" -eq 1 ] || fail "counted for loops were not flagged (rc=$rc): $out"
+  assert_contains "$out" "for.test.sh:2: counted wait of 50 x 0.1 s (5 s)" "a for over seq was missed"
+  assert_contains "$out" "for.test.sh:3: counted wait of 20 x 0.2 s (4 s)" "a for over a brace range was missed"
+  assert_contains "$out" "for.test.sh:7: counted wait of 5 x 1 s (5 s)" "a for over a list of integers was missed"
+  assert_contains "$out" "for.test.sh:8: counted wait of 20 x 0.05 s (1 s)" "an arithmetic for was missed"
+  assert_contains "$out" "for.test.sh:9: counted wait of 100 x 0.05 s (5 s)" "a for left by break 2 was missed"
+  assert_not_contains "$out" "for.test.sh:15:" "a paced for with no early exit was flagged as a wait"
+  pass "fm-lint-waits flags counted for loops that leave early, and not paced ones"
+}
+
+test_flags_until_loops_body_guards_and_bin_sleep() {
+  local tmp out rc=0
+  tmp=$(fm_test_tmproot fm-lint-waits-guards)
+  write_case "$tmp" guards.test.sh <<'SH'
+#!/usr/bin/env bash
+UNTIL [ -e "$m" ] || [ "$i" -GE 40 ]; do sleep 0.1; i=$((i + 1)); done
+while ! probe; do
+  [ "$i" -LT 30 ] || fail "never ready"
+  sleep 0.1
+  i=$((i + 1))
+done
+while ! probe; do
+  attempts=$((attempts + 1))
+  if [ "$attempts" -GE 100 ]; then
+    fail "never ready"
+  fi
+  sleep 0.01
+done
+while [ ! -e "$m" ] && [ "$i" -LT 100 ]; do /bin/sleep 0.01; i=$((i + 1)); done
+stable=0
+while :; do
+  if probe; then stable=$((stable + 1)); else stable=0; fi
+  [ "$stable" -GE 4 ] && break
+  sleep 0.1
+done
+SH
+  out=$("$LINTW" "$tmp/guards.test.sh" 2>&1) || rc=$?
+  [ "$rc" -eq 1 ] || fail "counted until loops and body guards were not flagged (rc=$rc): $out"
+  assert_contains "$out" "guards.test.sh:2: counted wait of 40 x 0.1 s (4 s)" "an until counter was missed"
+  assert_contains "$out" "guards.test.sh:3: counted wait of 30 x 0.1 s (3 s)" "a || guard in the body was missed"
+  assert_contains "$out" "guards.test.sh:8: counted wait of 100 x 0.01 s (1 s)" "an if guard in the body was missed"
+  assert_contains "$out" "guards.test.sh:15: counted wait of 100 x 0.01 s (1 s)" "a /bin/sleep wait was missed"
+  assert_not_contains "$out" "guards.test.sh:17:" "a run of observations the body resets was flagged as a bound"
+  pass "fm-lint-waits flags until counters, body guards and /bin/sleep, and not a reset run"
+}
+
+test_reads_heredoc_stubs_and_literal_default_bounds() {
+  local tmp out rc=0
+  tmp=$(fm_test_tmproot fm-lint-waits-stubs)
+  write_case "$tmp" stubs.test.sh <<'SH'
+#!/usr/bin/env bash
+install_stub() {
+  cat > "$1/git" <<STUB
+#!/usr/bin/env bash
+waited=0
+while ! grep -q START '$log' && [ "\$waited" -LT 500 ]; do
+  sleep 0.01
+  waited=\$((waited + 1))
+done
+STUB
+}
+wait_wake() {
+  local home=$1 limit=${2:-50} waited=0
+  while ! grep -q ready "$home/q" && [ "$waited" -LT "$limit" ]; do
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+}
+wait_raised() {
+  local pid=$1 limit=${2:-50} i=0
+  [ "$limit" -GE "$GUARD" ] || limit=$GUARD
+  while [ "$i" -LT "$limit" ]; do
+    kill -0 "$pid" 2>/dev/null || return 0
+    sleep 0.1
+    i=$((i + 1))
+  done
+}
+wait_given() {
+  local pid=$1 limit=$2 i=0
+  while [ "$i" -LT "$limit" ]; do
+    kill -0 "$pid" 2>/dev/null || return 0
+    sleep 0.1
+    i=$((i + 1))
+  done
+}
+SH
+  out=$("$LINTW" "$tmp/stubs.test.sh" 2>&1) || rc=$?
+  [ "$rc" -eq 1 ] || fail "an escaped stub and a literal default bound were not flagged (rc=$rc): $out"
+  assert_contains "$out" "stubs.test.sh:6: counted wait of 500 x 0.01 s (5 s)" "the escaped here-document stub was missed"
+  assert_contains "$out" "stubs.test.sh:14: counted wait of 50 x 0.1 s (5 s)" "the literal default bound was missed"
+  [ "$(printf '%s\n' "$out" | grep -c 'counted wait of')" -eq 2 ] \
+    || fail "a bound the caller or a later assignment sets was flagged: $out"
+  pass "fm-lint-waits reads escaped here-document stubs and literal default bounds, not caller-set ones"
+}
+
 test_counts_only_the_loops_own_sleeps() {
   local tmp out
   tmp=$(fm_test_tmproot fm-lint-waits-own)
@@ -200,6 +318,9 @@ test_flags_a_counted_short_wait
 test_accepts_clock_deadlines_long_counts_and_variable_bounds
 test_named_windows_pass_and_bare_markers_do_not
 test_finds_multi_line_and_single_line_loops
+test_flags_counted_for_loops_that_leave_early
+test_flags_until_loops_body_guards_and_bin_sleep
+test_reads_heredoc_stubs_and_literal_default_bounds
 test_counts_only_the_loops_own_sleeps
 test_repository_tests_are_clean
 test_default_lint_runs_the_waits_check

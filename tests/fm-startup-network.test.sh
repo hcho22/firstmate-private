@@ -169,12 +169,11 @@ run_stage() {  # <home> <root> <args...>
     FM_HOME="$home" FM_ROOT_OVERRIDE="$root" "$root/bin/fm-startup-network.sh" "$@"
 }
 
-wait_for_startup_network_wake() {  # <home> [tenths]
-  local home=$1 limit=${2:-50} waited=0
+wait_for_startup_network_wake() {  # <home>
+  local home=$1 deadline=$((SECONDS + 60))
   while ! grep -Fq $'check\tstartup-network' "$home/state/.wake-queue" 2>/dev/null \
-    && [ "$waited" -lt "$limit" ]; do
+    && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
   grep -Fq $'check\tstartup-network' "$home/state/.wake-queue" 2>/dev/null
 }
@@ -187,20 +186,21 @@ wait_for_startup_network_wake() {  # <home> [tenths]
 # path, so this asserts both halves: start returns fast, AND the pipe closes
 # while the worker is still running.
 test_start_returns_without_holding_the_callers_stdout() {
-  local rec home root log started elapsed pending
+  local rec home root log hold pending
   rec=$(new_world start-nonblocking)
   IFS='|' read -r home root log <<EOF
 $rec
 EOF
   printf '%s\n' $$ > "$home/state/.lock"
+  hold="$TMP_ROOT/start-nonblocking.hold"
 
-  started=$(date +%s)
-  # Command substitution reads to EOF, exactly like a hook harvesting hook output.
-  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=10 \
-    run_stage "$home" "$root" start --locked 1 --harvest-pid $$ >/dev/null
-  elapsed=$(( $(date +%s) - started ))
-
-  [ "$elapsed" -lt 4 ] || fail "start blocked for ${elapsed}s behind a 10s worker"
+  # Command substitution reads to EOF, exactly like a hook harvesting hook output,
+  # and the worker's sweep stays in flight until the case releases it. So start
+  # returning before the sweep passed its hold shows it neither waited for the
+  # worker nor left the worker holding the caller's stdout.
+  : "$(FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_HOLD="$hold" \
+    run_stage "$home" "$root" start --locked 1 --harvest-pid $$)"
+  [ ! -e "$hold.passed" ] || fail "start returned only after its worker's sweep had finished"
   await_worker_record "$home"
   pending=$(run_stage "$home" "$root" report)
   [ "$(printf '%s\n' "$pending" | head -1)" = "IN PROGRESS - the deferred network checks have not finished yet." ] \
@@ -209,6 +209,7 @@ EOF
     "the pending guidance still promised a wake for clean success"
   assert_contains "$pending" "$root/bin/fm-startup-network.sh report" \
     "the pending guidance omitted the durable on-demand report path"
+  : > "$hold"
   run_stage "$home" "$root" wait 30 >/dev/null || fail "the worker never published"
   assert_grep 'network=only' "$log" "the worker did not run bootstrap's network-only phase"
   pass "fm-startup-network: start returns immediately and never holds the caller's stdout open"

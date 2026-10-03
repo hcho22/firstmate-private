@@ -702,7 +702,7 @@ test_every_script_gets_a_private_tmpdir() {
   for script in fm-cd-pretool-check.test.sh fm-pr-merge.test.sh fm-backend-orca.test.sh; do
     cat >"$repo/tests/$script" <<'SH'
 #!/usr/bin/env bash
-mode=$(stat -f %Lp "$TMPDIR" 2>/dev/null || stat -c %a "$TMPDIR" 2>/dev/null)
+mode=$(stat -c %a "$TMPDIR" 2>/dev/null || stat -f %Lp "$TMPDIR" 2>/dev/null)
 printf '%s\t%s\t%s\t%s\n' "$(basename "$0")" "$TMPDIR" "${TMP:-}" "$mode" >>"$FM_TEST_TMPDIR_REPORT"
 echo "ok - private tmpdir fixture"
 SH
@@ -1542,7 +1542,14 @@ SH
   # With nothing to drop the runner stays silent about it.
   set +e
   env -i HOME="$HOME" PATH="$PATH" TMPDIR="${TMPDIR:-/tmp}" "$runner" "$fixture" >"$tmp/out2" 2>"$tmp/err2"
+  rc=$?
   set -e
+  [ "$rc" -eq 0 ] || fail "the clean-environment fixture run failed: $(cat "$tmp/out2") $(cat "$tmp/err2")"
+  for name in FM_ENVFIX_STAGE_FILE FMX_ENVFIX_TOKEN HERDR_ENV HERDR_PANE_ID HERDR_SOCKET_PATH \
+    TMUX TMUX_PANE ZELLIJ_PANE_ID CMUX_WORKSPACE_ID ORCA_WORKTREE_ID FM_ENVFIX_UNREAD \
+    FM_TEST_ENVFIX_CONTROL FM_ENVFIX_PROBE_LIVE FM_ENVFIX_PROBE_E2E FM_ENVFIX_PROBE_EVAL; do
+    assert_contains "$(cat "$tmp/out2")" "ok - hidden $name" "the clean-environment run did not run the fixture"
+  done
   assert_not_contains "$(cat "$tmp/err2")" "ignoring ambient variables" \
     "the runner reported a drop when the environment was already clean"
 

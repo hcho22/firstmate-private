@@ -1252,7 +1252,8 @@ test_concurrent_relaunch_is_refused() {
     # shellcheck source=/dev/null
     . "$ROOT/bin/fm-wake-lib.sh"
     fm_lock_try_acquire "$lock" || exit 1
-    sleep 30
+    deadline=$((SECONDS + 600))
+    while [ -d "$dir" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   ) &
   holder=$!
   wait_for_event "$lock" "$holder" || { kill "$holder" 2>/dev/null; fail "could not stage a held control lock"; }
@@ -1277,7 +1278,8 @@ test_direct_spawn_relaunch_participates_in_the_lifecycle_lock() {
   (
     . "$ROOT/bin/fm-wake-lib.sh"
     fm_lock_try_acquire "$lock" || exit 1
-    sleep 30
+    deadline=$((SECONDS + 600))
+    while [ -d "$dir" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   ) &
   holder=$!
   wait_for_event "$lock" "$holder" || { kill "$holder" 2>/dev/null; fail "could not stage the lifecycle lock"; }
@@ -1300,7 +1302,8 @@ test_promotion_participates_in_the_lifecycle_lock_before_metadata_resolution() {
   (
     . "$ROOT/bin/fm-wake-lib.sh"
     fm_lock_try_acquire "$lock" || exit 1
-    sleep 30
+    deadline=$((SECONDS + 600))
+    while [ -d "$dir" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   ) &
   holder=$!
   wait_for_event "$lock" "$holder" || { kill "$holder" 2>/dev/null; fail "could not stage the promotion lifecycle lock"; }

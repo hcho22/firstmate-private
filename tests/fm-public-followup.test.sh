@@ -1952,7 +1952,7 @@ test_rechain_refuses_unclaimed_existing_destination() {
 }
 
 test_pending_skips_concurrent_retirement() {
-  local home log real_tasks pending_pid locker_pid rc=0
+  local home log real_tasks pending_pid locker_pid deadline rc=0
   home=$(make_home pending-retirement-race)
   log="$home/curl.log"; : > "$log"
   seed_commitment "$home" pf-race req-race discord main work-race
@@ -1981,7 +1981,8 @@ test_pending_skips_concurrent_retirement() {
     fm_pf_registry_lock_release "$FM_RACE_HOME/state" pf-race
   ' &
   locker_pid=$!
-  for _ in $(seq 1 100); do [ -e "$home/lock-ready" ] && break; sleep 0.02; done
+  deadline=$((SECONDS + 60))
+  while [ ! -e "$home/lock-ready" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.02; done
   [ -e "$home/lock-ready" ] || fail "race locker did not start"
 
   real_tasks=$(command -v tasks-axi)
@@ -1998,7 +1999,8 @@ SH
   REAL_TASKS_AXI="$real_tasks" PENDING_LISTED="$home/pending-listed" \
     run_pf "$home" pending > "$home/pending-race.out" 2>&1 &
   pending_pid=$!
-  for _ in $(seq 1 100); do [ -e "$home/pending-listed" ] && break; sleep 0.02; done
+  deadline=$((SECONDS + 60))
+  while [ ! -e "$home/pending-listed" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.02; done
   [ -e "$home/pending-listed" ] || fail "pending did not snapshot the backlog"
   : > "$home/release-lock"
   wait "$locker_pid" || fail "race retirement failed"

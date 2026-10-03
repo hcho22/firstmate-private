@@ -284,7 +284,7 @@ if [ -f "$remote_home/state/slow-ledger-read" ]; then
   read -r slow_mode slow_count < "$remote_home/state/slow-ledger-read" || true
   case "${slow_mode:-wedge}" in
     wedge)
-      sleep 30 &
+      sleep 600 &
       sleeper=$!
       printf '%s %s\n' "$$" "$sleeper" >> "$FM_TEST_LEDGER_PID_LOG"
       wait "$sleeper"
@@ -323,7 +323,7 @@ SH
 # asserts cancellation by the deadline passes a short one.
 REMOTE_LEDGER_HANG_GUARD_BUDGET=30
 # The cancellation case's budget is the snapshot's own default, far below the
-# 30 seconds a wedged read would otherwise take to answer.
+# 600 seconds a wedged read would otherwise take to answer.
 REMOTE_LEDGER_CUTOFF_BUDGET=5
 
 run_remote_ledger_bearings() {  # <parent-home> <fakebin> <epoch> [<budget-seconds>]
@@ -2588,7 +2588,7 @@ test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
   ' >/dev/null || fail "failed homes did not use and disclose age-labeled cache rows: $json"
 
   # Five reads that never answer are cut off by the one shared budget: no read
-  # reaches its own 30-second end (that would make it fresh), every row is served
+  # reaches its own 600-second end (that would make it fresh), every row is served
   # from cache, and every process the collector started is gone once the snapshot
   # returns. The assertions hold however many reads the host let start before
   # the deadline; the overlap above is what proves they all can.

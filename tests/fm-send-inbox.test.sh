@@ -305,11 +305,12 @@ test_meta_lock_contention_fails_bounded() {
     . "$1"
     fm_lock_acquire_wait "$2"
     touch "$3"
-    sleep 30
+    deadline=$((SECONDS + 600))
+    while [ -d "${3%/*}" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$lock" "$marker" &
   holder=$!
   local deadline=$((SECONDS + 60))
-  while [ ! -e "$marker" ] && [ "$SECONDS" -lt "$deadline" ]; do
+  while [ ! -e "$marker" ] && kill -0 "$holder" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
   done
   [ -e "$marker" ] || { kill "$holder" 2>/dev/null; fail "the metadata lock holder did not start"; }

@@ -302,8 +302,9 @@ unit_signal_exits_with_lock_cleanup() {
   # Signal only once the lifecycle actually holds its lock. Killing before the
   # lock exists tests nothing, and on a loaded machine it used to race: the
   # lock could be created just after the kill and outlive the process.
-  local locked=0 _
-  for _ in $(seq 1 100); do
+  local locked=0 deadline
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     if [ -d "$st/state/.afk-launch.lock" ]; then locked=1; break; fi
     sleep 0.05
   done
@@ -312,8 +313,8 @@ unit_signal_exits_with_lock_cleanup() {
   wait "$child" 2>/dev/null || true
   # The signal handler releases the lock as it exits; give that removal a
   # bounded settle rather than sampling the instant `wait` returns.
-  for _ in $(seq 1 100); do
-    [ -e "$st/state/.afk-launch.lock" ] || break
+  deadline=$((SECONDS + 60))
+  while [ -e "$st/state/.afk-launch.lock" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
   done
   if [ ! -e "$marker" ] && [ ! -e "$st/state/.afk-launch.lock" ]; then

@@ -295,8 +295,8 @@ pass "the entrypoint composes a deduplicated discovered child PATH (kept $PRESEN
 
 WORKER_PID=$(cat "$TMP_ROOT/remote-jobs/worker.pid")
 kill -TERM "$WORKER_PID"
-for _ in $(seq 1 100); do
-  [ ! -f "$TMP_ROOT/remote-jobs/worker.pid" ] && break
+deadline=$((SECONDS + 60))
+while [ -f "$TMP_ROOT/remote-jobs/worker.pid" ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.05
 done
 assert_absent "$TMP_ROOT/remote-jobs/worker.pid" "the worker did not stop for the doctor bootstrap fixture"

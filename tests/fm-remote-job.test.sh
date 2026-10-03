@@ -348,16 +348,21 @@ pass "the worker expires queued jobs before they can mutate"
 
 FIRST_DELAYED_SIDE_EFFECT="$TMP_ROOT/first-delayed-side-effect"
 SECOND_DELAYED_SIDE_EFFECT="$TMP_ROOT/second-delayed-side-effect"
-FM_REMOTE_JOB_QUEUE_TIMEOUT=5
-FM_REMOTE_JOB_TIMEOUT=3
+# The first job holds the lane for longer than the second job's whole execution
+# timeout, so the second can complete only if its window starts at its claim
+# rather than when it was staged. A loaded host only lengthens the hold.
+QUEUED_JOB_TIMEOUT=10
+FM_REMOTE_JOB_QUEUE_TIMEOUT=600
+FM_REMOTE_JOB_TIMEOUT=$EVENT_WAIT_SECONDS
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
-  fm-delay-job.sh 1.8 "$FIRST_DELAYED_SIDE_EFFECT" < /dev/null > /dev/null
+  fm-delay-job.sh $((QUEUED_JOB_TIMEOUT + 1)) "$FIRST_DELAYED_SIDE_EFFECT" < /dev/null > /dev/null
 FIRST_JOB_ID=$FM_REMOTE_JOB_ID
 FIRST_JOB_DIR="$STATE_ROOT/jobs/$FIRST_JOB_ID"
 wait_until job_in_state "$FIRST_JOB_DIR" running \
   || fail "the first delayed job did not begin running"
+FM_REMOTE_JOB_TIMEOUT=$QUEUED_JOB_TIMEOUT
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
-  fm-delay-job.sh 1.8 "$SECOND_DELAYED_SIDE_EFFECT" < /dev/null > /dev/null
+  fm-touch-job.sh "$SECOND_DELAYED_SIDE_EFFECT" < /dev/null > /dev/null
 JOB_ID=$FM_REMOTE_JOB_ID
 fm_remote_job_wait "$ACCOUNT_HOME" "$FIRST_JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
 fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
@@ -506,19 +511,27 @@ chmod +x "$ACCOUNT_HOME/.local/bin/git"
 # assumed: widen the budget until the job's validation was entered, then assert on
 # that run. A host that cannot enter validation even with the widest budget fails
 # here with that fact.
+# The queue window is an hour, so a worker that bounded validation by it rather
+# than by the job's own timeout could not finish inside the wait below.
 SAVED_TIMEOUT=$FM_REMOTE_JOB_TIMEOUT
 SAVED_QUEUE_TIMEOUT=$FM_REMOTE_JOB_QUEUE_TIMEOUT
-FM_REMOTE_JOB_QUEUE_TIMEOUT=60
+FM_REMOTE_JOB_QUEUE_TIMEOUT=3600
 PREEXEC_BUDGET=3
 while :; do
   rm -f -- "$PREEXEC_STARTED"
   FM_REMOTE_JOB_TIMEOUT=$PREEXEC_BUDGET
   fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" fm-probe-job.sh < /dev/null > /dev/null
   JOB_ID=$FM_REMOTE_JOB_ID
-  # The stub cannot end by itself inside this wait's bound, so a completed wait
-  # means the worker ended the hung validation at the job's own deadline.
-  fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" \
-    || fail "tracked-command validation was not bounded by the job timeout: $FM_REMOTE_JOB_ERROR"
+  # The wait is the job's budget plus the hang guard, and neither the stub nor
+  # the queue window can end inside it, so a job that completes in time had its
+  # hung validation ended at the job's own deadline.
+  PREEXEC_DEADLINE=$((SECONDS + PREEXEC_BUDGET + EVENT_WAIT_SECONDS))
+  until job_in_state "$STATE_ROOT/jobs/$JOB_ID" 'done'; do
+    [ "$SECONDS" -lt "$PREEXEC_DEADLINE" ] \
+      || fail "tracked-command validation was not bounded by the ${PREEXEC_BUDGET}s job timeout"
+    sleep 0.05
+  done
+  fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
   [ "$FM_REMOTE_JOB_EXIT" -eq 124 ] \
     || fail "the pre-execution deadline did not publish a timeout result (exit $FM_REMOTE_JOB_EXIT)"
   [ ! -e "$PREEXEC_STARTED" ] || break

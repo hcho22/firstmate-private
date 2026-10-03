@@ -182,6 +182,7 @@ seed_secondmate_home_marker() {
 # Wait up to <limit> 0.1s ticks while <pid> stays alive. Returns 1 if it dies.
 wait_live() {
   local pid=$1 limit=${2:-30} i=0
+  # fm-lint-waits: allow an observation window the live process must outlast
   while [ "$i" -lt "$limit" ]; do
     if ! kill -0 "$pid" 2>/dev/null; then
       return 1
