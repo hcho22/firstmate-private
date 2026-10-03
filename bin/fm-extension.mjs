@@ -1633,7 +1633,10 @@ async function inheritedCaptureCapability(home) {
   if (claimLines.pop() !== "" || (claimLines.length !== 7 && claimLines.length !== 12)) fail("path-unsafe", "capture claim descriptor is malformed");
   const [claimHome, claimPid, claimToken, claimIdentity, claimRegistry, claimRegistryIdentity, claimState,
     claimStateRoot, claimStateDevice, claimStateInode, claimStateOwner, claimStateMode] = claimLines;
-  if (claimHome !== home || !/^[0-9]+$/.test(claimPid) || !/^[A-Za-z0-9._-]{1,256}$/.test(claimToken)
+  // The runner records the home as its caller spelled it, which may pass
+  // through a symlinked ancestor, while the active home here is canonical.
+  const canonicalClaimHome = claimHome.startsWith("/") ? await realpath(claimHome).catch(() => "") : "";
+  if (canonicalClaimHome !== home || !/^[0-9]+$/.test(claimPid) || !/^[A-Za-z0-9._-]{1,256}$/.test(claimToken)
       || !claimIdentity || !claimRegistry.startsWith("/") || !claimRegistryIdentity.includes(":") || claimState !== "active") {
     fail("path-unsafe", "capture claim descriptor is invalid");
   }
@@ -2608,9 +2611,27 @@ async function main() {
   }
 }
 
+// Exit 1 is the "not terminal" or "not silent" verdict, so a result.terminal or
+// result.silent invocation that fails anywhere outside its adapter step (the
+// inherited lifecycle claim, the capture capability, or the lock release)
+// reports exit 70 with its error evidence, as cmdProcessEventLocked does.
+function failedVerdictOperation(args) {
+  const [command, , operation] = args;
+  if (command !== "process-event") return "";
+  return operation === "result.terminal" || operation === "result.silent" ? operation : "";
+}
+
 main().catch((error) => {
   const code = error instanceof HostError ? error.code : "internal";
   const message = error instanceof Error ? error.message : "unexpected extension host failure";
   process.stderr.write(`error[${code}]: ${message}\n`);
+  const args = process.argv.slice(2);
+  const operation = failedVerdictOperation(args);
+  if (operation) {
+    const extensionIndex = args.indexOf("--expect-extension");
+    process.stdout.write(errorEvidence(error, extensionIndex >= 0 ? args[extensionIndex + 1] : "unknown", operation));
+    process.exitCode = 70;
+    return;
+  }
   process.exitCode = 1;
 });

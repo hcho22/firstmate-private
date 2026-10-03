@@ -2178,7 +2178,7 @@ bind_package "$H_EXAMPLE" "$P_EXAMPLE" file-signal --consent artifact-references
 SIGNAL_FILE="$TMP_ROOT/example-result.txt"
 example_registration=$(FM_HOME="$H_EXAMPLE" "$PROCEVENT" register-extension file-signal example-file --config-ref "file:$SIGNAL_FILE")
 example_token=$(printf '%s\n' "$example_registration" | sed -n 's/^owner-token: //p')
-FM_HOME="$H_EXAMPLE" "$PROCEVENT" start example-file > "$TMP_ROOT/example-start.out" &
+FM_HOME="$H_EXAMPLE" "$PROCEVENT" start example-file > "$TMP_ROOT/example-start.out" 2>&1 &
 example_start=$!
 wait_until test -f "$FM_PROCEVENT_CLAIM_ROOT/example-file.claim" || fail "example source never started waiting"
 printf 'build 42 completed successfully\n' > "$SIGNAL_FILE"
@@ -2186,7 +2186,17 @@ wait "$example_start" || fail "example source failed after its file appeared"
 example_result=$(first_result "$H_EXAMPLE" example-file) || fail "example captured no file result"
 assert_grep 'build 42 completed successfully' "$example_result" "example did not preserve external evidence"
 assert_contains "$(FM_HOME="$H_EXAMPLE" "$PROCEVENT" classify "$example_result")" "file-signal" "example result did not classify through the package"
-assert_absent "$H_EXAMPLE/state/procevent/example-file.source" "example terminal result did not retire its source"
+if [ -e "$H_EXAMPLE/state/procevent/example-file.source" ]; then
+  fail "example terminal result did not retire its source
+--- runner output ---
+$(cat "$TMP_ROOT/example-start.out")
+--- procevent list ---
+$(FM_HOME="$H_EXAMPLE" "$PROCEVENT" list 2>&1)
+--- failed terminal checks ---
+$(cat "$H_EXAMPLE"/state/procevent-inbox/*.terminal-check-failed 2>/dev/null)"
+fi
+assert_not_contains "$(cat "$TMP_ROOT/example-start.out")" "terminal-check-failed" \
+  "the example terminal check failed to answer"
 FM_HOME="$H_EXAMPLE" "$PROCEVENT" retire example-file --if-owner "$example_token" >/dev/null
 pass "the shipped file-signal package is a runnable end-to-end external adapter"
 
@@ -2199,7 +2209,7 @@ SIGNAL_FILE_SYMLINKED="$TMP_ROOT/example-symlinked-result.txt"
 symlinked_registration=$(FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" register-extension file-signal example-symlinked \
   --config-ref "file:$SIGNAL_FILE_SYMLINKED")
 symlinked_token=$(printf '%s\n' "$symlinked_registration" | sed -n 's/^owner-token: //p')
-FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" start example-symlinked > "$TMP_ROOT/example-symlinked-start.out" &
+FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" start example-symlinked > "$TMP_ROOT/example-symlinked-start.out" 2>&1 &
 symlinked_start=$!
 wait_until test -f "$FM_PROCEVENT_CLAIM_ROOT/example-symlinked.claim" \
   || fail "a home reached through a symlinked ancestor never started its external source"
@@ -2210,8 +2220,12 @@ symlinked_result=$(first_result "$H_EXAMPLE" example-symlinked) \
   || fail "a home reached through a symlinked ancestor captured no external result"
 assert_grep 'build 43 completed successfully' "$symlinked_result" \
   "the symlinked-ancestor home did not preserve external evidence"
+assert_not_contains "$(cat "$TMP_ROOT/example-symlinked-start.out")" "terminal-check-failed" \
+  "the symlinked-ancestor home failed its terminal check: $(cat "$TMP_ROOT/example-symlinked-start.out")"
+assert_absent "$H_EXAMPLE/state/procevent/example-symlinked.source" \
+  "the symlinked-ancestor home did not retire its terminal source"
 FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" retire example-symlinked --if-owner "$symlinked_token" >/dev/null
-pass "a home reached through a symlinked ancestor captures external evidence normally"
+pass "a home reached through a symlinked ancestor captures and retires external evidence normally"
 
 P_HANDSHAKE_ORPHAN="$PACKAGES/handshake-orphan"
 P_HANDSHAKE_RECOVER="$PACKAGES/handshake-recover"
@@ -2317,6 +2331,16 @@ printf '%s\n' "$slowt_list" | awk '$1 == "slow" && $(NF - 1) == 1 && $NF == 0 { 
 FM_HOME="$H_SLOWT" "$PROCEVENT" retire slow.terminal --if-owner "$slowt_token" >/dev/null
 FM_HOME="$H_SLOWT" "$PROCEVENT" retire slow --if-owner "$notterm_token" >/dev/null
 pass "a terminal check that fails to answer leaves a durable record, a not-terminal verdict leaves none, and both keep the registration armed"
+# A host that fails before it reaches the adapter must not exit 1, which the
+# runner reads as the "not terminal" verdict and records nowhere.
+host_failure_rc=0
+host_failure_out=$(FM_HOME="$TMP_ROOT/missing-home" "$HOST" process-event ext-slowterm result.terminal \
+  --result-file "$slowt_result" --expect-extension org.example.slowterm 2>/dev/null) || host_failure_rc=$?
+[ "$host_failure_rc" -eq 70 ] \
+  || fail "a terminal check whose host failed exited $host_failure_rc instead of 70: $host_failure_out"
+assert_contains "$host_failure_out" '"code":"home-invalid"' "the host failure evidence did not name its cause"
+assert_contains "$host_failure_out" '"operation":"result.terminal"' "the host failure evidence did not name its operation"
+pass "a terminal check whose host fails before the adapter answers reports evidence, never a verdict"
 fi
 
 printf '\nall extension-binding tests passed\n'

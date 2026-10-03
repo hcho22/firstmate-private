@@ -195,7 +195,10 @@ fm_herdr_lab_provision() { # <session>
   else
     fm_herdr_lab_prepare "$name" || return 1
   fi
-  fm_herdr_lab_raw "$name" server >/dev/null 2>&1 &
+  # A backgrounded simple command execs herdr in the forked child, so $! is the
+  # server itself. Backgrounding fm_herdr_lab_raw would make $! a subshell, and
+  # cancelling that would orphan a server that still starts after teardown.
+  HERDR_SESSION="$name" herdr server --session "$name" >/dev/null 2>&1 &
   server_pid=$!
   attempt=0
   max_attempts=300

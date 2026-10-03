@@ -280,9 +280,13 @@ fm_backend_zellij_tab_for_pane() {  # <session> <pane_id>
     | jq -r --argjson p "$pane_id" '.[]? | select(.id == $p and .is_plugin == false) | .tab_id' 2>/dev/null | head -1
 }
 
+# A failed list-panes prints nothing, and jq 1.6 `-e` exits 0 on empty input,
+# so the listing is captured and checked before jq ever sees it.
 fm_backend_zellij_pane_exists() {  # <session> <pane_id>
-  local session=$1 pane_id=$2
-  fm_backend_zellij_cli "$session" action list-panes --json 2>/dev/null \
+  local session=$1 pane_id=$2 panes
+  panes=$(fm_backend_zellij_cli "$session" action list-panes --json 2>/dev/null) || return 1
+  [ -n "$panes" ] || return 1
+  printf '%s' "$panes" \
     | jq -e --argjson p "$pane_id" '[.[]? | select(.id == $p and .is_plugin == false)] | length > 0' >/dev/null 2>&1
 }
 

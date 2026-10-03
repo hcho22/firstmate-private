@@ -50,9 +50,11 @@ if [ -n "${TOP_SECRET:-}" ]; then printf 'secret=leaked\n'; else printf 'secret=
 while IFS= read -r line || [ -n "$line" ]; do printf 'stdin=%s\n' "$line"; done
 exit "${FM_PROBE_EXIT:-0}"
 SH
+# Run far past the 1 s timeout its cases grant, so only the worker's deadline
+# can end it while the case waits, however late a loaded host enforces it.
 cat > "$REMOTE_ROOT/bin/fm-timeout-job.sh" <<'SH'
 #!/bin/bash
-sleep 3
+sleep 20
 SH
 cat > "$REMOTE_ROOT/bin/fm-delay-job.sh" <<'SH'
 #!/bin/bash
@@ -73,9 +75,14 @@ printf 'ran\n' > "$1"
 SH
 cat > "$REMOTE_ROOT/bin/fm-shutdown-job.sh" <<'SH'
 #!/bin/bash
+# Ignore every stop signal but KILL, record this pid, and hold until the case
+# creates the release file, so only a KILL from the worker can keep the side
+# effect from landing. Stop once the case is gone or after 120 s, so a failed
+# case never leaves the job waiting forever.
 trap '' HUP INT TERM
-printf 'started\n' > "$1"
-sleep 3
+printf '%s\n' "$$" > "$1"
+deadline=$((SECONDS + 120))
+while [ ! -e "$3" ] && [ -d "${3%/*}" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.05; done
 printf 'ran\n' > "$2"
 SH
 cat > "$REMOTE_ROOT/bin/fm-output-job.sh" <<'SH'
@@ -466,11 +473,13 @@ pass "sibling polls never preempt each other into a re-arm churn loop"
 
 STARTED="$TMP_ROOT/shutdown-started"
 SHUTDOWN_SIDE_EFFECT="$TMP_ROOT/shutdown-side-effect"
+SHUTDOWN_RELEASE="$TMP_ROOT/shutdown-release"
 FM_REMOTE_JOB_TIMEOUT=5
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
-  fm-shutdown-job.sh "$STARTED" "$SHUTDOWN_SIDE_EFFECT" < /dev/null > /dev/null
+  fm-shutdown-job.sh "$STARTED" "$SHUTDOWN_SIDE_EFFECT" "$SHUTDOWN_RELEASE" < /dev/null > /dev/null
 JOB_ID=$FM_REMOTE_JOB_ID
-wait_until test -f "$STARTED" || fail "the shutdown fixture did not begin executing"
+wait_until test -s "$STARTED" || fail "the shutdown fixture did not begin executing"
+SHUTDOWN_COMMAND_PID=$(cat "$STARTED")
 WORKER_PID=$(cat "$STATE_ROOT/worker.pid")
 kill -TERM "$WORKER_PID"
 wait_until process_gone "$WORKER_PID" || fail "the worker did not finish its TERM shutdown"
@@ -480,25 +489,31 @@ HOME="$ACCOUNT_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$
 wait_until test -f "$STATE_ROOT/worker.ready" || fail "the replacement worker did not become ready"
 fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
 [ "$FM_REMOTE_JOB_EXIT" -eq 125 ] || fail "the interrupted job did not publish an unknown-completion result"
-sleep 3
+wait_until process_gone "$SHUTDOWN_COMMAND_PID" \
+  || fail "worker shutdown left the active command $SHUTDOWN_COMMAND_PID running"
+: > "$SHUTDOWN_RELEASE"
 assert_absent "$SHUTDOWN_SIDE_EFFECT" "the active command mutated after worker shutdown"
 fm_remote_job_reap "$ACCOUNT_HOME" "$JOB_ID" || fail "the interrupted job could not be reaped"
 pass "worker shutdown terminates the active command tree before replacement"
 
 CRASH_STARTED="$TMP_ROOT/crash-started"
 CRASH_SIDE_EFFECT="$TMP_ROOT/crash-side-effect"
+CRASH_RELEASE="$TMP_ROOT/crash-release"
 FM_REMOTE_JOB_TIMEOUT=5
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
-  fm-shutdown-job.sh "$CRASH_STARTED" "$CRASH_SIDE_EFFECT" < /dev/null > /dev/null
+  fm-shutdown-job.sh "$CRASH_STARTED" "$CRASH_SIDE_EFFECT" "$CRASH_RELEASE" < /dev/null > /dev/null
 JOB_ID=$FM_REMOTE_JOB_ID
-wait_until test -f "$CRASH_STARTED" || fail "the crash fixture did not begin executing"
+wait_until test -s "$CRASH_STARTED" || fail "the crash fixture did not begin executing"
+CRASH_COMMAND_PID=$(cat "$CRASH_STARTED")
 CRASHED_WORKER_PID=$(cat "$STATE_ROOT/worker.pid")
 kill -KILL "$CRASHED_WORKER_PID"
 wait_until worker_pid_replaced "$CRASHED_WORKER_PID" \
   || fail "the Linux supervisor did not restart a crashed worker"
 fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
 [ "$FM_REMOTE_JOB_EXIT" -eq 125 ] || fail "worker crash recovery did not publish unknown completion"
-sleep 3
+wait_until process_gone "$CRASH_COMMAND_PID" \
+  || fail "worker crash recovery left the orphaned command $CRASH_COMMAND_PID running"
+: > "$CRASH_RELEASE"
 assert_absent "$CRASH_SIDE_EFFECT" "an orphaned command mutated after worker crash recovery"
 fm_remote_job_reap "$ACCOUNT_HOME" "$JOB_ID" || fail "the crash-recovered job could not be reaped"
 fm_remote_job_probe "$ACCOUNT_HOME" || fail "the restarted worker did not remain ready"
@@ -599,12 +614,14 @@ pass "the worker refuses symlinked job fields before command execution"
 
 QUARANTINE_STARTED="$TMP_ROOT/quarantine-started"
 QUARANTINE_SIDE_EFFECT="$TMP_ROOT/quarantine-side-effect"
+QUARANTINE_RELEASE="$TMP_ROOT/quarantine-release"
 FM_REMOTE_JOB_TIMEOUT=5
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
-  fm-shutdown-job.sh "$QUARANTINE_STARTED" "$QUARANTINE_SIDE_EFFECT" < /dev/null > /dev/null
+  fm-shutdown-job.sh "$QUARANTINE_STARTED" "$QUARANTINE_SIDE_EFFECT" "$QUARANTINE_RELEASE" < /dev/null > /dev/null
 JOB_ID=$FM_REMOTE_JOB_ID
 JOB_DIR="$STATE_ROOT/jobs/$JOB_ID"
-wait_until test -f "$QUARANTINE_STARTED" || fail "the quarantine fixture did not begin executing"
+wait_until test -s "$QUARANTINE_STARTED" || fail "the quarantine fixture did not begin executing"
+QUARANTINE_COMMAND_PID=$(cat "$QUARANTINE_STARTED")
 GROUP_PID=$(cat "$JOB_DIR/.claim/group")
 printf 'invalid\n' > "$JOB_DIR/.claim/group"
 WORKER_PID=$(cat "$STATE_ROOT/worker.pid")
@@ -621,7 +638,9 @@ set -e
 [ "$REPLACEMENT_RC" -ne 0 ] || fail "a replacement worker ignored quarantined ownership"
 assert_present "$STATE_ROOT/worker.lock/quarantine" "a replacement removed quarantined ownership"
 kill -KILL -- "-$GROUP_PID" 2>/dev/null || true
-sleep 3
+wait_until process_gone "$QUARANTINE_COMMAND_PID" \
+  || fail "explicit termination left the quarantined command $QUARANTINE_COMMAND_PID running"
+: > "$QUARANTINE_RELEASE"
 assert_absent "$QUARANTINE_SIDE_EFFECT" "the quarantined command mutated after explicit termination"
 pass "failed shutdown quarantines ownership against replacement workers"
 

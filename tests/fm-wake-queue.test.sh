@@ -226,6 +226,21 @@ test_drain_dedupes_obvious_duplicates() {
   pass "drain collapses obvious duplicate heartbeat and signal records"
 }
 
+# A quiet checkpoint proves nothing unless the stall tick ran. This adds an aged
+# control mate whose id sorts after every case mate: the tick checks mates in
+# that order and ends the cycle at the first stall it publishes, so a control
+# wake proves the case's own mates were checked in the same completed tick.
+# Each call ages a new row, so the control wakes again on the next checkpoint.
+add_stall_control() {  # <case-dir> <seq> [age-seconds]
+  local dir=$1 seq=$2 age=${3:-10} control="$1/zz-control"
+  mkdir -p "$control/state"
+  printf 'zz-control\n' > "$control/.fm-secondmate-home"
+  printf 'window=firstmate:fm-zz-control\nkind=secondmate\nhome=%s\n' "$control" \
+    > "$dir/state/zz-control.meta"
+  printf '%s\t%s\tcheck\trouted\tcheck: control row\n' "$(( $(date +%s) - age ))" "$seq" \
+    > "$control/state/.wake-queue"
+}
+
 # The drain runs at the top of every wake-handling turn, so it also asserts
 # watcher liveness via fm-guard.sh: a lapsed re-arm chain then surfaces even on a
 # plain drain-and-handle turn that runs no other supervision script. It must warn
@@ -263,7 +278,7 @@ SH
     FM_FAKE_TMUX_LOG="$dir/tmux.log" FM_FAKE_TMUX_CAPTURE="$dir/fake-tmux/pane.txt" \
     FM_SECONDMATE_WAKE_STALL_SECS=1 FM_POLL=1 FM_SIGNAL_GRACE=0 \
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
-    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 3 > "$out" 2> "$dir/watch.err" || true
+    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 60 > "$out" 2> "$dir/watch.err" || true
   grep -F 'check: secondmate wake-loop stalled: mate=mate row=7' "$out" >/dev/null \
     || fail "an aged foreign row did not wake the parent checkpoint: $(cat "$out"); err=$(cat "$dir/watch.err"); meta=$(cat "$state/mate.meta"); foreign=$(cat "$sub/state/.wake-queue")"
   [ -s "$state/.wake-queue" ] || fail "the parent notification was not durable"
@@ -278,12 +293,15 @@ SH
     || fail "parent stall notification could not be acknowledged"
 
   sleep 1
+  add_stall_control "$dir" 1
   PATH="$fakebin:$PATH" FM_HOME="$dir" FM_ROOT_OVERRIDE="$ROOT" \
     FM_STATE_OVERRIDE="$state" FM_FAKE_TMUX_WINDOW='firstmate:fm-mate' \
     FM_FAKE_TMUX_LOG="$dir/tmux.log" FM_FAKE_TMUX_CAPTURE="$dir/fake-tmux/pane.txt" \
     FM_SECONDMATE_WAKE_STALL_SECS=1 FM_POLL=1 FM_SIGNAL_GRACE=0 \
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
-    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 2 > "$dir/watch-second.out" 2> "$dir/watch-second.err" || true
+    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 60 > "$dir/watch-second.out" 2> "$dir/watch-second.err" || true
+  grep -F 'check: secondmate wake-loop stalled: mate=zz-control row=1' "$dir/watch-second.out" >/dev/null \
+    || fail "the idempotent re-check never completed a stall tick: $(cat "$dir/watch-second.out")"
   [ ! -s "$state/.wake-queue" ] || {
     stall_count=$(grep -c 'secondmate-wake-loop-mate-' "$state/.wake-queue" || true)
     [ "$stall_count" -eq 0 ] || fail "repeated checkpoint re-published the same stall notification"
@@ -292,23 +310,29 @@ SH
   cmp -s "$row_before" "$row_after" || fail "foreign queue changed after idempotent re-check"
 
   : > "$sub/state/.wake-queue"
+  add_stall_control "$dir" 2
   PATH="$fakebin:$PATH" FM_HOME="$dir" FM_ROOT_OVERRIDE="$ROOT" \
     FM_STATE_OVERRIDE="$state" FM_FAKE_TMUX_WINDOW='firstmate:fm-mate' \
     FM_FAKE_TMUX_LOG="$dir/tmux.log" FM_FAKE_TMUX_CAPTURE="$dir/fake-tmux/pane.txt" \
     FM_SECONDMATE_WAKE_STALL_SECS=1 FM_POLL=1 FM_SIGNAL_GRACE=0 \
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
-    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 2 > "$dir/watch-empty.out" 2> "$dir/watch-empty.err" || true
-  ! grep -F 'secondmate wake-loop stalled' "$dir/watch-empty.out" >/dev/null \
+    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 60 > "$dir/watch-empty.out" 2> "$dir/watch-empty.err" || true
+  grep -F 'check: secondmate wake-loop stalled: mate=zz-control row=2' "$dir/watch-empty.out" >/dev/null \
+    || fail "the empty-queue check never completed a stall tick: $(cat "$dir/watch-empty.out")"
+  ! grep -F 'secondmate wake-loop stalled: mate=mate ' "$dir/watch-empty.out" >/dev/null \
     || fail "an empty foreign queue produced a stall notification"
 
   printf '%s\t8\tcheck\thealthy\tcheck: healthy row\n' "$(date +%s)" > "$sub/state/.wake-queue"
+  add_stall_control "$dir" 3 120
   PATH="$fakebin:$PATH" FM_HOME="$dir" FM_ROOT_OVERRIDE="$ROOT" \
     FM_STATE_OVERRIDE="$state" FM_FAKE_TMUX_WINDOW='firstmate:fm-mate' \
     FM_FAKE_TMUX_LOG="$dir/tmux.log" FM_FAKE_TMUX_CAPTURE="$dir/fake-tmux/pane.txt" \
     FM_SECONDMATE_WAKE_STALL_SECS=60 FM_POLL=1 FM_SIGNAL_GRACE=0 \
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
-    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 2 > "$dir/watch-healthy.out" 2> "$dir/watch-healthy.err" || true
-  ! grep -F 'secondmate wake-loop stalled' "$dir/watch-healthy.out" >/dev/null \
+    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 60 > "$dir/watch-healthy.out" 2> "$dir/watch-healthy.err" || true
+  grep -F 'check: secondmate wake-loop stalled: mate=zz-control row=3' "$dir/watch-healthy.out" >/dev/null \
+    || fail "the healthy-queue check never completed a stall tick: $(cat "$dir/watch-healthy.out")"
+  ! grep -F 'secondmate wake-loop stalled: mate=mate ' "$dir/watch-healthy.out" >/dev/null \
     || fail "a healthy foreign queue produced a stall notification"
   pass "foreign secondmate queue stalls notify once, remain byte-stable, and stay quiet when empty or healthy"
 }
@@ -342,8 +366,10 @@ SH
   PATH="$fakebin:$PATH" FM_HOME="$dir" FM_ROOT_OVERRIDE="$ROOT" \
     FM_STATE_OVERRIDE="$state" FM_SECONDMATE_WAKE_STALL_SECS=1 FM_POLL=1 \
     FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
-    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 2 \
+    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 60 \
     > "$dir/watch.out" 2> "$dir/watch.err" || true
+  grep -F 'watcher: secondmate wake-loop observation failed' "$dir/watch.err" >/dev/null \
+    || fail "the watcher never reached the unsafe stall marker: $(cat "$dir/watch.out" "$dir/watch.err")"
   [ "$(cat "$outside")" = "$expected" ] || fail "stall marker write followed an unsafe symlink"
   [ -L "$marker" ] || fail "stall marker write replaced rather than rejected an unsafe path"
   [ ! -s "$state/.wake-queue" ] || fail "unsafe stall marker path still published a parent notification"
@@ -373,15 +399,18 @@ test_acknowledged_stall_publication_survives_pre_marker_crash() {
 
   fakebin="$dir/fakebin"
   out="$dir/watch.out"
+  add_stall_control "$dir" 1
   PATH="$fakebin:$PATH" FM_HOME="$dir" FM_ROOT_OVERRIDE="$ROOT" \
     FM_STATE_OVERRIDE="$state" FM_FAKE_TMUX_WINDOW='firstmate:fm-mate' \
     FM_FAKE_TMUX_LOG="$dir/tmux.log" FM_FAKE_TMUX_CAPTURE="$dir/fake-tmux/pane.txt" \
     FM_SECONDMATE_WAKE_STALL_SECS=1 FM_POLL=1 FM_SIGNAL_GRACE=0 \
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
-    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 2 > "$out" 2> "$dir/watch.err" || true
-  ! grep -F 'secondmate wake-loop stalled' "$out" >/dev/null \
+    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 60 > "$out" 2> "$dir/watch.err" || true
+  grep -F 'check: secondmate wake-loop stalled: mate=zz-control row=1' "$out" >/dev/null \
+    || fail "the replacement watcher never completed a stall tick: $(cat "$out")"
+  ! grep -F 'secondmate wake-loop stalled: mate=mate ' "$out" >/dev/null \
     || fail "an acknowledged publication was duplicated after the pre-marker crash state"
-  [ ! -s "$state/.wake-queue" ] \
+  ! grep -F 'secondmate-wake-loop-mate-' "$state/.wake-queue" >/dev/null 2>&1 \
     || fail "the replacement watcher re-published an acknowledged stall notification"
   cmp -s "$row_before" "$sub/state/.wake-queue" \
     || fail "pre-marker crash recovery changed the foreign queue row"
@@ -415,18 +444,21 @@ test_empty_prefix_mate_preserves_other_mate_receipt() {
   fakebin="$dir/fakebin"
   round=1
   while [ "$round" -le 2 ]; do
+    add_stall_control "$dir" "$round"
     PATH="$fakebin:$PATH" FM_HOME="$dir" FM_ROOT_OVERRIDE="$ROOT" \
       FM_STATE_OVERRIDE="$state" FM_FAKE_TMUX_WINDOW='' \
       FM_FAKE_TMUX_LOG="$dir/tmux.log" FM_FAKE_TMUX_CAPTURE="$dir/fake-tmux/pane.txt" \
       FM_SECONDMATE_WAKE_STALL_SECS=1 FM_POLL=1 FM_SIGNAL_GRACE=0 \
       FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
-      "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 2 \
+      "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 60 \
       > "$dir/watch-$round.out" 2> "$dir/watch-$round.err" || true
-    ! grep -F 'secondmate wake-loop stalled' "$dir/watch-$round.out" >/dev/null \
+    grep -F "check: secondmate wake-loop stalled: mate=zz-control row=$round" "$dir/watch-$round.out" >/dev/null \
+      || fail "checkpoint $round never completed a stall tick: $(cat "$dir/watch-$round.out")"
+    ! grep -F 'secondmate wake-loop stalled: mate=ios-ui ' "$dir/watch-$round.out" >/dev/null \
       || fail "empty ios queue erased ios-ui idempotency on checkpoint $round"
     round=$((round + 1))
   done
-  [ ! -s "$state/.wake-queue" ] \
+  ! grep -F 'secondmate-wake-loop-ios-ui-' "$state/.wake-queue" >/dev/null 2>&1 \
     || fail "overlapping mate ids re-published the acknowledged ios-ui stall"
   cmp -s "$row_before" "$stalled/state/.wake-queue" \
     || fail "overlapping mate receipt checks changed the foreign row"
