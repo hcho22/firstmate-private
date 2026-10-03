@@ -557,13 +557,19 @@ test_changed_bound_scales_with_the_duration_hint() {
   cp "$RUNNER" "$repo/bin/fm-test-run.sh"
   # Both bounded runners log the bound they were handed and report a hang: the
   # automatic path's progress-aware guard (bound, backstop, watched output,
-  # reason file) and the explicit flat bound. The guard also writes a line to the
-  # file it watches, which must be the script's own reported output.
+  # reason file) and the explicit flat bound. The guard runs the wrapped command,
+  # as the real one does, and logs watched-own-output only when the file it was
+  # told to watch received that script's output, however the runner schedules it.
   cat >"$repo/bin/fm-timeout-lib.sh" <<'SH'
 fm_run_progress_bounded() {
+  local watch=$3
   printf '%s\n' "$*" >>"$FM_TEST_BOUND_LOG"
-  printf 'fixture: the guard watches this output\n' >>"$3"
   printf 'idle\n' >"$4"
+  shift 4
+  "$@"
+  if grep -qx 'fixture: the script wrote this' "$watch" 2>/dev/null; then
+    printf 'watched-own-output %s\n' "$*" >>"$FM_TEST_BOUND_LOG"
+  fi
   return 124
 }
 fm_run_timed() {
@@ -572,7 +578,7 @@ fm_run_timed() {
 }
 SH
   for s in "$hinted" "$unhinted"; do
-    printf '#!/usr/bin/env bash\ntouch should-not-run\n' >"$repo/$s"
+    printf '#!/usr/bin/env bash\necho "fixture: the script wrote this"\n' >"$repo/$s"
     chmod +x "$repo/$s"
   done
   chmod +x "$repo/bin/fm-test-run.sh"
@@ -602,8 +608,10 @@ SH
   grep -Fq "$hinted made no progress for ${bound}s, its per-script bound, and was terminated" "$tmp/out" \
     || fail "a silent hinted script was not reported at its own bound: $(cat "$tmp/out")"
   grep -Eq "^FM_TEST_END .+ $hinted exit=124 " "$tmp/out" || fail "a hung hinted script was not recorded as exit 124"
-  [ "$(grep -c '^fixture: the guard watches this output$' "$tmp/out")" -eq 2 ] \
-    || fail "the guard did not watch each script's own output file: $(cat "$tmp/out")"
+  for s in "$hinted" "$unhinted"; do
+    grep -Eq "^watched-own-output .*$s" "$log" \
+      || fail "the guard did not watch $s's own output file: $(cat "$log")"
+  done
 
   : >"$log"
   set +e
