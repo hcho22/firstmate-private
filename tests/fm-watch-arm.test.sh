@@ -138,10 +138,14 @@ drain_ack_pair() {  # <drain-stderr>
   printf '%s\t%s\n' "$sequence" "$generation"
 }
 
+# The confirmation window is the test-wide 60 s hang guard rather than the
+# production 10 s default: no re-arm case depends on confirmation timing out, and
+# a loaded host can take longer than 10 s to publish the lock and a fresh beacon.
 start_rearm_arm() {  # <home> <state> <fakebin> <arm-out> [predecessor-arm-pid]
   local home=$1 state=$2 fakebin=$3 armout=$4 predecessor=${5:-} i
   PATH="$fakebin:$PATH" FM_HOME="$home" FM_STATE_OVERRIDE="$state" \
     FM_POLL=1 FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
+    FM_ARM_CONFIRM_TIMEOUT=60 \
     FM_WATCH_PREDECESSOR_ARM_PID="$predecessor" \
     "$WATCH_ARM" --restart > "$armout" &
   ARM_PID=$!
