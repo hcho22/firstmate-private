@@ -10,6 +10,10 @@ set -u
 # shellcheck source=tests/captain-hold-helpers.sh
 . "$(dirname "${BASH_SOURCE[0]}")/captain-hold-helpers.sh"
 
+# The one keyed-answer intake, fed through the real process-event runner by a
+# fixture channel that knows nothing about captain holds: task-id keys close at
+# answer time, a card-declared release mode frees held work, freeform prose can
+# forge nothing, and a replayed capture is idempotent.
 test_bound_channel_answers_close_at_answer_time() {
   local home id sid artifact result out show rc
   home=$(make_home channel-answer-closure)

@@ -10,6 +10,11 @@ set -u
 # shellcheck source=tests/captain-hold-helpers.sh
 . "$(dirname "${BASH_SOURCE[0]}")/captain-hold-helpers.sh"
 
+# Reproduces the loss exactly with privacy-safe synthetic names: the investigation
+# and visual review have ended, the only genuine unresolved captain call is report
+# prose, no held backlog item or open status exists, and the authoritative
+# Bearings view correctly omits it. Completion must now refuse before teardown can
+# erase the source.
 test_uninventoried_report_decision_refuses_completion() {
   local home id json rc
   home=$(make_home omitted-decision)
@@ -631,11 +636,6 @@ EOF
   assert_no_grep 'captain-hold-main-call' "$channel" "a main home's hold leaked onto a mate channel"
   pass "a secondmate home publishes each hold occurrence and its answer on the parent channel"
 }
-
-# The one keyed-answer intake, fed through the real process-event runner by a
-# fixture channel that knows nothing about captain holds: task-id keys close at
-# answer time, a card-declared release mode frees held work, freeform prose can
-# forge nothing, and a replayed capture is idempotent.
 
 test_uninventoried_report_decision_refuses_completion
 test_completion_gate_attests_and_transfers

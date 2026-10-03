@@ -93,9 +93,3 @@ write_origin_meta() {  # <home> <id> [kind]
     "mode=$kind" \
     "spawn_gen=fixture-$id"
 }
-
-# Reproduces the loss exactly with privacy-safe synthetic names: the investigation
-# and visual review have ended, the only genuine unresolved captain call is report
-# prose, no held backlog item or open status exists, and the authoritative
-# Bearings view correctly omits it. Completion must now refuse before teardown can
-# erase the source.
