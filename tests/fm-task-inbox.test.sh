@@ -114,6 +114,21 @@ wait_watcher_gone() {  # <pid> [limit-secs]
   return 1
 }
 
+# wait_for_poll_after <state> <ref> <pid>: touch <ref>, then wait under the 60 s
+# guard for the watcher to begin a poll after it. The watcher stamps its beacon
+# as each poll begins and runs polls one at a time, so a newer beacon also proves
+# that every earlier poll, including any doorbell it was writing, has finished.
+wait_for_poll_after() {
+  local state=$1 ref=$2 pid=$3 deadline=$((SECONDS + 60))
+  touch "$ref"
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    [ "$state/.last-watcher-beat" -nt "$ref" ] && return 0
+    kill -0 "$pid" 2>/dev/null || return 1
+    sleep 0.1
+  done
+  return 1
+}
+
 age_path() {  # <path>  (set mtime well past any grace under test)
   touch -t 202001010000 "$1"
 }
@@ -396,10 +411,18 @@ test_watcher_rerings_idle_pane_quietly() {
   [ ! -s "$state/.wake-queue" ] \
     || { kill "$pid" 2>/dev/null; fail "a healthy re-ring queued a wake:"$'\n'"$(cat "$state/.wake-queue")"; }
   # The acknowledgement silences the ladder: no further doorbells after the mv.
+  # A poll that read the record just before the mv may still ring, so clear the
+  # log only once a poll has begun after the mv. Then observe three polls that
+  # begin after the clear: the first two each finish a full scan of the handled
+  # inbox, more than one 1 s grace apart, so an unsilenced ladder rings in them.
   mv "$rec" "$state/t1.inbox/handled/"
-  sleep 2.5
+  wait_for_poll_after "$state" "$dir/acked.ref" "$pid" \
+    || { kill "$pid" 2>/dev/null; fail "the watcher stopped polling after the ack"; }
   : > "$log"
-  sleep 2.5
+  for _ in 1 2 3; do
+    wait_for_poll_after "$state" "$dir/observed.ref" "$pid" \
+      || { kill "$pid" 2>/dev/null; fail "the watcher stopped polling while the ack was observed"; }
+  done
   kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
   [ ! -s "$log" ] || fail "the watcher kept ringing after the ack:"$'\n'"$(cat "$log")"
   pass "watcher: an unhandled aged message on an idle pane re-rings without waking firstmate, and the ack silences it"
