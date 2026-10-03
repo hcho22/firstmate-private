@@ -2306,7 +2306,6 @@ test_pi_late_retiring_actionable_reaches_replacement() {
 count=0
 [ ! -f "$FM_ARM_COUNT" ] || count=$(cat "$FM_ARM_COUNT")
 count=$((count + 1))
-printf '%s\n' "$count" > "$FM_ARM_COUNT"
 late_close() {
   while [ ! -e "$FM_RELEASE_FILE.$count" ] && kill -0 "$PPID" 2>/dev/null; do sleep 0.02; done
   printf 'signal: late retiring actionable outcome\n'
@@ -2314,6 +2313,7 @@ late_close() {
   exit 0
 }
 trap late_close TERM INT
+printf '%s\n' "$count" > "$FM_ARM_COUNT"
 printf 'watcher: started pid=%s\n' "$$"
 while :; do sleep 0.02; done
 SH
@@ -2420,13 +2420,13 @@ test_pi_replacement_tokens_are_process_unique() {
 count=0
 [ ! -f "$FM_ARM_COUNT" ] || count=$(cat "$FM_ARM_COUNT")
 count=$((count + 1))
-printf '%s\n' "$count" > "$FM_ARM_COUNT"
 late_close() {
   while [ ! -e "$FM_RELEASE_FILE.$count" ] && kill -0 "$PPID" 2>/dev/null; do sleep 0.02; done
   printf 'signal: module-%s late actionable outcome\n' "$count"
   exit 0
 }
 trap late_close TERM INT
+printf '%s\n' "$count" > "$FM_ARM_COUNT"
 printf 'watcher: started pid=%s\n' "$$"
 while :; do sleep 0.02; done
 SH
