@@ -436,8 +436,9 @@ test_index_self_heal_runs_under_the_outcome_lock() {
     . "$1"
     fm_lock_try_acquire "$STATE/.branch-outcomes.lock" || exit 1
     trap "fm_lock_release \"$STATE/.branch-outcomes.lock\"" EXIT
-    sleep 30
-  ' _ "$ROOT/bin/fm-wake-lib.sh" &
+    deadline=$((SECONDS + 600))
+    while [ -d "$2" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
+  ' _ "$ROOT/bin/fm-wake-lib.sh" "$dir" &
   holder=$!
   local deadline=$((SECONDS + 60))
   while [ "$SECONDS" -lt "$deadline" ]; do

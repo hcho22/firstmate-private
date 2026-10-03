@@ -104,7 +104,8 @@ test_control_lock_contention_refuses_before_mutation() {
     # shellcheck source=/dev/null
     . "$ROOT/bin/fm-wake-lib.sh"
     fm_lock_try_acquire "$lock" || exit 1
-    sleep 30
+    deadline=$((SECONDS + 600))
+    while [ -d "$dir" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   ) &
   holder=$!
   local deadline=$((SECONDS + 60))
