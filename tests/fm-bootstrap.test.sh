@@ -218,6 +218,7 @@ run_bootstrap_timeout_case() {
       local tries
       if [ "${FM_FAKE_GIT_WAIT_FOR_FLEET_START:-}" = 1 ] && [ -n "${FM_FAKE_FLEET_SYNC_STARTED_MARKER:-}" ]; then
         tries=0
+        # fm-lint-waits: allow a 50 ms detection window; the fake only records whether fleet sync had already started and must not wait for it
         while [ "$tries" -lt 5 ] && [ ! -e "$FM_FAKE_FLEET_SYNC_STARTED_MARKER" ]; do
           command sleep 0.01
           tries=$((tries + 1))

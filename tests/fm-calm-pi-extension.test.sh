@@ -3522,16 +3522,16 @@ JS
     --dump-dom \
     "file://$export_file" >"$export_dom" 2>/dev/null &
   chrome_pid=$!
-  chrome_wait=0
-  while kill -0 "$chrome_pid" 2>/dev/null && [ "$chrome_wait" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while kill -0 "$chrome_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     grep -Fq '</html>' "$export_dom" 2>/dev/null && break
     sleep 0.1
-    chrome_wait=$((chrome_wait + 1))
   done
   kill "$chrome_pid" 2>/dev/null || true
   # Chrome can retain --headless=new after --dump-dom completes and ignore TERM,
   # so an unbounded wait can hang after the complete DOM has been captured.
   chrome_reap_wait=0
+  # fm-lint-waits: allow a reap grace before the forced kill below, not an event wait
   while kill -0 "$chrome_pid" 2>/dev/null && [ "$chrome_reap_wait" -lt 20 ]; do
     sleep 0.1
     chrome_reap_wait=$((chrome_reap_wait + 1))

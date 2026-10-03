@@ -569,6 +569,7 @@ SH
   ' _ "$ROOT" "$WORLD" &
   update_pid=$!
   i=0
+  # fm-lint-waits: allow a bounded head start for the concurrent replacement; the attribution asserted below must hold whether or not it lands first
   while [ "$i" -lt 10 ] && [ ! -e "$WORLD/meta-updated" ]; do sleep 0.05; i=$((i + 1)); done
   : > "$WORLD/state-release"
   wait "$recon_pid" || fail "reconciliation failed during relaunch race"
