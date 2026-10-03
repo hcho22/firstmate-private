@@ -29,7 +29,7 @@ make_home() {  # <name>
 ## Done
 EOF
   fakebin=$(fm_fakebin "$home")
-  fm_fake_exit0 "$fakebin" tmux treehouse no-mistakes gh gh-axi
+  fm_shared_stub_exit0 "$fakebin" tmux treehouse no-mistakes gh gh-axi
   printf '%s\n' "$home"
 }
 
@@ -595,7 +595,7 @@ test_secondmate_hold_stays_in_authoritative_home() {
 ## Done
 EOF
   fakebin=$(fm_fakebin "$mate")
-  fm_fake_exit0 "$fakebin" tmux treehouse no-mistakes gh gh-axi
+  fm_shared_stub_exit0 "$fakebin" tmux treehouse no-mistakes gh gh-axi
   origin=sample-mate-review
   mkdir -p "$mate/data/$origin"
   tasks_in "$mate" add "$origin" "Investigate secondmate sample" --kind scout --repo sample --start >/dev/null
@@ -652,7 +652,7 @@ test_secondmate_home_publishes_holds_and_answers() {
 ## Done
 EOF
   fakebin=$(fm_fakebin "$mate")
-  fm_fake_exit0 "$fakebin" tmux treehouse no-mistakes gh gh-axi
+  fm_shared_stub_exit0 "$fakebin" tmux treehouse no-mistakes gh gh-axi
   channel="$parent/state/channel-mate.status"
   decision="$mate/decision.txt"
 
@@ -753,7 +753,7 @@ test_bound_channel_answers_close_at_answer_time() {
 
   artifact="$home/data/$id/review.html"
   printf '<h1>Sample eval proposal</h1>\n' > "$artifact"
-  fm_fake_exit0 "$home/fakebin" lavish-axi
+  fm_shared_stub_exit0 "$home/fakebin" lavish-axi
   sid=$(run_lavish "$home" source-id "$artifact") || fail "could not derive the review source id"
   run_captain "$home" bind "$sid" >/dev/null \
     || fail "could not bind the review source to the keyed-answer intake"
@@ -874,7 +874,7 @@ test_unbound_source_closes_no_hold() {
 
   artifact="$home/data/$id/review.html"
   printf '<h1>Unbound</h1>\n' > "$artifact"
-  fm_fake_exit0 "$home/fakebin" lavish-axi
+  fm_shared_stub_exit0 "$home/fakebin" lavish-axi
   sid=$(run_lavish "$home" source-id "$artifact") || fail "could not derive the unbound source id"
   run_lavish "$home" arm "$artifact" >/dev/null || fail "could not arm the unbound review"
 
@@ -1050,7 +1050,7 @@ test_chat_channel_feeds_the_same_keyed_answer_intake() {
     || fail "precondition: completion did not transfer the decision to its durable owner"
 
   fb="$home/fakebin"
-  cat > "$fb/tmux" <<'SH'
+  fm_shared_stub "$fb" "tmux" <<'SH'
 #!/usr/bin/env bash
 set -u
 case "${1:-}" in
@@ -1076,7 +1076,6 @@ case "${1:-}" in
 esac
 exit 0
 SH
-  chmod +x "$fb/tmux"
 
   : > "$home/send.log"
   env PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$home" FM_HOME="$home" \
@@ -1383,11 +1382,10 @@ test_interrupted_cleanup_keeps_the_captain_call_recoverable() {
     || fail "could not hold the cleanup-failure fixture"
   run_captain "$home" complete "$id" "$id" >/dev/null \
     || fail "completion gate failed for the cleanup-failure fixture"
-  cat > "$home/fakebin/treehouse" <<'SH'
+  fm_shared_stub "$home/fakebin" "treehouse" <<'SH'
 #!/usr/bin/env bash
 exit 1
 SH
-  chmod +x "$home/fakebin/treehouse"
 
   set +e
   PATH="$home/fakebin:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$home" \
@@ -1406,7 +1404,7 @@ SH
   assert_not_contains "$show" "Deliverable of the finished work" \
     "the deliverable was recorded before destructive cleanup succeeded"
 
-  fm_fake_exit0 "$home/fakebin" treehouse
+  fm_shared_stub_exit0 "$home/fakebin" treehouse
   bootstrap=$(PATH="$home/fakebin:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
     FM_CONFIG_OVERRIDE="$home/config" FM_BOOTSTRAP_NETWORK=skip \
@@ -1493,7 +1491,7 @@ test_teardown_refuses_a_ship_when_the_captain_hold_cannot_be_read() {
   printf 'done: PR https://github.com/sample/sample/pull/7\n' > "$home/state/$id.status"
   run_captain "$home" hold "$id" --reason "captain must approve the sample change" >/dev/null \
     || fail "could not hold the ship fixture for the captain"
-  cat > "$home/fakebin/tasks-axi" <<'SH'
+  fm_shared_stub "$home/fakebin" "tasks-axi" <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = show ] && [ "${2:-}" = "${TASKS_AXI_FAIL_SHOW_ID:-}" ]; then
   printf 'error: temporary backlog read failure\n' >&2
@@ -1501,7 +1499,6 @@ if [ "${1:-}" = show ] && [ "${2:-}" = "${TASKS_AXI_FAIL_SHOW_ID:-}" ]; then
 fi
 exec "${REAL_TASKS_AXI:?}" "$@"
 SH
-  chmod +x "$home/fakebin/tasks-axi"
 
   set +e
   PATH="$home/fakebin:$PATH" REAL_TASKS_AXI="$TASKS_AXI_BIN" \
