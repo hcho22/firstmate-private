@@ -76,10 +76,9 @@ if [ "$slow" -eq 1 ]; then
   # Do not let scheduler latency turn the concurrency assertion into a race
   # between equal sleeps. If the fetch worker was launched concurrently, give
   # it a bounded opportunity to publish its START record.
-  waited=0
-  while ! grep -q '^START fleet-fetch ' "$log" && [ "$waited" -lt 500 ]; do
+  deadline=$((SECONDS + 60))
+  while ! grep -q '^START fleet-fetch ' "$log" && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.01
-    waited=$((waited + 1))
   done
   sleep "$sleep_s"
   printf 'END %s %s %s\n' "$host" "$command_name" "$subcommand" >> "$log"

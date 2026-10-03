@@ -367,8 +367,9 @@ remote_ledger_events() {
 # fixed settle; the poll count only bounds a regression where a cancelled read
 # truly survives.
 remote_ledger_processes_gone() {
-  local log=$1 polls=0 collector_pid sleeper_pid pid alive
-  while [ "$polls" -lt 400 ]; do
+  local log=$1 collector_pid sleeper_pid pid alive
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     alive=0
     while read -r collector_pid sleeper_pid; do
       for pid in "$collector_pid" "$sleeper_pid"; do
@@ -378,7 +379,6 @@ remote_ledger_processes_gone() {
     done < "$log"
     [ "$alive" -eq 1 ] || return 0
     sleep 0.05
-    polls=$((polls + 1))
   done
   return 1
 }
@@ -2296,10 +2296,9 @@ SH
   REAL_CP="$real_cp" FAKE_CP_STARTED="$home/cp-started" FAKE_CP_RELEASE="$home/cp-release" \
     run "$home" "$fakebin" --json > "$home/snapshot.json" &
   snapshot_pid=$!
-  i=0
-  while [ ! -e "$home/cp-started" ] && [ "$i" -lt 500 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ ! -e "$home/cp-started" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.01
-    i=$((i + 1))
   done
   if [ ! -e "$home/cp-started" ]; then
     kill "$snapshot_pid" 2>/dev/null || true

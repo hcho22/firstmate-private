@@ -93,13 +93,12 @@ new_window() {  # <name> <cmd...>
     || fail "could not create window $name"
 }
 
-wait_for_state() {  # <target> <expected> [tries]
-  local target=$1 expected=$2 tries=${3:-100} got i=0
-  while [ "$i" -lt "$tries" ]; do
+wait_for_state() {  # <target> <expected>
+  local target=$1 expected=$2 got deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     got=$(fm_backend_agent_state tmux "$target")
     [ "$got" = "$expected" ] && return 0
     sleep 0.1
-    i=$((i + 1))
   done
   printf 'last verdict for %s was %s (expected %s); title=%s comms=[%s]\n' \
     "$target" "${got:-<none>}" "$expected" \
@@ -290,13 +289,12 @@ cursor_screen() {  # <composer-text> <ghost 0|1>
 open_composer_pane() {  # <window> <binary> <composer-text> <ghost 0|1>
   local window=$1 binary=$2 text=$3 ghost=$4
   new_window "$window" bash -c "$(declare -f cursor_screen); LAB='$LAB'; cursor_screen '$text' '$ghost'; exec '$binary' 900"
-  local i=0
-  while [ "$i" -lt 100 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     case "$("$REAL_TMUX" -L "$SOCKET" capture-pane -p -t "$SESSION:$window" 2>/dev/null)" in
       *"$text"*) return 0 ;;
     esac
     sleep 0.1
-    i=$((i + 1))
   done
   fail "pane $window never rendered its composer"
 }

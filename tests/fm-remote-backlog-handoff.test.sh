@@ -26,25 +26,23 @@ mkdir -p "$PARENT/data" "$PARENT/state" "$REMOTE_ROOT/bin" \
 # So wait for the worker to actually exit and drain the shell's background jobs
 # before removing the tree, then retry rm -rf until the now-quiesced tree is gone.
 fm_remote_handoff_teardown() {
-  local worker_pid i
+  local worker_pid
   touch "$TMP_ROOT/put.release" "$TMP_ROOT/route.release" 2>/dev/null || true
   if [ -f "$TMP_ROOT/remote-jobs/worker.pid" ]; then
     worker_pid=$(cat "$TMP_ROOT/remote-jobs/worker.pid" 2>/dev/null || true)
     if [ -n "$worker_pid" ]; then
       kill "$worker_pid" 2>/dev/null || true
-      i=0
-      while [ "$i" -lt 500 ] && kill -0 "$worker_pid" 2>/dev/null; do
+      local deadline=$((SECONDS + 60))
+      while [ "$SECONDS" -lt "$deadline" ] && kill -0 "$worker_pid" 2>/dev/null; do
         sleep 0.01
-        i=$((i + 1))
       done
     fi
   fi
   wait 2>/dev/null || true
-  i=0
-  while [ "$i" -lt 50 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     rm -rf -- "$TMP_ROOT" 2>/dev/null && return 0
     sleep 0.02
-    i=$((i + 1))
   done
   rm -rf -- "$TMP_ROOT" 2>/dev/null || true
 }

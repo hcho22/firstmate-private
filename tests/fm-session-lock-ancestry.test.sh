@@ -334,10 +334,9 @@ make_primary_home() {  # <dir>
   cat > "$dir/session.sh" <<'SH'
 #!/usr/bin/env bash
 if [ "${FM_FIXTURE_ORPHAN_HERE:-0}" = 1 ]; then
-  i=0
-  while [ "$i" -lt 200 ] && [ "$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' ')" != 1 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ "$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' ')" != 1 ]; do
     sleep 0.05
-    i=$((i + 1))
   done
 fi
 printf '%s\n' "$$" > "$FM_HOME/state/session-pid"
@@ -347,10 +346,9 @@ printf '%s\n' "$?" > "$FM_HOME/state/hook.rc"
 SH
   cat > "$dir/daemon.sh" <<'SH'
 #!/usr/bin/env bash
-i=0
-while [ "$i" -lt 200 ] && [ "$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' ')" != 1 ]; do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ] && [ "$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' ')" != 1 ]; do
   sleep 0.05
-  i=$((i + 1))
 done
 printf '%s\n' "$$" > "$FM_HOME/state/daemon-pid"
 "$FM_SESSION_BIN" "$FM_HOME/session.sh"
@@ -364,7 +362,7 @@ SH
 # walk terminates inside the fixture. Returns once the hook has recorded its exit
 # code.
 run_fixture_tree() {  # <dir> <session-bin> [<daemon-bin>]
-  local dir=$1 session_bin=$2 daemon_bin=${3:-} i
+  local dir=$1 session_bin=$2 daemon_bin=${3:-}
   if [ -n "$daemon_bin" ]; then
     FM_HOME="$dir" FM_SESSION_BIN="$session_bin" FM_FIXTURE_ORPHAN_HERE=0 \
       bash -c '"$0" "$1" &' "$daemon_bin" "$dir/daemon.sh"
@@ -372,10 +370,9 @@ run_fixture_tree() {  # <dir> <session-bin> [<daemon-bin>]
     FM_HOME="$dir" FM_FIXTURE_ORPHAN_HERE=1 \
       bash -c '"$0" "$1" &' "$session_bin" "$dir/session.sh"
   fi
-  i=0
-  while [ "$i" -lt 400 ] && [ ! -s "$dir/state/hook.rc" ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$dir/state/hook.rc" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -s "$dir/state/hook.rc" ] || fail "the fixture hook never finished"
 }

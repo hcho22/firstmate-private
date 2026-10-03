@@ -45,20 +45,18 @@ test_singleton_start() {
   pid1=$!
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out2" &
   pid2=$!
-  i=0
-  while [ "$i" -lt 50 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     live=0
     is_live_non_zombie "$pid1" && live=$((live + 1))
     is_live_non_zombie "$pid2" && live=$((live + 1))
     [ "$live" -eq 1 ] && break
     sleep 0.1
-    i=$((i + 1))
   done
   [ "$live" -eq 1 ] || fail "expected exactly one live watcher, got $live"
-  i=0
-  while [ "$i" -lt 50 ] && ! grep -h 'watcher: already running pid ' "$out1" "$out2" >/dev/null 2>&1; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && ! grep -h 'watcher: already running pid ' "$out1" "$out2" >/dev/null 2>&1; do
     sleep 0.02
-    i=$((i + 1))
   done
   grep -h 'watcher: already running pid ' "$out1" "$out2" >/dev/null || fail "second watcher did not report existing singleton"
   kill "$pid1" "$pid2" 2>/dev/null || true
@@ -84,13 +82,13 @@ test_stale_watch_lock_reclaimed() {
   i=0
   live=0
   lock_pid=
-  while [ "$i" -lt 50 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     live=0
     is_live_non_zombie "$pid" && live=1
     lock_pid=$(cat "$state/.watch.lock/pid" 2>/dev/null || true)
     [ "$live" -eq 1 ] && [ "$lock_pid" != "$dead_pid" ] && break
     sleep 0.1
-    i=$((i + 1))
   done
   [ "$live" -eq 1 ] || fail "watcher did not reclaim stale lock and stay alive"
   [ "$lock_pid" != "$dead_pid" ] || fail "stale watch lock pid was not replaced"
@@ -285,10 +283,9 @@ test_lock_live_steal_mutex_is_not_reclaimed() {
     fm_lock_release "$2.steal"
   ' _ "$LIB" "$lockdir" "$holder_file" &
   holder=$!
-  i=0
-  while [ "$i" -lt 50 ] && [ ! -s "$holder_file" ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$holder_file" ]; do
     sleep 0.1
-    i=$((i + 1))
   done
   [ -s "$holder_file" ] || fail "live steal mutex holder did not start"
   out=$(FM_LOCK_STALE_AFTER=0 FM_STATE_OVERRIDE="$state" bash -c '
@@ -419,7 +416,7 @@ test_lock_paused_mid_acquire_claim_fails_during_steal() {
 }
 
 test_watch_restart_rejects_reused_pid() {
-  local dir state fakebin out live pid i
+  local dir state fakebin out live pid deadline
   dir=$(make_case restart-reused-pid)
   state="$dir/state"
   fakebin="$dir/fakebin"
@@ -433,10 +430,9 @@ test_watch_restart_rejects_reused_pid() {
   printf '%s\n' "stale watcher identity" > "$state/.watch.lock/pid-identity"
   PATH="$fakebin:$PATH" FM_HOME="$dir" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH_ARM" --restart > "$out" &
   pid=$!
-  i=0
-  while [ "$i" -lt 80 ] && is_live_non_zombie "$pid"; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && is_live_non_zombie "$pid"; do
     sleep 0.1
-    i=$((i + 1))
   done
   is_live_non_zombie "$pid" \
     && fail "restart did not surface recovery after replacing a reused-pid lock"
@@ -450,7 +446,7 @@ test_watch_restart_rejects_reused_pid() {
 }
 
 test_watch_restart_attaches_to_healthy_peer() {
-  local dir state fakebin out peer_ready peer identity armpid status i
+  local dir state fakebin out peer_ready peer identity armpid status deadline
   dir=$(make_case restart-healthy-peer)
   state="$dir/state"
   fakebin="$dir/fakebin"
@@ -458,10 +454,9 @@ test_watch_restart_attaches_to_healthy_peer() {
   peer_ready="$dir/peer.ready"
   node -e 'const fs = require("node:fs"); process.on("SIGTERM", () => {}); fs.writeFileSync(process.argv[1], "ready\n"); setTimeout(() => {}, 300000)' "$peer_ready" &
   peer=$!
-  i=0
-  while [ "$i" -lt 50 ] && [ ! -s "$peer_ready" ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$peer_ready" ]; do
     sleep 0.1
-    i=$((i + 1))
   done
   if [ ! -s "$peer_ready" ]; then
     kill -KILL "$peer" 2>/dev/null || true
@@ -477,11 +472,10 @@ test_watch_restart_attaches_to_healthy_peer() {
   touch "$state/.last-watcher-beat"
   PATH="$fakebin:$PATH" FM_HOME="$dir" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 FM_ARM_ATTACH_POLL=0.1 FM_ARM_CONFIRM_TIMEOUT=1 "$WATCH_ARM" --restart > "$out" &
   armpid=$!
-  i=0
-  while [ "$i" -lt 80 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -qF "watcher: attached pid=$peer" "$out" 2>/dev/null && break
     sleep 0.1
-    i=$((i + 1))
   done
   grep -qF "watcher: attached pid=$peer" "$out" || fail "restart did not attach to the verified healthy peer: $(cat "$out")"
   is_live_non_zombie "$armpid" || fail "restart arm exited instead of following the healthy peer"
@@ -496,21 +490,20 @@ test_watch_restart_attaches_to_healthy_peer() {
 }
 
 test_watcher_self_evicts_on_lock_takeover() {
-  local dir state fakebin out pid i lock_pid
+  local dir state fakebin out pid deadline lock_pid
   dir=$(make_case self-evict)
   state="$dir/state"
   fakebin="$dir/fakebin"
   out="$dir/watch.out"
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=0.2 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
   pid=$!
-  i=0
-  while [ "$i" -lt 80 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$pid" ] \
       && [ -s "$state/.watch.lock/pid-identity" ] \
       && [ -e "$state/.last-watcher-beat" ] \
       && break
     sleep 0.1
-    i=$((i + 1))
   done
   [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$pid" ] \
     && [ -s "$state/.watch.lock/pid-identity" ] \
@@ -526,7 +519,7 @@ test_watcher_self_evicts_on_lock_takeover() {
 }
 
 test_arm_self_eviction_is_loud_without_successor() {
-  local dir state fakebin armout armpid watcher_pid status i
+  local dir state fakebin armout armpid watcher_pid status deadline
   dir=$(make_case arm-self-evict)
   state="$dir/state"
   fakebin="$dir/fakebin"
@@ -540,11 +533,10 @@ test_arm_self_eviction_is_loud_without_successor() {
   # same budget bounds the successor wait this case deliberately spends below.
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=0.2 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH_ARM" > "$armout" &
   armpid=$!
-  i=0
-  while [ "$i" -lt 80 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -qF 'watcher: started pid=' "$armout" 2>/dev/null && break
     sleep 0.1
-    i=$((i + 1))
   done
   watcher_pid=$(cat "$state/.watch.lock/pid" 2>/dev/null || true)
   grep -qF "watcher: started pid=$watcher_pid" "$armout" || fail "arm did not start before self-eviction check"
@@ -562,7 +554,7 @@ test_arm_self_eviction_is_loud_without_successor() {
 }
 
 test_arm_attaches_and_waits_for_live_fresh_watcher() {
-  local dir state fakebin out armout i wpid armpid status
+  local dir state fakebin out armout deadline wpid armpid status
   dir=$(make_case arm-attach)
   state="$dir/state"
   fakebin="$dir/fakebin"
@@ -571,22 +563,20 @@ test_arm_attaches_and_waits_for_live_fresh_watcher() {
   # A genuinely live watcher with a fresh beacon already holds the singleton.
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
   wpid=$!
-  i=0
-  while [ "$i" -lt 60 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$wpid" ] && [ -e "$state/.last-watcher-beat" ] && break
     sleep 0.1
-    i=$((i + 1))
   done
   [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$wpid" ] || fail "seed watcher did not take the lock"
   # Arming must attach to the existing watcher, NOT start a second one, and NOT
   # exit while the seed still holds the healthy lock.
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_ARM_ATTACH_POLL=0.1 FM_ARM_CONFIRM_TIMEOUT=1 "$WATCH_ARM" > "$armout" &
   armpid=$!
-  i=0
-  while [ "$i" -lt 80 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -qF "watcher: attached pid=$wpid" "$armout" 2>/dev/null && break
     sleep 0.1
-    i=$((i + 1))
   done
   grep -qF "watcher: attached pid=$wpid" "$armout" || fail "arm did not report attach to the live watcher"
   ! grep -qF 'watcher: started' "$armout" || fail "arm started a second watcher behind a healthy one"
@@ -604,7 +594,7 @@ test_arm_attaches_and_waits_for_live_fresh_watcher() {
 }
 
 test_attached_arm_signal_is_recorded_in_cycle_ledger() {
-  local dir state fakebin out armout i wpid armpid status
+  local dir state fakebin out armout deadline wpid armpid status
   dir=$(make_case attached-arm-signal-ledger)
   state="$dir/state"
   fakebin="$dir/fakebin"
@@ -612,20 +602,18 @@ test_attached_arm_signal_is_recorded_in_cycle_ledger() {
   armout="$dir/arm.out"
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
   wpid=$!
-  i=0
-  while [ "$i" -lt 60 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$wpid" ] && [ -e "$state/.last-watcher-beat" ] && break
     sleep 0.1
-    i=$((i + 1))
   done
   [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$wpid" ] || fail "seed watcher did not take the lock"
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_ARM_ATTACH_POLL=0.1 FM_ARM_CONFIRM_TIMEOUT=1 "$WATCH_ARM" > "$armout" &
   armpid=$!
-  i=0
-  while [ "$i" -lt 80 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -qF "watcher: attached pid=$wpid" "$armout" 2>/dev/null && break
     sleep 0.1
-    i=$((i + 1))
   done
   grep -qF "watcher: attached pid=$wpid" "$armout" || fail "arm did not report attach before signal"
   kill -TERM "$armpid" 2>/dev/null || fail "could not signal the attached arm"
@@ -645,7 +633,7 @@ test_arm_starts_and_self_heals() {
   # before reporting 'started' - whether the lock is empty (clean start) or held
   # by a dead pid with a fresh-looking leftover beacon (self-heal). It must never
   # report 'healthy' off a dead pid. One row per pre-state, one assertion block.
-  local row dir state fakebin armout armpid i lock_pid dead_pid
+  local row dir state fakebin armout armpid deadline lock_pid dead_pid
   for row in clean dead-pid; do
     dir=$(make_case "arm-$row")
     state="$dir/state"
@@ -664,14 +652,14 @@ test_arm_starts_and_self_heals() {
     fi
     PATH="$fakebin:$PATH" FM_HOME="$dir" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH_ARM" > "$armout" &
     armpid=$!
-    i=0
-    while [ "$i" -lt 80 ]; do
+    deadline=$((SECONDS + 60))
+    while [ "$SECONDS" -lt "$deadline" ]; do
       if [ "$row" = dead-pid ]; then
         is_live_non_zombie "$armpid" || break
       else
         grep -qF 'watcher: started pid=' "$armout" 2>/dev/null && break
       fi
-      sleep 0.1; i=$((i + 1))
+      sleep 0.1
     done
     if [ "$row" = dead-pid ]; then
       is_live_non_zombie "$armpid" \
@@ -826,7 +814,7 @@ SH
 }
 
 test_arm_waits_for_peer_beacon_after_child_stands_down() {
-  local dir state fakebin armout peer identity armpid status i
+  local dir state fakebin armout peer identity armpid status deadline
   dir=$(make_case arm-peer-startup-race)
   state="$dir/state"
   fakebin="$dir/fakebin"
@@ -848,20 +836,18 @@ test_arm_waits_for_peer_beacon_after_child_stands_down() {
   # the peer healthy. Sleeping for the same budget the arm spends made this
   # regression fixture race the confirmation deadline under full-suite load,
   # rather than testing the intended successor-handshake boundary.
-  i=0
-  while [ "$i" -lt 80 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -qF "watcher: already running pid $peer" "$state"/.watch-arm-output.* 2>/dev/null && break
     sleep 0.1
-    i=$((i + 1))
   done
   grep -qF "watcher: already running pid $peer" "$state"/.watch-arm-output.* 2>/dev/null \
     || fail "arm child did not stand down behind the peer watcher"
   touch "$state/.last-watcher-beat"
-  i=0
-  while [ "$i" -lt 80 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -qF "watcher: attached pid=$peer" "$armout" 2>/dev/null && break
     sleep 0.1
-    i=$((i + 1))
   done
   grep -qF "watcher: attached pid=$peer" "$armout" || fail "arm did not wait for and attach to the peer watcher: $(cat "$armout")"
   ! grep -qF 'watcher: FAILED' "$armout" || fail "arm falsely reported FAILED during peer startup race"
@@ -906,7 +892,7 @@ test_arm_fails_loud_when_no_fresh_watcher_confirmable() {
 }
 
 test_cycle_exit_ledger_links_successor_and_stays_bounded() {
-  local dir state fakebin armout check_file first_arm successor_arm successor_pid i size iteration
+  local dir state fakebin armout check_file first_arm successor_arm successor_pid deadline size iteration
   dir=$(make_case cycle-ledger)
   state="$dir/state"
   fakebin="$dir/fakebin"
@@ -931,11 +917,10 @@ SH
   armout="$dir/successor-arm.out"
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_WATCH_PREDECESSOR_ARM_PID="$first_arm" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 exec_with_default_hup "$WATCH_ARM" > "$armout" &
   successor_arm=$!
-  i=0
-  while [ "$i" -lt 80 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -qF 'watcher: started pid=' "$armout" 2>/dev/null && break
     sleep 0.1
-    i=$((i + 1))
   done
   successor_pid=$(cat "$state/.watch.lock/pid" 2>/dev/null || true)
   grep -qF "watcher: started pid=$successor_pid" "$armout" || fail "successor ledger cycle did not start"
@@ -957,11 +942,10 @@ SH
     armout="$dir/bounded-$iteration.out"
     PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_WATCH_CYCLE_LOG_MAX_BYTES=1400 FM_WATCH_CYCLE_LOG_KEEP_LINES=2 FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 exec_with_default_hup "$WATCH_ARM" > "$armout" &
     successor_arm=$!
-    i=0
-    while [ "$i" -lt 80 ]; do
+    deadline=$((SECONDS + 60))
+    while [ "$SECONDS" -lt "$deadline" ]; do
       grep -qF 'watcher: started pid=' "$armout" 2>/dev/null && break
       sleep 0.1
-      i=$((i + 1))
     done
     grep -qF 'watcher: started pid=' "$armout" || fail "bounded ledger cycle $iteration did not start"
     kill -HUP "$successor_arm" 2>/dev/null || true
@@ -979,18 +963,17 @@ SH
 }
 
 test_stopped_watcher_is_live_but_stale_then_exit_is_classified() {
-  local dir state fakebin armout armpid watcher_pid i status
+  local dir state fakebin armout armpid watcher_pid deadline status
   dir=$(make_case stopped-watcher)
   state="$dir/state"
   fakebin="$dir/fakebin"
   armout="$dir/arm.out"
   PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH_ARM" > "$armout" &
   armpid=$!
-  i=0
-  while [ "$i" -lt 80 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -qF 'watcher: started pid=' "$armout" 2>/dev/null && break
     sleep 0.1
-    i=$((i + 1))
   done
   watcher_pid=$(cat "$state/.watch.lock/pid" 2>/dev/null || true)
   grep -qF "watcher: started pid=$watcher_pid" "$armout" || fail "load counterfactual watcher did not start"

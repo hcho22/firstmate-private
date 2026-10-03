@@ -13,15 +13,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fail() { printf 'not ok - %s\n' "$1" >&2; cleanup_all; exit 1; }
 pass() { printf 'ok - %s\n' "$1"; }
 
-wait_for_capture_text() {  # <target> <text> [samples]
-  local target=$1 text=$2 samples=${3:-100} out i=0
-  while [ "$i" -lt "$samples" ]; do
+wait_for_capture_text() {  # <target> <text> [limit-secs]
+  local target=$1 text=$2 deadline=$((SECONDS + ${3:-60})) out
+  while [ "$SECONDS" -lt "$deadline" ]; do
     out=$(fm_backend_tmux_capture "$target" 200 2>/dev/null || true)
     case "$out" in
       *"$text"*) return 0 ;;
     esac
     sleep 0.1
-    i=$((i + 1))
   done
   return 1
 }
@@ -84,7 +83,7 @@ for _ in $(seq 1 100); do
   tmux send-keys -t "$TARGET" C-c
   tmux send-keys -t "$TARGET" -l "printf 'shell-%s\\n' ready"
   tmux send-keys -t "$TARGET" Enter
-  if wait_for_capture_text "$TARGET" "shell-ready" 10; then
+  if wait_for_capture_text "$TARGET" "shell-ready" 2; then
     SHELL_READY=true
     break
   fi

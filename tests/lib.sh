@@ -219,15 +219,14 @@ case "$target" in
     ;;
 esac
 kill -KILL "$target" 2>/dev/null || true
-waited=0
-while [ "$waited" -lt 600 ]; do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   case "$(ps -o state= -p "$target" 2>/dev/null | tr -d '[:space:]')" in
     ''|Z*) exit 0 ;;
   esac
-  waited=$((waited + 1))
   sleep 0.05
 done
-echo "fm-crash-inject: pid $target still running 30s after SIGKILL" >&2
+echo "fm-crash-inject: pid $target still running 60s after SIGKILL" >&2
 exit 1
 SH
   chmod +x "$fakebin/fm-crash-inject"

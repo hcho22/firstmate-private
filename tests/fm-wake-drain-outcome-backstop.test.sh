@@ -421,7 +421,7 @@ test_held_lock_mode_accepts_a_lock_owner_descendant() {
 }
 
 test_index_self_heal_runs_under_the_outcome_lock() {
-  local dir state busy_out healed_out holder i
+  local dir state busy_out healed_out holder
   dir=$(make_case index-selfheal-lock)
   state="$dir/state"
   busy_out="$dir/busy.out"
@@ -439,11 +439,10 @@ test_index_self_heal_runs_under_the_outcome_lock() {
     sleep 30
   ' _ "$ROOT/bin/fm-wake-lib.sh" &
   holder=$!
-  i=0
-  while [ "$i" -lt 50 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -e "$state/.branch-outcomes.lock" ] && break
     sleep 0.1
-    i=$((i + 1))
   done
   [ -e "$state/.branch-outcomes.lock" ] \
     || { kill "$holder" 2>/dev/null || true; fail "test lock holder did not publish the outcome lock"; }

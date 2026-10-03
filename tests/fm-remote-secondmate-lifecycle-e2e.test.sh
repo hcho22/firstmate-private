@@ -26,7 +26,7 @@ TMUX_STATE="$TMP_ROOT/remote-tmux.state"
 CLAIMS="$TMP_ROOT/claims"
 mkdir -p "$PARENT/data" "$PARENT/state" "$PARENT/config" "$PARENT/projects" "$REMOTE_ROOT" "$CLAIMS"
 cleanup() {
-  local worker_pid='' wait_attempt=0
+  local worker_pid=''
   touch "$TMP_ROOT/provision.release" "$TMP_ROOT/seed.release" "$TMP_ROOT/handoff.release" \
     "$TMP_ROOT/inherit.release" "$TMP_ROOT/launch.release" 2>/dev/null || true
   FM_HOME="$PARENT" FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
@@ -34,8 +34,8 @@ cleanup() {
   if [ -f "$TMP_ROOT/remote-jobs/worker.pid" ]; then
     worker_pid=$(cat "$TMP_ROOT/remote-jobs/worker.pid")
     kill "$worker_pid" 2>/dev/null || true
-    while kill -0 "$worker_pid" 2>/dev/null && [ "$wait_attempt" -lt 100 ]; do
-      wait_attempt=$((wait_attempt + 1))
+    local deadline=$((SECONDS + 60))
+    while kill -0 "$worker_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
       sleep 0.05
     done
   fi

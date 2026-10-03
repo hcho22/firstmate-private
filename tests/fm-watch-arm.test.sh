@@ -30,16 +30,15 @@ ARM_PID=
 
 # Start the real watcher as the singleton holder.
 start_seed_watcher() {  # <state> <fakebin> <watch-out>
-  local state=$1 fakebin=$2 out=$3 i
+  local state=$1 fakebin=$2 out=$3
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 \
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
   SEED_PID=$!
-  i=0
-  while [ "$i" -lt 60 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$SEED_PID" ] \
       && [ -e "$state/.last-watcher-beat" ] && break
     sleep 0.1
-    i=$((i + 1))
   done
   [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$SEED_PID" ] \
     || fail "seed watcher did not take the lock"
@@ -47,15 +46,14 @@ start_seed_watcher() {  # <state> <fakebin> <watch-out>
 
 # Attach a real arm to the live cycle.
 start_attached_arm() {  # <state> <fakebin> <arm-out> <confirm-timeout>
-  local state=$1 fakebin=$2 armout=$3 confirm=$4 i
+  local state=$1 fakebin=$2 armout=$3 confirm=$4
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_ARM_ATTACH_POLL=0.1 \
     FM_ARM_CONFIRM_TIMEOUT="$confirm" "$WATCH_ARM" > "$armout" &
   ARM_PID=$!
-  i=0
-  while [ "$i" -lt 80 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -qF "watcher: attached pid=$SEED_PID" "$armout" 2>/dev/null && break
     sleep 0.1
-    i=$((i + 1))
   done
   grep -qF "watcher: attached pid=$SEED_PID" "$armout" \
     || fail "arm did not attach to the live watcher: $(cat "$armout")"
@@ -106,10 +104,10 @@ status_signature() {  # <status-path>
 
 wait_for_file_text() {  # <file> <fixed-text>
   local file=$1 expected=$2 i=0
-  while [ "$i" -lt 100 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -F "$expected" "$file" >/dev/null 2>&1 && return 0
     sleep 0.05
-    i=$((i + 1))
   done
   return 1
 }
@@ -147,12 +145,11 @@ start_rearm_arm() {  # <home> <state> <fakebin> <arm-out> [predecessor-arm-pid]
     FM_WATCH_PREDECESSOR_ARM_PID="$predecessor" \
     "$WATCH_ARM" --restart > "$armout" &
   ARM_PID=$!
-  i=0
-  while [ "$i" -lt 80 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -q '^watcher: started ' "$armout" 2>/dev/null && return 0
     is_live_non_zombie "$ARM_PID" || return 0
     sleep 0.05
-    i=$((i + 1))
   done
   return 0
 }

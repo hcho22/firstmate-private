@@ -80,27 +80,27 @@ expect_refusal() {
 }
 
 wait_exited() {
-  local pid=$1 state attempts=0
-  while [ "$attempts" -lt 500 ]; do
+  local pid=$1 state
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     state=$(ps -o state= -p "$pid" 2>/dev/null | tr -d ' ') || true
     case "$state" in
       '' | Z*) return 0 ;;
     esac
-    attempts=$((attempts + 1))
     sleep 0.01
   done
   return 1
 }
 
 wait_stopped() {
-  local pid=$1 state attempts=0
-  while [ "$attempts" -lt 500 ]; do
+  local pid=$1 state
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     state=$(ps -o state= -p "$pid" 2>/dev/null | tr -d ' ') || true
     case "$state" in
       T*) return 0 ;;
       '') fail "import process exited before the requested race point" ;;
     esac
-    attempts=$((attempts + 1))
     sleep 0.01
   done
   fail "import process did not stop at the requested race point"

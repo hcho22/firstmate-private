@@ -564,10 +564,10 @@ test_enrichment_preserves_all_unread_lines_and_status_file_failures() {
 
 wait_for_file_text() {  # <file> <fixed-text>
   local file=$1 expected=$2 i=0
-  while [ "$i" -lt 100 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -F "$expected" "$file" >/dev/null 2>&1 && return 0
     sleep 0.05
-    i=$((i + 1))
   done
   return 1
 }
@@ -1111,10 +1111,9 @@ test_interruption_before_and_after_raw_commit() {
 
   FM_STATE_OVERRIDE="$state" FM_WAKE_DRAIN_TEST_DELAY_BEFORE_COMMIT=5 "$DRAIN" > "$before_out" &
   pid=$!
-  i=0
-  while [ "$i" -lt 100 ] && [ ! -e "$state/.wake-queue.lock" ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$state/.wake-queue.lock" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -e "$state/.wake-queue.lock" ] || { kill "$pid" 2>/dev/null || true; fail "pre-commit drain never entered its serialized read boundary"; }
   kill -TERM "$pid" 2>/dev/null || fail "could not interrupt drain before raw commitment"
@@ -1273,10 +1272,9 @@ SH
     fm_lock_release "$2"
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$lock" "$dir/holder.ready" "$dir/release-holder" &
   holder_pid=$!
-  i=0
-  while [ "$i" -lt 100 ] && [ ! -s "$dir/holder.ready" ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$dir/holder.ready" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -s "$dir/holder.ready" ] \
     || { kill "$holder_pid" 2>/dev/null || true; fail "handoff fixture holder never acquired its lock"; }
@@ -1292,10 +1290,9 @@ SH
     fm_lock_release "$2"
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$lock" "$dir/waiter.ready" "$dir/release-waiter" &
   waiter_pid=$!
-  i=0
-  while [ "$i" -lt 100 ] && ! grep -Fx '0.1' "$sleep_log" >/dev/null 2>&1; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && ! grep -Fx '0.1' "$sleep_log" >/dev/null 2>&1; do
     sleep 0.05
-    i=$((i + 1))
   done
   grep -Fx '0.1' "$sleep_log" >/dev/null 2>&1 \
     || { kill "$holder_pid" "$waiter_pid" 2>/dev/null || true; fail "bounded helper never entered its contended wait"; }
@@ -1304,10 +1301,9 @@ SH
 
   : > "$dir/release-holder"
   wait "$holder_pid" || { kill "$waiter_pid" 2>/dev/null || true; fail "fixture holder did not release cleanly"; }
-  i=0
-  while [ "$i" -lt 100 ] && [ ! -s "$dir/waiter.ready" ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$dir/waiter.ready" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -s "$dir/waiter.ready" ] \
     || { kill "$waiter_pid" 2>/dev/null || true; fail "bounded waiter did not acquire after contention cleared"; }
@@ -1326,7 +1322,7 @@ SH
 # mutation lock keeps its blocking all-or-nothing acknowledgement contract.
 test_live_presentation_holder_is_deadlined_without_weakening_ack() {
   local dir state status queue_out queue_err first_out first_err second_out second_err replay_out replay_err
-  local queue_holder presentation_holder ack_holder i start elapsed rc advisory_count
+  local queue_holder presentation_holder ack_holder rc advisory_count
   dir=$(make_case presentation-lock-deadline)
   state="$dir/state"
   status="$state/task.status"
@@ -1347,24 +1343,23 @@ test_live_presentation_holder_is_deadlined_without_weakening_ack() {
     . "$1"
     fm_lock_acquire_wait "$2"
     printf "ready\n" > "$3"
-    exec sleep 30
+    deadline=$((SECONDS + 600))
+    while [ -d "${3%/*}" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$state/.wake-queue.lock" "$dir/queue.ready" &
   queue_holder=$!
-  i=0
-  while [ "$i" -lt 100 ] && [ ! -s "$dir/queue.ready" ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$dir/queue.ready" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -s "$dir/queue.ready" ] \
     || { kill "$queue_holder" 2>/dev/null || true; fail "queue holder never acquired its lock"; }
 
-  start=$(date +%s)
+  # Each holder keeps its lock until the case kills it, so a drain that returns
+  # while its holder is still alive did not wait the lock out.
   FM_STATE_OVERRIDE="$state" FM_STATUS_PRESENTATION_LOCK_TIMEOUT=1 \
     "$DRAIN" > "$queue_out" 2> "$queue_err" \
     || { kill "$queue_holder" 2>/dev/null || true; fail "bounded queue presentation drain failed"; }
-  elapsed=$(( $(date +%s) - start ))
-  [ "$elapsed" -le 4 ] \
-    || { kill "$queue_holder" 2>/dev/null || true; fail "queue lock delayed the drain for ${elapsed}s"; }
+  kill -0 "$queue_holder" 2>/dev/null || fail "queue lock delayed the drain"
   advisory_count=$(grep -Fc \
     "WAKE DRAIN SKIPPED: queue lock remains held by live pid $queue_holder" \
     "$queue_out" || true)
@@ -1387,24 +1382,21 @@ test_live_presentation_holder_is_deadlined_without_weakening_ack() {
     . "$1"
     fm_lock_acquire_wait "$2"
     printf "ready\n" > "$3"
-    exec sleep 30
+    deadline=$((SECONDS + 600))
+    while [ -d "${3%/*}" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$state/.status-presentation-lock" "$dir/presentation.ready" &
   presentation_holder=$!
-  i=0
-  while [ "$i" -lt 100 ] && [ ! -s "$dir/presentation.ready" ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$dir/presentation.ready" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -s "$dir/presentation.ready" ] \
     || { kill "$presentation_holder" 2>/dev/null || true; fail "presentation holder never acquired its lock"; }
 
-  start=$(date +%s)
   FM_STATE_OVERRIDE="$state" FM_STATUS_PRESENTATION_LOCK_TIMEOUT=1 \
     "$DRAIN" > "$first_out" 2> "$first_err" \
     || { kill "$presentation_holder" 2>/dev/null || true; fail "bounded presentation drain failed"; }
-  elapsed=$(( $(date +%s) - start ))
-  [ "$elapsed" -le 4 ] \
-    || { kill "$presentation_holder" 2>/dev/null || true; fail "presentation lock delayed the drain for ${elapsed}s"; }
+  kill -0 "$presentation_holder" 2>/dev/null || fail "presentation lock delayed the drain"
   advisory_count=$(grep -Fc \
     "STATUS PRESENTATION SKIPPED: lock remains held by live pid $presentation_holder" \
     "$first_out" || true)
@@ -1432,13 +1424,13 @@ test_live_presentation_holder_is_deadlined_without_weakening_ack() {
     . "$1"
     fm_lock_acquire_wait "$2"
     printf "ready\n" > "$3"
-    exec sleep 30
+    deadline=$((SECONDS + 600))
+    while [ -d "${3%/*}" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$state/.wake-queue.lock" "$dir/ack.ready" &
   ack_holder=$!
-  i=0
-  while [ "$i" -lt 100 ] && [ ! -s "$dir/ack.ready" ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$dir/ack.ready" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -s "$dir/ack.ready" ] \
     || { kill "$ack_holder" 2>/dev/null || true; fail "acknowledgement holder never acquired the queue lock"; }

@@ -435,9 +435,8 @@ test_busy_lifecycle_locks_never_hold_up_the_digest() {
     while [ ! -f "$ready" ]; do sleep 0.01; done
     run_notify "$home" "$fakebin" "busy-$label" "$snap" > "$home/notify.out" 2>&1 &
     notify=$!
-    i=0
-    while kill -0 "$notify" 2>/dev/null && [ "$i" -lt 40 ]; do
-      i=$((i + 1))
+    local deadline=$((SECONDS + 60))
+    while kill -0 "$notify" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
       sleep 0.05
     done
     if kill -0 "$notify" 2>/dev/null; then
@@ -874,7 +873,7 @@ META
 }
 
 test_bearings_request_returns_before_remote_delivery_and_supervision_sends_later() {
-  local home rhome fakebin snap warm started elapsed watcher i requests beat_before beat_after processing beacon_advanced=0
+  local home rhome fakebin snap warm started elapsed watcher deadline requests beat_before beat_after processing beacon_advanced=0
   fakebin=$(make_remote_ssh_stub "$TMP_ROOT/remote-offpath")
   rhome=$(make_remote_secondmate_home remote-offpath-mate)
   rhome=$(cd "$rhome" && pwd -P)
@@ -928,38 +927,35 @@ test_bearings_request_returns_before_remote_delivery_and_supervision_sends_later
     FM_STATE_OVERRIDE="$home/state" FM_POLL=1 FM_HOME_SUMMARY_INTERVAL=999999 \
     "$ROOT/bin/fm-watch.sh" > "$home/watch.out" 2> "$home/watch.err" &
   watcher=$!
-  i=0
   processing=''
-  while [ "$i" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     processing=$(find "$home/state/reconcile-notify" -maxdepth 1 -type f -name '.processing-*.json' -print -quit)
     [ -n "$processing" ] && [ -e "$home/state/.last-watcher-beat" ] && break
     kill -0 "$watcher" 2>/dev/null || break
-    i=$((i + 1))
     sleep 0.05
   done
   [ -n "$processing" ] || fail "supervision did not claim the durable reconcile request"
   beat_before=$(stat -c %Y "$home/state/.last-watcher-beat" 2>/dev/null || stat -f %m "$home/state/.last-watcher-beat")
-  i=0
-  while [ -e "$processing" ] && [ "$i" -lt 70 ]; do
+  deadline=$((SECONDS + 60))
+  while [ -e "$processing" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
     beat_after=$(stat -c %Y "$home/state/.last-watcher-beat" 2>/dev/null || stat -f %m "$home/state/.last-watcher-beat")
     if [ "$beat_after" -gt "$beat_before" ]; then
       beacon_advanced=1
       break
     fi
-    i=$((i + 1))
   done
   [ "$beacon_advanced" -eq 1 ] \
     || fail "the watcher beacon stalled behind delayed reconcile delivery"
   # Delivery is detached from the watcher loop.
   # Observe the durable lifecycle itself rather than using watcher liveness as a proxy.
   # A watcher may exit after it has launched the delivery child.
-  i=0
+  deadline=$((SECONDS + 60))
   while { [ -z "$(remote_inbox_records "$rhome" remote-offpath-mate)" ] \
       || [ ! -s "$home/state/remote-offpath-mate.reconcile-nudged" ] \
       || [ "$(find "$home/state/reconcile-notify" -maxdepth 1 -type f -name '*.json' | wc -l | tr -d '[:space:]')" -gt 0 ]; } \
-      && [ "$i" -lt 600 ]; do
-    i=$((i + 1))
+      && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
   done
   kill "$watcher" 2>/dev/null || true

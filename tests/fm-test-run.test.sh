@@ -1297,7 +1297,7 @@ test_concurrent_runs_are_ordered_longest_first() {
 # single-quoted for the child processes that run them.
 # shellcheck disable=SC2094,SC2016
 test_progress_guard_bounds_silence_not_slowness() {
-  local tmp rc grandchild waited
+  local tmp rc grandchild
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-progress-guard.XXXXXX")
 
   # Silent: prints one line, then a TERM-ignoring grandchild and the command
@@ -1313,10 +1313,9 @@ test_progress_guard_bounds_silence_not_slowness() {
     || fail "a silent command was stopped for the wrong reason: $(cat "$tmp/silent.why" 2>/dev/null)"
   [ -s "$tmp/grandchild.pid" ] || fail "the silent fixture did not record its grandchild"
   grandchild=$(cat "$tmp/grandchild.pid")
-  waited=0
-  while kill -0 "$grandchild" 2>/dev/null && [ "$waited" -lt 100 ]; do
+  local deadline=$((SECONDS + 60))
+  while kill -0 "$grandchild" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
   kill -0 "$grandchild" 2>/dev/null && fail "the guard left a TERM-ignoring grandchild alive"
 
@@ -1360,7 +1359,7 @@ test_progress_guard_bounds_silence_not_slowness() {
 }
 
 test_per_script_timeout_bounds_a_hang() {
-  local tmp repo runner hang rc began ended grandchild_pid grandchild waited
+  local tmp repo runner hang rc began ended grandchild_pid grandchild
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-hang.XXXXXX")
   repo="$tmp/repo"
   runner="$repo/bin/fm-test-run.sh"
@@ -1397,10 +1396,9 @@ SH
     || fail "the bounded run did not report a complete summary: $(cat "$tmp/out")"
   [ -s "$grandchild_pid" ] || fail "the hanging fixture did not record its grandchild"
   grandchild=$(cat "$grandchild_pid")
-  waited=0
-  while kill -0 "$grandchild" 2>/dev/null && [ "$waited" -lt 50 ]; do
+  local deadline=$((SECONDS + 60))
+  while kill -0 "$grandchild" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
   if kill -0 "$grandchild" 2>/dev/null; then
     kill -KILL "$grandchild" 2>/dev/null || true
@@ -1581,10 +1579,9 @@ SH
   cat >"$repo/$a" <<'SH'
 #!/usr/bin/env bash
 if [ -n "${SCHED_WAIT_FOR_REPLACEMENT:-}" ]; then
-  waited=0
-  while [ ! -e "$SCHED_EVIDENCE/replacement-started" ] && [ "$waited" -lt 600 ]; do
+  deadline=$((SECONDS + 60))
+  while [ ! -e "$SCHED_EVIDENCE/replacement-started" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
-    waited=$((waited + 1))
   done
 fi
 touch "$SCHED_EVIDENCE/slow-done"

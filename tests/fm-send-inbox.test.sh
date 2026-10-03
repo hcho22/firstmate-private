@@ -297,7 +297,7 @@ SH
 }
 
 test_meta_lock_contention_fails_bounded() {
-  local dir err rc holder marker lock i
+  local dir err rc holder marker lock
   dir=$(setup_case meta-lock); err="$dir/send.err"
   marker="$dir/meta-lock-held"
   lock="$dir/home/state/.meta-t1.lock"
@@ -308,10 +308,9 @@ test_meta_lock_contention_fails_bounded() {
     sleep 30
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$lock" "$marker" &
   holder=$!
-  i=0
-  while [ ! -e "$marker" ] && [ "$i" -lt 100 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ ! -e "$marker" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -e "$marker" ] || { kill "$holder" 2>/dev/null; fail "the metadata lock holder did not start"; }
   run_send "$dir" "$err" FM_TASK_INBOX_LOCK_WAIT_SECS=0 -- t1 "must not hang"; rc=$?

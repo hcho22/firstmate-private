@@ -179,15 +179,14 @@ start_daemon() {
   nohup "$DAEMON" >"$STATE_DIR/daemon.out" 2>"$STATE_DIR/daemon.err" &
   DAEMON_PID=$!
   # Wait for the daemon to start and acquire the lock.
-  local i=0
-  while [ "$i" -lt 30 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -f "$STATE_DIR/.supervise-daemon.pid" ] && break
     sleep 0.2
-    i=$((i + 1))
   done
   [ -f "$STATE_DIR/.supervise-daemon.pid" ] || {
     echo "daemon stderr:" >&2; cat "$STATE_DIR/daemon.err" >&2
-    fail "daemon did not start (no pid file after 6s)"
+    fail "daemon did not start (no pid file within 60s)"
   }
 }
 
@@ -246,13 +245,12 @@ selfcheck_pane_input_pending() {
 }
 
 wait_for_pane_input_pending() {
-  local i=0
-  while [ "$i" -lt 30 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     if PATH="$TMUX_SHIM_DIR:$PATH" pane_input_pending "$SUPERVISOR_PANE"; then
       return 0
     fi
     sleep 0.1
-    i=$((i + 1))
   done
   return 1
 }

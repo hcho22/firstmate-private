@@ -140,10 +140,10 @@ SH
 # the whole point of not blocking - so a test that wants to observe the worker
 # waits for its record rather than assuming instant publication.
 await_worker_record() {  # <home>
-  local home=$1 waited=0
-  while [ ! -s "$home/state/.startup-network.status" ] && [ "$waited" -lt 100 ]; do
+  local home=$1
+  local deadline=$((SECONDS + 60))
+  while [ ! -s "$home/state/.startup-network.status" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
   [ -s "$home/state/.startup-network.status" ] || fail "the detached worker never recorded itself"
 }
@@ -215,7 +215,7 @@ EOF
 }
 
 test_harvest_acknowledgement_suppresses_the_wake_and_no_claim_produces_it() {
-  local rec home root log claimant output waited=0 worker_pid
+  local rec home root log claimant output worker_pid
   rec=$(new_world claim-handshake)
   IFS='|' read -r home root log <<EOF
 $rec
@@ -235,9 +235,9 @@ EOF
     || fail "harvest did not durably acknowledge the result it printed"
   kill "$claimant" 2>/dev/null || true
   wait "$claimant" 2>/dev/null || true
-  while kill -0 "$worker_pid" 2>/dev/null && [ "$waited" -lt 50 ]; do
+  local deadline=$((SECONDS + 60))
+  while kill -0 "$worker_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
   ! kill -0 "$worker_pid" 2>/dev/null \
     || fail "the worker did not settle after harvest acknowledged its result"

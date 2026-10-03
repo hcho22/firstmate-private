@@ -1625,7 +1625,7 @@ SH
 # so "the digest did not wait for it" is decided by what had happened when the
 # digest returned and not by how fast the host was.
 test_inactive_reconcile_never_blocks_the_digest() {
-  local rec root home fakebin world worktree crew_state calls out waited=0
+  local rec root home fakebin world worktree crew_state calls out deadline
   local release_gate read_finished
   rec=$(new_world inactive-reconcile-deferred)
   IFS='|' read -r root home fakebin <<EOF
@@ -1667,10 +1667,9 @@ if [ "${1:-} ${2:-}" = 'axi status' ]; then
   # Stay outstanding until the case releases this read. A caller that waits for
   # it therefore waits indefinitely rather than for a fixed interval a loaded
   # host could out-run. The tick bound only stops a broken case hanging forever.
-  ticks=0
-  while [ ! -e "${FM_FAKE_NM_RELEASE:?}" ] && [ "$ticks" -lt 300 ]; do
+  deadline=$((SECONDS + 60))
+  while [ ! -e "${FM_FAKE_NM_RELEASE:?}" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    ticks=$((ticks + 1))
   done
   : > "${FM_FAKE_NM_READ_FINISHED:?}"
   printf '%s\n' 'slow validation state answered'
@@ -1706,10 +1705,10 @@ SH
     || fail "the digest called the slow state reader on its blocking path"
   : > "$release_gate"
 
+  deadline=$((SECONDS + 60))
   while ! grep -Fq $'\tcheck\tinactive-outcome:' "$home/state/.wake-queue" 2>/dev/null \
-    && [ "$waited" -lt 150 ]; do
+    && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
   assert_grep 'check	inactive-outcome:' "$home/state/.wake-queue" \
     "the deferred scan's terminal finding never reached the durable wake queue (calls=$(cat "$calls" 2>/dev/null), report=$(network_stage_report "$home" "$root" 2>/dev/null), queue=$(cat "$home/state/.wake-queue" 2>/dev/null))"

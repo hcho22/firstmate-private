@@ -1614,8 +1614,8 @@ SH
     fm_lock_release "$LOCK"
   ' &
   holder_pid=$!
-  local waited=0
-  while [ ! -e "$ready" ] && [ "$waited" -lt 50 ]; do sleep 0.1; waited=$((waited + 1)); done
+  local deadline=$((SECONDS + 60))
+  while [ ! -e "$ready" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   [ -e "$ready" ] || fail "herdr-orphan-refusal: the contending lock holder never started"
 
   rc=0
@@ -1844,7 +1844,7 @@ configure_secondmate_with_tmux_children() {  # <case-dir>
 }
 
 test_forced_secondmate_teardown_holds_descendant_lifecycle_locks() {
-  local case_dir home lock ready release holder_pid rc waited=0 child
+  local case_dir home lock ready release holder_pid rc child
   case_dir=$(make_case descendant-locks)
   write_meta "$case_dir" local-only secondmate
   configure_secondmate_with_tmux_children "$case_dir"
@@ -1875,9 +1875,9 @@ SH
     fm_lock_release "$LOCK"
   ' &
   holder_pid=$!
-  while [ ! -e "$ready" ] && [ "$waited" -lt 50 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ ! -e "$ready" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
   [ -e "$ready" ] || fail "descendant-locks: the contending lifecycle action never acquired its lock"
 
@@ -2990,11 +2990,10 @@ count=0
 count=$((count + 1))
 printf '%s\n' "$count" > "$FM_FAKE_LSOF_COUNT"
 if [ "$count" -eq 2 ]; then
-  i=0
-  while [ "$i" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ ! -e "$FM_FAKE_EXEC_DONE" ] || break
     sleep 0.01
-    i=$((i + 1))
   done
 fi
 exec "$REAL_LSOF_FOR_TEST" "$@"
