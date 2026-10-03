@@ -2563,32 +2563,82 @@ run_lane() {
   done
 }
 
+# Cases before PRINTED have had their output printed, in the order listed.
+PRINTED=0
+
+print_case() {  # <index>
+  [ ! -e "$LANE_DIR/out/$1.out" ] || cat "$LANE_DIR/out/$1.out"
+  [ ! -e "$LANE_DIR/out/$1.err" ] || cat "$LANE_DIR/out/$1.err" >&2
+}
+
+# Print each case whose result is in once every case before it is printed, so
+# the file reports progress while its lanes run instead of only at the end, and
+# the runner's silence guard measures real progress.
+print_finished_prefix() {
+  while [ "$PRINTED" -lt "${#CASES[@]}" ] && [ -e "$LANE_DIR/out/$PRINTED.rc" ]; do
+    print_case "$PRINTED"
+    PRINTED=$((PRINTED + 1))
+  done
+}
+
+# After the lanes were stopped, print every case not yet printed that finished
+# or was cut off mid-run, so an interrupted file still shows what it got through.
+print_after_stop() {
+  local i
+  for ((i = PRINTED; i < ${#CASES[@]}; i++)); do
+    if [ -e "$LANE_DIR/out/$i.rc" ]; then
+      print_case "$i"
+    elif [ -d "$LANE_DIR/claim/$i" ]; then
+      print_case "$i"
+      printf 'not ok - %s was still running when the file was stopped\n' "${CASES[$i]}" >&2
+    fi
+  done
+  PRINTED=${#CASES[@]}
+}
+
+lanes_running() {
+  local pid
+  for pid in "${LANE_PIDS[@]}"; do
+    kill -0 "$pid" 2>/dev/null && return 0
+  done
+  return 1
+}
+
 run_lanes() {
   local lane pid i rc status=0
   mkdir -p "$LANE_DIR/claim" "$LANE_DIR/out"
-  trap 'stop_lanes; fm_test_cleanup; exit 130' INT
-  trap 'stop_lanes; fm_test_cleanup; exit 143' TERM
-  trap 'stop_lanes; fm_test_cleanup' EXIT
+  trap 'stop_lanes; print_after_stop; fm_test_cleanup; exit 130' INT
+  trap 'stop_lanes; print_after_stop; fm_test_cleanup; exit 143' TERM
+  trap 'stop_lanes; print_after_stop; fm_test_cleanup' EXIT
   for ((lane = 0; lane < LANES; lane++)); do
     run_lane &
     LANE_PIDS+=("$!")
+  done
+  while lanes_running; do
+    print_finished_prefix
+    sleep 0.2
   done
   for pid in "${LANE_PIDS[@]}"; do
     wait "$pid" || { printf 'not ok - a lane ended abnormally (%s)\n' "$?" >&2; status=1; }
   done
   LANE_PIDS=()
+  print_finished_prefix
 
-  # Print every case's output in the order listed, and fail with the first
-  # failing case's status. A case with no result is one that never started
-  # because an earlier failure stopped the lanes; with no failure, it is lost
-  # coverage and fails the file.
-  for i in "${!CASES[@]}"; do
-    if [ ! -e "$LANE_DIR/out/$i.rc" ]; then
-      [ -e "$LANE_DIR/failed" ] || { printf 'not ok - %s reported no result\n' "${CASES[$i]}" >&2; status=1; }
-      continue
+  # Print the rest in the order listed, and fail with the first failing case's
+  # status. A case with no result is one that never started because an earlier
+  # failure stopped the lanes; with no failure, it is lost coverage and fails
+  # the file.
+  for ((i = PRINTED; i < ${#CASES[@]}; i++)); do
+    if [ -e "$LANE_DIR/out/$i.rc" ]; then
+      print_case "$i"
+    elif [ ! -e "$LANE_DIR/failed" ]; then
+      printf 'not ok - %s reported no result\n' "${CASES[$i]}" >&2
+      status=1
     fi
-    cat "$LANE_DIR/out/$i.out"
-    cat "$LANE_DIR/out/$i.err" >&2
+  done
+  PRINTED=${#CASES[@]}
+  for i in "${!CASES[@]}"; do
+    [ -e "$LANE_DIR/out/$i.rc" ] || continue
     rc=$(cat "$LANE_DIR/out/$i.rc")
     [ "$rc" -eq 0 ] || [ "$status" -ne 0 ] || status=$rc
   done
