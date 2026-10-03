@@ -278,6 +278,64 @@ This change does not address that warning and does not claim to.
 That automated spawn case runs against a fake claude, so it asserts the store entry and the launch command and nothing more; the live arms above are what establish that the entry actually suppresses the dialog.
 The composer-classification record below observes the same gate from the other side, where an untrusted worktree left Claude, Grok, and Muse unverified because the guard reads a first-launch trust dialog as an unreadable composer.
 
+## Claude isolated-subagent worktree placement
+
+Verified 2026-10-03 on Claude Code 2.1.284 on macOS.
+A task worktree shares its project's git common dir, and an unhooked Claude resolves that back to the repository's main checkout when it isolates a subagent into a worktree.
+`bin/fm-subagent-worktree.sh` owns the placement hook `bin/fm-spawn.sh` wires for Claude workers, and its header lists the Claude facts below that the hook depends on.
+
+The live guard runs a control arm and a treatment arm against the installed binary in a throwaway repository.
+Each arm launches `claude -p` from a linked task worktree and asks for one Agent call with `isolation: "worktree"` whose subagent writes its own `pwd -P` into `where.txt`, so the verdict reads where the subagent actually ran.
+The control arm has no placement hook; the treatment arm uses the `.claude/settings.local.json` the real `bin/fm-spawn.sh` writes for a Claude worker.
+
+```sh
+FM_SUBAGENT_WORKTREE_LIVE_E2E=1 bin/fm-test-run.sh tests/fm-subagent-worktree-live-e2e.test.sh
+```
+
+```
+control: claude 2.1.284 (Claude Code) placed the unhooked copy at <lab>/project/.claude/worktrees/agent-a68e49eeb48b23997
+treatment: claude 2.1.284 (Claude Code) placed the hooked copy at /private/tmp/fm-<task-id>/worktrees/agent-aa703f285e48d253e
+ok - claude 2.1.284 (Claude Code): the fm-spawn placement hook moves an isolated subagent's worktree out of the main checkout
+```
+
+The control copy was registered in the shared repository on branch `worktree-agent-<id>` and showed as untracked `.claude/worktrees/` in the main checkout, which is the reported defect.
+In the treatment arm the main checkout stayed clean.
+
+Two hook-contract facts were observed with a payload-logging hook and `--debug-file` on the same version.
+The WorktreeCreate payload carried exactly these keys, so the worktree name arrives as `name` with no `base_ref`, unlike the published hook reference's `worktree_name` and `base_ref`:
+
+```
+["cwd","hook_event_name","name","prompt_id","session_id","transcript_path"]
+```
+
+Claude also never dispatched WorktreeRemove for a hook-created agent copy, including one whose subagent made no change:
+
+```
+[DEBUG] Created hook-based agent worktree at: <lab>/tasktmp/wt/agent-ad3330686bb0c81c3
+[DEBUG] Hook-based agent worktree kept at: <lab>/tasktmp/wt/agent-ad3330686bb0c81c3
+```
+
+A print-mode session started with `claude --worktree <name>` from a hooked task worktree was routed through the same helper into `<task temp root>/worktrees/<name>`, ran there, and its copy was likewise kept at exit.
+Those copies therefore stay under the task's temp root until `bin/fm-teardown.sh` retires them, and `tests/fm-teardown.test.sh` pins that retirement.
+The installed build also lacks the `worktreeBaseDir` setting the hook reference mentions, so the hook is the only placement control available.
+
+The other supported harnesses were inspected for a comparable feature on the same date.
+Codex and opencode were read from their installed binaries; the rest come from upstream source or documentation and are not re-verified on an installed build.
+
+| Harness | Worktree feature | Where it places the copy | Primary-checkout exposure |
+|---|---|---|---|
+| codex 0.160.0 | `--worktree`, opt-in per session | `$CODEX_HOME/worktrees/`, from the task worktree's own top level | none |
+| opencode 1.16.2 | experimental worktree API, no CLI or model trigger | `~/.local/share/opencode/worktree/` | none |
+| pi, pi-signed | none in core | not applicable | none |
+| grok | `--worktree`, and model-requested `spawn_subagent` isolation | `$GROK_HOME/worktrees/` | none |
+| kimi | experimental tower mode | `<cwd>/.tower/worktrees/`, inside the task worktree | none; teardown inventories it as task work |
+| cursor | `-w`/`--worktree`, never passed by the adapter | `~/.cursor/worktrees/` | none for `-w`; subagent isolation placement is undocumented |
+| muse | `--subagent-worktree-isolation`, never passed by the adapter | undocumented | labs saw no nested copy without the flag |
+| gemini | `-w`/`--worktree` plus `experimental.worktrees`, never passed by the adapter | the main checkout's `.gemini/worktrees/` | only with that launch flag; the model cannot start one |
+
+Only Claude creates such a copy in the main checkout without a launch flag Firstmate controls, so Claude is the only adapter wired with the placement hook.
+Any copy that still lands inside the firstmate primary checkout is reported by the session-start `TANGLE:` check, which `tests/fm-tangle-guard.test.sh` pins.
+
 ## Composer classification matrix
 
 The shared composer classifier (`bin/fm-composer-lib.sh`, `fm_composer_classify_screen`) owns every composer shape fleet-wide; each backend contributes only a capture and a capability descriptor.

@@ -48,9 +48,11 @@
 #          failed names whether the endpoint was missing or agent-less.
 #          Already-live and successfully relaunched secondmates are silent
 #          unless FM_BOOTSTRAP_VERBOSE_FACTS=1 requests BOOTSTRAP_INFO facts.
-#          A TANGLE line means the firstmate primary checkout (FM_ROOT) is stranded
-#          on a feature branch instead of its default branch - a crewmate's work
-#          landed in the primary instead of its own worktree; restore it per the line.
+#          A TANGLE line means a crewmate's work landed in the firstmate primary
+#          checkout (FM_ROOT) instead of its own worktree: either the primary is
+#          stranded on a feature branch instead of its default branch, or a
+#          linked worktree (one line each, named with its branch and landed
+#          state) is registered inside the primary; handle it per the line.
 #          treehouse is also MISSING when its installed version lacks
 #          "treehouse get --lease" support.
 #          no-mistakes is also MISSING when its installed version is older than
@@ -1454,6 +1456,19 @@ detect_local_config() {
       echo "TANGLE: primary checkout on feature branch '$tangle_branch' (expected '$tangle_default'); the work is safe on that ref - restore the primary with: git -C $FM_ROOT checkout $tangle_default, then re-validate the branch in a proper worktree"
     fi
   fi
+  # Second tangle shape: linked worktrees registered inside the primary, such
+  # as an isolated subagent's .claude/worktrees/* copy (fm-tangle-lib.sh).
+  nested_worktrees=$(fm_primary_nested_worktrees "$FM_ROOT" 2>/dev/null || true)
+  while IFS=$'\t' read -r nested_state nested_path nested_branch; do
+    [ -n "$nested_path" ] || continue
+    if [ "${FM_BOOTSTRAP_DETECT_ONLY:-0}" = 1 ] && [ "${FM_BOOTSTRAP_LOCKED:-0}" != 1 ]; then
+      echo "TANGLE: worktree '$nested_path' (branch '$nested_branch', $nested_state) is registered inside the primary checkout - read-only session must leave cleanup to the session holding the fleet lock"
+    else
+      echo "TANGLE: worktree '$nested_path' (branch '$nested_branch', $nested_state) is registered inside the primary checkout - remove every landed one with: $SCRIPT_DIR/fm-subagent-worktree.sh retire $FM_ROOT (an unlanded one is refused and needs inspection first)"
+    fi
+  done <<EOF
+$nested_worktrees
+EOF
   crew=
   [ -f "$CONFIG/crew-harness" ] && crew=$(tr -d '[:space:]' < "$CONFIG/crew-harness" || true)
   if [ "${FM_BOOTSTRAP_VERBOSE_FACTS:-0}" = 1 ] && [ -n "$crew" ] && [ "$crew" != "default" ]; then

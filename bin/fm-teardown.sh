@@ -54,6 +54,13 @@
 # declared scratch and the report at data/<Project>/<task-id>/report.md is the work
 # product. Teardown proceeds only once the report exists and the shared
 # unresolved-decision completion gate verifies its captain-held inventory.
+# Isolated-subagent copies - registered worktrees inside the task worktree or
+# its tasktmp, such as the ones a Claude worker's WorktreeCreate hook places
+# under tasktmp - are part of the task's work: a ship teardown REFUSES while
+# any holds uncommitted work or commits that are neither in the task branch nor
+# on a remote, and otherwise removes them before the worktree is returned. A
+# scout's copies are scratch like its worktree, and --force discards them.
+# bin/fm-subagent-worktree.sh owns their inventory and landed test.
 # Before destructive cleanup, teardown validates task check artifacts as
 # ordinary single-link files on the state device. It refuses and preserves
 # task state when that proof fails; otherwise it removes the task's check,
@@ -1520,6 +1527,64 @@ validate_worktree_teardown_safety() {
   fi
 }
 
+# Isolated-subagent copies: registered worktrees inside the task worktree or its
+# tasktmp, such as the ones a Claude worker's WorktreeCreate hook places under
+# tasktmp. bin/fm-subagent-worktree.sh owns their inventory and landed test.
+# The task worktree anchors that test (its HEAD is the task's own work); when
+# it is gone, the project checkout reads the same shared repository.
+subagent_worktree_anchor() {
+  if inspectable_git_worktree "$WT"; then
+    printf '%s\n' "$WT"
+  elif inspectable_git_worktree "$PROJ"; then
+    printf '%s\n' "$PROJ"
+  else
+    return 1
+  fi
+}
+
+# Unlanded work in a copy blocks a ship teardown exactly like the task's own
+# uncommitted work. Scouts are declared scratch, and --force is discard authority.
+validate_subagent_worktrees_safety() {
+  local anchor listing blocked state path branch
+  [ "$FORCE" != "--force" ] || return 0
+  case "$KIND" in
+    secondmate|scout) return 0 ;;
+  esac
+  anchor=$(subagent_worktree_anchor) || return 0
+  if ! listing=$("$SCRIPT_DIR/fm-subagent-worktree.sh" list "$anchor" "$WT" ${TASK_TMP:+"$TASK_TMP"}); then
+    echo "REFUSED: cannot inventory the isolated-subagent worktrees of task $ID." >&2
+    echo "Inspect them with bin/fm-subagent-worktree.sh list, or get the captain's explicit OK to discard, then --force." >&2
+    return 1
+  fi
+  blocked=
+  while IFS=$'\t' read -r state path branch; do
+    case "$state" in
+      unlanded|locked) blocked="$blocked  $path (branch $branch, $state)
+" ;;
+    esac
+  done <<EOF
+$listing
+EOF
+  [ -n "$blocked" ] || return 0
+  echo "REFUSED: task $ID left isolated-subagent worktrees holding work that has not landed:" >&2
+  printf '%s' "$blocked" >&2
+  echo "Merge that work into the task branch, preserve it, or get the captain's explicit OK to discard, then --force." >&2
+  return 1
+}
+
+# Remove every copy once the gates above passed. A ship task removes only
+# landed copies, re-verified here; a scout or a forced teardown discards them.
+retire_subagent_worktrees() {
+  local anchor
+  local -a discard=()
+  anchor=$(subagent_worktree_anchor) || return 0
+  if [ "$FORCE" = "--force" ] || [ "$KIND" = scout ]; then
+    discard=(--discard)
+  fi
+  "$SCRIPT_DIR/fm-subagent-worktree.sh" retire ${discard[@]+"${discard[@]}"} \
+    "$anchor" "$WT" ${TASK_TMP:+"$TASK_TMP"} >&2
+}
+
 # Fix 1 (see script header): does the active-or-most-recent no-mistakes run in
 # worktree $1 belong to THIS task, and is it parked at a gate awaiting an agent
 # that is about to be removed? Prints nothing; returns 0 only on a genuine
@@ -2750,6 +2815,9 @@ if [ -d "$WT" ] && [ "$FORCE" != "--force" ]; then
     fi
   fi
 fi
+if [ "$KIND" != secondmate ]; then
+  validate_subagent_worktrees_safety || exit 1
+fi
 
 # A Herdr close may reposition shared workspace order, so the whole
 # destructive sequence below (worktree return, pane close, record removal)
@@ -2801,6 +2869,12 @@ fi
 if [ "$KIND" != secondmate ]; then
   conclude_task_no_mistakes_run "$WT"
   reap_task_worktree_processes worktree "$WT" "$TASK_TMP"
+  # The copies' own processes were reaped above, and this runs while the task
+  # branch is still checked out so the landed test sees the task's own HEAD.
+  retire_subagent_worktrees || {
+    echo "error: could not retire the isolated-subagent worktrees of task $ID; teardown aborted before returning its worktree" >&2
+    exit 1
+  }
 fi
 
 # Fix 3 (see script header): sweep remote job workers abandoned by an already

@@ -29,6 +29,13 @@ Never send Enter to that one either: it was observed rendering in the same shape
 Firstmate cannot move a selection with Enter, Escape, and C-c alone, so it cannot accept this dialog at all, and an operator accepts it once per machine instead.
 Inspect the pane to identify which dialog is on screen, and report it rather than answering it.
 
+## Isolated-subagent worktrees
+
+From a linked task worktree, Claude resolves the repository's main checkout and, unhooked, creates every worktree it isolates work into under that checkout's `.claude/worktrees/`.
+A ship or scout spawn therefore writes WorktreeCreate and WorktreeRemove hooks into the worker's `.claude/settings.local.json`, placing those copies under the task's temp root instead.
+`../../../../../bin/fm-subagent-worktree.sh` owns the placement and its verified Claude facts, and `../../../../../tests/fm-subagent-worktree-live-e2e.test.sh` re-proves them.
+A worker may therefore use isolated subagents freely; a failed placement stops that one copy rather than falling back to the main checkout.
+
 ## Composer ghost
 
 Completed turns can render dim predicted text inside an empty composer, indistinguishable in plain `tmux capture-pane`.

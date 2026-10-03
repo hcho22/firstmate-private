@@ -10,6 +10,10 @@
 #            fm-spawn refuses to launch unless the resolved worktree is isolated.
 #   GUARD 2 (detection)  - fm-guard and fm-bootstrap alarm when the primary is on
 #            a feature branch, and stay silent on the default branch or detached.
+#            They also alarm on the second tangle shape: a linked worktree
+#            registered inside the primary, such as an isolated subagent's
+#            .claude/worktrees/* copy, and their printed remedy retires only the
+#            copies that hold nothing of their own.
 # These cases pin: the shared lib's branch classification, the fm-guard banner,
 # the fm-bootstrap problem line, the brief assertion ordering, and the fm-spawn
 # abort - all hermetic over temp git repos and fakebins.
@@ -118,6 +122,95 @@ test_bootstrap_line() {
   assert_contains "$out" "read-only session must leave restore work" "detect-only bootstrap did not explain restore ownership"
   assert_not_contains "$out" "checkout main" "detect-only bootstrap printed a state-changing restore command"
   pass "fm-bootstrap: TANGLE problem line fires only for a feature branch and suppresses repair commands in detect-only mode"
+}
+
+# --- GUARD 2c: worktrees registered inside the primary ----------------------
+
+# Plant the reported incident's shape in a scratch primary: Claude's
+# .claude/worktrees/agent-* copies registered in the repository and nested in
+# its main checkout - one holding nothing of its own, one holding a commit.
+# Echoes the repo path.
+make_nested_primary() {
+  local repo
+  repo=$(make_repo "$1")
+  git -C "$repo" push -q origin main
+  git -C "$repo" remote set-head origin main >/dev/null 2>&1
+  git -C "$repo" worktree add -q -b worktree-agent-clean "$repo/.claude/worktrees/agent-clean" main
+  git -C "$repo" worktree add -q -b worktree-agent-work "$repo/.claude/worktrees/agent-work" main
+  git -C "$repo/.claude/worktrees/agent-work" commit -q --allow-empty -m "subagent work"
+  printf '%s\n' "$repo"
+}
+
+test_lib_nested_worktrees() {
+  local repo out real
+  repo=$(make_repo "$TMP_ROOT/nested-lib-repo")
+  out=$(fm_primary_nested_worktrees "$repo") && fail "a primary with no nested worktree was reported: $out"
+  # A linked worktree OUTSIDE the primary (a task worktree, a secondmate home)
+  # is legitimate and never reported.
+  git -C "$repo" worktree add -q --detach "$TMP_ROOT/nested-lib-outside" main
+  out=$(fm_primary_nested_worktrees "$repo") && fail "a worktree outside the primary was reported: $out"
+  out=$(fm_primary_nested_worktrees "$TMP_ROOT") && fail "a non-git dir was reported: $out"
+
+  repo=$(make_nested_primary "$TMP_ROOT/nested-lib-planted")
+  real=$(cd "$repo" && pwd -P)
+  out=$(fm_primary_nested_worktrees "$repo") || fail "planted .claude/worktrees copies were not reported"
+  assert_contains "$out" "$real/.claude/worktrees/agent-clean" "the clean copy was not reported"
+  assert_contains "$out" "$real/.claude/worktrees/agent-work" "the copy holding work was not reported"
+  printf '%s\n' "$out" | grep -Fxq "landed"$'\t'"$real/.claude/worktrees/agent-clean"$'\t'"worktree-agent-clean" \
+    || fail "the clean copy was not classified landed: $out"
+  printf '%s\n' "$out" | grep -Fxq "unlanded"$'\t'"$real/.claude/worktrees/agent-work"$'\t'"worktree-agent-work" \
+    || fail "the copy holding work was not classified unlanded: $out"
+  pass "fm_primary_nested_worktrees: reports every worktree registered inside the primary, nothing outside it"
+}
+
+test_guard_nested_banner() {
+  local repo out
+  repo=$(make_repo "$TMP_ROOT/guard-nested-clean")
+  out=$(run_guard "$repo")
+  assert_not_contains "$out" "WORKTREES REGISTERED INSIDE" "guard alarmed with no nested worktree"
+
+  repo=$(make_nested_primary "$TMP_ROOT/guard-nested")
+  out=$(run_guard "$repo")
+  assert_contains "$out" "WORKTREES REGISTERED INSIDE THE PRIMARY CHECKOUT" "guard did not alarm on nested worktrees"
+  assert_contains "$out" ".claude/worktrees/agent-clean (branch worktree-agent-clean, landed)" \
+    "guard banner did not name the clean copy and its state"
+  assert_contains "$out" ".claude/worktrees/agent-work (branch worktree-agent-work, unlanded)" \
+    "guard banner did not name the copy holding work and its state"
+  assert_contains "$out" "$ROOT/bin/fm-subagent-worktree.sh retire $repo" "guard banner did not print the retire remedy"
+  out=$(FM_GUARD_READ_ONLY=1 run_guard "$repo")
+  assert_contains "$out" "WORKTREES REGISTERED INSIDE THE PRIMARY CHECKOUT" "read-only guard dropped the alarm"
+  assert_contains "$out" "read-only session must leave cleanup" "read-only guard did not explain cleanup ownership"
+  assert_not_contains "$out" "fm-subagent-worktree.sh retire" "read-only guard printed a state-changing remedy"
+  pass "fm-guard: banner names every worktree inside the primary and suppresses the remedy in read-only mode"
+}
+
+test_bootstrap_nested_lines_and_remedy() {
+  local repo real out remedy
+  repo=$(make_nested_primary "$TMP_ROOT/bootstrap-nested")
+  real=$(cd "$repo" && pwd -P)
+  out=$(run_bootstrap "$repo" | grep '^TANGLE:' || true)
+  assert_contains "$out" "TANGLE: worktree '$real/.claude/worktrees/agent-clean' (branch 'worktree-agent-clean', landed) is registered inside the primary checkout" \
+    "bootstrap did not report the clean copy"
+  assert_contains "$out" "TANGLE: worktree '$real/.claude/worktrees/agent-work' (branch 'worktree-agent-work', unlanded) is registered inside the primary checkout" \
+    "bootstrap did not report the copy holding work"
+  [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 2 ] || fail "bootstrap must print one TANGLE line per copy: $out"
+  out=$(FM_ROOT_OVERRIDE="$repo" FM_HOME="$repo" FM_BOOTSTRAP_DETECT_ONLY=1 "$ROOT/bin/fm-bootstrap.sh" 2>/dev/null | grep '^TANGLE:' || true)
+  assert_contains "$out" "read-only session must leave cleanup" "detect-only bootstrap did not explain cleanup ownership"
+  assert_not_contains "$out" "fm-subagent-worktree.sh retire" "detect-only bootstrap printed a state-changing remedy"
+
+  # The printed remedy removes only the copy holding nothing of its own.
+  out=$(run_bootstrap "$repo" | grep '^TANGLE:' | head -1)
+  remedy=${out#*remove every landed one with: }
+  remedy=${remedy%% (an unlanded one*}
+  [ "$remedy" = "$ROOT/bin/fm-subagent-worktree.sh retire $repo" ] || fail "unexpected remedy: $remedy"
+  "${remedy% retire *}" retire "${remedy##* retire }" >/dev/null 2>&1 \
+    && fail "the printed remedy must refuse the copy holding work"
+  assert_absent "$repo/.claude/worktrees/agent-clean" "the remedy left the clean copy"
+  assert_present "$repo/.claude/worktrees/agent-work" "the remedy removed the copy holding work"
+  out=$(run_bootstrap "$repo" | grep '^TANGLE:' || true)
+  assert_not_contains "$out" "agent-clean" "bootstrap still reports the retired copy"
+  assert_contains "$out" "agent-work" "bootstrap stopped reporting the copy that still holds work"
+  pass "fm-bootstrap: one TANGLE line per worktree inside the primary; the remedy retires only landed copies"
 }
 
 # --- GUARD 1a: brief isolation assertion ------------------------------------
@@ -272,6 +365,9 @@ test_spawn_tmux_window_construction() {
 test_lib_classification
 test_guard_banner
 test_bootstrap_line
+test_lib_nested_worktrees
+test_guard_nested_banner
+test_bootstrap_nested_lines_and_remedy
 test_brief_assertion_precedes_branch
 test_spawn_isolation_abort
 test_spawn_tmux_window_construction

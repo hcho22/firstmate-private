@@ -3,8 +3,9 @@
 # fm-wake-drain.sh after it empties queued wakes, and by fm-session-start.sh in
 # read-only advisory mode whenever session-lock ownership was not verified.
 # First, always warn if the firstmate primary checkout (FM_ROOT) is on a named
-# non-default branch, because that means firstmate-on-itself work landed in the
-# primary instead of an isolated worktree.
+# non-default branch, or has linked worktrees registered inside it, because
+# either means firstmate-on-itself work landed in the primary instead of an
+# isolated worktree.
 # Then, if a task is in flight (a state/<id>.meta exists) or X-mode relay
 # polling is active (state/x-watch.check.sh exists) and supervision is not
 # healthy, prints a loud, clearly delimited banner so the agent cannot skim past
@@ -152,6 +153,34 @@ if [ -n "$tangle_branch" ]; then
       printf "●  Restore the primary to '%s':\n" "$tangle_default"
       printf '●      git -C %s checkout %s\n' "$FM_ROOT" "$tangle_default"
       printf "●  then re-validate '%s' in a proper isolated worktree.\n" "$tangle_branch"
+    fi
+    printf '●%s\n' "$trule"
+  } >&2
+fi
+
+# Second tangle shape, equally independent of in-flight tasks: a linked worktree
+# registered INSIDE the primary checkout, such as an isolated subagent's
+# `.claude/worktrees/*` copy (bin/fm-tangle-lib.sh owns the scope; the
+# inventory, states, and retire remedy belong to bin/fm-subagent-worktree.sh).
+nested_worktrees=$(fm_primary_nested_worktrees "$FM_ROOT" || true)
+if [ -n "$nested_worktrees" ]; then
+  trule='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+  {
+    printf '●%s\n' "$trule"
+    printf '●  WORKTREE TANGLE - WORKTREES REGISTERED INSIDE THE PRIMARY CHECKOUT\n'
+    printf '●  %s holds linked worktrees that belong in an isolated copy:\n' "$FM_ROOT"
+    while IFS=$'\t' read -r nested_state nested_path nested_branch; do
+      [ -n "$nested_path" ] || continue
+      printf '●    %s (branch %s, %s)\n' "$nested_path" "$nested_branch" "$nested_state"
+    done <<EOF
+$nested_worktrees
+EOF
+    printf '●  A worker likely created them, for example through an isolated subagent.\n'
+    if [ "$READ_ONLY" -eq 1 ]; then
+      printf '●  This read-only session must leave cleanup to a session with verified fleet-lock ownership.\n'
+    else
+      printf '●  Remove every landed one (an unlanded one is refused and needs inspection first):\n'
+      printf '●      %s/fm-subagent-worktree.sh retire %s\n' "$SCRIPT_DIR" "$FM_ROOT"
     fi
     printf '●%s\n' "$trule"
   } >&2

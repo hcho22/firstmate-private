@@ -208,8 +208,14 @@ The primary checkout is healthy on its default branch, and linked worktrees or s
 Only a named non-default branch checked out in `FM_ROOT` is a worktree tangle.
 
 `fm-tangle-lib.sh` resolves the default branch from `origin/HEAD`, then local `main` or `master`, and classifies that named non-default primary branch as the tangle.
-`fm-guard.sh` prints the repair command on the next mutable fleet action, while `bin/fm-session-start.sh` reports the same condition through bootstrap as a `TANGLE:` line at session start.
+A linked worktree registered inside `FM_ROOT` is the second tangle shape, because nothing legitimate lives there.
+`fm-guard.sh` prints the repair command on the next mutable fleet action, while `bin/fm-session-start.sh` reports the same conditions through bootstrap as `TANGLE:` lines at session start.
 If another live session holds the fleet lock, both surfaces keep the alarm but switch to read-only wording with no repair command.
+
+The shared git common dir has one more consequence for every project, not only firstmate.
+Claude Code resolves a task worktree back to the repository's main checkout and, left alone, creates each worktree it isolates a subagent into under that checkout's `.claude/worktrees/`.
+`fm-spawn.sh` therefore gives every Claude worker WorktreeCreate and WorktreeRemove hooks that place those copies under the task's own temp root instead, and `fm-teardown.sh` treats a copy's unlanded work like the task's own before retiring it.
+`bin/fm-subagent-worktree.sh` owns that placement, the landed test, and the retire remedy the tangle report prints, and [`docs/verification/runtime-backends.md`](verification/runtime-backends.md) records the per-harness applicability review.
 Ship briefs also tell the crewmate to verify `pwd -P` and `git rev-parse --show-toplevel` before creating `fm/<id>`, then stop with a blocked status if it landed in the primary checkout.
 
 ## No-mistakes gate authority boundary

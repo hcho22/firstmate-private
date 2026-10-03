@@ -29,9 +29,12 @@ When any diagnostic needs captain attention, report the plain consequence and re
 - `NETWORK_CHECKS: <what did not complete>; rerun <command>` - the deferred network stage itself could not finish, so the checks it names are simply unknown, not failed.
   Rerun the printed command; it is idempotent and re-derives every finding.
   A `hit the ...s bound` line means one of those checks is slow or unreachable - most often a remote secondmate host - and the stage stopped rather than letting it wedge; a `lock was no longer held` line means the session that asked for the sweeps no longer owns them, so leave them to the session that does.
-- `TANGLE: <remediation>` - the primary checkout is stranded on a feature branch instead of its default branch; `AGENTS.md` section 8 explains why this guard exists and what it protects.
-  The work is safe on that branch ref; restore the primary to its default branch with the printed `git -C <root> checkout <default>`, then re-validate that branch in a proper worktree.
-  This is the only sanctioned firstmate-initiated git write to the primary, and it is a non-destructive branch switch that strands nothing.
+- `TANGLE: <remediation>` - a worker's work landed in the primary checkout; `AGENTS.md` section 8 explains why this guard exists and what it protects.
+  A `primary checkout on feature branch` line means the primary is stranded off its default branch: the work is safe on that branch ref, so restore the primary with the printed `git -C <root> checkout <default>`, then re-validate that branch in a proper worktree.
+  A `worktree '<path>' ... is registered inside the primary checkout` line names a linked worktree nested in the primary, such as an isolated subagent's `.claude/worktrees/*` copy.
+  Run the printed `fm-subagent-worktree.sh retire <root>`: it removes only copies whose state is `landed`, meaning clean with nothing found nowhere else, and refuses the rest.
+  Never force a refused `unlanded` or `locked` copy; inspect it, route any real work to the worker or task that owns it, and escalate to the captain before anything would discard it.
+  These two printed remedies are the only sanctioned firstmate-initiated git writes to the primary, and neither discards or strands work.
 - `STARTUP_MEMORY_BUDGET: invalid config/startup-memory-budget - <reason>` - the visible startup-memory budget is not a safe one-line positive decimal file; do not infer the default or propagate it.
   Correct the local primary file, then rerun session start so the normal convergence path can deliver the validated value to secondmate homes.
 - `CREW_DISPATCH: invalid config/crew-dispatch.json - <reason>` - the optional dispatch profile file exists but failed low-cost bootstrap validation; stop profile-based dispatch, report the actionable error, and require correction of the malformed schema, unverified harness name, or invalid harness/effort pair rather than falling back around it or selecting a bad profile.
