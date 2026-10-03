@@ -74,9 +74,13 @@
 #                     contained in <anchor>'s HEAD or in any remote-tracking
 #                     ref - no work would be lost by removing it;
 #           unlanded  uncommitted or untracked changes, commits found nowhere
-#                     else, or a copy that cannot be inspected;
+#                     else, or a copy that cannot be inspected - including a
+#                     vanished copy whose git admin dir still holds submodule
+#                     git dirs, or whose detached HEAD is the only ref to a
+#                     commit that fails the landed test;
 #           locked    git-locked, so it is never removed without --discard;
-#           missing   registered but its directory is gone.
+#           missing   registered but its directory is gone, and its admin
+#                     dir holds no work of its own.
 #         <branch> is the checked-out branch name, or `detached`.
 # retire  Removes every listed `landed` copy, with --force so populated
 #         submodules cannot block a copy just verified clean, and deregisters
@@ -276,6 +280,45 @@ classify_copy() {  # <anchor> <path> <head>
   fi
 }
 
+# Echo the git admin dir of the registered worktree at <path>: the common dir's
+# `worktrees/*` entry whose `gitdir` file names <path>/.git.
+worktree_admin_dir() {  # <anchor> <path>
+  local common admin gitdir want
+  common=$(git -C "$1" rev-parse --git-common-dir 2>/dev/null) || return 1
+  case "$common" in
+    /*) ;;
+    *) common="$1/$common" ;;
+  esac
+  want=$(canonical_path "$2/.git") || return 1
+  for admin in "$common"/worktrees/*; do
+    gitdir=$(cat "$admin/gitdir" 2>/dev/null) || continue
+    case "$gitdir" in
+      /*) ;;
+      *) gitdir="$admin/$gitdir" ;;
+    esac
+    [ "$(canonical_path "$gitdir")" = "$want" ] || continue
+    printf '%s\n' "$admin"
+    return 0
+  done
+  return 1
+}
+
+# Classify one registered copy whose directory is gone. Echoes missing|unlanded.
+# Its admin dir outlives it and is deleted on removal, so submodule git dirs
+# there, or a detached HEAD there that is the only ref to its commit, make it
+# unlanded.
+classify_missing_copy() {  # <anchor> <path> <head> <branch>
+  local admin
+  admin=$(worktree_admin_dir "$1" "$2") || { echo unlanded; return; }
+  if [ -e "$admin/modules" ]; then
+    echo unlanded
+  elif [ -z "$4" ] && { [ -z "$3" ] || ! commit_landed "$1" "$3"; }; then
+    echo unlanded
+  else
+    echo missing
+  fi
+}
+
 # Delete a retired copy's `worktree-*` branch while its tip still passes the
 # landed test; the delete compares against that tested tip.
 retire_branch() {  # <anchor> <branch>
@@ -302,7 +345,7 @@ record_copy() {  # <anchor> <path> <head> <branch> <locked> <prunable>
   done
   [ "$in_scope" -eq 1 ] || return 0
   if [ "$prunable" -eq 1 ] || [ ! -d "$path" ]; then
-    state=missing
+    state=$(classify_missing_copy "$anchor" "$path" "$head" "$branch")
   elif [ "$locked" -eq 1 ]; then
     state=locked
   else

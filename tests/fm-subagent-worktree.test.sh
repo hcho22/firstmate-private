@@ -275,7 +275,7 @@ test_retire_forces_past_submodules_and_locks() {
 }
 
 test_submodule_commit_only_in_copy_is_unlanded() {
-  local dir copy sub_commit out
+  local dir copy sub_commit admin out
   dir=$(make_world sub-unpushed)
   add_origin_submodule "$dir"
   copy=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-s"}' 2>/dev/null)
@@ -296,7 +296,47 @@ test_submodule_commit_only_in_copy_is_unlanded() {
   assert_contains "$out" "REFUSED: worktree $copy" "a copy holding the only submodule commit was not refused"
   assert_present "$copy" "a copy holding the only submodule commit was removed"
   [ "$(git -C "$copy/sub" cat-file -t "$sub_commit")" = commit ] || fail "the only copy of a submodule commit was lost"
-  pass "list/retire: a submodule commit that exists only in the copy keeps the copy unlanded"
+
+  # A reboot clearing /tmp removes the copy, but the submodule's git dir lives
+  # in the copy's admin dir inside the shared repository. Its core.worktree
+  # names the vanished checkout, so it is read with an explicit work tree.
+  rm -rf "$dir/tmp"
+  admin="$dir/main/.git/worktrees/agent-s"
+  [ "$(git --git-dir="$admin/modules/sub" --work-tree="$dir" cat-file -t "$sub_commit")" = commit ] \
+    || fail "fixture: the vanished copy's admin dir must hold the submodule commit"
+  assert_row "$("$HELPER" list "$dir/task" "$dir/tmp")" unlanded "$copy" worktree-agent-s \
+    "a vanished copy whose admin dir holds a submodule git dir must list as unlanded"
+  out=$("$HELPER" retire "$dir/task" "$dir/tmp" 2>&1)
+  expect_code 1 $? "retire must refuse a vanished copy whose admin dir holds submodule work: $out"
+  assert_not_contains "$out" "retired: $copy" "a vanished copy holding submodule work was deregistered"
+  [ "$(git --git-dir="$admin/modules/sub" --work-tree="$dir" cat-file -t "$sub_commit")" = commit ] \
+    || fail "the only copy of a submodule commit was lost with the vanished copy's admin dir"
+  pass "list/retire: a submodule commit that exists only in the copy keeps it unlanded, even after it vanishes"
+}
+
+test_vanished_detached_copy_keeps_its_only_ref() {
+  local dir kept dropped kept_tip listing out
+  dir=$(make_world vanished-detached)
+  kept="$dir/tmp/worktrees/agent-detached-work"
+  dropped="$dir/tmp/worktrees/agent-detached-landed"
+  git -C "$dir/main" worktree add -q --detach "$kept" origin/main
+  git -C "$kept" commit -q --allow-empty -m "detached work"
+  kept_tip=$(git -C "$kept" rev-parse HEAD)
+  git -C "$dir/main" worktree add -q --detach "$dropped" origin/main
+  rm -rf "$dir/tmp"
+
+  listing=$("$HELPER" list "$dir/task" "$dir/tmp")
+  assert_row "$listing" unlanded "$kept" detached \
+    "a vanished detached copy whose HEAD is its commit's only ref must list as unlanded"
+  assert_row "$listing" missing "$dropped" detached \
+    "a vanished detached copy whose HEAD landed must list as missing"
+  out=$("$HELPER" retire "$dir/task" "$dir/tmp" 2>&1)
+  expect_code 1 $? "retire must refuse a vanished copy whose HEAD is its commit's only ref: $out"
+  assert_contains "$out" "retired: $dropped" "a vanished landed detached copy was not deregistered"
+  assert_contains "$out" "REFUSED: worktree $kept" "a vanished detached copy holding the only ref was not refused"
+  [ "$(git -C "$dir/main" worktree list --porcelain | grep -Fx -A1 "worktree $kept" | sed -n 's/^HEAD //p')" = "$kept_tip" ] \
+    || fail "the vanished detached copy's only ref to its commit was dropped"
+  pass "list/retire: a vanished detached copy is deregistered only when its HEAD landed"
 }
 
 test_list_matches_a_vanished_scratch_root() {
@@ -429,6 +469,7 @@ test_create_fails_closed
 test_list_and_retire_classify_copies
 test_retire_forces_past_submodules_and_locks
 test_submodule_commit_only_in_copy_is_unlanded
+test_vanished_detached_copy_keeps_its_only_ref
 test_retire_deletes_branch_landed_on_remote
 test_list_matches_a_vanished_scratch_root
 test_inventory_fails_closed_without_worktree_list_z
