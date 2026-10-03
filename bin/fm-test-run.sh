@@ -72,13 +72,17 @@
 #                   script paths, which use the bounded automatic scheduler.
 #   --per-script-timeout-secs N
 #                   terminate a script that runs longer than N seconds and
-#                   record it as exit 124 (0 disables, the default). The
-#                   --changed applies a bound automatically: at least 900s, and
-#                   for a script with a measured duration hint (the runner's own
-#                   balance hints) at least 6 times that hint, so it only
-#                   converts a HUNG script into a bounded failure even where a
-#                   slow host runs a long script at several times its hint. An
-#                   explicit value is a flat bound for every script.
+#                   record it as exit 124 (0 disables, the default). An
+#                   explicit value is a flat bound for every script. The
+#                   --changed applies a progress-aware bound automatically: a
+#                   script is terminated (exit 124) once it has written no new
+#                   output for its bound - at least 900s, and for a script with
+#                   a measured duration hint (the runner's own balance hints) at
+#                   least 6 times that hint - or once it has run 4 times that
+#                   bound in total. A script that goes silent is stopped as
+#                   quickly as a flat bound would stop it, and one that keeps
+#                   finishing cases is never stopped just because a loaded host
+#                   runs it slowly.
 #                   --max-wall-ms is checked
 #                   after the run and so cannot catch a hang on its own.
 #                   External interruption cleanup is outside this runner's
@@ -191,9 +195,19 @@ PER_SCRIPT_TIMEOUT_AUTO=0
 # the quick detection of a hang, for every script without a hint. It is a guard,
 # not a speed control: a HUNG script becomes a bounded failure instead of an
 # unbounded suite, which is the shape that silently outruns a caller's invocation
-# budget. An explicit --per-script-timeout-secs is a flat bound and is not scaled.
+# budget. So the automatic bound measures silence, not total time
+# (fm_run_progress_bounded in bin/fm-timeout-lib.sh): a script is stopped once it
+# has written nothing new for the bound, or once it has run
+# CHANGED_BACKSTOP_FACTOR times the bound in total, for a script that keeps
+# printing without finishing. Under heavy external load (load averages of 120 to
+# 470 on 20 cores) healthy scripts that were still finishing cases ran past their
+# total-time bounds - fm-teardown at 900s (2066s to complete), the remote
+# secondmate lifecycle e2e at 1258s - while a hung script stops producing output
+# whatever the load. An explicit --per-script-timeout-secs is a flat bound and is
+# not scaled.
 CHANGED_DEFAULT_TIMEOUT_SECS=900
 CHANGED_HINT_BOUND_FACTOR=6
+CHANGED_BACKSTOP_FACTOR=4
 
 # How many separate-runner shards the portable serial remainder splits into.
 # One owner: CI lane names carry this count and are refused when they disagree.
@@ -2221,17 +2235,32 @@ script_bound_secs() {
   printf '%s\n' "$bound"
 }
 
+# bounded_script_command <bound> <out> <command...>: run under the explicit flat
+# bound, or, on the automatic --changed path, under the progress-aware bound
+# watching <out>, where every caller sends the script's output.
+bounded_script_command() {
+  local bound=$1 out=$2
+  shift 2
+  if [ "$PER_SCRIPT_TIMEOUT_AUTO" -eq 1 ]; then
+    fm_run_progress_bounded "$bound" "$((bound * CHANGED_BACKSTOP_FACTOR))" \
+      "$out" "$out.guard" "$@"
+  else
+    fm_run_timed "$bound" "$@"
+  fi
+}
+
 run_script_bounded() {  # <script> <out> <stream> <id>
   local script=$1 out=$2 stream=$3 id=$4
-  local rc bound
+  local rc bound reason
   : "$id"
   bound=$(script_bound_secs "$script")
+  rm -f "$out.guard"
   set +e
   if [ "$stream" -eq 1 ]; then
     if [ "$bound" -gt 0 ]; then
       # Expansion is intentionally deferred to the child bash passed to -c.
       # shellcheck disable=SC2016
-      fm_run_timed "$bound" bash -c \
+      bounded_script_command "$bound" "$out" bash -c \
         'bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' _ "$script" "$out"
       rc=$?
     else
@@ -2239,17 +2268,35 @@ run_script_bounded() {  # <script> <out> <stream> <id>
       rc=${PIPESTATUS[0]}
     fi
   elif [ "$bound" -gt 0 ]; then
-    fm_run_timed "$bound" bash "$script" >"$out" 2>&1
+    # The guard only reads the size of the file the script writes to.
+    # shellcheck disable=SC2094
+    bounded_script_command "$bound" "$out" bash "$script" >"$out" 2>&1
     rc=$?
   else
     bash "$script" >"$out" 2>&1
     rc=$?
   fi
   if [ "$bound" -gt 0 ] && [ "$rc" -eq 124 ]; then
-    printf 'not ok - %s exceeded the per-script bound of %ss and was terminated\n' \
-      "$script" "$bound" >>"$out"
-    [ "$stream" -eq 1 ] && tail -1 "$out"
+    reason=
+    if [ "$PER_SCRIPT_TIMEOUT_AUTO" -eq 1 ]; then
+      reason=$(cat "$out.guard" 2>/dev/null || true)
+    else
+      reason=flat
+    fi
+    case "$reason" in
+      idle)
+        printf 'not ok - %s made no progress for %ss, its per-script bound, and was terminated\n' \
+          "$script" "$bound" >>"$out" ;;
+      backstop)
+        printf 'not ok - %s exceeded the per-script backstop of %ss and was terminated\n' \
+          "$script" "$((bound * CHANGED_BACKSTOP_FACTOR))" >>"$out" ;;
+      flat)
+        printf 'not ok - %s exceeded the per-script bound of %ss and was terminated\n' \
+          "$script" "$bound" >>"$out" ;;
+    esac
+    [ -z "$reason" ] || { [ "$stream" -eq 1 ] && tail -1 "$out"; }
   fi
+  rm -f "$out.guard"
   return "$rc"
 }
 

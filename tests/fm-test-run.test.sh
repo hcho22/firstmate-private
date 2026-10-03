@@ -507,9 +507,12 @@ PY
   timeout_script=tests/fm-calm-pi-extension.test.sh
   mkdir -p "$timeout_repo/bin" "$timeout_repo/tests"
   cp "$RUNNER" "$timeout_repo/bin/fm-test-run.sh"
+  # The automatic path's guard is the progress-aware runner; this stub reports a
+  # silent script at the 900s floor without running it.
   cat >"$timeout_repo/bin/fm-timeout-lib.sh" <<'SH'
-fm_run_timed() {
+fm_run_progress_bounded() {
   [ "$1" -eq 900 ] || return 99
+  printf 'idle\n' >"$4"
   return 124
 }
 SH
@@ -544,7 +547,7 @@ SH
 # floor and six times the hint, a script without one keeps the floor, an explicit
 # --per-script-timeout-secs stays flat, and a hung script still fails at its bound.
 test_changed_bound_scales_with_the_duration_hint() {
-  local tmp repo hinted unhinted log rc bound
+  local tmp repo hinted unhinted log rc bound backstop
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-hintbound.XXXXXX")
   repo="$tmp/repo"
   hinted=tests/fm-watch-triage.test.sh
@@ -552,7 +555,15 @@ test_changed_bound_scales_with_the_duration_hint() {
   log="$tmp/bounds.log"
   mkdir -p "$repo/bin" "$repo/tests"
   cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+  # Both bounded runners log the bound they were handed and report a hang: the
+  # automatic path's progress-aware guard (bound, backstop, watched output,
+  # reason file) and the explicit flat bound.
   cat >"$repo/bin/fm-timeout-lib.sh" <<'SH'
+fm_run_progress_bounded() {
+  printf '%s\n' "$*" >>"$FM_TEST_BOUND_LOG"
+  printf 'idle\n' >"$4"
+  return 124
+}
 fm_run_timed() {
   printf '%s\n' "$*" >>"$FM_TEST_BOUND_LOG"
   return 124
@@ -582,9 +593,12 @@ SH
   case "$bound" in ''|*[!0-9]*) fail "$hinted was not run under a numeric bound: $(cat "$log")" ;; esac
   [ "$bound" -gt 900 ] || fail "$hinted kept the flat 900s floor instead of a hint-proportional bound ($bound s)"
   [ "$bound" -le 6000 ] || fail "$hinted got an implausibly large bound ($bound s)"
-  grep -Eq "^900 .*$unhinted" "$log" || fail "$unhinted lost the 900s floor: $(cat "$log")"
-  grep -Fq "$hinted exceeded the per-script bound of ${bound}s and was terminated" "$tmp/out" \
-    || fail "a hung hinted script was not reported at its own bound: $(cat "$tmp/out")"
+  backstop=$(awk -v s="$hinted" 'index($0, s) { print $2; exit }' "$log")
+  [ "$backstop" = "$((bound * 4))" ] \
+    || fail "$hinted got backstop $backstop instead of 4 x its ${bound}s bound: $(cat "$log")"
+  grep -Eq "^900 3600 .*$unhinted" "$log" || fail "$unhinted lost the 900s floor or its backstop: $(cat "$log")"
+  grep -Fq "$hinted made no progress for ${bound}s, its per-script bound, and was terminated" "$tmp/out" \
+    || fail "a silent hinted script was not reported at its own bound: $(cat "$tmp/out")"
   grep -Eq "^FM_TEST_END .+ $hinted exit=124 " "$tmp/out" || fail "a hung hinted script was not recorded as exit 124"
 
   : >"$log"
@@ -1273,6 +1287,78 @@ test_concurrent_runs_are_ordered_longest_first() {
 # --max-wall-ms is checked after the run, so it cannot end a run that never
 # finishes. A hung script has to become a bounded failure, because an unbounded
 # suite is exactly what silently outruns its caller's invocation budget.
+# The automatic --changed bound is fm_run_progress_bounded: it measures silence,
+# not total time. Driven here with small bounds against real processes. Each
+# verdict is read from the guard's own reason file and the command's output, so
+# no case depends on how fast the host is: a command that stops writing is
+# stopped (with its whole process group), one that keeps writing runs as long as
+# it needs, and one that writes forever meets the backstop. Each guard watches
+# the very file its command writes to, and the fixture programs are
+# single-quoted for the child processes that run them.
+# shellcheck disable=SC2094,SC2016
+test_progress_guard_bounds_silence_not_slowness() {
+  local tmp rc grandchild waited
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-progress-guard.XXXXXX")
+
+  # Silent: prints one line, then a TERM-ignoring grandchild and the command
+  # both sit idle far longer than the 3 s bound.
+  rc=0
+  (. "$ROOT/bin/fm-timeout-lib.sh"
+    fm_run_progress_bounded 3 60 "$tmp/silent.out" "$tmp/silent.why" bash -c '
+      echo started
+      sh -c "trap \"\" TERM; echo \$\$ >\"\$1\"; sleep 120" _ "$1" &
+      sleep 120' _ "$tmp/grandchild.pid" >"$tmp/silent.out" 2>&1) || rc=$?
+  [ "$rc" -eq 124 ] || fail "a silent command was not stopped (rc=$rc): $(cat "$tmp/silent.out")"
+  [ "$(cat "$tmp/silent.why" 2>/dev/null)" = idle ] \
+    || fail "a silent command was stopped for the wrong reason: $(cat "$tmp/silent.why" 2>/dev/null)"
+  [ -s "$tmp/grandchild.pid" ] || fail "the silent fixture did not record its grandchild"
+  grandchild=$(cat "$tmp/grandchild.pid")
+  waited=0
+  while kill -0 "$grandchild" 2>/dev/null && [ "$waited" -lt 100 ]; do
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+  kill -0 "$grandchild" 2>/dev/null && fail "the guard left a TERM-ignoring grandchild alive"
+
+  # Progressing: 16 lines half a second apart, about 8 s in all, against a 4 s
+  # silence bound - slower than the bound, never silent for it.
+  rc=0
+  (. "$ROOT/bin/fm-timeout-lib.sh"
+    fm_run_progress_bounded 4 120 "$tmp/progress.out" "$tmp/progress.why" perl -e \
+      '$| = 1; for (1 .. 16) { print "ok - tick $_\n"; select undef, undef, undef, 0.5 }' \
+      >"$tmp/progress.out" 2>&1) || rc=$?
+  [ "$rc" -eq 0 ] || fail "a progressing command was stopped (rc=$rc, reason $(cat "$tmp/progress.why" 2>/dev/null))"
+  [ ! -e "$tmp/progress.why" ] || fail "a completed command left a guard reason behind"
+  [ "$(grep -c '^ok - tick' "$tmp/progress.out")" -eq 16 ] \
+    || fail "a progressing command did not finish its work: $(cat "$tmp/progress.out")"
+
+  # Printing forever: never silent, so only the backstop can stop it.
+  rc=0
+  (. "$ROOT/bin/fm-timeout-lib.sh"
+    fm_run_progress_bounded 4 8 "$tmp/forever.out" "$tmp/forever.why" perl -e \
+      '$| = 1; while (1) { print "ok - tick\n"; select undef, undef, undef, 0.5 }' \
+      >"$tmp/forever.out" 2>&1) || rc=$?
+  [ "$rc" -eq 124 ] || fail "a command printing forever was not stopped (rc=$rc)"
+  [ "$(cat "$tmp/forever.why" 2>/dev/null)" = backstop ] \
+    || fail "a command printing forever was stopped for the wrong reason: $(cat "$tmp/forever.why" 2>/dev/null)"
+  grep -q '^ok - tick' "$tmp/forever.out" || fail "the backstop case never made progress"
+
+  # The command's own status passes through, and a signal death is not success.
+  rc=0
+  (. "$ROOT/bin/fm-timeout-lib.sh"
+    fm_run_progress_bounded 30 60 "$tmp/status.out" "$tmp/status.why" bash -c 'exit 3' \
+      >"$tmp/status.out" 2>&1) || rc=$?
+  [ "$rc" -eq 3 ] || fail "the command's own status was not passed through (rc=$rc)"
+  rc=0
+  (. "$ROOT/bin/fm-timeout-lib.sh"
+    fm_run_progress_bounded 30 60 "$tmp/signal.out" "$tmp/signal.why" bash -c 'kill -TERM $$' \
+      >"$tmp/signal.out" 2>&1) || rc=$?
+  [ "$rc" -eq 143 ] || fail "a command ended by TERM was not reported as 143 (rc=$rc)"
+
+  rm -rf "$tmp"
+  pass "the progress-aware guard stops silence and the backstop, never slow progress"
+}
+
 test_per_script_timeout_bounds_a_hang() {
   local tmp repo runner hang rc began ended grandchild_pid grandchild waited
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-hang.XXXXXX")
@@ -1700,6 +1786,7 @@ test_jobs_admits_a_concurrent_safe_family
 test_unmapped_new_test_never_inherits_family_concurrency
 test_concurrent_runs_are_ordered_longest_first
 test_per_script_timeout_bounds_a_hang
+test_progress_guard_bounds_silence_not_slowness
 test_scripts_run_without_the_callers_firstmate_state
 test_max_wall_ms_is_a_result_not_advice
 test_jobs_parallel_scheduler_and_failure_propagation

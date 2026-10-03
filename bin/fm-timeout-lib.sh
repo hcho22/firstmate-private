@@ -15,6 +15,21 @@
 #       except 124, which means the bound was hit (GNU timeout's convention,
 #       reproduced by the perl and bash fallbacks).
 #
+#   fm_run_progress_bounded <idle-seconds> <backstop-seconds> <watch-file>
+#                           <reason-file> <command> [args...]
+#       Runs the command in its own process group and terminates the group
+#       (TERM, then KILL 0.2 s later) once <watch-file> - where the caller
+#       sends the command's output - has not grown for <idle-seconds>, or once
+#       the command has run for <backstop-seconds> in total, whichever comes
+#       first. It then writes "idle" or "backstop" to <reason-file> and returns
+#       124. Otherwise it returns the command's own status, or 128 + n for a
+#       command ended by signal n, and writes nothing. A missing watch file
+#       counts as empty. It is a hang guard for commands that report progress
+#       as they go (bin/fm-test-run.sh's automatic per-script bound): a command
+#       that keeps producing output is never stopped for being slow, one that
+#       goes silent is stopped as quickly as a flat bound would. It needs perl;
+#       without perl it falls back to fm_run_timed <idle-seconds>.
+#
 # A non-positive bound is not a bound: `timeout 0` and the perl fallback's
 # `alarm 0` both disable the deadline, so callers must reject 0 before calling.
 #
@@ -138,4 +153,48 @@ fm_run_timed() {  # <seconds> <command...>
     bash) fm_run_bash_timeout "$seconds" "$@" ;;
     *) return 124 ;;
   esac
+}
+
+fm_run_progress_bounded() {  # <idle-seconds> <backstop-seconds> <watch-file> <reason-file> <command...>
+  local idle=$1 backstop=$2 watch=$3 reason=$4 rc
+  shift 4
+  rm -f "$reason" 2>/dev/null || true
+  if ! command -v perl >/dev/null 2>&1; then
+    fm_run_timed "$idle" "$@"
+    rc=$?
+    [ "$rc" -ne 124 ] || printf 'idle\n' > "$reason" 2>/dev/null || true
+    return "$rc"
+  fi
+  perl -e '
+    use strict;
+    use warnings;
+    use POSIX ":sys_wait_h";
+    use Time::HiRes qw(time sleep);
+    my ($idle, $backstop, $watch, $reason) = splice(@ARGV, 0, 4);
+    my $pid = fork;
+    die "fork failed" unless defined $pid;
+    if (!$pid) { setpgrp(0, 0); exec @ARGV or exit 127; }
+    my $start = time;
+    my $last = $start;
+    my $size = -1;
+    while (1) {
+      if (waitpid($pid, WNOHANG) == $pid) {
+        exit(($? & 127) ? 128 + ($? & 127) : ($? >> 8));
+      }
+      my @st = stat($watch);
+      my $now_size = @st ? $st[7] : 0;
+      my $now = time;
+      if ($now_size != $size) { $size = $now_size; $last = $now; }
+      my $why = $now - $last >= $idle ? "idle" : $now - $start >= $backstop ? "backstop" : "";
+      if ($why ne "") {
+        kill "TERM", -$pid;
+        sleep 0.2;
+        kill "KILL", -$pid;
+        waitpid($pid, 0);
+        if (open(my $fh, ">", $reason)) { print $fh "$why\n"; close $fh; }
+        exit 124;
+      }
+      sleep 0.5;
+    }
+  ' "$idle" "$backstop" "$watch" "$reason" "$@"
 }
