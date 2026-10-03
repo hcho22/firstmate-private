@@ -48,11 +48,9 @@ fm_current_pid() {
 # per frame: BASH_SUBSHELL rises in every subshell, background job, and pipeline
 # stage, so the cache key (depth and $$) never matches a child frame, and a
 # cached value can only be read by the frame that computed it or by a descendant
-# that immediately fails the key and recomputes. The watcher's TERM cleanup has a
-# 0.2 s grace before KILL (bin/fm-watch-checkpoint.sh), which a fork per lock
-# operation exceeded. Call it as a plain statement and read the variable, never
-# through $(fm_frame_pid): that would resolve in a throwaway subshell and record a
-# process that exits immediately.
+# that immediately fails the key and recomputes. Call it as a plain statement and
+# read the variable, never through $(fm_frame_pid): that would resolve in a
+# throwaway subshell and record a process that exits immediately.
 _FM_FRAME_PID_KEY=
 _FM_FRAME_PID_CACHE=
 fm_frame_pid() {
