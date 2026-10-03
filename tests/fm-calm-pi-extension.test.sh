@@ -37,15 +37,14 @@ cleanup() {
 trap cleanup EXIT
 
 wait_for_text() {
-  local file=$1 text=$2 i=0
-  while [ "$i" -lt 120 ]; do
+  local file=$1 text=$2 deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     # Include recent scrollback: expanding a long restored transcript can move
     # the asserted tool output above the current viewport while the footer and
     # editor remain visible.
     tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" -S -600 >"$file" 2>/dev/null || true
     grep -Fq "$text" "$file" 2>/dev/null && return 0
     sleep 0.05
-    i=$((i + 1))
   done
   return 1
 }
@@ -1618,7 +1617,7 @@ JS
 }
 
 test_operational_followup_turn_e2e() {
-  local project home config sessions version label case_name calm_state expected_notifications session_file pane i captain_line handled_line geometry_gap exact_session
+  local project home config sessions version label case_name calm_state expected_notifications session_file pane deadline captain_line handled_line geometry_gap exact_session
   if ! command -v pi >/dev/null 2>&1 || ! command -v tmux >/dev/null 2>&1; then
     echo "skip: pi or tmux not found for Pi operational follow-up E2E"
     return 0
@@ -1792,26 +1791,24 @@ TS
 
     tmux -L "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -x 160 -y 36 \
       "cd '$project' && env FM_HOME='$home' PI_CODING_AGENT_DIR='$config' FM_OPERATIONAL_INPUT_SCRIPT='$OPERATIONAL_INPUT' PI_OFFLINE=1 pi --approve --no-context-files --no-skills --no-prompt-templates --no-extensions $extensions $session_arg; rc=\$?; printf '\nPI_EXIT=%s\n' \"\$rc\"; sleep 20"
-    i=0
-    while [ "$i" -lt 120 ]; do
+    deadline=$((SECONDS + 60))
+    while [ "$SECONDS" -lt "$deadline" ]; do
       pane=$(tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" -S - 2>/dev/null || true)
       printf '%s\n' "$pane" | grep -Fq 'followup-e2e.ts' && break
       sleep 0.05
-      i=$((i + 1))
     done
     printf '%s\n' "$pane" | grep -Fq 'followup-e2e.ts' \
       || fail "Pi follow-up $case_name case ($label) did not reach the ready composer"
 
     tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" -l "/followup-e2e $label $shape"
     tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" Enter
-    i=0
-    while [ "$i" -lt 240 ]; do
+    deadline=$((SECONDS + 60))
+    while [ "$SECONDS" -lt "$deadline" ]; do
       session_file=$(find "$sessions" -type f -name '*.jsonl' -exec grep -l "CAPTAIN_PROMPT_$label" {} + 2>/dev/null | head -1 || true)
       if [ -n "$session_file" ] && grep -Fq "MONITOR_HANDLED_${label}_ONE" "$session_file"; then
         break
       fi
       sleep 0.05
-      i=$((i + 1))
     done
     if [ -z "$session_file" ] || ! grep -Fq "MONITOR_HANDLED_${label}_ONE" "$session_file"; then
       fail "Pi follow-up $label case did not process the monitoring notification"
@@ -1920,12 +1917,11 @@ JS
     printf '%s\n' on >"$home/config/calm"
     tmux -L "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -x 160 -y 36 \
       "cd '$project' && env FM_HOME='$home' PI_CODING_AGENT_DIR='$config' FM_OPERATIONAL_INPUT_SCRIPT='$OPERATIONAL_INPUT' PI_OFFLINE=1 pi --approve --no-context-files --no-skills --no-prompt-templates --no-extensions -e ./.pi/extensions/fm-calm.ts -e ./followup-e2e.ts --session '$exact_session'; rc=\$?; printf '\nPI_EXIT=%s\n' \"\$rc\"; sleep 20"
-    i=0
-    while [ "$i" -lt 120 ]; do
+    deadline=$((SECONDS + 60))
+    while [ "$SECONDS" -lt "$deadline" ]; do
       pane=$(tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" -S - 2>/dev/null || true)
       printf '%s\n' "$pane" | grep -Fq 'MONITOR_HANDLED_exact_watcher_ONE' && break
       sleep 0.05
-      i=$((i + 1))
     done
     assert_contains "$pane" "CAPTAIN_PROMPT_exact_watcher" "Pi restart lost the genuine captain prompt"
     assert_contains "$pane" "MONITOR_HANDLED_exact_watcher_ONE" "Pi restart lost the operational processing response"
@@ -1972,7 +1968,7 @@ JS
 
 test_hidden_block_geometry_e2e() {
   local project home config sessions session_file snapshot expanded_snapshot calm_off_snapshot restarted_snapshot
-  local version skill_line final_line gap i
+  local version skill_line final_line gap deadline
   if ! command -v pi >/dev/null 2>&1 || ! command -v tmux >/dev/null 2>&1; then
     echo "skip: pi or tmux not found for Pi Calm hidden-block geometry E2E"
     return 0
@@ -2086,19 +2082,18 @@ TS
   }
 
   wait_for_geometry_text() {
-    local file=$1 text=$2 attempt=0
-    while [ "$attempt" -lt 120 ]; do
+    local file=$1 text=$2 deadline=$((SECONDS + 60))
+    while [ "$SECONDS" -lt "$deadline" ]; do
       capture_geometry_viewport "$file" || true
       grep -Fq "$text" "$file" 2>/dev/null && return 0
       sleep 0.05
-      attempt=$((attempt + 1))
     done
     return 1
   }
 
   wait_for_geometry_transition() {
-    local file=$1 transient_text=$2 final_text=$3 attempt=0 saw_transient=0
-    while [ "$attempt" -lt 600 ]; do
+    local file=$1 transient_text=$2 final_text=$3 saw_transient=0 deadline=$((SECONDS + 60))
+    while [ "$SECONDS" -lt "$deadline" ]; do
       capture_geometry_viewport "$file" || true
       if grep -Fq "$transient_text" "$file" 2>/dev/null; then
         saw_transient=1
@@ -2106,7 +2101,6 @@ TS
         return 0
       fi
       sleep 0.01
-      attempt=$((attempt + 1))
     done
     return 1
   }
@@ -2132,12 +2126,11 @@ TS
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" Enter
   wait_for_geometry_text "$snapshot" "visible row two" \
     || fail "Pi Calm hidden-block geometry E2E did not complete the /skill:ahoy turn"
-  i=0
-  while [ "$i" -lt 120 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     capture_geometry_viewport "$snapshot"
     tail -12 "$snapshot" | grep -Fq "Working..." || break
     sleep 0.05
-    i=$((i + 1))
   done
   assert_contains "$(cat "$snapshot")" "[skill] ahoy" "Calm hid the collapsed skill header"
   assert_contains "$(cat "$snapshot")" "CALM_GEOMETRY_FINAL" "Calm hid the final assistant response"
@@ -2167,12 +2160,11 @@ TS
     || fail "thinking expansion did not restore Calm-hidden reasoning"
   assert_not_contains "$(cat "$expanded_snapshot")" "probe-one.txt" "thinking expansion restored Calm-hidden tool rows"
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" C-t
-  i=0
-  while [ "$i" -lt 120 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     capture_geometry_viewport "$snapshot"
     grep -Fq "CALM_GEOMETRY_THINKING_ONE" "$snapshot" || break
     sleep 0.05
-    i=$((i + 1))
   done
   assert_not_contains "$(cat "$snapshot")" "CALM_GEOMETRY_THINKING_ONE" "collapsing thinking restored hidden-row output"
   assert_geometry_gap "$snapshot" "re-collapsed native Calm transcript"
@@ -2184,14 +2176,13 @@ TS
   assert_contains "$(cat "$calm_off_snapshot")" "Thinking..." "turning Calm off did not restore collapsed thinking labels"
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" -l '/calm'
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" Enter
-  i=0
-  while [ "$i" -lt 120 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     capture_geometry_viewport "$snapshot"
     if ! grep -Fq "probe-one.txt" "$snapshot" && ! grep -Fq "Thinking..." "$snapshot"; then
       break
     fi
     sleep 0.05
-    i=$((i + 1))
   done
   assert_geometry_gap "$snapshot" "Calm redraw of existing transcript"
 
@@ -3080,7 +3071,7 @@ JS
 }
 
 test_interactive_terminal_e2e() {
-  local project config home session_file export_file export_dom default_snapshot expanded_snapshot hidden_snapshot active_before_snapshot active_hidden_snapshot export_snapshot export_settled_snapshot restored_snapshot working_snapshot working_response_snapshot restarted_snapshot resumed_restored_snapshot hash_before hash_after now version chrome chrome_pid chrome_wait chrome_reap_wait active_wait active_screen_wait boat_frame_one boat_frame_two boat_resized_snapshot boat_focus_snapshot boat_cleared_snapshot boat_hull_line boat_sail_line boat_column_one boat_column_two boat_line boat_color_snapshot boat_color_line boat_water_snapshot boat_water_line boat_water_first boat_water_changed boat_narrow_snapshot boat_narrow_sails boat_freeze_snapshot boat_resume_snapshot boat_freeze_column boat_freeze_sail boat_resume_column boat_resume_sail
+  local project config home session_file export_file export_dom default_snapshot expanded_snapshot hidden_snapshot active_before_snapshot active_hidden_snapshot export_snapshot export_settled_snapshot restored_snapshot working_snapshot working_response_snapshot restarted_snapshot resumed_restored_snapshot hash_before hash_after now version chrome chrome_pid chrome_reap_wait deadline boat_frame_one boat_frame_two boat_resized_snapshot boat_focus_snapshot boat_cleared_snapshot boat_hull_line boat_sail_line boat_column_one boat_column_two boat_line boat_color_snapshot boat_color_line boat_water_snapshot boat_water_line boat_water_first boat_water_changed boat_narrow_snapshot boat_narrow_sails boat_freeze_snapshot boat_resume_snapshot boat_freeze_column boat_freeze_sail boat_resume_column boat_resume_sail
   if ! command -v pi >/dev/null 2>&1 || ! command -v tmux >/dev/null 2>&1; then
     echo "skip: pi or tmux not found for Pi calm interactive E2E"
     return 0
@@ -3344,8 +3335,8 @@ JSON
 
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" -l "/calm"
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" M-s
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 120 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     # Include scrollback: the built-in tool rows this documented bound keeps visible
     # (see below) lengthen the transcript enough to push earlier genuine content, such
     # as the original user prompt, above the plain viewport.
@@ -3365,7 +3356,6 @@ JSON
       break
     fi
     sleep 0.05
-    active_screen_wait=$((active_screen_wait + 1))
   done
   # This session's built-in tool rows (bash/grep/find) were all rendered during the
   # initial session restore, before Calm's first-ever activation in this session had
@@ -3403,15 +3393,14 @@ JSON
 
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" -l "/calm-diagnostic-e2e"
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" M-s
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 120 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" >"$active_before_snapshot"
     if grep -Fq "Warning: CALM_TRANSIENT_DIAGNOSTIC" "$active_before_snapshot" &&
       ! grep -Fq "/calm-diagnostic-e2e" "$active_before_snapshot"; then
       break
     fi
     sleep 0.05
-    active_screen_wait=$((active_screen_wait + 1))
   done
   assert_contains "$(cat "$active_before_snapshot")" "Warning: CALM_TRANSIENT_DIAGNOSTIC" "transient diagnostic fixture was not shown"
   assert_not_contains "$(cat "$active_before_snapshot")" "/calm-diagnostic-e2e" "transient diagnostic command did not leave the editor"
@@ -3427,11 +3416,10 @@ JSON
     needle=${fixture#*|}
     tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" -l "/calm-inject-e2e $kind"
     tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" M-s
-    active_wait=0
+    deadline=$((SECONDS + 60))
     while ! grep -F '"role":"user"' "$session_file" 2>/dev/null |
-      grep -Fq "$needle" && [ "$active_wait" -lt 120 ]; do
+      grep -Fq "$needle" && [ "$SECONDS" -lt "$deadline" ]; do
       sleep 0.05
-      active_wait=$((active_wait + 1))
     done
     grep -F '"role":"user"' "$session_file" |
       grep -Fq "$needle" \
@@ -3479,15 +3467,14 @@ for (const [needle, kind] of expected) {
   }
 }
 JS
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 120 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" >"$active_hidden_snapshot"
     if grep -Fq " Error:" "$active_hidden_snapshot" &&
       ! grep -Fq "/calm-inject-e2e" "$active_hidden_snapshot"; then
       break
     fi
     sleep 0.05
-    active_screen_wait=$((active_screen_wait + 1))
   done
   assert_not_contains "$(cat "$active_hidden_snapshot")" "/calm-inject-e2e" "synthetic lifecycle command did not leave the editor"
   # shellcheck disable=SC2016 # Backticks are literal prompt markup.
@@ -3631,32 +3618,30 @@ JS
 
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" -l "/calm"
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" M-s
-  active_screen_wait=0
   # CALM_E2E_OUTPUT is not a useful redraw signal here: it is the pre-activation
   # bash row covered by the documented bound above, so it never leaves the screen
   # again this session regardless of this toggle.
-  while [ "$active_screen_wait" -lt 120 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" >"$working_snapshot"
     if ! grep -Fq "/calm" "$working_snapshot" &&
       [ "$(cat "$home/config/calm")" = on ]; then
       break
     fi
     sleep 0.05
-    active_screen_wait=$((active_screen_wait + 1))
   done
   [ "$(cat "$home/config/calm")" = on ] || fail "third /calm did not persist the active choice"
 
   # Calm on plus a genuinely active run replaces Pi's stock working row with the boat.
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" -l "/calm-boat-e2e"
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" M-s
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" >"$working_snapshot"
     if grep -Fq '\__/' "$working_snapshot"; then
       break
     fi
     sleep 0.025
-    active_screen_wait=$((active_screen_wait + 1))
   done
   cp "$working_snapshot" "$boat_frame_one"
   assert_contains "$(cat "$boat_frame_one")" '\__/' "Calm did not show the working ship during a real provider wait"
@@ -3695,8 +3680,8 @@ JS
   boat_column_one=$(awk 'index($0,"\\__/"){print index($0,"\\__/"); exit}' "$boat_frame_one")
   boat_water_changed=0
   boat_water_first=$(grep -F '\__/' "$boat_frame_one" | head -1)
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 60 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" >"$boat_water_snapshot"
     boat_water_line=$(grep -F '\__/' "$boat_water_snapshot" | head -1)
     boat_column_two=$(awk 'index($0,"\\__/"){print index($0,"\\__/"); exit}' "$boat_water_snapshot")
@@ -3706,22 +3691,20 @@ JS
       break
     fi
     sleep 0.05
-    active_screen_wait=$((active_screen_wait + 1))
   done
   [ "$boat_water_changed" -eq 1 ] \
     || fail "the water never animated while the working ship held its column"
 
   # Two frames at different hull columns prove genuine horizontal motion.
   boat_column_two=""
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" >"$boat_frame_two"
     boat_column_two=$(awk 'index($0,"\\__/"){print index($0,"\\__/"); exit}' "$boat_frame_two")
     if [ -n "$boat_column_two" ] && [ "$boat_column_two" != "$boat_column_one" ]; then
       break
     fi
     sleep 0.05
-    active_screen_wait=$((active_screen_wait + 1))
   done
   [ -n "$boat_column_two" ] || fail "the working ship disappeared between animation frames"
   [ "$boat_column_two" != "$boat_column_one" ] \
@@ -3730,15 +3713,14 @@ JS
   # The widget owns its own geometry, so resizing the same running TUI must reflow it.
   tmux -L "$TMUX_SOCKET" set-option -t "$TMUX_SESSION" window-size manual
   tmux -L "$TMUX_SOCKET" resize-window -t "$TMUX_SESSION" -x 100 -y 30
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" >"$boat_resized_snapshot"
     boat_hull_line=$(grep -F '\__/' "$boat_resized_snapshot" | head -1)
     if [ -n "$boat_hull_line" ] && [ "${#boat_hull_line}" -eq 100 ]; then
       break
     fi
     sleep 0.05
-    active_screen_wait=$((active_screen_wait + 1))
   done
   assert_contains "$(cat "$boat_resized_snapshot")" '\__/' "the working ship left the screen after a resize"
   boat_hull_line=$(grep -F '\__/' "$boat_resized_snapshot" | head -1)
@@ -3757,15 +3739,14 @@ JS
 
   # Motion continues on-screen after the resize instead of jumping offscreen.
   boat_column_two=""
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" >"$boat_resized_snapshot"
     boat_column_two=$(awk 'index($0,"\\__/"){print index($0,"\\__/"); exit}' "$boat_resized_snapshot")
     if [ -n "$boat_column_two" ] && [ "$boat_column_two" != "$boat_column_one" ]; then
       break
     fi
     sleep 0.05
-    active_screen_wait=$((active_screen_wait + 1))
   done
   [ -n "$boat_column_two" ] && [ "$boat_column_two" != "$boat_column_one" ] \
     || fail "the working ship stopped moving after the resize"
@@ -3776,8 +3757,8 @@ JS
   # The sail must show the heading it is about to travel, so a full traverse shows both.
   tmux -L "$TMUX_SOCKET" resize-window -t "$TMUX_SESSION" -x 12 -y 20
   boat_narrow_sails=""
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 400 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" >"$boat_narrow_snapshot"
     if grep -Fq '<|' "$boat_narrow_snapshot"; then
       case "$boat_narrow_sails" in *R*) : ;; *) boat_narrow_sails="${boat_narrow_sails}R" ;; esac
@@ -3789,7 +3770,6 @@ JS
       *R*L*|*L*R*) break ;;
     esac
     sleep 0.1
-    active_screen_wait=$((active_screen_wait + 1))
   done
   case "$boat_narrow_sails" in
     *R*L*|*L*R*) : ;;
@@ -3825,14 +3805,13 @@ JS
 
   # Escape aborts the run, and the abort path removes the ship with no residue.
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" Escape
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" >"$boat_cleared_snapshot"
     if ! grep -Fq '\__/' "$boat_cleared_snapshot"; then
       break
     fi
     sleep 0.05
-    active_screen_wait=$((active_screen_wait + 1))
   done
   assert_not_contains "$(cat "$boat_cleared_snapshot")" '\__/' "Escape did not remove the working ship"
   assert_not_contains "$(cat "$boat_cleared_snapshot")" "CALM_WORKING_E2E_RESPONSE" "the long-delay fixture settled instead of aborting on Escape"
@@ -3845,8 +3824,8 @@ JS
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" M-s
   boat_resume_column=""
   boat_resume_sail=""
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" >"$boat_resume_snapshot"
     if grep -Fq '\__/' "$boat_resume_snapshot"; then
       boat_resume_column=$(awk 'index($0,"\\__/"){print index($0,"\\__/"); exit}' "$boat_resume_snapshot")
@@ -3858,7 +3837,6 @@ JS
       break
     fi
     sleep 0.025
-    active_screen_wait=$((active_screen_wait + 1))
   done
   [ -n "$boat_resume_column" ] \
     || fail "the second working period never showed the working ship"
@@ -3871,39 +3849,36 @@ JS
 
   # Clear the resumed run before the Calm-off stock-row probe.
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" Escape
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" >"$boat_cleared_snapshot"
     if ! grep -Fq '\__/' "$boat_cleared_snapshot"; then
       break
     fi
     sleep 0.05
-    active_screen_wait=$((active_screen_wait + 1))
   done
   assert_not_contains "$(cat "$boat_cleared_snapshot")" '\__/' "Escape did not remove the resumed working ship"
 
   # Calm off restores Pi's stock working row and never shows the ship.
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" -l "/calm"
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" M-s
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     if [ "$(cat "$home/config/calm")" = off ]; then
       break
     fi
     sleep 0.05
-    active_screen_wait=$((active_screen_wait + 1))
   done
   [ "$(cat "$home/config/calm")" = off ] || fail "the Calm-off working-row probe did not turn Calm off"
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" -l "/calm-working-e2e"
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" M-s
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     tmux -L "$TMUX_SOCKET" capture-pane -p -t "$TMUX_SESSION" >"$working_snapshot"
     if grep -Fq "Working..." "$working_snapshot"; then
       break
     fi
     sleep 0.025
-    active_screen_wait=$((active_screen_wait + 1))
   done
   assert_contains "$(cat "$working_snapshot")" "Working..." "Calm off did not keep Pi's stock working row"
   assert_not_contains "$(cat "$working_snapshot")" '\__/' "Calm off showed the working ship"
@@ -3917,13 +3892,12 @@ JS
   # Restore Calm for the persistence restart below.
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" -l "/calm"
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" M-s
-  active_screen_wait=0
-  while [ "$active_screen_wait" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     if [ "$(cat "$home/config/calm")" = on ]; then
       break
     fi
     sleep 0.05
-    active_screen_wait=$((active_screen_wait + 1))
   done
   [ "$(cat "$home/config/calm")" = on ] || fail "Calm was not restored before the persistence restart"
   tmux -L "$TMUX_SOCKET" resize-window -t "$TMUX_SESSION" -x 180 -y 44

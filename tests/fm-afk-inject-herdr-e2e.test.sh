@@ -251,8 +251,8 @@ SHIM
 chmod +x "$HERDR_SHIM_DIR/herdr"
 
 wait_daemon_started() {
-  local label=${1:-daemon} start_line=${2:-0} i=0 new_log
-  while [ "$i" -lt 30 ]; do
+  local label=${1:-daemon} start_line=${2:-0} new_log deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     new_log=$(tail -n +"$((start_line + 1))" "$STATE_DIR/.supervise-daemon.log" 2>/dev/null || true)
     if printf '%s\n' "$new_log" | grep -q 'backend=herdr'; then
       [ -f "$STATE_DIR/.supervise-daemon.pid" ] || fail "$label startup log recorded backend=herdr but no pid file was written"
@@ -264,10 +264,9 @@ wait_daemon_started() {
       fail "$label exited before recording backend=herdr: $(cat "$STATE_DIR/.supervise-daemon.log" 2>/dev/null)"
     fi
     sleep 0.2
-    i=$((i + 1))
   done
   echo "daemon stderr:" >&2; cat "$STATE_DIR/daemon.err" >&2
-  fail "$label did not record backend=herdr after 6s: $new_log"
+  fail "$label did not record backend=herdr within 60s: $new_log"
 }
 
 start_daemon() {

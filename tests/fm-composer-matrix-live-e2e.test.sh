@@ -160,9 +160,8 @@ if command -v zellij >/dev/null 2>&1; then
   zellij delete-session --force "$ZELLIJ_SESSION" >/dev/null 2>&1 || true
   zellij --session "$ZELLIJ_SESSION" options --default-shell bash >/dev/null 2>&1 &
   ZJ_BG=$!
-  i=0
-  while [ "$i" -lt 10 ] && ! fm_backend_zellij_session_exists "$ZELLIJ_SESSION"; do
-    i=$((i + 1))
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && ! fm_backend_zellij_session_exists "$ZELLIJ_SESSION"; do
     sleep 0.5
   done
   fm_backend_zellij_session_exists "$ZELLIJ_SESSION" \

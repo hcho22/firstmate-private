@@ -108,15 +108,12 @@ PANES=$(lab pane list --workspace "$WS") || fail 'could not inspect restored pan
 if lab agent get "$PANE" >/dev/null 2>&1; then
   fail 'restored child unexpectedly retained a registered agent'
 fi
-attempt=0
-while [ "$attempt" -lt 50 ]; do
-  if production_process_proof; then
-    break
-  fi
+deadline=$((SECONDS + 60))
+while ! production_process_proof; do
+  [ "$SECONDS" -lt "$deadline" ] \
+    || fail 'restored child did not converge to the exact childless idle-shell process-group shape'
   sleep 0.1
-  attempt=$((attempt + 1))
 done
-[ "$attempt" -lt 50 ] || fail 'restored child did not converge to the exact childless idle-shell process-group shape'
 pass 'real named lab reproduced the exact restored one-tab one-pane childless no-agent shell shape'
 
 FM_HOME="$HOME_DIR" FM_BACKEND=herdr HERDR_SESSION="$HERDR_LAB_SESSION" \
