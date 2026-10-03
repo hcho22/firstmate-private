@@ -490,12 +490,12 @@ session_start() {
 # session_run <dir> <name> <command>: run it inside that session's process.
 # Sets SESSION_OUT and SESSION_RC.
 session_run() {
-  local dir=$1 name=$2 cmd=$3 i=0
+  local dir=$1 name=$2 cmd=$3 deadline
   rm -f "${dir:?}/${name:?}.done"
   printf '%s\n' "$cmd" > "$dir/$name.fifo"
-  while [ "$i" -lt 400 ] && [ ! -e "$dir/$name.done" ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$dir/$name.done" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -e "$dir/$name.done" ] || fail "session $name never finished: $cmd"
   SESSION_OUT=$(cat "$dir/$name.out")
@@ -617,24 +617,22 @@ test_confirmed_takeover_records_who_replaced_whom_and_keeps_the_lock_format() {
 # ancestry. The process is orphaned before it runs the takeover, so the ancestry
 # walk cannot escape into the session running this suite.
 test_takeover_outside_any_session_says_where_to_run_it() {
-  local dir i out
+  local dir out deadline
   dir="$TMP_ROOT/takeover-plain-terminal"
   make_idle_daemon_home "$dir"
   cat > "$dir/terminal.sh" <<'SH'
 #!/usr/bin/env bash
-i=0
-while [ "$i" -lt 200 ] && [ "$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' ')" != 1 ]; do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ] && [ "$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' ')" != 1 ]; do
   sleep 0.05
-  i=$((i + 1))
 done
 "$FM_HOME/bin/fm-lock.sh" takeover --confirm-holder "$1" > "$FM_HOME/terminal.out" 2>&1
 printf '%s\n' "$?" > "$FM_HOME/terminal.rc"
 SH
   FM_HOME="$dir" bash -c 'bash "$0" "$1" &' "$dir/terminal.sh" "$DAEMON_PID"
-  i=0
-  while [ "$i" -lt 400 ] && [ ! -s "$dir/terminal.rc" ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$dir/terminal.rc" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -s "$dir/terminal.rc" ] || { stop_idle_daemon_home "$dir"; fail "the plain-terminal takeover never finished"; }
   out=$(cat "$dir/terminal.out")
