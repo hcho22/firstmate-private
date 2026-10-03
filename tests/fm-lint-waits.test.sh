@@ -260,12 +260,10 @@ while [ "$n" -LE 3 ]; do
 sleep 0.02
 STUB
   (
-    while [ ! -e "$ready" ]; do
-      sleep 0.01
-    done
+    sleep 0.01
+    touch "$ready"
   ) &
-  deadline=$((SECONDS + 60))
-  while [ ! -e "$staged" ] && [ "$SECONDS" -lt "$deadline" ]; do
+  while [ ! -e "$staged" ]; do
     sleep 0.02
   done
   n=$((n + 1))
@@ -274,6 +272,44 @@ SH
   out=$("$LINTW" "$tmp/launch.test.sh" 2>&1) \
     || fail "sleeps in a quoted script, here-document, subshell, or nested loop were counted as the outer loop's: $out"
   pass "fm-lint-waits counts only the sleeps at the loop's own level"
+}
+
+# A deadline assigned from the clock inside the loop's own body restarts every
+# iteration, so it does not make the counted wait clock-bounded; a clock read the
+# body compares still does.
+test_a_deadline_set_inside_the_loop_bounds_nothing() {
+  local tmp out rc=0
+  tmp=$(fm_test_tmproot fm-lint-waits-inner-deadline)
+  write_case "$tmp" inner.test.sh <<'SH'
+#!/usr/bin/env bash
+i=0
+while [ ! -e "$m" ] && [ "$i" -LT 50 ]; do
+  deadline=$((SECONDS + 60))
+  sleep 0.1
+  i=$((i + 1))
+done
+i=0
+while [ ! -e "$m" ] && [ "$i" -LT 50 ]; do
+  local stop=$(( $(date +%s) + 5 ))
+  sleep 0.1
+  i=$((i + 1))
+done
+i=0
+while [ ! -e "$m" ] && [ "$i" -LT 50 ]; do
+  elapsed=$((SECONDS - start))
+  [ "$elapsed" -LT 30 ] || break
+  sleep 0.1
+  i=$((i + 1))
+done
+SH
+  out=$("$LINTW" "$tmp/inner.test.sh" 2>&1) || rc=$?
+  [ "$rc" -eq 1 ] || fail "a counted wait with an in-body deadline assignment was not flagged (rc=$rc): $out"
+  assert_contains "$out" "inner.test.sh:3: counted wait of 50 x 0.1 s (5 s)" \
+    "an in-body SECONDS deadline assignment hid a counted wait"
+  assert_contains "$out" "inner.test.sh:9: counted wait of 50 x 0.1 s (5 s)" \
+    "an in-body date +%s deadline assignment hid a counted wait"
+  assert_not_contains "$out" "inner.test.sh:15:" "a loop that compares a clock read was flagged"
+  pass "fm-lint-waits does not take a deadline set inside the loop as a clock bound"
 }
 
 test_repository_tests_are_clean() {
@@ -322,5 +358,6 @@ test_flags_counted_for_loops_that_leave_early
 test_flags_until_loops_body_guards_and_bin_sleep
 test_reads_heredoc_stubs_and_literal_default_bounds
 test_counts_only_the_loops_own_sleeps
+test_a_deadline_set_inside_the_loop_bounds_nothing
 test_repository_tests_are_clean
 test_default_lint_runs_the_waits_check

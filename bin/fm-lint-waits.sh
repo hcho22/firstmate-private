@@ -19,7 +19,9 @@
 # must sleep a literal number of seconds (sleep or /bin/sleep) at its own level
 # (not in a nested loop, subshell block, quoted script, or here-document), and
 # is flagged when its count times its sleeps is under the 60-second event-wait
-# standard. Loops that also read a clock (SECONDS, date +%s) are clock-bounded.
+# standard. Loops that also read a clock (SECONDS, date +%s) are clock-bounded,
+# except a deadline the loop's own body assigns from the clock
+# (deadline=$((SECONDS + 60))): it restarts every iteration and bounds nothing.
 # Not detected, because the bound cannot be read reliably from the text: a
 # bound computed by arithmetic or taken from the caller or environment, a
 # counter that counts down or by more than one, an arithmetic (( )) condition,
@@ -43,7 +45,7 @@ ROOT="$(cd "$SELF_DIR/.." && pwd)"
 
 case "${1:-}" in
   -h|--help)
-    sed -n '2,37{s/^# \{0,1\}//;p;}' "$SELF"
+    sed -n '2,39{s/^# \{0,1\}//;p;}' "$SELF"
     exit 0
     ;;
 esac
@@ -79,6 +81,8 @@ FOR_C = re.compile(r"^\s*for\s*\(\(\s*([A-Za-z_]\w*)\s*=\s*([0-9]+)\s*;\s*\1\s*(
 OWN_EXIT = re.compile(r"(?:^|[;&|{(\s])(?:break|return)(?=[\s;)}]|$)")
 OUTER_EXIT = re.compile(r"(?:^|[;&|{(\s])(?:break\s+[2-9]|return)(?=[\s;)}]|$)")
 CLOCK = re.compile(r"\bSECONDS\b|\bEPOCHSECONDS\b|date \+%s")
+DEADLINE_SET = re.compile(r"^\s*(?:local\s+)?[A-Za-z_]\w*=\$\(\(\s*(?:\$?\{?(?:EPOCH)?SECONDS\}?|\$\(date \+%s\))"
+                          r"\s*\+[^;&|]*\)\)\s*;?\s*$")
 
 
 def unescape(text):
@@ -243,7 +247,8 @@ for path in sys.argv[1:]:
             body = lines[h + 1:end]
         code = list(own_level(code_lines(body)))
         text = unescape("\n".join(code))
-        if CLOCK.search(cond) or CLOCK.search(text):
+        clock_text = "\n".join(c for c in text.split("\n") if not DEADLINE_SET.match(c))
+        if CLOCK.search(cond) or CLOCK.search(clock_text):
             continue
         per_iteration = sum(float(s) for c in code for s in SLEEP.findall(DQ.sub('""', c)))
         if per_iteration <= 0:
