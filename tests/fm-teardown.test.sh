@@ -1610,7 +1610,8 @@ SH
     . "$ROOT/bin/fm-wake-lib.sh"
     fm_lock_try_acquire "$LOCK" || exit 1
     : > "$READY"
-    while [ ! -e "$RELEASE" ]; do sleep 0.1; done
+    # A case that fails before releasing removes its directory: release then.
+    while [ ! -e "$RELEASE" ] && [ -d "${RELEASE%/*}" ]; do sleep 0.1; done
     fm_lock_release "$LOCK"
   ' &
   holder_pid=$!
