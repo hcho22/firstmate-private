@@ -55,6 +55,7 @@
 #   (z1) a copy holding commits found nowhere else           -> REFUSE, copy kept
 #   (z2) a clean copy with nothing of its own                -> retired, ALLOW
 #   (z3) an unlanded copy under --force                      -> discarded, branch kept
+#   (z4) copies git cannot list                              -> REFUSE, copy kept
 set -u
 
 # shellcheck source=tests/lib.sh disable=SC1091
@@ -2903,6 +2904,33 @@ test_landed_subagent_copy_is_retired() {
   pass "a ship teardown retires a clean isolated-subagent copy that holds nothing of its own"
 }
 
+test_subagent_inventory_failure_refuses() {
+  local case_dir rc copy real_git
+  case_dir=$(make_case subagent-inventory)
+  write_meta "$case_dir" no-mistakes ship
+  land_shippable_commit "$case_dir"
+  copy=$(plant_subagent_copy "$case_dir" agent-i1) || fail "subagent-inventory: could not plant a copy"
+  real_git=$(command -v git)
+  cat > "$case_dir/fakebin/git" <<EOF
+#!/usr/bin/env bash
+case " \$* " in
+  *" worktree list "*) echo "fatal: simulated worktree list failure" >&2; exit 128 ;;
+esac
+exec "$real_git" "\$@"
+EOF
+  chmod +x "$case_dir/fakebin/git"
+
+  rc=0
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 1 "$rc" "subagent-inventory: teardown should refuse"
+  assert_grep "REFUSED: cannot inventory the isolated-subagent worktrees of task task-x1" "$case_dir/stderr" \
+    "subagent-inventory: refusal did not name the failed inventory"
+  assert_present "$copy" "subagent-inventory: the copy was removed"
+  assert_present "$case_dir/state/task-x1.meta" "subagent-inventory: the task record was removed"
+  pass "a ship teardown refuses when it cannot inventory the isolated-subagent copies"
+}
+
 test_forced_teardown_discards_subagent_copy_keeps_branch() {
   local case_dir rc copy tip
   case_dir=$(make_case subagent-forced)
@@ -3315,6 +3343,7 @@ test_leaked_worktree_process_is_reaped
 test_leaked_tasktmp_process_is_reaped
 test_unlanded_subagent_copy_refuses
 test_landed_subagent_copy_is_retired
+test_subagent_inventory_failure_refuses
 test_forced_teardown_discards_subagent_copy_keeps_branch
 test_lsof_absent_reaps_tmux_process_group
 test_lsof_error_refuses_before_removal

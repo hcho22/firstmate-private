@@ -12,7 +12,8 @@
 #     every malformed or unsafe request;
 #   - list and retire classify and retire copies with the landed test teardown
 #     and the primary-checkout remedy rely on, forcing past populated
-#     submodules and locks only where removal is already authorized;
+#     submodules and locks only where removal is already authorized, and fail
+#     closed when git cannot list the repository's worktrees;
 #   - the real fm-spawn writes the hook into a Claude worker's local settings,
 #     and running it the way Claude does keeps the main checkout untouched and
 #     fails closed.
@@ -205,11 +206,14 @@ test_list_and_retire_classify_copies() {
 }
 
 test_retire_forces_past_submodules_and_locks() {
-  local dir copy gone out
+  local dir copy dirty ahead sub_tip gone listing out
   dir=$(make_world forced)
   git init -q "$dir/sub"
   git -C "$dir/sub" commit -q --allow-empty -m sub
   git -C "$dir/main" -c protocol.file.allow=always submodule add -q "$dir/sub" sub
+  # ignore=all hides every submodule change from a plain `git status`.
+  git -C "$dir/main" config -f .gitmodules submodule.sub.ignore all
+  git -C "$dir/main" add .gitmodules
   git -C "$dir/main" commit -q -m "add submodule"
   git -C "$dir/main" push -q origin main
 
@@ -223,6 +227,25 @@ test_retire_forces_past_submodules_and_locks() {
   git -C "$dir/main" show-ref --verify --quiet refs/heads/worktree-agent-sub-ship \
     && fail "a retired landed copy's branch should be deleted"
 
+  dirty=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-sub-dirty"}' 2>/dev/null)
+  git -C "$dirty" -c protocol.file.allow=always submodule update -q --init
+  printf 'work\n' > "$dirty/sub/work.txt"
+  ahead=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-sub-ahead"}' 2>/dev/null)
+  git -C "$ahead" -c protocol.file.allow=always submodule update -q --init
+  git -C "$ahead/sub" commit -q --allow-empty -m "submodule work"
+  sub_tip=$(git -C "$ahead/sub" rev-parse HEAD)
+  listing=$("$HELPER" list "$dir/task" "$dir/tmp")
+  assert_row "$listing" unlanded "$dirty" worktree-agent-sub-dirty \
+    "uncommitted work in an ignore=all submodule must list as unlanded"
+  assert_row "$listing" unlanded "$ahead" worktree-agent-sub-ahead \
+    "a submodule commit the copy never recorded must list as unlanded"
+  out=$("$HELPER" retire "$dir/task" "$dir/tmp" 2>&1)
+  expect_code 1 $? "retire must refuse copies whose submodules hold work: $out"
+  assert_contains "$out" "REFUSED: worktree $dirty" "a copy with uncommitted submodule work was not refused"
+  assert_contains "$out" "REFUSED: worktree $ahead" "a copy with an unrecorded submodule commit was not refused"
+  assert_present "$dirty/sub/work.txt" "uncommitted submodule work was discarded"
+  [ "$(git -C "$ahead/sub" rev-parse HEAD)" = "$sub_tip" ] || fail "an unrecorded submodule commit was discarded"
+
   copy=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-sub-scout"}' 2>/dev/null)
   git -C "$copy" -c protocol.file.allow=always submodule update -q --init
   gone=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-gone"}' 2>/dev/null)
@@ -235,7 +258,64 @@ test_retire_forces_past_submodules_and_locks() {
   [ -z "$("$HELPER" list "$dir/task" "$dir/tmp")" ] || fail "copies remain registered after a discard"
   git -C "$dir/main" show-ref --verify --quiet refs/heads/worktree-agent-sub-scout \
     || fail "a discard must keep every branch"
-  pass "retire: populated submodules and locks never block a removal that is already authorized"
+  pass "retire: submodule work blocks a ship retire; populated submodules and locks never block an authorized one"
+}
+
+test_list_matches_a_vanished_scratch_root() {
+  local dir copy out
+  dir=$(make_world vanished)
+  mkdir -p "$dir/real-tmp"
+  ln -s "$dir/real-tmp" "$dir/tmp-link"
+  copy=$(hook create "$dir/task" "$dir/tmp-link/fm-task" '{"name":"agent-v"}' 2>/dev/null)
+  [ "$copy" = "$dir/real-tmp/fm-task/worktrees/agent-v" ] \
+    || fail "fixture: create must register the canonical path, got '$copy'"
+  rm -rf "$dir/real-tmp/fm-task"
+
+  assert_row "$("$HELPER" list "$dir/task" "$dir/tmp-link/fm-task")" missing "$copy" worktree-agent-v \
+    "a copy under a vanished scratch root reached through a symlink must list as missing"
+  out=$("$HELPER" retire "$dir/task" "$dir/tmp-link/fm-task" 2>&1)
+  expect_code 0 $? "retire must deregister a copy under a vanished scratch root: $out"
+  git -C "$dir/main" worktree list --porcelain | grep -Fxq "worktree $copy" \
+    && fail "the copy under a vanished scratch root is still registered"
+  pass "list/retire: a vanished scratch root reached through a symlink still matches its copies"
+}
+
+# fake_git <dir> <case-pattern> <exit> <message>: put a git in <dir> that fails
+# invocations whose space-joined arguments match <case-pattern> and runs the
+# real git for everything else.
+fake_git() {
+  local real_git
+  real_git=$(command -v git)
+  mkdir -p "$1"
+  cat > "$1/git" <<EOF
+#!/usr/bin/env bash
+case " \$* " in
+  $2) echo "$4" >&2; exit $3 ;;
+esac
+exec "$real_git" "\$@"
+EOF
+  chmod +x "$1/git"
+}
+
+test_inventory_fails_closed_without_worktree_list_z() {
+  local dir copy listing out
+  dir=$(make_world inventory)
+  copy=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-inv"}' 2>/dev/null)
+
+  # git before 2.36 has no `worktree list -z`.
+  fake_git "$dir/git-old" '*" worktree list "*" -z "*' 129 "error: unknown switch z"
+  listing=$(PATH="$dir/git-old:$PATH" "$HELPER" list "$dir/task" "$dir/tmp")
+  expect_code 0 $? "list must work on a git without worktree list -z"
+  assert_row "$listing" landed "$copy" worktree-agent-inv "list missed a copy on a git without worktree list -z"
+
+  fake_git "$dir/git-broken" '*" worktree list "*' 128 "fatal: simulated worktree list failure"
+  out=$(PATH="$dir/git-broken:$PATH" "$HELPER" list "$dir/task" "$dir/tmp" 2>&1)
+  expect_code 1 $? "list must fail when git cannot list worktrees"
+  assert_contains "$out" "cannot list the registered worktrees" "the list failure lacked its reason"
+  out=$(PATH="$dir/git-broken:$PATH" "$HELPER" retire "$dir/task" "$dir/tmp" 2>&1)
+  expect_code 1 $? "retire must fail when git cannot list worktrees"
+  assert_present "$copy" "a failed inventory still removed a copy"
+  pass "list/retire: fail closed when git cannot list worktrees, and need no worktree list -z"
 }
 
 test_retire_deletes_branch_landed_on_remote() {
@@ -311,4 +391,6 @@ test_create_fails_closed
 test_list_and_retire_classify_copies
 test_retire_forces_past_submodules_and_locks
 test_retire_deletes_branch_landed_on_remote
+test_list_matches_a_vanished_scratch_root
+test_inventory_fails_closed_without_worktree_list_z
 test_spawn_wires_claude_worker_hooks

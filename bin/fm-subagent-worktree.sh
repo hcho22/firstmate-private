@@ -64,10 +64,13 @@
 # list    Prints one `<state>\t<path>\t<branch>` line per registered worktree of
 #         <anchor>'s repository whose path lies inside one of the <dir>s
 #         (default: <anchor>), excluding the main checkout and each <dir>
-#         itself. <state> is:
-#           landed    clean (ignored files allowed) and its HEAD is contained in
-#                     <anchor>'s HEAD or in any remote-tracking ref - no work
-#                     would be lost by removing it;
+#         itself. Each <dir> is resolved through symlinks even after it is
+#         gone, so a vanished scratch root still matches its copies. Exits 1
+#         when git cannot list the repository's worktrees. <state> is:
+#           landed    clean (ignored files allowed; submodules are checked
+#                     whatever their `ignore` setting) and its HEAD is
+#                     contained in <anchor>'s HEAD or in any remote-tracking
+#                     ref - no work would be lost by removing it;
 #           unlanded  uncommitted or untracked changes, commits found nowhere
 #                     else, or a copy that cannot be inspected;
 #           locked    git-locked, so it is never removed without --discard;
@@ -141,6 +144,13 @@ read_hook_payload() {
     || die "worktree hook payload is not a JSON object"
 }
 
+# Set WORKTREE_PORCELAIN to `git worktree list --porcelain` for <repo>'s
+# repository, or die when git cannot list it.
+read_worktree_porcelain() {  # <repo>
+  WORKTREE_PORCELAIN=$(git -C "$1" worktree list --porcelain) \
+    || die "cannot list the registered worktrees of $1"
+}
+
 # Echo the main checkout of the repository that owns <worktree>.
 main_checkout_of() {
   local line
@@ -153,8 +163,9 @@ main_checkout_of() {
 
 # True when <canonical-path> is a registered worktree of <repo>'s repository.
 registered_worktree() {  # <repo> <canonical-path>
-  local repo=$1 want=$2 line path real
-  while IFS= read -r -d '' line; do
+  local want=$2 line path real
+  read_worktree_porcelain "$1"
+  while IFS= read -r line; do
     case "$line" in
       "worktree "*)
         path=${line#worktree }
@@ -162,7 +173,9 @@ registered_worktree() {  # <repo> <canonical-path>
         [ "$real" != "$want" ] || return 0
         ;;
     esac
-  done < <(git -C "$repo" worktree list --porcelain -z 2>/dev/null)
+  done <<EOF
+$WORKTREE_PORCELAIN
+EOF
   return 1
 }
 
@@ -251,7 +264,7 @@ commit_landed() {  # <anchor> <commit>
 # Classify one existing copy. Echoes landed|unlanded.
 classify_copy() {  # <anchor> <path> <head>
   local anchor=$1 path=$2 head=$3 status
-  status=$(git -C "$path" status --porcelain 2>/dev/null) || { echo unlanded; return; }
+  status=$(git -C "$path" status --porcelain --ignore-submodules=none 2>/dev/null) || { echo unlanded; return; }
   if [ -z "$status" ] && [ -n "$head" ] && commit_landed "$anchor" "$head"; then
     echo landed
   else
@@ -276,7 +289,7 @@ retire_branch() {  # <anchor> <branch>
 # lies inside one of SCOPES, excluding each scope directory itself.
 record_copy() {  # <anchor> <path> <head> <branch> <locked> <prunable>
   local anchor=$1 path=$2 head=$3 branch=$4 locked=$5 prunable=$6 real scope_dir in_scope=0 state line
-  real=$(canonical_dir "$path") || real=$path
+  real=$(canonical_path "$path") || real=$path
   for scope_dir in ${SCOPES[@]+"${SCOPES[@]}"}; do
     [ "$real" != "$scope_dir" ] || return 0
     if path_inside "$real" "$scope_dir"; then
@@ -304,11 +317,12 @@ collect_copies() {
   SCOPES=()
   for dir in "$@"; do
     [ -n "$dir" ] || continue
-    real=$(canonical_dir "$dir") || real=${dir%/}
+    real=$(canonical_path "$dir") || real=${dir%/}
     SCOPES+=("$real")
   done
+  read_worktree_porcelain "$anchor"
   LIST_OUT=
-  while IFS= read -r -d '' line; do
+  while IFS= read -r line; do
     case "$line" in
       "worktree "*)
         [ "$records" -lt 2 ] || record_copy "$anchor" "$path" "$head" "$branch" "$locked" "$prunable"
@@ -321,7 +335,9 @@ collect_copies() {
       locked|"locked "*) locked=1 ;;
       prunable|"prunable "*) prunable=1 ;;
     esac
-  done < <(git -C "$anchor" worktree list --porcelain -z 2>/dev/null)
+  done <<EOF
+$WORKTREE_PORCELAIN
+EOF
   [ "$records" -lt 2 ] || record_copy "$anchor" "$path" "$head" "$branch" "$locked" "$prunable"
 }
 
