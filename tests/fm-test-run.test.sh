@@ -741,6 +741,73 @@ EOF
   pass "every script, serial or concurrent, runs with its own private TMPDIR"
 }
 
+# Only the real-herdr-gated and live-harness-optin families may reach the real
+# herdr binary. Every other script finds the runner's refusing stand-in first on
+# PATH, so it can neither talk to a live Herdr session nor start a server in the
+# real Herdr config, and the runner fails it even when the script exits 0.
+test_non_herdr_scripts_cannot_reach_the_real_herdr() {
+  local tmp repo realbin script jobs rc out
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-herdr-guard.XXXXXX")
+  repo="$tmp/repo"
+  realbin="$tmp/realbin"
+  mkdir -p "$realbin"
+  init_changed_fixture_repo "$repo"
+  # Stands in for the installed binary: every call it receives is recorded.
+  cat >"$realbin/herdr" <<'SH'
+#!/usr/bin/env bash
+printf '%s %s\n' "$(basename "$FM_TEST_HERDR_CALLER")" "$*" >>"$FM_TEST_REAL_HERDR_LOG"
+SH
+  chmod +x "$realbin/herdr"
+  # fm-cd-pretool-check is proven isolated (concurrent under auto), fm-backend-orca
+  # is a guarded family in the serial tail, fm-pr-merge never calls herdr, and
+  # fm-backend-herdr-smoke is real-herdr-gated.
+  for script in fm-cd-pretool-check.test.sh fm-backend-orca.test.sh fm-backend-herdr-smoke.test.sh; do
+    cat >"$repo/tests/$script" <<'SH'
+#!/usr/bin/env bash
+FM_TEST_HERDR_CALLER=$0 herdr status --json >/dev/null 2>&1 || true
+echo "ok - herdr guard fixture"
+SH
+    chmod +x "$repo/tests/$script"
+  done
+  cat >"$repo/tests/fm-pr-merge.test.sh" <<'SH'
+#!/usr/bin/env bash
+echo "ok - no herdr fixture"
+SH
+  chmod +x "$repo/tests/fm-pr-merge.test.sh"
+
+  for jobs in 1 auto; do
+    : >"$tmp/real.log"
+    if [ "$jobs" = 1 ]; then
+      set -- --jobs 1
+    else
+      set --
+    fi
+    rc=0
+    (cd "$repo" && PATH="$realbin:$PATH" FM_TEST_REAL_HERDR_LOG="$tmp/real.log" bin/fm-test-run.sh \
+        tests/fm-cd-pretool-check.test.sh tests/fm-backend-orca.test.sh tests/fm-pr-merge.test.sh \
+        tests/fm-backend-herdr-smoke.test.sh "$@") >"$tmp/run-$jobs.out" 2>&1 || rc=$?
+    out=$(cat "$tmp/run-$jobs.out")
+    [ "$rc" -ne 0 ] || fail "a run whose scripts reached the real herdr passed (jobs=$jobs): $out"
+    for script in fm-cd-pretool-check.test.sh fm-backend-orca.test.sh; do
+      assert_contains "$out" "not ok - tests/$script reached the real herdr binary 1 time(s) (first: herdr status --json)" \
+        "the guarded $script was not failed for reaching herdr (jobs=$jobs)"
+      printf '%s\n' "$out" | grep -E "^FM_TEST_END .* tests/$script exit=1 " >/dev/null \
+        || fail "the guarded $script did not record exit 1 (jobs=$jobs): $out"
+    done
+    printf '%s\n' "$out" | grep -E '^FM_TEST_END .* tests/fm-pr-merge.test.sh exit=0 ' >/dev/null \
+      || fail "a guarded script that never calls herdr was failed (jobs=$jobs): $out"
+    printf '%s\n' "$out" | grep -E '^FM_TEST_END .* tests/fm-backend-herdr-smoke.test.sh exit=0 ' >/dev/null \
+      || fail "the real-herdr-gated script was failed (jobs=$jobs): $out"
+    assert_not_contains "$out" "fm-backend-herdr-smoke.test.sh reached the real herdr" \
+      "the real-herdr-gated script was refused (jobs=$jobs)"
+    [ "$(cat "$tmp/real.log")" = "fm-backend-herdr-smoke.test.sh status --json" ] \
+      || fail "only the real-herdr-gated script may reach the real binary (jobs=$jobs): $(cat "$tmp/real.log")"
+  done
+
+  rm -rf "$tmp"
+  pass "only the real-herdr-gated and live-harness-optin families reach the real herdr; any other script that does is failed"
+}
+
 test_family_proofs_run_in_separate_concurrent_phases() {
   local tmp repo script
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-family-phases.XXXXXX")
@@ -1767,6 +1834,7 @@ test_changed_bound_scales_with_the_duration_hint
 test_changed_uses_bounded_automatic_concurrency
 test_script_list_uses_bounded_automatic_concurrency
 test_every_script_gets_a_private_tmpdir
+test_non_herdr_scripts_cannot_reach_the_real_herdr
 test_family_proofs_run_in_separate_concurrent_phases
 test_empty_selection_emits_summary
 test_timing_markers_and_json

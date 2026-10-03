@@ -95,6 +95,19 @@ env FM_HOME="$remote_home" FM_ROOT_OVERRIDE="$FM_REMOTE_CODE_ROOT" \
 exit "$rc"
 SH
   chmod +x "$fb/fake-ssh"
+  # The remote leg rings the mate's pane through Herdr session fm-remote. This
+  # stands in for an empty running server there (status answers, the pane is
+  # absent), so the ring fails as it would on a host with no such pane, and the
+  # case never reaches the installed herdr, whose CLI would start a real
+  # fm-remote server in the captain's Herdr config.
+  cat > "$fb/herdr" <<'SH'
+#!/usr/bin/env bash
+case "${1:-}" in
+  status) printf '%s\n' '{"client":{"protocol":14,"version":"0.7.5"},"server":{"running":true,"protocol":14,"version":"0.7.5"}}' ;;
+  *) echo "error: pane not found" >&2; exit 1 ;;
+esac
+SH
+  chmod +x "$fb/herdr"
   printf '%s\n' "$fb"
 }
 

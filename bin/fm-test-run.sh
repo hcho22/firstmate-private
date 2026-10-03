@@ -113,6 +113,16 @@
 # script's or another run's fixtures. Running a test directly with bash does not
 # go through this runner and inherits the caller's environment.
 #
+# Real Herdr guard (execution only, serial and concurrent alike): only the
+# real-herdr-gated and live-harness-optin families may reach the real herdr
+# binary, and they do so through their own isolated lab sessions. Every other
+# script runs with a refusing `herdr` stand-in first on PATH, so a case without
+# a fake herdr of its own can neither talk to a live Herdr session nor start a
+# server in the real Herdr config (the herdr CLI starts one for a session it
+# does not find). The stand-in records each refused call, and the runner fails
+# the script with a line naming it even when the script itself exits 0, so a
+# missing fake is fixed rather than silently tolerated.
+#
 # Per-script machine-parseable markers (stdout):
 #   FM_TEST_BEGIN <iso8601> <script> family=<family> expected_gate_skip=<class>
 #   FM_TEST_END <iso8601> <script> exit=<code> duration_ms=<n> gate_skip=<true|false>
@@ -2140,8 +2150,30 @@ EOF
   [ -z "$scrubbed" ] || log "ignoring ambient variables a firstmate script reads or that name a live session: $scrubbed"
 }
 
+# prepare_herdr_guard: see "Real Herdr guard" in the header.
+prepare_herdr_guard() {
+  HERDR_GUARD_BIN="$RUN_TMP/herdr-guard-bin"
+  mkdir -p "$HERDR_GUARD_BIN"
+  cat >"$HERDR_GUARD_BIN/herdr" <<'SH'
+#!/usr/bin/env bash
+# bin/fm-test-run.sh's refusing herdr stand-in (header: "Real Herdr guard").
+printf 'herdr %s\n' "$*" >>"${FM_TEST_HERDR_GUARD_LOG:-/dev/null}" 2>/dev/null || true
+echo "fm-test-run: refused: this test reached the real herdr binary (herdr $*); only the real-herdr-gated and live-harness-optin families may, so give the case a fake herdr" >&2
+exit 97
+SH
+  chmod 0755 "$HERDR_GUARD_BIN/herdr"
+}
+
+herdr_guarded_family() {  # <family>
+  case "$1" in
+    real-herdr-gated|live-harness-optin) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
 [ "${#SCRIPTS[@]}" -eq 0 ] || prepare_test_runtimes
 [ "${#SCRIPTS[@]}" -eq 0 ] || scrub_ambient_environment
+[ "${#SCRIPTS[@]}" -eq 0 ] || prepare_herdr_guard
 
 RUN_ID="fm-test-run-${RUN_STARTED_MS}-$$"
 TOTAL=0
@@ -2254,10 +2286,15 @@ bounded_script_command() {
 
 run_script_bounded() {  # <script> <out> <stream> <id>
   local script=$1 out=$2 stream=$3 id=$4
-  local rc bound reason
+  local rc bound reason herdr_guard=0 saved_path=$PATH
   : "$id"
   bound=$(script_bound_secs "$script")
-  rm -f "$out.guard"
+  rm -f "$out.guard" "$out.herdr"
+  if herdr_guarded_family "$(family_for_basename "$(basename "$script")")"; then
+    herdr_guard=1
+    export FM_TEST_HERDR_GUARD_LOG="$out.herdr"
+    PATH="$HERDR_GUARD_BIN:$PATH"
+  fi
   set +e
   if [ "$stream" -eq 1 ]; then
     if [ "$bound" -gt 0 ]; then
@@ -2300,6 +2337,15 @@ run_script_bounded() {  # <script> <out> <stream> <id>
     [ -z "$reason" ] || { [ "$stream" -eq 1 ] && tail -1 "$out"; }
   fi
   rm -f "$out.guard"
+  PATH=$saved_path
+  unset FM_TEST_HERDR_GUARD_LOG
+  if [ "$herdr_guard" -eq 1 ] && [ -s "$out.herdr" ]; then
+    printf 'not ok - %s reached the real herdr binary %s time(s) (first: %s); only the real-herdr-gated and live-harness-optin families may, so give the case a fake herdr\n' \
+      "$script" "$(wc -l <"$out.herdr" | tr -d '[:space:]')" "$(head -1 "$out.herdr")" >>"$out"
+    [ "$stream" -eq 1 ] && tail -1 "$out"
+    [ "$rc" -ne 0 ] || rc=1
+  fi
+  rm -f "$out.herdr"
   return "$rc"
 }
 
