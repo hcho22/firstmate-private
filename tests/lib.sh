@@ -317,6 +317,22 @@ exit 0
 SH
 }
 
+# fm_fake_herdr_without_pane <dir>: a herdr whose server answers status and
+# holds no panes, so a remote leg's doorbell ring fails the way it does on a
+# host where the mate's pane is absent. A case whose code path rings a Herdr
+# pane needs this (or its own fake): bin/fm-test-run.sh refuses the installed
+# herdr outside the real-Herdr families, whose CLI would otherwise start a real
+# server for a production session such as fm-remote in the operator's config.
+fm_fake_herdr_without_pane() {
+  fm_shared_stub "$1" herdr <<'SH'
+#!/usr/bin/env bash
+case "${1:-}" in
+  status) printf '%s\n' '{"client":{"protocol":14,"version":"0.7.5"},"server":{"running":true,"protocol":14,"version":"0.7.5"}}' ;;
+  *) echo "error: pane not found" >&2; exit 1 ;;
+esac
+SH
+}
+
 # --- deterministic git identity and fixtures --------------------------------
 
 # fm_git_identity [name] [email]: export a fixed author/committer identity so

@@ -142,6 +142,8 @@ fi
 exit "$rc"
 SH
   chmod +x "$fb/fake-ssh"
+  # The remote leg rings the mate's pane through Herdr session fm-remote.
+  fm_fake_herdr_without_pane "$fb"
   printf '%s\n' "$fb"
 }
 
@@ -247,7 +249,7 @@ test_remote_steer_lands_in_remote_inbox() {
     *"$FM_FROMFIRST_MARK"*) : ;;
     *) fail "the remote record must carry the from-firstmate marker: $body" ;;
   esac
-  # The doorbell could not reach the fixture pane (no herdr CLI here); that
+  # The doorbell could not reach the fixture pane (the fake herdr has none); that
   # never fails the send, and the notice still names the durable record.
   assert_contains "$err" "durably recorded" \
     "a failed doorbell must be reported as a notice on a durably sent steer"
