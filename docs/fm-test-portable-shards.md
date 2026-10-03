@@ -7,6 +7,7 @@
 
 The current candidate timings came from the 2026-08-20 concurrent proof recorded in [fm-test-isolation-proof.md](fm-test-isolation-proof.md).
 The proof ran 24 candidates with four workers and no failures.
+`tests/fm-captain-hold-lifecycle.test.sh` was later split into itself and `tests/fm-captain-hold-records.test.sh`; its 35095 ms below covers both halves, which run together in that file's slot in `portable-parallel-1`.
 
 | duration_ms | script |
 |---:|---|
@@ -41,7 +42,7 @@ The two parallel lanes use longest-processing-time assignment from those measure
 
 | Lane | Script count | Estimated duration |
 |---|---:|---:|
-| `portable-parallel-1` | 11 | 134295 ms (~134.3 s) |
+| `portable-parallel-1` | 12 | 134295 ms (~134.3 s) |
 | `portable-parallel-2` | 13 | 126020 ms (~126.0 s) |
 | imbalance | | 8275 ms |
 

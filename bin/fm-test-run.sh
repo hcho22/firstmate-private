@@ -477,10 +477,14 @@ EOF
 # Portable parallel shard 1: LPT balance of the proven-isolated set using the
 # current concurrent-proof durations in docs/fm-test-isolation-proof.json.
 # Execution order is longest first so wall-clock stays near the balanced sum.
+# tests/fm-captain-hold-records.test.sh and tests/fm-captain-hold-lifecycle.test.sh
+# are the two halves of the suite that proof measured as one file, so together
+# they keep its slot and the balance (docs/fm-test-portable-shards.md).
 list_portable_parallel_1() {
   cat <<'EOF'
 tests/fm-x-mode.test.sh
 tests/fm-cd-pretool-check.test.sh
+tests/fm-captain-hold-records.test.sh
 tests/fm-captain-hold-lifecycle.test.sh
 tests/fm-test-run.test.sh
 tests/fm-composer-ghost.test.sh
@@ -497,7 +501,6 @@ EOF
 list_portable_parallel_2() {
   cat <<'EOF'
 tests/fm-backend-herdr.test.sh
-tests/fm-captain-hold-records.test.sh
 tests/fm-arm-pretool-check.test.sh
 tests/fm-crew-state.test.sh
 tests/fm-herdr-lab.test.sh
