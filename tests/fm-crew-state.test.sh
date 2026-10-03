@@ -1098,7 +1098,7 @@ test_no_timeout_uses_perl_bound() {
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${FM_FAKE_NM_CALLS:-/dev/null}"
 printf '%s\n' "$$" > "${FM_FAKE_NM_PID:-/dev/null}"
-while :; do :; done
+exec /bin/sleep 3600
 SH
   chmod +x "$d/fakebin/no-mistakes"
   toolbin=$(make_no_timeout_toolbin "$d")

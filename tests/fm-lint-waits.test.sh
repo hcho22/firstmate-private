@@ -312,6 +312,55 @@ SH
   pass "fm-lint-waits does not take a deadline set inside the loop as a clock bound"
 }
 
+# Comments are not code: an apostrophe in one opens no quote, and a clock or a
+# break named in one neither bounds a wait nor makes a paced for loop a wait.
+test_comments_are_not_code() {
+  local tmp out rc=0
+  tmp=$(fm_test_tmproot fm-lint-waits-comments)
+  write_case "$tmp" comments.test.sh <<'SH'
+#!/usr/bin/env bash
+i=0
+while [ ! -e "$m" ] && [ "$i" -LT 50 ]; do
+  touch "$probe"  # the watcher's first line
+  sleep 0.1
+  i=$((i + 1))
+done
+i=0
+while [ ! -e "$m" ] && [ "$i" -LT 50 ]; do
+  # SECONDS is not consulted here
+  sleep 0.1
+  i=$((i + 1))
+done
+i=0
+while [ ! -e "$m" ] && [ "$i" -LT 50 ]; do
+  sleep 0.1
+  i=$(($i + 1))
+done
+i=0
+while [ ! -e "$m" ] && [ "$i" -LT 50 ]; do
+  grep -q ' #' "$f" || :
+  sleep 0.1
+  i=$((i + 1))
+done
+FOR n in 1 2 3; do
+  # break out once it is ready
+  sleep 0.1
+done
+SH
+  out=$("$LINTW" "$tmp/comments.test.sh" 2>&1) || rc=$?
+  [ "$rc" -eq 1 ] || fail "counted waits around comments were not flagged (rc=$rc): $out"
+  assert_contains "$out" "comments.test.sh:3: counted wait of 50 x 0.1 s (5 s)" \
+    "an apostrophe in a trailing comment hid a counted wait"
+  assert_contains "$out" "comments.test.sh:9: counted wait of 50 x 0.1 s (5 s)" \
+    "a clock named in a comment exempted a counted wait"
+  assert_contains "$out" "comments.test.sh:15: counted wait of 50 x 0.1 s (5 s)" \
+    "a counter incremented as \$((\$i + 1)) was not read"
+  assert_contains "$out" "comments.test.sh:20: counted wait of 50 x 0.1 s (5 s)" \
+    "a # inside quotes was read as a comment"
+  assert_not_contains "$out" "comments.test.sh:25:" "a break named in a comment made a paced for loop a wait"
+  pass "fm-lint-waits reads comments as comments, not code"
+}
+
 test_repository_tests_are_clean() {
   local out
   out=$("$LINTW" 2>&1) || fail "the repository's tests have counted short waits:"$'\n'"$out"
@@ -359,5 +408,6 @@ test_flags_until_loops_body_guards_and_bin_sleep
 test_reads_heredoc_stubs_and_literal_default_bounds
 test_counts_only_the_loops_own_sleeps
 test_a_deadline_set_inside_the_loop_bounds_nothing
+test_comments_are_not_code
 test_repository_tests_are_clean
 test_default_lint_runs_the_waits_check

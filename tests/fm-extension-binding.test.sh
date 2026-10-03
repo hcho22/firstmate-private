@@ -259,7 +259,7 @@ elif mode.startswith("active-block|"):
     raw(success({"status":"result", "output":"active runner completed\n"}))
 elif request["operation"] == "source.poll": raw(success({"status":"no-result" if mode == "no-result" else "result", "output":"" if mode == "no-result" else f"external evidence: {mode}\n"}))
 elif request["operation"] == "result.classify": raw(success({"classification":"external-ready"}))
-elif request["operation"] == "result.terminal": raw(success({"value":True}))
+elif request["operation"] == "result.terminal": raw(success({"value":fixed != "terminal-false"}))
 elif request["operation"] == "result.silent":
     content = request.get("input", {}).get("content", "")
     if content == "external evidence: crash-silent\\n":
@@ -348,6 +348,11 @@ EXTENSION_WAIT_SECONDS=60
 # a speed expectation the sections below do not test, and a starved host can
 # exceed them while a package merely starts. Widen them to the same hang guard so
 # only a genuine hang fails; the startup-bounds section runs the handshake default.
+# The overrides reach only the hosts this suite starts locally. The remote-lifecycle
+# lane's host runs under the remote job worker, which starts every job with a fixed
+# environment (bin/fm-remote-job-worker.sh), so that lane keeps the 5 s defaults:
+# a residual recorded by the remote-extension-bounds decision, which made no
+# product change to carry the overrides across the worker.
 FM_EXTENSION_HANDSHAKE_TIMEOUT_MS=$((EXTENSION_WAIT_SECONDS * 1000))
 FM_EXTENSION_LAUNCH_READY_WAIT_MS=$((EXTENSION_WAIT_SECONDS * 1000))
 FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS=$((EXTENSION_WAIT_SECONDS * 1000))
@@ -2260,20 +2265,38 @@ pass "the handshake bound keeps its 5000 ms default and accepts overrides, and e
 # A terminal check whose handshake fails to answer is not a verdict. It must keep
 # the registration armed (the safe false path) AND leave a durable record, where
 # before it was discarded without a trace and the source silently stayed registered.
+# An adapter that answers "not terminal" also keeps the registration armed, but
+# that is a verdict and leaves no record. The answering source's id, slow, is a
+# prefix of the failing source's id, slow.terminal, so list must count each
+# source's own records and results only.
 P_SLOWT="$PACKAGES/slow-terminal"
 SLOWT_FLAG="$TMP_ROOT/slow-terminal.flag"
 make_package "$P_SLOWT" org.example.slowterm ext-slowterm "$(printf 'handshake-slow-when-flagged\n20\n%s' "$SLOWT_FLAG")"
+P_NOTTERM="$PACKAGES/not-terminal"
+make_package "$P_NOTTERM" org.example.notterm ext-notterm terminal-false
 H_SLOWT="$HOMES/slow-terminal"; new_home "$H_SLOWT"
 bind_package "$H_SLOWT" "$P_SLOWT" ext-slowterm >/dev/null
-slowt_registration=$(FM_HOME="$H_SLOWT" "$PROCEVENT" register-extension ext-slowterm slow-terminal --config-ref flag-slow-handshake)
+bind_package "$H_SLOWT" "$P_NOTTERM" ext-notterm >/dev/null
+notterm_registration=$(FM_HOME="$H_SLOWT" "$PROCEVENT" register-extension ext-notterm slow --config-ref good)
+notterm_token=$(printf '%s\n' "$notterm_registration" | sed -n 's/^owner-token: //p')
+FM_HOME="$H_SLOWT" "$PROCEVENT" start slow > "$TMP_ROOT/not-terminal-start.out" 2>&1 \
+  || fail "a not-terminal verdict made the runner fail: $(cat "$TMP_ROOT/not-terminal-start.out")"
+assert_grep 'external evidence: good' "$H_SLOWT/state/procevent-inbox/slow.1.result" \
+  "the not-terminal source captured no result"
+assert_present "$H_SLOWT/state/procevent/slow.source" "a not-terminal verdict retired its source"
+assert_not_contains "$(cat "$TMP_ROOT/not-terminal-start.out")" "terminal-check-failed" \
+  "the runner reported a not-terminal verdict as a failed terminal check"
+[ -z "$(find "$H_SLOWT/state/procevent-inbox" -name '*.terminal-check-failed')" ] \
+  || fail "a not-terminal verdict left a failed-terminal-check record"
+slowt_registration=$(FM_HOME="$H_SLOWT" "$PROCEVENT" register-extension ext-slowterm slow.terminal --config-ref flag-slow-handshake)
 slowt_token=$(printf '%s\n' "$slowt_registration" | sed -n 's/^owner-token: //p')
 # 15 s is far above a healthy handshake and below the fixture's 20 s delay, so only
 # the deliberately slow terminal-check handshake can reach it.
-FM_EXTENSION_HANDSHAKE_TIMEOUT_MS=15000 FM_HOME="$H_SLOWT" "$PROCEVENT" start slow-terminal \
+FM_EXTENSION_HANDSHAKE_TIMEOUT_MS=15000 FM_HOME="$H_SLOWT" "$PROCEVENT" start slow.terminal \
   > "$TMP_ROOT/slow-terminal-start.out" 2>&1 || fail "a failed terminal check made the runner fail"
-slowt_result=$(first_result "$H_SLOWT" slow-terminal) || fail "the slow-terminal source captured no result"
+slowt_result=$(first_result "$H_SLOWT" slow.terminal) || fail "the slow.terminal source captured no result"
 assert_grep 'evidence ahead of a slow terminal check' "$slowt_result" "the captured evidence was lost"
-assert_present "$H_SLOWT/state/procevent/slow-terminal.source" "a terminal check that failed to answer retired its source"
+assert_present "$H_SLOWT/state/procevent/slow.terminal.source" "a terminal check that failed to answer retired its source"
 slowt_base=${slowt_result%.result}
 slowt_record="$slowt_base.terminal-check-failed"
 assert_present "$slowt_record" "a terminal check that failed to answer left no durable record"
@@ -2283,14 +2306,17 @@ assert_grep '"operation":"result.terminal"' "$slowt_record" "the record did not 
 assert_grep '"code":"timeout"' "$slowt_record" "the record did not name the failure code"
 assert_grep '"extension_id":"org.example.slowterm"' "$slowt_record" "the record did not name the extension"
 assert_no_grep 'evidence ahead' "$slowt_record" "the record copied source output"
-assert_contains "$(cat "$TMP_ROOT/slow-terminal-start.out")" "terminal-check-failed: slow-terminal" \
+assert_contains "$(cat "$TMP_ROOT/slow-terminal-start.out")" "terminal-check-failed: slow.terminal" \
   "the runner did not report the failed terminal check"
 slowt_list=$(FM_HOME="$H_SLOWT" "$PROCEVENT" list)
 assert_contains "$slowt_list" "FAILED-TERMINAL-CHECKS" "list omitted the failed-terminal-check column"
-printf '%s\n' "$slowt_list" | awk '$1 == "slow-terminal" && $NF == 1 { found = 1 } END { exit !found }' \
+printf '%s\n' "$slowt_list" | awk '$1 == "slow.terminal" && $(NF - 1) == 1 && $NF == 1 { found = 1 } END { exit !found }' \
   || fail "list did not count the failed terminal check for its source: $slowt_list"
-FM_HOME="$H_SLOWT" "$PROCEVENT" retire slow-terminal --if-owner "$slowt_token" >/dev/null
-pass "a terminal check that fails to answer keeps the registration armed and leaves a durable record"
+printf '%s\n' "$slowt_list" | awk '$1 == "slow" && $(NF - 1) == 1 && $NF == 0 { found = 1 } END { exit !found }' \
+  || fail "list counted another source's records or results for a source whose id prefixes it: $slowt_list"
+FM_HOME="$H_SLOWT" "$PROCEVENT" retire slow.terminal --if-owner "$slowt_token" >/dev/null
+FM_HOME="$H_SLOWT" "$PROCEVENT" retire slow --if-owner "$notterm_token" >/dev/null
+pass "a terminal check that fails to answer leaves a durable record, a not-terminal verdict leaves none, and both keep the registration armed"
 fi
 
 printf '\nall extension-binding tests passed\n'

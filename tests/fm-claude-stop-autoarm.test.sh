@@ -121,10 +121,12 @@ SH
 #!/usr/bin/env bash
 echo "$$" >> "$FM_HOME/state/arm-ran"
 : > "$FM_HOME/state/arm-waiting"
-# A case that fails before releasing this arm removes its home on exit; stop
-# then instead of spinning on a release that can never come.
+# A case that fails before releasing this arm removes its home on exit, and a
+# regression that blocks the case itself never releases it; stop at either
+# instead of spinning on a release that can never come.
+deadline=$((SECONDS + 120))
 while [ ! -e "$FM_HOME/state/arm-release" ]; do
-  [ -d "$FM_HOME/state" ] || exit 1
+  [ -d "$FM_HOME/state" ] && [ "$SECONDS" -lt "$deadline" ] || exit 1
   sleep 0.02
 done
 printf 'watcher: FAILED - cycle ended without an actionable reason\n'
@@ -147,9 +149,11 @@ SH
 echo "$$" >> "$FM_HOME/state/arm-ran"
 n=$(wc -l < "$FM_HOME/state/arm-ran" | tr -d ' ')
 # Arm N stays mid-arm until its case releases it (arm-release.N). A case that
-# fails first removes its home; stop then instead of waiting forever.
+# fails first removes its home, and a regression that blocks the case itself
+# never releases it; stop at either instead of waiting forever.
+deadline=$((SECONDS + 120))
 while [ ! -e "$FM_HOME/state/arm-release.$n" ]; do
-  [ -d "$FM_HOME/state" ] || exit 1
+  [ -d "$FM_HOME/state" ] && [ "$SECONDS" -lt "$deadline" ] || exit 1
   sleep 0.02
 done
 printf 'watcher: started pid=%s (beacon fresh)\n' "$$"

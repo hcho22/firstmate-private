@@ -91,7 +91,7 @@ def unescape(text):
 
 
 def increments(var, text):
-    return re.search(r"\b%s=\$\(\(\s*%s\s*\+\s*1\s*\)\)|\(\(\s*%s\s*\+\+\s*\)\)|\(\(\s*%s\s*\+=\s*1\s*\)\)"
+    return re.search(r"\b%s=\$\(\(\s*\$?\{?%s\}?\s*\+\s*1\s*\)\)|\(\(\s*%s\s*\+\+\s*\)\)|\(\(\s*%s\s*\+=\s*1\s*\)\)"
                      % (var, var, var, var), text) is not None
 
 
@@ -122,8 +122,37 @@ def own_level(lines):
         yield line
 
 
+def split_code(line, in_quote=False):
+    """The line's code before its comment, and whether a single quote is open after it.
+
+    in_quote says a single-quoted string is already open where the line starts.
+    A comment is a # that starts a word outside quotes.
+    """
+    quote = "'" if in_quote else ""
+    i = 0
+    while i < len(line):
+        c = line[i]
+        if quote:
+            if c == "\\" and quote == '"':
+                i += 1
+            elif c == quote:
+                quote = ""
+        elif c == "\\":
+            i += 1
+        elif c in "'\"":
+            quote = c
+        elif c == "#" and (i == 0 or line[i - 1].isspace()):
+            return line[:i], False
+        i += 1
+    return line, quote == "'"
+
+
+def strip_comment(line):
+    return split_code(line)[0]
+
+
 def code_lines(lines):
-    """Yield body lines that are shell code, not quoted script or heredoc text."""
+    """Yield body lines' shell code, without comments, quoted script, or heredoc text."""
     in_quote = False
     heredoc = None
     for line in lines:
@@ -131,15 +160,12 @@ def code_lines(lines):
             if line.strip() == heredoc:
                 heredoc = None
             continue
+        opened = in_quote
+        code, in_quote = split_code(line, in_quote)
+        if not opened:
+            yield code
         if not in_quote:
-            yield line
-        if line.lstrip().startswith("#"):
-            continue
-        bare = DQ.sub("", line)
-        if bare.count("'") % 2 == 1:
-            in_quote = not in_quote
-        if not in_quote:
-            m = HEREDOC.search(bare)
+            m = HEREDOC.search(DQ.sub("", code))
             if m:
                 heredoc = m.group(1)
 
@@ -164,7 +190,7 @@ def literal_value(lines, i, var):
     only when it is a literal or a literal default such as ${2:-50}.
     """
     for j in range(i - 1, -1, -1):
-        text = unescape(lines[j])
+        text = unescape(strip_comment(lines[j]))
         values = assigns(var, text)
         if values:
             m = re.fullmatch(r'"?(?:([0-9]+)|\$\{[A-Za-z0-9_]+:-([0-9]+)\})"?;?', values[-1])
@@ -231,14 +257,14 @@ for path in sys.argv[1:]:
         indent = re.match(r"[ \t]*", line).group(0)
         # The header runs to the line that opens the body with `do`.
         h = i
-        while h < len(lines) and not re.search(r"(?:;|^|\s)do(?:\s|$)", lines[h]) and h - i < 10:
+        while h < len(lines) and not re.search(r"(?:;|^|\s)do(?:\s|$)", strip_comment(lines[h])) and h - i < 10:
             h += 1
         if h >= len(lines):
             continue
-        header = unescape(" ".join(lines[i:h + 1]))
+        header = unescape(" ".join(strip_comment(text) for text in lines[i:h + 1]))
         cond = re.split(r"(?:;|\s)do(?:\s|$)", header, maxsplit=1)[0]
-        if re.search(r";\s*done\b", lines[h]):
-            body = [re.split(r"(?:;|\s)do(?:\s|$)", lines[h], maxsplit=1)[-1]]
+        if re.search(r";\s*done\b", strip_comment(lines[h])):
+            body = [re.split(r"(?:;|\s)do(?:\s|$)", strip_comment(lines[h]), maxsplit=1)[-1]]
         else:
             closer = re.compile(re.escape(indent) + r"done(?:[\s;)|&]|$)")
             end = next((k for k in range(h + 1, len(lines)) if closer.match(lines[k])), None)

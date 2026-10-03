@@ -1400,6 +1400,21 @@ cmd_sweep_home() {
   printf 'swept: attempted=%s\n' "$attempted"
 }
 
+# Count the paths on stdin named <source-id>.<sequence>.<suffix>. A source id
+# may contain dots, so a name that merely starts with "<source-id>." can belong
+# to another source whose id extends this one.
+count_source_files() {  # <source-id> <suffix>
+  local name seq count=0
+  while IFS= read -r name; do
+    seq=${name##*/}
+    seq=${seq#"$1".}
+    seq=${seq%."$2"}
+    case "$seq" in ''|*[!0-9]*) continue ;; esac
+    count=$((count + 1))
+  done
+  printf '%s\n' "$count"
+}
+
 cmd_list() {
   local rec id adapter owner pending failed_checks
   if ! fm_procevent_any_registered "$STATE"; then
@@ -1415,8 +1430,9 @@ cmd_list() {
     fm_procevent_claim_state_locked "$id"
     case "$?" in 0) owner=live ;; 1) owner=none ;; 3) owner=orphaned ;; *) owner=uncertain ;; esac
     fm_procevent_source_lock_release "$id"
-    pending=$(fm_procevent_pending "$STATE" | grep -c "/$id\." || true)
-    failed_checks=$(find "$(fm_procevent_inbox_dir "$STATE")" -maxdepth 1 -name "$id.*.terminal-check-failed" 2>/dev/null | grep -c . || true)
+    pending=$(fm_procevent_pending "$STATE" | count_source_files "$id" result)
+    failed_checks=$(find "$(fm_procevent_inbox_dir "$STATE")" -maxdepth 1 -name "$id.*.terminal-check-failed" 2>/dev/null \
+      | count_source_files "$id" terminal-check-failed)
     printf '%-28s %-12s %-10s %-8s %s\n' "$id" "$adapter" "$owner" "$pending" "$failed_checks"
   done
 }
