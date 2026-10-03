@@ -194,6 +194,8 @@ test_list_and_retire_classify_copies() {
   assert_present "$dirty/f" "a dirty copy's work was removed"
   git -C "$dir/main" show-ref --verify --quiet refs/heads/worktree-agent-landed \
     && fail "a landed copy's merged branch should be deleted"
+  git -C "$dir/main" show-ref --verify --quiet refs/heads/worktree-agent-missing \
+    && fail "a deregistered missing copy's landed branch should be deleted"
 
   out=$("$HELPER" retire --discard "$dir/task" "$dir/task" "$dir/tmp" 2>&1)
   expect_code 0 $? "retire --discard should remove every remaining copy"
@@ -201,21 +203,32 @@ test_list_and_retire_classify_copies() {
   [ -z "$listing" ] || fail "copies remain after a discard: $listing"
   [ "$(git -C "$dir/main" rev-parse worktree-agent-unlanded)" = "$branch_tip" ] \
     || fail "a discard must keep the unlanded copy's branch so its commits stay reachable"
+  git -C "$dir/main" show-ref --verify --quiet refs/heads/worktree-agent-dirty \
+    && fail "a discard should delete a discarded copy's landed branch"
   assert_present "$dir/other-task/.git" "a discard touched a worktree outside the scope"
   pass "list/retire: classify landed, unlanded, locked, and missing copies; retire only what is safe"
+}
+
+# add_origin_submodule <case-dir> [<ignore>]: commit a `sub` submodule to
+# origin/main, with an optional .gitmodules `ignore` setting.
+add_origin_submodule() {
+  local dir=$1
+  git init -q "$dir/sub"
+  git -C "$dir/sub" commit -q --allow-empty -m sub
+  git -C "$dir/main" -c protocol.file.allow=always submodule add -q "$dir/sub" sub
+  if [ -n "${2:-}" ]; then
+    git -C "$dir/main" config -f .gitmodules submodule.sub.ignore "$2"
+    git -C "$dir/main" add .gitmodules
+  fi
+  git -C "$dir/main" commit -q -m "add submodule"
+  git -C "$dir/main" push -q origin main
 }
 
 test_retire_forces_past_submodules_and_locks() {
   local dir copy dirty ahead sub_tip gone listing out
   dir=$(make_world forced)
-  git init -q "$dir/sub"
-  git -C "$dir/sub" commit -q --allow-empty -m sub
-  git -C "$dir/main" -c protocol.file.allow=always submodule add -q "$dir/sub" sub
   # ignore=all hides every submodule change from a plain `git status`.
-  git -C "$dir/main" config -f .gitmodules submodule.sub.ignore all
-  git -C "$dir/main" add .gitmodules
-  git -C "$dir/main" commit -q -m "add submodule"
-  git -C "$dir/main" push -q origin main
+  add_origin_submodule "$dir" all
 
   copy=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-sub-ship"}' 2>/dev/null)
   git -C "$copy" -c protocol.file.allow=always submodule update -q --init
@@ -257,8 +270,33 @@ test_retire_forces_past_submodules_and_locks() {
   assert_contains "$out" "retired: $gone" "a discard did not deregister the locked vanished copy"
   [ -z "$("$HELPER" list "$dir/task" "$dir/tmp")" ] || fail "copies remain registered after a discard"
   git -C "$dir/main" show-ref --verify --quiet refs/heads/worktree-agent-sub-scout \
-    || fail "a discard must keep every branch"
+    && fail "a discard should delete a discarded copy's landed branch"
   pass "retire: submodule work blocks a ship retire; populated submodules and locks never block an authorized one"
+}
+
+test_submodule_commit_only_in_copy_is_unlanded() {
+  local dir copy sub_commit out
+  dir=$(make_world sub-unpushed)
+  add_origin_submodule "$dir"
+  copy=$(hook create "$dir/task" "$dir/tmp" '{"name":"agent-s"}' 2>/dev/null)
+  git -C "$copy" -c protocol.file.allow=always submodule update -q --init
+  git -C "$copy/sub" commit -q --allow-empty -m "submodule work"
+  sub_commit=$(git -C "$copy/sub" rev-parse HEAD)
+  git -C "$copy" add sub
+  git -C "$copy" commit -q -m "record submodule work"
+  git -C "$dir/task" merge -q --no-edit worktree-agent-s
+  [ -z "$(git -C "$copy" status --porcelain --ignore-submodules=none)" ] || fail "fixture: the copy must be clean"
+  git -C "$dir/task" merge-base --is-ancestor "$(git -C "$copy" rev-parse HEAD)" HEAD \
+    || fail "fixture: the copy's HEAD must be in the task HEAD"
+
+  assert_row "$("$HELPER" list "$dir/task" "$dir/tmp")" unlanded "$copy" worktree-agent-s \
+    "a copy whose submodule commit exists only in the copy must list as unlanded"
+  out=$("$HELPER" retire "$dir/task" "$dir/tmp" 2>&1)
+  expect_code 1 $? "retire must refuse a copy whose submodule commit exists nowhere else: $out"
+  assert_contains "$out" "REFUSED: worktree $copy" "a copy holding the only submodule commit was not refused"
+  assert_present "$copy" "a copy holding the only submodule commit was removed"
+  [ "$(git -C "$copy/sub" cat-file -t "$sub_commit")" = commit ] || fail "the only copy of a submodule commit was lost"
+  pass "list/retire: a submodule commit that exists only in the copy keeps the copy unlanded"
 }
 
 test_list_matches_a_vanished_scratch_root() {
@@ -390,6 +428,7 @@ test_create_resumes_and_attaches_without_reset
 test_create_fails_closed
 test_list_and_retire_classify_copies
 test_retire_forces_past_submodules_and_locks
+test_submodule_commit_only_in_copy_is_unlanded
 test_retire_deletes_branch_landed_on_remote
 test_list_matches_a_vanished_scratch_root
 test_inventory_fails_closed_without_worktree_list_z

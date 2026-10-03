@@ -68,7 +68,9 @@
 #         gone, so a vanished scratch root still matches its copies. Exits 1
 #         when git cannot list the repository's worktrees. <state> is:
 #           landed    clean (ignored files allowed; submodules are checked
-#                     whatever their `ignore` setting) and its HEAD is
+#                     whatever their `ignore` setting), every populated
+#                     submodule's HEAD and local branches, recursively, are on
+#                     that submodule's remote-tracking refs, and its HEAD is
 #                     contained in <anchor>'s HEAD or in any remote-tracking
 #                     ref - no work would be lost by removing it;
 #           unlanded  uncommitted or untracked changes, commits found nowhere
@@ -78,15 +80,15 @@
 #         <branch> is the checked-out branch name, or `detached`.
 # retire  Removes every listed `landed` copy, with --force so populated
 #         submodules cannot block a copy just verified clean, and deregisters
-#         every `missing` one even when it is locked. A retired landed copy's
-#         `worktree-*` branch is deleted only while its tip passes the same
-#         landed test, so a branch holding commits found nowhere else is kept.
-#         Every `unlanded` or `locked` copy is refused with a REFUSED line on
-#         stderr, exiting 1 when anything was refused or failed. --discard is
-#         for callers that already hold discard authority (teardown --force, or
-#         a scout's declared-scratch copy): it force-removes every listed copy
-#         whatever its state and keeps every branch, so commits stay
-#         reachable. Prints `retired: <path>` per removed copy on stdout.
+#         every `missing` one even when it is locked. Every `unlanded` or
+#         `locked` copy is refused with a REFUSED line on stderr, exiting 1
+#         when anything was refused or failed. --discard is for callers that
+#         already hold discard authority (teardown --force, or a scout's
+#         declared-scratch copy): it force-removes every listed copy whatever
+#         its state. After every removal, the copy's `worktree-*` branch is
+#         deleted only while its tip is contained in <anchor>'s HEAD or in a
+#         remote-tracking ref, so a branch holding commits found nowhere else
+#         is always kept. Prints `retired: <path>` per removed copy on stdout.
 #
 # bin/fm-teardown.sh uses `<task-worktree>` (or the project checkout when that
 # copy is gone) as <anchor> and both the task worktree and its scratch root as
@@ -263,9 +265,11 @@ commit_landed() {  # <anchor> <commit>
 
 # Classify one existing copy. Echoes landed|unlanded.
 classify_copy() {  # <anchor> <path> <head>
-  local anchor=$1 path=$2 head=$3 status
+  local anchor=$1 path=$2 head=$3 status unpushed
   status=$(git -C "$path" status --porcelain --ignore-submodules=none 2>/dev/null) || { echo unlanded; return; }
-  if [ -z "$status" ] && [ -n "$head" ] && commit_landed "$anchor" "$head"; then
+  unpushed=$(git -C "$path" submodule foreach --quiet --recursive \
+    'git log --format=%H -1 HEAD --branches --not --remotes --' 2>/dev/null) || { echo unlanded; return; }
+  if [ -z "$status" ] && [ -z "$unpushed" ] && [ -n "$head" ] && commit_landed "$anchor" "$head"; then
     echo landed
   else
     echo unlanded
@@ -381,9 +385,7 @@ cmd_retire() {
     fi
     if git -C "$anchor" worktree remove "${force[@]}" "$path" >/dev/null 2>&1; then
       printf 'retired: %s\n' "$path"
-      if [ "$discard" -eq 0 ] && [ "$state" = landed ]; then
-        retire_branch "$anchor" "$branch"
-      fi
+      retire_branch "$anchor" "$branch"
     else
       printf 'REFUSED: could not remove worktree %s (git kept it)\n' "$path" >&2
       failed=1
