@@ -557,10 +557,12 @@ test_changed_bound_scales_with_the_duration_hint() {
   cp "$RUNNER" "$repo/bin/fm-test-run.sh"
   # Both bounded runners log the bound they were handed and report a hang: the
   # automatic path's progress-aware guard (bound, backstop, watched output,
-  # reason file) and the explicit flat bound.
+  # reason file) and the explicit flat bound. The guard also writes a line to the
+  # file it watches, which must be the script's own reported output.
   cat >"$repo/bin/fm-timeout-lib.sh" <<'SH'
 fm_run_progress_bounded() {
   printf '%s\n' "$*" >>"$FM_TEST_BOUND_LOG"
+  printf 'fixture: the guard watches this output\n' >>"$3"
   printf 'idle\n' >"$4"
   return 124
 }
@@ -600,6 +602,8 @@ SH
   grep -Fq "$hinted made no progress for ${bound}s, its per-script bound, and was terminated" "$tmp/out" \
     || fail "a silent hinted script was not reported at its own bound: $(cat "$tmp/out")"
   grep -Eq "^FM_TEST_END .+ $hinted exit=124 " "$tmp/out" || fail "a hung hinted script was not recorded as exit 124"
+  [ "$(grep -c '^fixture: the guard watches this output$' "$tmp/out")" -eq 2 ] \
+    || fail "the guard did not watch each script's own output file: $(cat "$tmp/out")"
 
   : >"$log"
   set +e
@@ -1500,15 +1504,20 @@ test_scripts_run_without_the_callers_firstmate_state() {
   cat >"$repo/bin/fm-env-reader.sh" <<'SH'
 #!/usr/bin/env bash
 # A stand-in production script: the runner treats any FM_ name read here as one
-# that an ambient value must not reach.
+# that an ambient value must not reach, except the test-owned controls and
+# opt-in gates, which pass through even though production reads them.
 printf '%s %s\n' "${FM_ENVFIX_STAGE_FILE:-}" "${FMX_ENVFIX_TOKEN:-}"
+printf '%s %s %s %s %s %s %s\n' "${FM_TEST_ENVFIX_CONTROL:-}" "${FM_ISOLATION_ENVFIX_PROBE:-}" \
+  "${FM_ENVFIX_PROBE_LIVE:-}" "${FM_ENVFIX_PROBE_LIVE_E2E:-}" "${FM_ENVFIX_PROBE_E2E:-}" \
+  "${FM_ENVFIX_PROBE_EVAL:-}" "${FM_HARNESS_LIVENESS_DRIFT:-}"
 SH
   cat >"$repo/$fixture" <<'SH'
 #!/usr/bin/env bash
 for name in FM_ENVFIX_STAGE_FILE FMX_ENVFIX_TOKEN HERDR_ENV HERDR_PANE_ID \
   HERDR_SOCKET_PATH TMUX TMUX_PANE ZELLIJ_PANE_ID CMUX_WORKSPACE_ID \
-  ORCA_WORKTREE_ID FM_ENVFIX_UNREAD FM_TEST_ENVFIX_CONTROL FM_ENVFIX_PROBE_LIVE \
-  FM_ENVFIX_PROBE_E2E FM_ENVFIX_PROBE_EVAL; do
+  ORCA_WORKTREE_ID FM_ENVFIX_UNREAD FM_TEST_ENVFIX_CONTROL FM_ISOLATION_ENVFIX_PROBE \
+  FM_ENVFIX_PROBE_LIVE FM_ENVFIX_PROBE_LIVE_E2E FM_ENVFIX_PROBE_E2E FM_ENVFIX_PROBE_EVAL \
+  FM_HARNESS_LIVENESS_DRIFT; do
   if [ -n "$(printenv "$name" || true)" ]; then
     echo "ok - visible $name"
   else
@@ -1522,8 +1531,9 @@ SH
   FM_ENVFIX_STAGE_FILE=/stage FMX_ENVFIX_TOKEN=t HERDR_ENV=1 HERDR_PANE_ID=wG:pZ \
     HERDR_SOCKET_PATH=/live.sock TMUX=/tmp/tmux-1/default,1,0 TMUX_PANE=%1 \
     ZELLIJ_PANE_ID=1 CMUX_WORKSPACE_ID=w ORCA_WORKTREE_ID=o FM_ENVFIX_UNREAD=keep \
-    FM_TEST_ENVFIX_CONTROL=keep FM_ENVFIX_PROBE_LIVE=1 FM_ENVFIX_PROBE_E2E=1 \
-    FM_ENVFIX_PROBE_EVAL=1 "$runner" "$fixture" >"$tmp/out" 2>"$tmp/err"
+    FM_TEST_ENVFIX_CONTROL=keep FM_ISOLATION_ENVFIX_PROBE=1 FM_ENVFIX_PROBE_LIVE=1 \
+    FM_ENVFIX_PROBE_LIVE_E2E=1 FM_ENVFIX_PROBE_E2E=1 FM_ENVFIX_PROBE_EVAL=1 \
+    FM_HARNESS_LIVENESS_DRIFT=1 "$runner" "$fixture" >"$tmp/out" 2>"$tmp/err"
   rc=$?
   set -e
   out=$(cat "$tmp/out")
@@ -1532,8 +1542,8 @@ SH
     TMUX TMUX_PANE ZELLIJ_PANE_ID CMUX_WORKSPACE_ID ORCA_WORKTREE_ID; do
     assert_contains "$out" "ok - hidden $name" "$name reached a script run by the runner"
   done
-  for name in FM_ENVFIX_UNREAD FM_TEST_ENVFIX_CONTROL FM_ENVFIX_PROBE_LIVE \
-    FM_ENVFIX_PROBE_E2E FM_ENVFIX_PROBE_EVAL; do
+  for name in FM_ENVFIX_UNREAD FM_TEST_ENVFIX_CONTROL FM_ISOLATION_ENVFIX_PROBE FM_ENVFIX_PROBE_LIVE \
+    FM_ENVFIX_PROBE_LIVE_E2E FM_ENVFIX_PROBE_E2E FM_ENVFIX_PROBE_EVAL FM_HARNESS_LIVENESS_DRIFT; do
     assert_contains "$out" "ok - visible $name" "$name is a test-owned control or opt-in gate and must pass through"
   done
   assert_contains "$(cat "$tmp/err")" "FM_ENVFIX_STAGE_FILE" "the runner did not name what it dropped"
@@ -1547,7 +1557,8 @@ SH
   [ "$rc" -eq 0 ] || fail "the clean-environment fixture run failed: $(cat "$tmp/out2") $(cat "$tmp/err2")"
   for name in FM_ENVFIX_STAGE_FILE FMX_ENVFIX_TOKEN HERDR_ENV HERDR_PANE_ID HERDR_SOCKET_PATH \
     TMUX TMUX_PANE ZELLIJ_PANE_ID CMUX_WORKSPACE_ID ORCA_WORKTREE_ID FM_ENVFIX_UNREAD \
-    FM_TEST_ENVFIX_CONTROL FM_ENVFIX_PROBE_LIVE FM_ENVFIX_PROBE_E2E FM_ENVFIX_PROBE_EVAL; do
+    FM_TEST_ENVFIX_CONTROL FM_ISOLATION_ENVFIX_PROBE FM_ENVFIX_PROBE_LIVE FM_ENVFIX_PROBE_LIVE_E2E \
+    FM_ENVFIX_PROBE_E2E FM_ENVFIX_PROBE_EVAL FM_HARNESS_LIVENESS_DRIFT; do
     assert_contains "$(cat "$tmp/out2")" "ok - hidden $name" "the clean-environment run did not run the fixture"
   done
   assert_not_contains "$(cat "$tmp/err2")" "ignoring ambient variables" \

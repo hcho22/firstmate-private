@@ -890,6 +890,22 @@ kill -0 "$WATCH_PID" 2>/dev/null \
   && fail "the first restart watcher did not surface its actionable signal"
 wait "$WATCH_PID" >/dev/null 2>&1 || true
 WATCH_PID=
+# Handle that signal as firstmate would: drain and acknowledge the delivered
+# wake, and retire the task. The replacement watcher then has nothing to
+# resurface or find stale, so it stays in its poll loop behind the live lock.
+FM_HOME="$RESTART_HOME" FM_STATE_OVERRIDE="$RESTART_HOME/state" "$ROOT/bin/fm-wake-drain.sh" \
+  >/dev/null 2> "$TMP_ROOT/restart-drain.err" \
+  || fail "could not drain the first restart watcher's wake"
+restart_seq=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through \([0-9][0-9]*\) --recovery-generation .*/\1/p' \
+  "$TMP_ROOT/restart-drain.err")
+restart_generation=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--recovery-generation \([A-Za-z0-9._-][A-Za-z0-9._-]*\)$/\1/p' \
+  "$TMP_ROOT/restart-drain.err")
+[ -n "$restart_seq" ] && [ -n "$restart_generation" ] \
+  || fail "the first restart watcher's wake asked for no acknowledgement: $(cat "$TMP_ROOT/restart-drain.err")"
+FM_HOME="$RESTART_HOME" FM_STATE_OVERRIDE="$RESTART_HOME/state" "$ROOT/bin/fm-wake-drain.sh" \
+  --ack-through "$restart_seq" --recovery-generation "$restart_generation" >/dev/null \
+  || fail "could not acknowledge the first restart watcher's wake"
+rm -f "$RESTART_HOME/state/restart-task.meta"
 rm -f "$RESTART_HOME/state/.last-watcher-beat"
 PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$RESTART_HOME" \
   FM_POLL=1 FM_HOME_SUMMARY_INTERVAL=999999 FM_HOME_SUMMARY_TIMEOUT=2 \
@@ -905,12 +921,9 @@ done
   || fail "the replacement restart watcher did not begin polling"
 # Five complete polls behind the live lock, however long a loaded host takes:
 # longer than the 2 s refresh timeout, so a refresh wrongly started at the first
-# poll has timed out and logged by now. A watcher that exits meanwhile is
-# replaced below.
-if ! wait_for_polls "$RESTART_HOME/state/.last-watcher-beat" "$WATCH_PID" 5; then
-  kill -0 "$WATCH_PID" 2>/dev/null \
-    && fail "the replacement restart watcher did not complete five polls"
-fi
+# poll has timed out and logged by now.
+wait_for_polls "$RESTART_HOME/state/.last-watcher-beat" "$WATCH_PID" 5 \
+  || fail "the replacement restart watcher did not complete five polls: $(cat "$TMP_ROOT/restart-watch-two.out" "$TMP_ROOT/restart-watch-two.err" 2>/dev/null)"
 [ ! -s "$RESTART_HOME/state/.home-summary-refresh.log" ] \
   || fail "watcher restart queued refreshes behind a live publication lock: $(cat "$RESTART_HOME/state/.home-summary-refresh.log")"
 # The dead-lock phase runs under a fresh watcher with the production refresh

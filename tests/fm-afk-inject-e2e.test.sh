@@ -264,17 +264,35 @@ wait_for_pane_input_pending() {
 # Wait for the daemon to deliver the escalation digest: a submitted digest line
 # in the supervisor log and an empty escalation buffer. The daemon clears the
 # buffer only after the backend confirms the submit, so by then every keystroke
-# of that delivery, including any retried Enter, has landed in the log.
+# of that delivery, including any retried Enter, has landed in the log. A
+# duplicate digest or a stray Enter would come from a later daemon cycle, so it
+# then waits until two housekeeping ticks after the delivery have finished. Each
+# tick stamps .subsuper-last-housekeep before it runs, so the third new stamp
+# proves the two ticks before it complete.
 wait_for_digest_delivered() {  # <scenario>
-  local deadline=$((SECONDS + 60))
+  local deadline=$((SECONDS + 60)) delivered=0 last now ticks=0
   while [ "$SECONDS" -lt "$deadline" ]; do
     if grep -q 'Supervisor escalate' "$LOG_FILE" && [ ! -s "$STATE_DIR/.subsuper-escalations" ]; then
-      return 0
+      delivered=1
+      break
     fi
     kill -0 "$DAEMON_PID" 2>/dev/null || fail "$1: daemon exited before delivering the digest"
     sleep 0.2
   done
-  fail "$1: digest was not delivered within 60s; daemon log tail: $(tail -5 "$STATE_DIR/.supervise-daemon.log" 2>/dev/null)"
+  [ "$delivered" -eq 1 ] \
+    || fail "$1: digest was not delivered within 60s; daemon log tail: $(tail -5 "$STATE_DIR/.supervise-daemon.log" 2>/dev/null)"
+  deadline=$((SECONDS + 60))
+  last=$(cat "$STATE_DIR/.subsuper-last-housekeep" 2>/dev/null || true)
+  while [ "$ticks" -lt 3 ]; do
+    [ "$SECONDS" -lt "$deadline" ] || fail "$1: the daemon ran no further housekeeping after delivering the digest"
+    kill -0 "$DAEMON_PID" 2>/dev/null || fail "$1: daemon exited after delivering the digest"
+    sleep 0.2
+    now=$(cat "$STATE_DIR/.subsuper-last-housekeep" 2>/dev/null || true)
+    if [ "$now" != "$last" ]; then
+      ticks=$((ticks + 1))
+      last=$now
+    fi
+  done
 }
 
 # Wait for the daemon's first injection attempt after line <offset> of its log:

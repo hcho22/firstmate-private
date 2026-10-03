@@ -59,6 +59,14 @@ cat > "$REMOTE_ROOT/bin/fm-delay-job.sh" <<'SH'
 sleep "$1"
 printf 'ran\n' > "$2"
 SH
+cat > "$REMOTE_ROOT/bin/fm-hold-job.sh" <<'SH'
+#!/bin/bash
+# Hold the lane until the case creates the release file, and stop once the case
+# is gone or after 120 s, so a failed case never leaves the job waiting forever.
+deadline=$((SECONDS + 120))
+while [ ! -e "$1" ] && [ -d "${1%/*}" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.05; done
+printf 'ran\n' > "$2"
+SH
 cat > "$REMOTE_ROOT/bin/fm-touch-job.sh" <<'SH'
 #!/bin/bash
 printf 'ran\n' > "$1"
@@ -250,9 +258,13 @@ assert_absent "$FAKE_PERL_LOG" "the worker invoked an unavailable Perl runtime"
 pass "the worker preserves bounded argv and stdin in an empty environment"
 
 ACTIVE_SIDE_EFFECT="$TMP_ROOT/active-side-effect"
-FM_REMOTE_JOB_TIMEOUT=10
+ACTIVE_RELEASE="$TMP_ROOT/active-release"
+# The job stays active until this case releases it, so the readiness checks can
+# pass only on heartbeats the worker writes while the job runs, never on an idle
+# pass after it ends. Its execution timeout outlasts the probe's hang guard.
+FM_REMOTE_JOB_TIMEOUT=$((EVENT_WAIT_SECONDS * 2))
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
-  fm-delay-job.sh 4 "$ACTIVE_SIDE_EFFECT" < /dev/null > /dev/null
+  fm-hold-job.sh "$ACTIVE_RELEASE" "$ACTIVE_SIDE_EFFECT" < /dev/null > /dev/null
 JOB_ID=$FM_REMOTE_JOB_ID
 JOB_DIR="$STATE_ROOT/jobs/$JOB_ID"
 wait_until job_in_state "$JOB_DIR" running \
@@ -261,9 +273,12 @@ ACTIVE_WORKER_PID=$(cat "$STATE_ROOT/worker.pid")
 touch -t 200001010000 "$STATE_ROOT/worker.ready"
 wait_until fm_remote_job_probe "$ACCOUNT_HOME" \
   || fail "the active worker did not refresh its readiness heartbeat"
+job_in_state "$JOB_DIR" running || fail "the readiness probe passed only after the active job ended"
 fm_remote_job_ensure_worker "$REMOTE_ROOT" "$ACCOUNT_HOME" || fail "$FM_REMOTE_JOB_ERROR"
 [ "$(cat "$STATE_ROOT/worker.pid")" = "$ACTIVE_WORKER_PID" ] \
   || fail "ensure replaced a healthy worker during an active job"
+job_in_state "$JOB_DIR" running || fail "the active job ended before ensure had checked the worker"
+: > "$ACTIVE_RELEASE"
 fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
 [ "$FM_REMOTE_JOB_EXIT" -eq 0 ] || fail "the active job did not complete after the readiness probe"
 assert_present "$ACTIVE_SIDE_EFFECT" "the active job was interrupted by the concurrent readiness check"
@@ -347,15 +362,17 @@ fm_remote_job_reap "$ACCOUNT_HOME" "$JOB_ID" || fail "the expired queued job cou
 pass "the worker expires queued jobs before they can mutate"
 
 FIRST_DELAYED_SIDE_EFFECT="$TMP_ROOT/first-delayed-side-effect"
+FIRST_DELAYED_RELEASE="$TMP_ROOT/first-delayed-release"
 SECOND_DELAYED_SIDE_EFFECT="$TMP_ROOT/second-delayed-side-effect"
-# The first job holds the lane for longer than the second job's whole execution
-# timeout, so the second can complete only if its window starts at its claim
-# rather than when it was staged. A loaded host only lengthens the hold.
+# The first job holds the lane until the second job has been queued for longer
+# than its whole execution timeout, so the second can complete only if its
+# window starts at its claim rather than when it was staged. The hold is
+# measured from the second job's staging, so a loaded host only lengthens it.
 QUEUED_JOB_TIMEOUT=10
 FM_REMOTE_JOB_QUEUE_TIMEOUT=600
-FM_REMOTE_JOB_TIMEOUT=$EVENT_WAIT_SECONDS
+FM_REMOTE_JOB_TIMEOUT=$((EVENT_WAIT_SECONDS * 2))
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
-  fm-delay-job.sh $((QUEUED_JOB_TIMEOUT + 1)) "$FIRST_DELAYED_SIDE_EFFECT" < /dev/null > /dev/null
+  fm-hold-job.sh "$FIRST_DELAYED_RELEASE" "$FIRST_DELAYED_SIDE_EFFECT" < /dev/null > /dev/null
 FIRST_JOB_ID=$FM_REMOTE_JOB_ID
 FIRST_JOB_DIR="$STATE_ROOT/jobs/$FIRST_JOB_ID"
 wait_until job_in_state "$FIRST_JOB_DIR" running \
@@ -364,6 +381,9 @@ FM_REMOTE_JOB_TIMEOUT=$QUEUED_JOB_TIMEOUT
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
   fm-touch-job.sh "$SECOND_DELAYED_SIDE_EFFECT" < /dev/null > /dev/null
 JOB_ID=$FM_REMOTE_JOB_ID
+sleep $((QUEUED_JOB_TIMEOUT + 2))
+job_in_state "$FIRST_JOB_DIR" running || fail "the first delayed job stopped holding the lane"
+: > "$FIRST_DELAYED_RELEASE"
 fm_remote_job_wait "$ACCOUNT_HOME" "$FIRST_JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
 fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
 [ "$FM_REMOTE_JOB_EXIT" -eq 0 ] || fail "queue time consumed the second job's execution timeout"

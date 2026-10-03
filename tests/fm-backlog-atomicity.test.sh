@@ -2527,23 +2527,39 @@ tree_pids() {  # <pid>...
     }' | sort -n
 }
 
-# Stop every lane and everything it started, by exact pid. The trees are frozen
-# first and read again until they stop growing, so nothing can fork a
+# The lanes still running, one pid per line, from this shell's own job table. A
+# finished lane's pid is free for any process to reuse, so kill -0 on it proves
+# nothing about the lane.
+running_lanes() {
+  local pid running
+  running=" $(jobs -pr | tr '\n' ' ') "
+  for pid in "${LANE_PIDS[@]}"; do
+    case "$running" in *" $pid "*) printf '%s\n' "$pid" ;; esac
+  done
+}
+
+# Stop every running lane and everything it started, by exact pid. The trees are
+# frozen first and read again until they stop growing, so nothing can fork a
 # replacement between reading a tree and killing it, and no pid in it can be
 # recycled before the kill lands.
 stop_lanes() {
-  local pids next
+  local roots pids next
   [ "${#LANE_PIDS[@]}" -gt 0 ] || return 0
-  pids=$(tree_pids "${LANE_PIDS[@]}")
-  while :; do
+  roots=$(running_lanes)
+  if [ -n "$roots" ]; then
     # shellcheck disable=SC2086  # a list of pids, one word each
-    kill -STOP $pids 2>/dev/null || :
-    next=$(tree_pids "${LANE_PIDS[@]}")
-    [ "$next" != "$pids" ] || break
-    pids=$next
-  done
-  # shellcheck disable=SC2086
-  kill -KILL $pids 2>/dev/null || :
+    pids=$(tree_pids $roots)
+    while :; do
+      # shellcheck disable=SC2086
+      kill -STOP $pids 2>/dev/null || :
+      # shellcheck disable=SC2086
+      next=$(tree_pids $roots)
+      [ "$next" != "$pids" ] || break
+      pids=$next
+    done
+    # shellcheck disable=SC2086
+    kill -KILL $pids 2>/dev/null || :
+  fi
   wait "${LANE_PIDS[@]}" 2>/dev/null || :
   LANE_PIDS=()
 }
@@ -2597,11 +2613,7 @@ print_after_stop() {
 }
 
 lanes_running() {
-  local pid
-  for pid in "${LANE_PIDS[@]}"; do
-    kill -0 "$pid" 2>/dev/null && return 0
-  done
-  return 1
+  [ -n "$(running_lanes)" ]
 }
 
 run_lanes() {

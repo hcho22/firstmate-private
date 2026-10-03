@@ -413,7 +413,10 @@ test_report_avoids_scan_meta_lock_inversion() {
   while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$WORLD/meta-held" ]; do sleep 0.05; done
   [ -e "$WORLD/meta-held" ] || { reap "$holder"; fail "metadata lock holder did not start"; }
 
-  FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE" --startup &
+  # The longest scan budget, so the scan outlives any report that does not wait
+  # for it: a report that waits for the scan lock can finish only after the
+  # budget's backstop kills the scan blocked on the metadata lock.
+  FM_INACTIVE_RECONCILE_BUDGET_SECS=30 FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE" --startup &
   scan_pid=$!
   deadline=$((SECONDS + 60))
   while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$MATE/state/.inactive-outcome-reconcile.lock" ]; do
@@ -425,8 +428,10 @@ test_report_avoids_scan_meta_lock_inversion() {
   (run_report "$MATE" child && : > "$WORLD/report-complete") &
   report_pid=$!
   deadline=$((SECONDS + 60))
-  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$WORLD/report-complete" ]; do sleep 0.05; done
-  [ -e "$WORLD/report-complete" ] && completed=1
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$WORLD/report-complete" ] && kill -0 "$scan_pid" 2>/dev/null; do
+    sleep 0.05
+  done
+  [ -e "$WORLD/report-complete" ] && kill -0 "$scan_pid" 2>/dev/null && completed=1
   : > "$WORLD/release-meta"
   reap "$holder"
   reap "$report_pid"

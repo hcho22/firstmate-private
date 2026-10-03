@@ -88,7 +88,7 @@ while IFS= read -r -d '' a; do rargs+=("$a"); done \
 cmd=${rargs[0]}
 rc=0
 if [ "${FM_TEST_RECONCILE_REMOTE_DELAY:-0}" -gt 0 ]; then
-  delay_end=$((SECONDS + FM_TEST_RECONCILE_REMOTE_DELAY))
+  delay_end=$((SECONDS + FM_TEST_RECONCILE_REMOTE_DELAY + 1))
   while [ "$SECONDS" -lt "$delay_end" ] && [ -d "$remote_home" ]; do sleep 0.1; done
 fi
 env FM_HOME="$remote_home" FM_ROOT_OVERRIDE="$FM_REMOTE_CODE_ROOT" \
@@ -202,7 +202,10 @@ hold_lock_until_released() {  # <lock> <ready> <release>
     . "$1"
     fm_lock_acquire_wait "$2"
     : > "$3"
-    while [ ! -f "$4" ]; do sleep 0.01; done
+    while [ ! -f "$4" ]; do
+      [ -d "${4%/*}" ] || break
+      sleep 0.01
+    done
     fm_lock_release "$2"
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$1" "$2" "$3" &
 }
