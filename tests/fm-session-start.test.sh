@@ -312,7 +312,10 @@ SH
 # FM_FAKE_TMUX_MODE selects missing, ambiguous, unreadable, shell, or no-server;
 # missing reproduces real tmux's active-window fallback while inventory omits the
 # mate, and no-server has no tmux server at all until `new-session` starts one,
-# recording the environment it was started with in <spawned>.server.env.
+# recording the FM_ names, the CLAUDECODE harness marker, and the
+# RELAUNCH_ORDINARY_SENTINEL variable it was started with in
+# <spawned>.server.env. Every mode records the last literal text typed into a
+# window, which is the relaunch's launch command, in <spawned>.launch.
 make_fake_tmux_secondmate_recovery() {
   local fakebin=$1
   fm_shared_stub "$fakebin" "tmux" <<'SH'
@@ -330,7 +333,7 @@ if [ "$mode" = no-server ] && [ ! -e "$server" ]; then
   case "${1:-}" in
     new-session)
       printf '%s\n' "$*" >> "$log"
-      env | grep '^FM_' | sort > "$server.env" || true
+      env | grep -E '^(FM_[A-Za-z0-9_]*|CLAUDECODE|RELAUNCH_ORDINARY_SENTINEL)=' | sort > "$server.env" || true
       : > "$server"
       exit 0
       ;;
@@ -406,7 +409,15 @@ case "${1:-}" in
     printf '%%1\n'
     exit 0
     ;;
-  set-window-option|send-keys) exit 0 ;;
+  send-keys)
+    prev=
+    for arg in "$@"; do
+      [ "$prev" != -l ] || printf '%s' "$arg" > "$spawned.launch"
+      prev=$arg
+    done
+    exit 0
+    ;;
+  set-window-option) exit 0 ;;
 esac
 exit 0
 SH
@@ -507,23 +518,25 @@ exit 1
 SH
 }
 
-# run_session_start <home> <root> <path>
+# run_session_start <home> <root> <path> [pi-harness] [NAME=value...]
 # Drop every harness env marker from bin/fm-harness.sh detect_own so the
 # surrounding interactive shell cannot leak past the suite's fake ps harness.
 # Markers today: CLAUDECODE (claude), PI_CODING_AGENT plus FM_PI_HARNESS
 # (Pi family), GROK_AGENT (grok).
 # codex and opencode have no env markers (ancestry only). Without this, a local
 # claude/pi/grok session fails cases that pin a different fake harness while CI
-# (no ambient markers) still passes.
+# (no ambient markers) still passes. Trailing NAME=value words are set last, so a
+# case can deliberately hand session start a marker or any other inherited value.
 run_session_start() {
   local home=$1 root=$2 path=$3 pi_harness=${4:-}
+  shift $(( $# < 4 ? $# : 4 ))
   if [ -n "$pi_harness" ]; then
     env -u CLAUDECODE -u GROK_AGENT PI_CODING_AGENT=true FM_PI_HARNESS="$pi_harness" \
-      FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
+      FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" "$@" \
       "$SESSION_START"
   else
     env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
-      FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
+      FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" "$@" \
       "$SESSION_START"
   fi
 }
@@ -581,13 +594,17 @@ EOF
   printf '%s|%s|%s|%s|%s|%s\n' "$root" "$home" "$fakebin" "$mate" "$log" "$spawned"
 }
 
+# run_session_start_secondmate <root> <home> <fakebin> <mate> <log> <spawned>
+#   <mode> [NAME=value...]: trailing words reach session start as inherited
+#   environment, after run_session_start's own marker scrub.
 run_session_start_secondmate() {
   local root=$1 home=$2 fakebin=$3 mate=$4 log=$5 spawned=$6 mode=$7
+  shift 7
   TMUX='' FM_BACKEND=tmux FM_FAKE_TMUX_MODE="$mode" FM_FAKE_TMUX_LOG="$log" \
     FM_FAKE_TMUX_SPAWNED="$spawned" FM_FAKE_SECOND_MATE_HOME="$mate" \
     FM_FAKE_SECOND_MATE_ID="$SESSION_START_SECOND_MATE_ID" \
     FM_FAKE_HARNESS_PID=$$ \
-    run_session_start "$home" "$root" "$fakebin:$BASE_PATH"
+    run_session_start "$home" "$root" "$fakebin:$BASE_PATH" "" "$@"
 }
 
 prepare_session_start_herdr_secondmate() {
@@ -1462,35 +1479,93 @@ EOF
 # The deferred network stage reaches a backend too. When a recorded secondmate
 # endpoint reads as missing - a tmux home after a reboot, with no tmux server
 # running - its liveness sweep relaunches the secondmate through fm-spawn.sh, and
-# that relaunch is what starts the tmux server. Whatever the stage still exports
-# at that point becomes the global environment of every later window: a pane
-# whose fm-spawn.sh skips the watcher guard, or whose fm-bootstrap.sh runs only
-# the network half under a fleet-lock pid that no longer matches.
+# that relaunch is what starts the tmux server. Whatever reaches that launch
+# becomes the global environment of every later window: a pane whose fm-spawn.sh
+# skips the watcher guard, whose fm-bootstrap.sh runs only the network half under
+# a fleet-lock pid that no longer matches, or whose fm-crew-state.sh reads every
+# task through one long-gone snapshot. Startup pins its own home on the way,
+# and the session running startup may itself sit in a pane of an older server
+# that still hands out Firstmate's internal settings, which no owner along this
+# path ever reads, so none of them withdraws it. That older server also hands the
+# same settings to the relaunched secondmate's own pane.
 test_secondmate_relaunch_keeps_startup_variables_out_of_the_server() {
-  local rec root home fakebin mate log spawned server_env leaked
+  local rec root home fakebin mate log spawned server_env leaked name stale pi_env
+  local -a internal inherited
   rec=$(prepare_session_start_secondmate secondmate-relaunch-server-env)
   IFS='|' read -r root home fakebin mate log spawned <<EOF
 $rec
 EOF
+  stale="${root%/root}/stale"
+  mkdir -p "$stale"
+  # FM_BOOTSTRAP_DETECT_ONLY is the one internal setting left out: it turns this
+  # relaunch off by design, so inheriting it would prove nothing here.
+  inherited=(
+    FM_SESSION_START_STAGE_FILE="$stale/stage"
+    FM_CREW_STATE_META_OVERRIDE="$stale/alpha.meta"
+    FM_CREW_STATE_STATUS_OVERRIDE="$stale/alpha.status"
+    FM_HOME_SUMMARY_IF_IDLE=0
+    FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+    FM_TASKS_AXI_COMPATIBLE=1
+    FM_BOOTSTRAP_NETWORK=only
+    FM_BOOTSTRAP_NETWORK_LOCK_PID=1
+    FM_BOOTSTRAP_LOCKED=1
+    FM_BOOTSTRAP_VERBOSE_FACTS=1
+    FM_BOOTSTRAP_PARALLEL_DIR="$stale/parallel"
+    FM_SPAWN_NO_GUARD=1
+    FM_TIMING_LOG="$stale/timings"
+    FM_TIMING_EPOCH_MS=1
+  )
+  internal=()
+  for name in "${inherited[@]}"; do internal+=("${name%%=*}"); done
 
-  run_session_start_secondmate "$root" "$home" "$fakebin" "$mate" "$log" "$spawned" no-server >/dev/null
+  run_session_start_secondmate "$root" "$home" "$fakebin" "$mate" "$log" "$spawned" no-server \
+    "${inherited[@]}" CLAUDECODE=1 RELAUNCH_ORDINARY_SENTINEL=kept >/dev/null
   wait_for_network_stage "$home" "$root" \
     || fail "the deferred network stage never published: $(network_stage_report "$home" "$root")"
 
+  # The relaunch itself is unchanged: same window, same harness, same home.
   assert_contains "$(cat "$log")" "new-window" \
     "the deferred stage did not relaunch the missing secondmate: $(network_stage_report "$home" "$root")"
+  assert_contains "$(cat "$log")" "-n fm-$SESSION_START_SECOND_MATE_ID " \
+    "the relaunch changed the secondmate's window identity: $(cat "$log")"
+  assert_grep 'harness=pi' "$home/state/$SESSION_START_SECOND_MATE_ID.meta" \
+    "the relaunch changed the secondmate's harness"
+  assert_grep "home=$mate" "$home/state/$SESSION_START_SECOND_MATE_ID.meta" \
+    "the relaunch changed the secondmate's home"
+
   server_env="$spawned.server.env"
   assert_present "$server_env" "the relaunch never started the tmux server, so the environment check proved nothing"
-
-  # Tmux, unlike Herdr's launcher, keeps the home selection, and startup pins it
-  # to this same real home.
-  grep -Fqx "FM_STATE_OVERRIDE=$home/state" "$server_env" \
-    || fail "the relaunch started the tmux server for a different home: $(cat "$server_env")"
-  leaked=$(startup_variables_in_server_env "$server_env" \
-    'FM_FAKE_*' FM_BACKEND FM_HOME FM_ROOT_OVERRIDE FM_STATE_OVERRIDE)
+  for name in "${internal[@]}" FM_HOME FM_ROOT_OVERRIDE FM_STATE_OVERRIDE CLAUDECODE; do
+    ! grep -q "^$name=" "$server_env" \
+      || fail "the relaunch started the tmux server every later window inherits with $name: $(cat "$server_env")"
+  done
+  leaked=$(startup_variables_in_server_env "$server_env" 'FM_FAKE_*' FM_BACKEND RELAUNCH_ORDINARY_SENTINEL)
   [ -z "$leaked" ] || fail "the deferred secondmate relaunch left startup variables in the environment its tmux server hands to every window:$leaked"
+  grep -Fqx 'RELAUNCH_ORDINARY_SENTINEL=kept' "$server_env" \
+    || fail "the relaunch dropped an ordinary variable from its tmux server: $(cat "$server_env")"
+  grep -Fqx 'FM_BACKEND=tmux' "$server_env" \
+    || fail "the relaunch dropped the explicit backend selection from its tmux server: $(cat "$server_env")"
 
-  pass "a deferred secondmate relaunch starts its backend server without startup's internal variables"
+  # Run the typed launch command the way a pane of that older server would: with
+  # every internal setting still in its environment. The secondmate itself must
+  # start without them and in its own home.
+  assert_present "$spawned.launch" "the relaunch never typed its launch command"
+  pi_env="${root%/root}/pi.env"
+  fm_shared_stub "$fakebin" pi <<'SH'
+#!/usr/bin/env bash
+env > "$RELAUNCH_PI_ENV"
+SH
+  env "${inherited[@]}" RELAUNCH_PI_ENV="$pi_env" PATH="$fakebin:$BASE_PATH" \
+    bash -c "$(cat "$spawned.launch")" >/dev/null 2>&1
+  assert_present "$pi_env" "the typed launch command never started the secondmate: $(cat "$spawned.launch")"
+  for name in "${internal[@]}"; do
+    ! grep -q "^$name=" "$pi_env" \
+      || fail "the relaunched secondmate inherited $name from its pane: $(grep "^$name=" "$pi_env")"
+  done
+  grep -q "^FM_HOME=.*/secondmate-$SESSION_START_SECOND_MATE_ID\$" "$pi_env" \
+    || fail "the relaunched secondmate did not start in its own home: $(grep '^FM_HOME=' "$pi_env")"
+
+  pass "a deferred secondmate relaunch starts its backend server and the secondmate itself without startup's internal variables"
 }
 
 # --- composition: real scripts run, not reimplemented ------------------------

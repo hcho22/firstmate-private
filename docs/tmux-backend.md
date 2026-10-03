@@ -30,6 +30,8 @@ If the primary harness runs outside tmux, Firstmate creates or reuses a detached
 tmux attach -t firstmate
 ```
 
+When creating that session also starts the tmux server, the server starts from the environment [Runtime backend](configuration.md#runtime-backend-configbackend--fm_backend) describes, because every later window inherits it.
+
 Each task window is named `fm-<id>`.
 
 ```sh

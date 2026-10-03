@@ -429,6 +429,63 @@ test_server_ensure_skips_attach_when_already_exists() {
   pass "fm_backend_zellij_server_ensure: reuses an existing session without calling attach"
 }
 
+# A new session's server hands the environment its `attach -b` started with to
+# every later pane, so a launcher's home, harness identity, and Firstmate's
+# internal settings must not reach it while unrelated variables still do.
+test_server_ensure_scrubs_launcher_environment() {
+  local dir fb log name output
+  dir="$TMP_ROOT/server-env"; mkdir -p "$dir"; fb="$dir/fakebin"; log="$dir/env"
+  mkdir -p "$fb"
+  cat > "$fb/zellij" <<'SH'
+#!/usr/bin/env bash
+set -u
+case "${1:-}" in
+  list-sessions)
+    [ ! -e "$FM_ZELLIJ_SERVER_MARKER" ] || printf '%s\n' firstmate
+    ;;
+  attach)
+    {
+      for name in FM_HOME FM_ROOT_OVERRIDE FM_STATE_OVERRIDE CLAUDECODE FM_SUPERVISION_MODEL \
+        FM_SESSION_START_STAGE_FILE FM_CREW_STATE_META_OVERRIDE FM_CREW_STATE_STATUS_OVERRIDE \
+        FM_HOME_SUMMARY_IF_IDLE FM_HOME_SUMMARY_WORKER_BEST_EFFORT FM_TASKS_AXI_COMPATIBLE \
+        FM_BOOTSTRAP_NETWORK FM_BOOTSTRAP_NETWORK_LOCK_PID FM_BOOTSTRAP_DETECT_ONLY FM_BOOTSTRAP_LOCKED \
+        FM_BOOTSTRAP_VERBOSE_FACTS FM_BOOTSTRAP_PARALLEL_DIR FM_SPAWN_NO_GUARD FM_TIMING_LOG FM_TIMING_EPOCH_MS \
+        FM_ZELLIJ_SENTINEL; do
+        eval 'value=${'"$name"'-<unset>}'
+        printf '%s=%s\n' "$name" "$value"
+      done
+      printf 'args=%s\n' "$*"
+    } > "$FM_ZELLIJ_SERVER_ENV_LOG"
+    : > "$FM_ZELLIJ_SERVER_MARKER"
+    ;;
+esac
+exit 0
+SH
+  chmod +x "$fb/zellij"
+  PATH="$fb:$PATH" FM_ZELLIJ_SERVER_ENV_LOG="$log" FM_ZELLIJ_SERVER_MARKER="$dir/running" FM_ZELLIJ_SENTINEL=kept \
+    FM_HOME=/tmp/wrong-home FM_ROOT_OVERRIDE=/tmp/wrong-root FM_STATE_OVERRIDE=/tmp/wrong-state \
+    CLAUDECODE=1 FM_SUPERVISION_MODEL=autoarm \
+    FM_SESSION_START_STAGE_FILE=/tmp/stale-stage FM_CREW_STATE_META_OVERRIDE=/tmp/stale.meta FM_CREW_STATE_STATUS_OVERRIDE=/tmp/stale.status \
+    FM_HOME_SUMMARY_IF_IDLE=0 FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1 FM_TASKS_AXI_COMPATIBLE=1 \
+    FM_BOOTSTRAP_NETWORK=only FM_BOOTSTRAP_NETWORK_LOCK_PID=1 FM_BOOTSTRAP_DETECT_ONLY=1 FM_BOOTSTRAP_LOCKED=1 \
+    FM_BOOTSTRAP_VERBOSE_FACTS=1 FM_BOOTSTRAP_PARALLEL_DIR=/tmp/stale-par FM_SPAWN_NO_GUARD=1 \
+    FM_TIMING_LOG=/tmp/stale-timings FM_TIMING_EPOCH_MS=1 \
+    bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_server_ensure firstmate' "$ROOT"
+  expect_code 0 $? "server_ensure should start a session under a polluted launcher environment"
+  assert_present "$log" "server_ensure never launched the session, so the environment check proved nothing"
+  output=$(cat "$log")
+  for name in FM_HOME FM_ROOT_OVERRIDE FM_STATE_OVERRIDE CLAUDECODE FM_SUPERVISION_MODEL \
+    FM_SESSION_START_STAGE_FILE FM_CREW_STATE_META_OVERRIDE FM_CREW_STATE_STATUS_OVERRIDE \
+    FM_HOME_SUMMARY_IF_IDLE FM_HOME_SUMMARY_WORKER_BEST_EFFORT FM_TASKS_AXI_COMPATIBLE \
+    FM_BOOTSTRAP_NETWORK FM_BOOTSTRAP_NETWORK_LOCK_PID FM_BOOTSTRAP_DETECT_ONLY FM_BOOTSTRAP_LOCKED \
+    FM_BOOTSTRAP_VERBOSE_FACTS FM_BOOTSTRAP_PARALLEL_DIR FM_SPAWN_NO_GUARD FM_TIMING_LOG FM_TIMING_EPOCH_MS; do
+    assert_contains "$output" "$name=<unset>" "server_ensure leaked $name into the long-lived zellij session"
+  done
+  assert_contains "$output" "FM_ZELLIJ_SENTINEL=kept" "server_ensure removed an unrelated environment variable"
+  assert_contains "$output" "args=attach -b firstmate" "server_ensure changed the session it launches"
+  pass "fm_backend_zellij_server_ensure: starts a new session without the launcher's home, harness identity, or internal settings"
+}
+
 # --- dispatch wiring (fm-backend.sh) ------------------------------------------
 
 test_dispatch_routes_zellij_backend() {
@@ -1315,6 +1372,7 @@ test_resolve_bare_selector_refuses_cross_session_ambiguous_untagged
 test_session_exists_true_when_listed
 test_session_exists_false_when_absent
 test_server_ensure_skips_attach_when_already_exists
+test_server_ensure_scrubs_launcher_environment
 test_dispatch_routes_zellij_backend
 test_dispatch_busy_state_unknown_for_zellij
 test_create_task_refuses_duplicate_label

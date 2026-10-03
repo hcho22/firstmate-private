@@ -28,11 +28,14 @@ wait_for_capture_text() {  # <target> <text> [limit-secs]
 command -v tmux >/dev/null 2>&1 || { echo "skip: tmux not found"; exit 0; }
 REAL_TMUX=$(command -v tmux)
 SOCKET="fm-backend-smoke-$$"
+SOCKET_PATH="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/$SOCKET"
 SHIM_DIR=
 trap cleanup_all EXIT
 
 cleanup_all() {
   "$REAL_TMUX" -L "$SOCKET" kill-server >/dev/null 2>&1 || true
+  # kill-server can leave this run's socket file behind (tmux 3.6b does).
+  [ ! -S "$SOCKET_PATH" ] || rm -f "$SOCKET_PATH"
   [ -n "${SHIM_DIR:-}" ] && rm -rf "$SHIM_DIR"
 }
 
@@ -167,6 +170,50 @@ state=$(fm_backend_agent_state tmux "$TARGET")
 # Best-effort contract: killing an already-gone window must not error.
 fm_backend_tmux_kill "$TARGET" || fail "fm_backend_tmux_kill on an already-dead target must stay best-effort (never fail)"
 pass "real tmux: kill removes the window and the readable session inventory authoritatively classifies it missing"
+
+# --- container_ensure starts a server free of launcher-only environment -------
+# Outside tmux, container_ensure creates the detached `firstmate` session. With
+# no server running, that starts the server whose global environment every later
+# window inherits, so a launcher's home, harness identity, and Firstmate's
+# internal settings must stay out while ordinary variables still pass. A window
+# is then opened from a client that carries none of them, which shows exactly
+# what the server itself hands on.
+
+"$REAL_TMUX" -L "$SOCKET" kill-server >/dev/null 2>&1 || true
+SCRUBBED=(FM_HOME FM_STATE_OVERRIDE CLAUDECODE FM_SESSION_START_STAGE_FILE FM_CREW_STATE_META_OVERRIDE
+  FM_CREW_STATE_STATUS_OVERRIDE FM_BOOTSTRAP_NETWORK FM_SPAWN_NO_GUARD FM_TIMING_LOG)
+# shellcheck disable=SC2016  # $0 expands inside the child shell, not here.
+ses=$(env -u TMUX FM_HOME=/tmp/wrong-home FM_STATE_OVERRIDE=/tmp/wrong-state CLAUDECODE=1 \
+  FM_SESSION_START_STAGE_FILE=/tmp/stale-stage FM_CREW_STATE_META_OVERRIDE=/tmp/stale.meta \
+  FM_CREW_STATE_STATUS_OVERRIDE=/tmp/stale.status FM_BOOTSTRAP_NETWORK=only FM_SPAWN_NO_GUARD=1 \
+  FM_TIMING_LOG=/tmp/stale-timings FM_SMOKE_SENTINEL=kept \
+  bash -c '. "$0/bin/fm-backend.sh"; fm_backend_source tmux && fm_backend_tmux_container_ensure' "$ROOT") \
+  || fail "fm_backend_tmux_container_ensure failed with no tmux server running"
+[ "$ses" = firstmate ] || fail "container_ensure outside tmux should name the firstmate session, got '$ses'"
+global=$(tmux show-environment -g) || fail "real tmux: show-environment -g failed after container_ensure"
+for name in "${SCRUBBED[@]}"; do
+  ! printf '%s\n' "$global" | grep -q "^$name=" \
+    || fail "container_ensure started the tmux server with $name in the environment every later window inherits"
+done
+printf '%s\n' "$global" | grep -qx 'FM_SMOKE_SENTINEL=kept' \
+  || fail "container_ensure dropped an ordinary variable from the tmux server it started"
+
+PANE_ENV="$SHIM_DIR/pane.env"
+UNSET_ARGS=(-u TMUX)
+for name in "${SCRUBBED[@]}"; do UNSET_ARGS+=(-u "$name"); done
+env "${UNSET_ARGS[@]}" tmux new-window -d -t firstmate: "env > '$PANE_ENV'"
+for _ in $(seq 1 100); do
+  [ -s "$PANE_ENV" ] && break
+  sleep 0.1
+done
+[ -s "$PANE_ENV" ] || fail "real tmux: the probe window never recorded its environment"
+for name in "${SCRUBBED[@]}"; do
+  ! grep -q "^$name=" "$PANE_ENV" \
+    || fail "a window opened after container_ensure inherited $name from the server"
+done
+grep -qx 'FM_SMOKE_SENTINEL=kept' "$PANE_ENV" \
+  || fail "a window opened after container_ensure lost an ordinary variable the server started with"
+pass "real tmux: a server container_ensure starts hands later windows no launcher home, harness identity, or internal settings"
 
 cleanup_all
 trap - EXIT

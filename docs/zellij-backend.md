@@ -20,6 +20,7 @@ A spawn stops before creating a session or acquiring a worktree when Zellij or `
 
 Firstmate uses one shared session named `firstmate` by default.
 `FM_ZELLIJ_SESSION` can select another name for isolated verification.
+When Firstmate creates that session, its server starts from the environment [Runtime backend](configuration.md#runtime-backend-configbackend--fm_backend) describes, because every later pane inherits it.
 Attach with:
 
 ```sh
