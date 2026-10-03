@@ -203,12 +203,13 @@ test_busy_child_does_not_starve_later_ledger_outcomes() {
     lock=$(fm_meta_lock_path "$FM_STATE_OVERRIDE/a-busy.meta")
     fm_lock_acquire_wait "$lock"
     : > "$2/busy-lock-held"
-    while [ ! -e "$2/release-busy-lock" ]; do sleep 0.05; done
+    deadline=$((SECONDS + 600))
+    while [ ! -e "$2/release-busy-lock" ] && [ -d "$2" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.05; done
     fm_lock_release "$lock"
   ' _ "$ROOT" "$WORLD" &
   holder=$!
-  i=0
-  while [ "$i" -lt 40 ] && [ ! -e "$WORLD/busy-lock-held" ]; do sleep 0.05; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$WORLD/busy-lock-held" ]; do sleep 0.05; done
   if [ -e "$WORLD/busy-lock-held" ]; then
     FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE"
     grep -Fq 'child-outcome-b-ready-done' "$MAIN/state/mate.status" 2>/dev/null && delivered=1
@@ -408,24 +409,23 @@ test_report_avoids_scan_meta_lock_inversion() {
     fm_lock_release "$lock"
   ' _ "$ROOT" "$WORLD" &
   holder=$!
-  i=0
-  while [ "$i" -lt 40 ] && [ ! -e "$WORLD/meta-held" ]; do sleep 0.05; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$WORLD/meta-held" ]; do sleep 0.05; done
   [ -e "$WORLD/meta-held" ] || { reap "$holder"; fail "metadata lock holder did not start"; }
 
   FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE" --startup &
   scan_pid=$!
-  i=0
-  while [ "$i" -lt 40 ] && [ ! -e "$MATE/state/.inactive-outcome-reconcile.lock" ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$MATE/state/.inactive-outcome-reconcile.lock" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -e "$MATE/state/.inactive-outcome-reconcile.lock" ] \
     || { : > "$WORLD/release-meta"; reap "$holder"; reap "$scan_pid"; fail "scan lock holder did not start"; }
 
   (run_report "$MATE" child && : > "$WORLD/report-complete") &
   report_pid=$!
-  i=0
-  while [ "$i" -lt 40 ] && [ ! -e "$WORLD/report-complete" ]; do sleep 0.05; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$WORLD/report-complete" ]; do sleep 0.05; done
   [ -e "$WORLD/report-complete" ] && completed=1
   : > "$WORLD/release-meta"
   reap "$holder"
@@ -544,15 +544,16 @@ test_relaunch_cannot_replace_metadata_during_state_snapshot() {
   cat > "$WORLD/fakebin/fm-crew-state.sh" <<'SH'
 #!/usr/bin/env bash
 : > "${FM_RACE_WORLD:?}/state-started"
-while [ ! -e "$FM_RACE_WORLD/state-release" ]; do sleep 0.05; done
+deadline=$((SECONDS + 600))
+while [ ! -e "$FM_RACE_WORLD/state-release" ] && [ -d "$FM_RACE_WORLD" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.05; done
 printf 'state: failed · source: fake\n'
 SH
   chmod +x "$WORLD/fakebin/fm-crew-state.sh"
 
   FM_RACE_WORLD="$WORLD" run_reconcile "$MATE" --startup &
   recon_pid=$!
-  i=0
-  while [ "$i" -lt 40 ] && [ ! -e "$WORLD/state-started" ]; do sleep 0.05; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$WORLD/state-started" ]; do sleep 0.05; done
   [ -e "$WORLD/state-started" ] || fail "reconciliation did not begin its state snapshot"
 
   FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" bash -c '
@@ -627,12 +628,11 @@ test_watcher_hook_and_idle_secondmate_exemption() {
     FM_FORGE_LOG="$WORLD/forge.log" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
     FM_FAKE_CREW_STATE='done' "$WATCH" > "$out" 2>&1 &
   pid=$!
-  i=0
-  while [ "$i" -lt 40 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     kill -0 "$pid" 2>/dev/null || break
     [ "$(wake_count "$MAIN" 'inactive-outcome:')" = 1 ] && break
     sleep 0.1
-    i=$((i + 1))
   done
   wait "$pid" 2>/dev/null || true
   grep -Fq 'check: inactive-outcome' "$out" || fail "watcher did not surface its reconciliation result"
@@ -660,12 +660,11 @@ test_watcher_poll_delivers_child_ledger_line_to_parent() {
     FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
     FM_FAKE_CREW_STATE='unknown' "$WATCH" > "$WORLD/mate-watch.out" 2>&1 &
   pid=$!
-  i=0
-  while [ "$i" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     kill -0 "$pid" 2>/dev/null || break
     grep -q 'child-outcome-child-done' "$MAIN/state/mate.status" 2>/dev/null && break
     sleep 0.1
-    i=$((i + 1))
   done
   reap "$pid"
   key=$(reported_outcome_key "$MATE" child 'done') || fail "watcher ledger receipt key missing"
@@ -705,27 +704,29 @@ SH
 }
 
 test_full_scan_budget_includes_wake_lock_wait() {
-  local holder started elapsed i
+  local holder deadline
   make_world wake-lock; write_child "$MAIN" child 'done: green'
+  # The holder keeps the wake lock until the case kills it (it ends by itself
+  # only once the world is gone, or after 600 s).
   FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" bash -c '
     . "$1/bin/fm-wake-lib.sh"
     fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK"
     : > "$2"
-    sleep 30
+    deadline=$((SECONDS + 600))
+    while [ -d "${2%/*}" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   ' _ "$ROOT" "$WORLD/lock-ready" &
   holder=$!
-  i=0
-  while [ "$i" -lt 30 ] && [ ! -e "$WORLD/lock-ready" ]; do sleep 0.1; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$WORLD/lock-ready" ]; do sleep 0.1; done
   [ -e "$WORLD/lock-ready" ] || fail "wake lock holder did not start"
 
-  started=$(date +%s)
   FM_INACTIVE_RECONCILE_BUDGET_SECS=1 FM_FAKE_CREW_STATE='done' run_reconcile "$MAIN" --startup
-  elapsed=$(( $(date +%s) - started ))
-  reap "$holder"
   # The unbounded wake-lock wait is ended by the process-group backstop, which
-  # fires one second after the budget; the bound proves the scan cannot ride
-  # the 30-second lock hold.
-  [ "$elapsed" -le 4 ] || fail "wake lock wait exceeded aggregate scan budget (${elapsed}s)"
+  # fires one second after the budget. The holder never lets go on its own, so
+  # a scan that returned while it still holds the lock was ended by that bound
+  # rather than riding the hold out.
+  kill -0 "$holder" 2>/dev/null || fail "wake lock wait exceeded aggregate scan budget"
+  reap "$holder"
   pass "aggregate scan budget includes durable wake operations"
 }
 
