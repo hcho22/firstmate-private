@@ -41,6 +41,18 @@ pgid_of() { ps -p "$1" -o pgid= 2>/dev/null | tr -d '[:space:]'; }
 
 ppid_of() { ps -p "$1" -o ppid= 2>/dev/null | tr -d '[:space:]'; }
 
+# assert_reaped_tree <output> <supervisor> <serving child> <msg>: the sweep
+# stops a worker's whole process group through whichever member's ps line it
+# reads first and reports that member's pid. ps lists by pid, and once the host's
+# pids wrap the serving child sorts ahead of its supervisor, so either pid names
+# the reaped tree.
+assert_reaped_tree() {
+  case "$1" in
+    *"reaped abandoned remote job worker $2 ("* | *"reaped abandoned remote job worker $3 ("*) ;;
+    *) fail "$4 (missing: worker $2 or its serving child $3)"$'\n'"--- output ---"$'\n'"$1" ;;
+  esac
+}
+
 # Wait up to <seconds> for <pid> to exit; 0 when it did.
 wait_gone() { # <pid> <seconds>
   local pid=$1 deadline=$(( $(date +%s) + $2 ))
@@ -202,7 +214,7 @@ alive "$STALE" || fail "the dry run stopped the abandoned worker instead of only
 pass "a dry run reports the abandoned worker and signals nothing"
 
 out=$("$REAPER" 2>&1) || fail "the reaper failed: $out"
-assert_contains "$out" "$STALE" "the reaper did not report stopping the abandoned worker"
+assert_reaped_tree "$out" "$STALE" "$STALE_SERVE" "the reaper did not report stopping the abandoned worker"
 wait_gone "$STALE" 20 || fail "the abandoned worker survived the reaper"
 wait_gone "$STALE_SERVE" 20 || fail "the abandoned worker's serving child survived the reaper"
 pass "the reaper stops an abandoned worker's whole tree"
@@ -246,7 +258,7 @@ pass "an invalid sweep scope refuses the whole sweep instead of widening it"
 ln -s "$CASE3" "$TMP_ROOT/case3-link"
 out=$(FM_REMOTE_JOB_REAP_SCOPE="$TMP_ROOT/case3-link" "$REAPER" 2>&1) ||
   fail "a sweep scoped through a symlink failed: $out"
-assert_contains "$out" "reaped abandoned remote job worker $SCOPED" \
+assert_reaped_tree "$out" "$SCOPED" "$SCOPED_SERVE" \
   "a sweep scoped through a symlink did not reap the abandoned worker inside it"
 wait_gone "$SCOPED" 20 || fail "the in-scope abandoned worker survived its scoped sweep"
 wait_gone "$SCOPED_SERVE" 20 || fail "the in-scope worker's serving child survived its scoped sweep"
