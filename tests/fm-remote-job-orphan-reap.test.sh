@@ -171,10 +171,12 @@ pass "a worker stops its whole tree once its code root is pruned"
 # that presents the same command line from a pruned root without that
 # self-termination - the shape of every worker started before it shipped.
 
-# start_stand_in <remote-root>: start the stand-in as its own process group
-# leader and set STAND_IN to its supervisor pid.
+# start_stand_in <remote-root> [<term-marker>]: start the stand-in as its own
+# process group leader and set STAND_IN to its supervisor pid. With
+# <term-marker>, the serving child takes a second to handle TERM and then
+# records its clean exit there, so it outlives the supervisor inside the grace.
 start_stand_in() {
-  local root=$1
+  local root=$1 term_marker=${2:-}
   mkdir -p "$root/bin"
   cat > "$root/bin/fm-remote-job-worker.sh" <<'SH'
 #!/bin/bash
@@ -182,6 +184,9 @@ start_stand_in() {
 # respawns its serving child and never inspects its own code root.
 set -u
 if [ "${1:-}" = --serve ]; then
+  if [ -n "${STAND_IN_TERM_MARKER:-}" ]; then
+    trap 'sleep 1; : > "$STAND_IN_TERM_MARKER"; exit 0' TERM
+  fi
   while :; do sleep 0.2; done
 fi
 while :; do
@@ -193,7 +198,7 @@ SH
   chmod +x "$root/bin/fm-remote-job-worker.sh"
   printf 'fixture\n' > "$root/AGENTS.md"
   set -m
-  "$root/bin/fm-remote-job-worker.sh" >/dev/null 2>&1 &
+  STAND_IN_TERM_MARKER=$term_marker "$root/bin/fm-remote-job-worker.sh" >/dev/null 2>&1 &
   STAND_IN=$!
   set +m
   track "$STAND_IN"
@@ -222,6 +227,24 @@ pass "the reaper stops an abandoned worker's whole tree"
 out=$("$REAPER" 2>&1) || fail "a repeat reaper run failed: $out"
 assert_not_contains "$out" "$STALE" "the reaper reported an already-stopped worker"
 pass "the reaper is idempotent"
+
+# The stop waits on the whole tree, not only the member it signalled through:
+# a serving child still finishing its TERM handler after its supervisor is gone
+# is neither KILLed inside the grace nor reported as a survivor.
+GRACE_CASE="$TMP_ROOT/term-grace"
+start_stand_in "$GRACE_CASE/remote-root" "$GRACE_CASE/serve-term-handled"
+GRACEFUL=$STAND_IN
+GRACEFUL_SERVE=$(pgrep -P "$GRACEFUL" | head -n 1)
+rm -rf "$GRACE_CASE/remote-root"
+
+out=$("$REAPER" 2>&1) || fail "the reaper failed against a slow TERM handler: $out"
+assert_reaped_tree "$out" "$GRACEFUL" "$GRACEFUL_SERVE" \
+  "the reaper did not report stopping a tree whose serving child handles TERM slowly"
+[ -f "$GRACE_CASE/serve-term-handled" ] ||
+  fail "the reaper KILLed a serving child inside its TERM grace instead of waiting for the whole tree"
+wait_gone "$GRACEFUL" 20 || fail "the slow-TERM worker survived the reaper"
+wait_gone "$GRACEFUL_SERVE" 20 || fail "the slow-TERM serving child survived the reaper"
+pass "the reaper waits for the whole tree to answer TERM before it escalates or reports"
 
 # --- the sweep scope -----------------------------------------------------------
 
