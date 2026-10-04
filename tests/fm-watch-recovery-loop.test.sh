@@ -167,7 +167,7 @@ EOF
 # pre-loop wait that refreshes the liveness beacon and then exits with a
 # synthetic rearm-resurface.
 test_handling_successor_does_not_go_blind() {
-  local dir home state fakebin child event_start now out
+  local dir home state fakebin child event_start out
   dir=$(make_case recovery-gap-successor)
   home="$dir/home"
   state="$dir/state"
@@ -181,24 +181,22 @@ test_handling_successor_does_not_go_blind() {
     FM_POLL=1 FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=600 \
     FM_WATCH_HANDLING_SUCCESSOR=1 "$WATCH" > "$out" 2>&1 &
   child=$!
-  now=0
-  while [ "$now" -lt 40 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$child" ] && break
     sleep 0.1
-    now=$((now + 1))
   done
   [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$child" ] \
     || { kill -TERM "$child" 2>/dev/null || true; fail "handling successor did not take the watcher lock"; }
   sleep 0.4
   printf 'done: crew finished its task\n' >> "$state/crew.status"
   event_start=$(date +%s)
-  now=0
-  while [ "$now" -lt 20 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     if grep -q '^signal:' "$out" 2>/dev/null; then
       break
     fi
     sleep 0.5
-    now=$((now + 1))
   done
   if ! grep -q '^signal:' "$out" 2>/dev/null; then
     kill -TERM "$child" 2>/dev/null || true

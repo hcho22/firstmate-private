@@ -20,12 +20,26 @@ This record owns concurrent isolation evidence for the portable parallel candida
 | failed | 0 |
 | wall duration | 113278 ms |
 
+### 2026-10-03: the captain-hold suite split in two
+
+`tests/fm-captain-hold-lifecycle.test.sh` was split into itself and `tests/fm-captain-hold-records.test.sh`, sharing `tests/captain-hold-helpers.sh`, and the new file joined the candidate set.
+Both proofs were re-run on the commit that made the split, with the runtimes `bin/fm-test-run.sh` selects on this host (python 3.11 with `tomllib`, node 26) first on `PATH`, because the harness itself does not select runtimes and the host's first `python3` and `node` are older.
+The host was under heavy external load throughout (load averages 150 to 250 on 20 cores, mostly another crew's iOS simulators and builds).
+
+- Portable pool: `FM_ISOLATION_SUMMARY total=25 failed=1 concurrency=4 duration_ms=1138394`.
+- `pure-contract-unit` pool: `FM_ISOLATION_SUMMARY total=36 failed=2 concurrency=4 duration_ms=1127817`.
+- Both captain-hold files passed in both pools, each time running concurrently with each other and with the other candidates (portable: 388956 ms and 476434 ms; family: 453960 ms and 547520 ms).
+- Every failure was the harness refusing a gate-skipped candidate, not an isolation failure: this host has neither `tsc` nor the installed `@earendil-works/pi-coding-agent` package, so `tests/fm-pi-primary-types.test.sh` (both pools) and `tests/fm-calm-pi-extension.test.sh` (family pool) skip; their isolation evidence remains the proofs recorded here.
+
+The durations from these load-distorted runs are not used for lane balance: `docs/fm-test-isolation-proof.json` stays the 2026-08-20 artifact, and the two halves share the slot that file measured as one (`docs/fm-test-portable-shards.md`).
+
 ## Candidate set
 
 - `tests/fm-arm-pretool-check.test.sh`
 - `tests/fm-backend-herdr.test.sh`
 - `tests/fm-brief.test.sh`
 - `tests/fm-captain-hold-lifecycle.test.sh`
+- `tests/fm-captain-hold-records.test.sh`
 - `tests/fm-cd-pretool-check.test.sh`
 - `tests/fm-composer-ghost.test.sh`
 - `tests/fm-composer-lib.test.sh`
@@ -118,6 +132,8 @@ Both `bin/fm-test-run.sh` and the current proof harness therefore order concurre
 |---|---|
 | 1 | `FM_ISOLATION_SUMMARY total=32 failed=0 concurrency=4 duration_ms=161837` |
 | 2 | `FM_ISOLATION_SUMMARY total=32 failed=0 concurrency=4 duration_ms=156462` |
+
+Re-run on 2026-10-03 for the captain-hold split (36 candidates by then): both halves passed concurrently; see "2026-10-03: the captain-hold suite split in two" above for the result and its two gate-skip refusals.
 
 This family is what a change to `bin/fm-test-run.sh` itself selects, so it decides that selection's wall clock.
 Before admission, 14 of its scripts fell to the serial tail and the 33-script selection measured 327.3s against a 300s budget: the concurrent group was 19 scripts totalling 273.4s while the tail alone was 215.7s, dominated by `fm-calm-pi-extension` (77.5s), `fm-vendor-auth-probe` (51.0s), and `fm-muse-harness` (39.7s).

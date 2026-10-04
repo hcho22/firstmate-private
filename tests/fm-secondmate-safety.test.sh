@@ -2337,7 +2337,7 @@ task_set_lock_path() {  # <state-dir>
 # pid is gone, so a lock taken in a subshell that then exits would be stolen and
 # the contention under test would never happen.
 hold_task_set_lock() {  # <state-dir> -> echoes "<holder-pid> <lock-path>"
-  local state=$1 lock holder i=0
+  local state=$1 lock holder
   lock=$(task_set_lock_path "$state") || return 1
   [ -n "$lock" ] || return 1
   # stdout/stderr are redirected so the long-lived holder does not inherit this
@@ -2348,12 +2348,13 @@ hold_task_set_lock() {  # <state-dir> -> echoes "<holder-pid> <lock-path>"
     # shellcheck source=/dev/null
     . "$ROOT/bin/fm-wake-lib.sh"
     fm_lock_try_acquire "$lock" || exit 1
-    sleep 30
+    deadline=$((SECONDS + 600))
+    while [ -d "$state" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   ) >/dev/null 2>&1 &
   holder=$!
-  while [ ! -e "$lock" ] && [ "$i" -lt 100 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ ! -e "$lock" ] && kill -0 "$holder" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    i=$((i + 1))
   done
   [ -e "$lock" ] || {
     kill "$holder" 2>/dev/null || true
@@ -2435,7 +2436,7 @@ EOF
 }
 
 test_force_teardown_locks_descendant_with_absent_state() {
-  local home subhome fakebin err log rec claim_root ready release lock pid i=0
+  local home subhome fakebin err log rec claim_root ready release lock pid
   rec=$(seed_empty_task_set_home taskset-state-absent)
   IFS='|' read -r home subhome <<EOF
 $rec
@@ -2465,9 +2466,9 @@ SH
     FM_TASK_SET_TEST_READY="$ready" FM_TASK_SET_TEST_RELEASE="$release" \
     "$ROOT/bin/fm-teardown.sh" domain --force >/dev/null 2>"$err" &
   pid=$!
-  while [ ! -e "$ready" ] && kill -0 "$pid" 2>/dev/null && [ "$i" -lt 200 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ ! -e "$ready" ] && kill -0 "$pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -e "$ready" ] || {
     : > "$release"

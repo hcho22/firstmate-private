@@ -292,7 +292,8 @@ if [ "${FM_HERDR_SMOKE_REAL_CLAUDE:-0}" = 1 ] && command -v claude >/dev/null 2>
   sleep 0.2
   fm_backend_herdr_send_key "$TARGET" Enter
   found_working=0
-  for _ in $(seq 1 20); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     bs=$(fm_backend_herdr_busy_state "$TARGET" 2>/dev/null)
     [ "$bs" = busy ] && { found_working=1; break; }
     [ "$bs" = idle ] && break
@@ -300,7 +301,8 @@ if [ "${FM_HERDR_SMOKE_REAL_CLAUDE:-0}" = 1 ] && command -v claude >/dev/null 2>
   done
   [ "$found_working" -eq 1 ] || echo "note: never observed agent_status=working for the real claude run (timing-dependent, not fatal)" >&2
   # Wait for completion regardless, bounded.
-  for _ in $(seq 1 40); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     bs=$(fm_backend_herdr_busy_state "$TARGET" 2>/dev/null)
     [ "$bs" = idle ] && break
     sleep 0.5

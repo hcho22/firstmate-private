@@ -94,7 +94,7 @@ test_invalid_endpoint_records_refuse_before_mutation() {
 }
 
 test_control_lock_contention_refuses_before_mutation() {
-  local dir id=locked-task lock holder i=0 rc
+  local dir id=locked-task lock holder rc
   dir=$(make_case control-lock)
   fm_write_meta "$dir/home/state/$id.meta" \
     "window=isolated:fm-$id" "endpoint_task_id=$id" \
@@ -104,12 +104,13 @@ test_control_lock_contention_refuses_before_mutation() {
     # shellcheck source=/dev/null
     . "$ROOT/bin/fm-wake-lib.sh"
     fm_lock_try_acquire "$lock" || exit 1
-    sleep 30
+    deadline=$((SECONDS + 600))
+    while [ -d "$dir" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   ) &
   holder=$!
-  while [ ! -e "$lock" ] && [ "$i" -lt 100 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ ! -e "$lock" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    i=$((i + 1))
   done
   [ -e "$lock" ] || {
     kill "$holder" 2>/dev/null || true
@@ -138,7 +139,7 @@ test_control_lock_contention_refuses_before_mutation() {
 }
 
 test_metadata_lock_serializes_destructive_cleanup() {
-  local dir id=metadata-locked-task lock ready release holder teardown_pid i=0 rc
+  local dir id=metadata-locked-task lock ready release holder teardown_pid rc
   dir=$(make_case metadata-lock)
   fm_write_meta "$dir/home/state/$id.meta" \
     "window=isolated:fm-$id" "endpoint_task_id=$id" \
@@ -157,9 +158,9 @@ test_metadata_lock_serializes_destructive_cleanup() {
     done
   ) &
   holder=$!
-  while [ ! -e "$ready" ] && [ "$i" -lt 100 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ ! -e "$ready" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    i=$((i + 1))
   done
   [ -e "$ready" ] || {
     kill "$holder" 2>/dev/null || true

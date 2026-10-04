@@ -539,8 +539,11 @@ const assert = (condition, message) => {
   if (!condition) throw new Error(message);
 };
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// Wait for the event itself, bounded by time rather than by a count of sleeps: a
+// slow host stretches the wait, and only a genuine hang reaches the 60 s guard.
 const waitFor = async (predicate, message) => {
-  for (let i = 0; i < 400; i += 1) {
+  const deadline = performance.now() + 60000;
+  while (performance.now() < deadline) {
     if (predicate()) return;
     await delay(5);
   }
@@ -797,8 +800,11 @@ const assert = (condition, message) => {
   if (!condition) throw new Error(message);
 };
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// Wait for the event itself, bounded by time rather than by a count of sleeps: a
+// slow host stretches the wait, and only a genuine hang reaches the 60 s guard.
 const waitFor = async (predicate, message) => {
-  for (let i = 0; i < 600; i += 1) {
+  const deadline = performance.now() + 60000;
+  while (performance.now() < deadline) {
     if (predicate()) return;
     await delay(5);
   }

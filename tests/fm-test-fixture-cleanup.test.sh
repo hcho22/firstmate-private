@@ -35,7 +35,7 @@ test_fixture_root_gone_after_normal_exit() {
 }
 
 test_fixture_root_gone_after_sigterm() {
-  local harness dirfile child_dir pid tries
+  local harness dirfile child_dir pid
   harness=$(fm_test_tmproot fm-test-cleanup-sigterm-harness)
   dirfile="$harness/child-dir"
   bash -c '
@@ -46,11 +46,10 @@ test_fixture_root_gone_after_sigterm() {
     while :; do sleep 0.1; done
   ' &
   pid=$!
-  tries=0
-  while [ "$tries" -lt 100 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -s "$dirfile" ] && break
     sleep 0.05
-    tries=$((tries + 1))
   done
   [ -s "$dirfile" ] || fail "the child never published its fixture root before the wait timed out"
   child_dir=$(cat "$dirfile")
@@ -98,7 +97,7 @@ test_fixture_registration_failure_rolls_back_root() {
 }
 
 test_orphan_sweep_respects_fixture_ownership() {
-  local harness dirfile active_dir stale_dir fresh_dir pid tries
+  local harness dirfile active_dir stale_dir fresh_dir pid
   harness=$(fm_test_tmproot fm-test-cleanup-orphan-harness)
   dirfile="$harness/active-dir"
   bash -c '
@@ -109,11 +108,10 @@ test_orphan_sweep_respects_fixture_ownership() {
     while :; do sleep 0.1; done
   ' &
   pid=$!
-  tries=0
-  while [ "$tries" -lt 100 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -s "$dirfile" ] && break
     sleep 0.05
-    tries=$((tries + 1))
   done
   [ -s "$dirfile" ] || fail "the active child never published its fixture root before the wait timed out"
   active_dir=$(cat "$dirfile")

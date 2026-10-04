@@ -111,13 +111,36 @@ run_producer() {  # <now> <epoch>
     "$SNAPSHOT" --secondmate-home-summary
 }
 
-wait_for_ledger_generation() {  # <generated> [tenths]
-  local want=$1 attempts=${2:-150} i=0 got
-  while [ "$i" -lt "$attempts" ]; do
+# beat_mtime <beacon>: the watcher beacon's mtime, to count complete polls.
+beat_mtime() { python3 -c 'import os,sys; print(os.stat(sys.argv[1]).st_mtime)' "$1"; }
+
+# wait_for_polls <beacon> <watch-pid> <polls>: return once the beacon has
+# advanced <polls> times, so that many complete watcher polls have run; fail if
+# the watcher exits or a 120 s hang guard passes first.
+wait_for_polls() {
+  local beacon=$1 pid=$2 want=$3 seen=0 last now deadline=$((SECONDS + 120))
+  last=$(beat_mtime "$beacon")
+  while [ "$seen" -lt "$want" ]; do
+    kill -0 "$pid" 2>/dev/null || return 1
+    [ "$SECONDS" -lt "$deadline" ] || return 1
+    sleep 0.1
+    now=$(beat_mtime "$beacon")
+    if [ "$now" != "$last" ]; then
+      seen=$((seen + 1))
+      last=$now
+    fi
+  done
+}
+
+# wait_for_ledger_generation <generated>: 0 once the ledger carries <generated>;
+# 1 after a 120 s hang guard measured by the clock, so a loaded host only makes
+# a healthy refresh slower, never a failure.
+wait_for_ledger_generation() {
+  local want=$1 got deadline=$((SECONDS + 120))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     got=$(jq -r '.generated // ""' "$HOME_DIR/state/home-summary.json" 2>/dev/null || true)
     [ "$got" = "$want" ] && return 0
     sleep 0.1
-    i=$((i + 1))
   done
   return 1
 }
@@ -137,18 +160,17 @@ PATH="$FAKEBIN:$PATH" \
   FM_POLL=1 FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=9999999 FM_HEARTBEAT=9999999 \
   "$WATCH" > "$TMP_ROOT/watch.out" 2> "$TMP_ROOT/watch.err" &
 WATCH_PID=$!
-i=0
-while [ ! -e "$HOME_DIR/state/.last-watcher-beat" ] && [ "$i" -lt 100 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -e "$HOME_DIR/state/.last-watcher-beat" ] && [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$WATCH_PID" 2>/dev/null || break
   sleep 0.05
-  i=$((i + 1))
 done
 [ -e "$HOME_DIR/state/.last-watcher-beat" ] \
   || fail "the real watcher did not begin polling: $(cat "$TMP_ROOT/watch.err" 2>/dev/null)"
 printf 'blocked [key=fixture-dependency]: waiting for the fixture dependency\n' \
   >> "$HOME_DIR/state/ledger-task.status"
 wait_for_ledger_generation "$NOW_TWO" \
-  || fail "a status append did not refresh the ledger within the watcher cadence"
+  || fail "a status append did not refresh the ledger"
 wait "$WATCH_PID" >/dev/null 2>&1 || true
 WATCH_PID=
 
@@ -279,11 +301,10 @@ PATH="$FAKEBIN:$PATH" \
   FM_CHECK_INTERVAL=9999999 FM_HEARTBEAT=9999999 \
   "$WATCH" > "$TMP_ROOT/cadence-watch.out" 2> "$TMP_ROOT/cadence-watch.err" &
 WATCH_PID=$!
-i=0
-while [ ! -e "$CADENCE_HOME/state/.last-watcher-beat" ] && [ "$i" -lt 100 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -e "$CADENCE_HOME/state/.last-watcher-beat" ] && [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$WATCH_PID" 2>/dev/null || break
   sleep 0.05
-  i=$((i + 1))
 done
 [ -e "$CADENCE_HOME/state/.last-watcher-beat" ] \
   || fail "the cadence watcher did not complete its initial cycle"
@@ -294,15 +315,19 @@ path = Path(sys.argv[1])
 text = path.read_text()
 path.write_text(text.replace("## Queued\n\n## Done", "## Queued\n- [ ] cadence-task - Publish without a status signal (repo: firstmate) (kind: ship)\n\n## Done"))
 PY
-i=0
+# The configured cadence (FM_HOME_SUMMARY_INTERVAL=1 with a 1 s poll) must
+# publish the change with no status signal. The watcher runs the refresh in the
+# background, so how soon it lands depends on the host; the 120 s guard is far
+# below the 300 s default interval, so only a watcher ignoring the configured
+# cadence (or not refreshing at all) can reach it.
+deadline=$((SECONDS + 120))
 while ! jq -e 'any(.queued[]; .id == "cadence-task")' \
   "$CADENCE_HOME/state/home-summary.json" >/dev/null 2>&1; do
   kill -0 "$WATCH_PID" 2>/dev/null \
     || fail "the cadence watcher exited before publishing the backlog-only change"
-  [ "$i" -lt 80 ] \
-    || fail "a backlog-only change did not refresh within the configured watcher cadence"
+  [ "$SECONDS" -lt "$deadline" ] \
+    || fail "a backlog-only change was not refreshed at the configured watcher cadence"
   sleep 0.1
-  i=$((i + 1))
 done
 kill "$WATCH_PID" >/dev/null 2>&1 || true
 wait "$WATCH_PID" >/dev/null 2>&1 || true
@@ -359,11 +384,10 @@ PATH="$FAKEBIN:$PATH" \
   FM_TEST_NM_MARKER="$SLOW_MARKER" FM_TEST_NM_SLEEP=30 \
   "$WRITER" > "$TMP_ROOT/killed-writer.out" 2> "$TMP_ROOT/killed-writer.err" &
 SLOW_WRITER_PID=$!
-i=0
-while [ ! -s "$SLOW_MARKER" ] && [ "$i" -lt 100 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -s "$SLOW_MARKER" ] && [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$SLOW_WRITER_PID" 2>/dev/null || break
   sleep 0.05
-  i=$((i + 1))
 done
 [ -s "$SLOW_MARKER" ] || fail "the real producer did not reach the controlled slow current-state read"
 SLOW_NM_PID=$(cat "$SLOW_MARKER" 2>/dev/null || true)
@@ -456,22 +480,22 @@ FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" bash -c '
   . "$1/bin/fm-wake-lib.sh"
   fm_lock_acquire_wait "$2/state/.home-summary-refresh.lock"
   : > "$3"
-  sleep 30
-' _ "$ROOT" "$HOME_DIR" "$LOCK_MARKER" &
+  deadline=$((SECONDS + 600))
+  while [ -d "$4" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
+' _ "$ROOT" "$HOME_DIR" "$LOCK_MARKER" "$TMP_ROOT" &
 LOCK_HOLDER_PID=$!
-i=0
-while [ ! -e "$LOCK_MARKER" ] && [ "$i" -lt 100 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -e "$LOCK_MARKER" ] && [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$LOCK_HOLDER_PID" 2>/dev/null || break
   sleep 0.05
-  i=$((i + 1))
 done
 [ -e "$LOCK_MARKER" ] || fail "could not hold the publication lock for timeout coverage"
-started=$(date +%s)
+# The holder keeps the lock until the case kills it, so returning while it is
+# still alive proves the refresh did not wait the lock out.
 PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" \
   FM_HOME_SUMMARY_TIMEOUT=1 "$WRITER" --best-effort \
   || fail "lock timeout changed the best-effort caller result"
-elapsed=$(( $(date +%s) - started ))
-[ "$elapsed" -lt 4 ] || fail "best-effort refresh waited $elapsed seconds on its lock"
+kill -0 "$LOCK_HOLDER_PID" 2>/dev/null || fail "best-effort refresh waited on its lock"
 PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" \
   FM_HOME_SUMMARY_TIMEOUT=1 "$WRITER" --best-effort \
   || fail "repeated lock timeout changed the best-effort caller result"
@@ -485,23 +509,32 @@ pass "best-effort refresh bounds publication lock acquisition"
 HANGBIN="$TMP_ROOT/hangbin"
 REAL_JQ=$(command -v jq)
 mkdir -p "$HANGBIN"
+# Validation of the new ledger stalls until the case releases it, and records
+# if it ever finished, so the refresh returning with no such record proves it
+# did not wait for the stalled validation.
 cat > "$HANGBIN/jq" <<'SH'
 #!/usr/bin/env bash
 for arg in "$@"; do
   case "$arg" in
-    */.home-summary.json.*) sleep 30 ;;
+    */.home-summary.json.*)
+      deadline=$((SECONDS + 600))
+      while [ ! -e "$FM_TEST_STALL_RELEASE" ] && [ -d "${FM_TEST_STALL_RELEASE%/*}" ] \
+        && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
+      : > "$FM_TEST_STALL_RELEASE.finished"
+      ;;
   esac
 done
 exec "$FM_TEST_REAL_JQ" "$@"
 SH
 chmod +x "$HANGBIN/jq"
-started=$(date +%s)
 PATH="$HANGBIN:$FAKEBIN:$PATH" FM_TEST_REAL_JQ="$REAL_JQ" \
+  FM_TEST_STALL_RELEASE="$TMP_ROOT/validation.release" \
   FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" FM_HOME_SUMMARY_TIMEOUT=1 \
   "$WRITER" --best-effort \
   || fail "validation timeout changed the best-effort caller result"
-elapsed=$(( $(date +%s) - started ))
-[ "$elapsed" -lt 4 ] || fail "best-effort refresh waited $elapsed seconds on validation"
+[ ! -e "$TMP_ROOT/validation.release.finished" ] \
+  || fail "best-effort refresh waited for its stalled validation"
+: > "$TMP_ROOT/validation.release"
 grep -F 'refresh exceeded its 1-second deadline' \
   "$HOME_DIR/state/.home-summary-refresh.log" >/dev/null \
   || fail "publication validation timeout was not logged"
@@ -514,21 +547,24 @@ cat > "$MKBIN/mkdir" <<'SH'
 #!/usr/bin/env bash
 for arg in "$@"; do
   if [ "$arg" = "$FM_TEST_STALLED_STATE" ]; then
-    sleep 30
+    deadline=$((SECONDS + 600))
+    while [ ! -e "$FM_TEST_STALL_RELEASE" ] && [ -d "${FM_TEST_STALL_RELEASE%/*}" ] \
+      && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
+    : > "$FM_TEST_STALL_RELEASE.finished"
   fi
 done
 exec "$FM_TEST_REAL_MKDIR" "$@"
 SH
 chmod +x "$MKBIN/mkdir"
-started=$(date +%s)
 PATH="$MKBIN:$FAKEBIN:$PATH" FM_TEST_REAL_MKDIR="$REAL_MKDIR" \
+  FM_TEST_STALL_RELEASE="$TMP_ROOT/state-init.release" \
   FM_TEST_STALLED_STATE="$HOME_DIR/state" FM_ROOT_OVERRIDE="$ROOT" \
   FM_HOME="$HOME_DIR" FM_HOME_SUMMARY_TIMEOUT=1 \
   "$WRITER" --best-effort >/dev/null 2>"$TMP_ROOT/stalled-state.err" \
   || fail "state initialization timeout changed the best-effort caller result"
-elapsed=$(( $(date +%s) - started ))
-[ "$elapsed" -lt 6 ] \
-  || fail "best-effort refresh waited $elapsed seconds before bounded state initialization"
+[ ! -e "$TMP_ROOT/state-init.release.finished" ] \
+  || fail "best-effort refresh waited for its stalled state initialization"
+: > "$TMP_ROOT/state-init.release"
 pass "best-effort refresh bounds state initialization"
 
 SIGNALBIN="$TMP_ROOT/signalbin"
@@ -561,7 +597,6 @@ if ! PATH="$SIGNALBIN:$FAKEBIN:$PATH" FM_TEST_REAL_ENV="$REAL_ENV" \
   FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" WRITER="$WRITER" python3 - <<'PY'
 import os
 import subprocess
-import time
 
 read_fd, write_fd = os.pipe()
 os.set_blocking(write_fd, False)
@@ -571,7 +606,6 @@ try:
 except BlockingIOError:
     pass
 os.set_blocking(write_fd, True)
-started = time.monotonic()
 try:
     result = subprocess.run(
         [os.environ["WRITER"], "--best-effort"],
@@ -579,16 +613,15 @@ try:
         stdout=subprocess.DEVNULL,
         stderr=write_fd,
         env=os.environ,
-        timeout=7,
+        # The pipe is never drained, so a refresh that waited on its failure
+        # logger could not return at all; this is only a hang guard.
+        timeout=120,
     )
 finally:
     os.close(write_fd)
     os.close(read_fd)
-elapsed = time.monotonic() - started
 if result.returncode != 0:
     raise SystemExit(f"blocked failure logger changed caller result: {result.returncode}")
-if elapsed >= 6:
-    raise SystemExit(f"blocked failure logger exceeded its bound: {elapsed:.2f}s")
 PY
 then
   fail "best-effort failure reporting was not fully bounded"
@@ -701,23 +734,22 @@ fm_write_meta "$REMOTE_HOME/state/rsm.meta" \
   "remote_backend=herdr" \
   "remote_herdr_session=fm-remote" \
   "remote_target=fm-remote:w1:p1"
+# A remote probe would stall until the case's temp root is gone; the producer
+# must not issue one, which the called marker below proves.
 cat > "$TMP_ROOT/sshbin/stalled-ssh" <<'SH'
 #!/usr/bin/env bash
 : > "$FM_TEST_SSH_CALLED"
 cat > /dev/null
-sleep 60
+deadline=$((SECONDS + 600))
+while [ -d "${FM_TEST_SSH_CALLED%/*}" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
 SH
 chmod +x "$TMP_ROOT/sshbin/stalled-ssh"
-started=$(date +%s)
 PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$REMOTE_HOME" \
   FM_SSH_BIN="$TMP_ROOT/sshbin/stalled-ssh" FM_TEST_SSH_CALLED="$TMP_ROOT/stalled-ssh.called" \
   FM_SNAPSHOT_NOW="$NOW_TWO" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_TWO" \
   FM_SNAPSHOT_CREW_STATE_TIMEOUT=2 \
   "$SNAPSHOT" --secondmate-home-summary > "$TMP_ROOT/stalled-summary.json" \
   || fail "an unreachable remote home failed the whole producer"
-elapsed=$(( $(date +%s) - started ))
-[ "$elapsed" -lt 40 ] \
-  || fail "the producer waited $elapsed seconds despite skipping remote endpoint state"
 [ ! -e "$TMP_ROOT/stalled-ssh.called" ] \
   || fail "the producer issued a remote per-task state probe"
 jq -e '
@@ -752,14 +784,14 @@ FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$BEAT_HOME" bash -c '
   . "$1/bin/fm-wake-lib.sh"
   fm_lock_acquire_wait "$2/state/.home-summary-refresh.lock"
   : > "$3"
-  sleep 120
-' _ "$ROOT" "$BEAT_HOME" "$BEAT_LOCK_MARKER" &
+  deadline=$((SECONDS + 600))
+  while [ -d "$4" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
+' _ "$ROOT" "$BEAT_HOME" "$BEAT_LOCK_MARKER" "$TMP_ROOT" &
 LOCK_HOLDER_PID=$!
-i=0
-while [ ! -e "$BEAT_LOCK_MARKER" ] && [ "$i" -lt 100 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -e "$BEAT_LOCK_MARKER" ] && [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$LOCK_HOLDER_PID" 2>/dev/null || break
   sleep 0.05
-  i=$((i + 1))
 done
 [ -e "$BEAT_LOCK_MARKER" ] || fail "could not stall publication for beacon coverage"
 PATH="$FAKEBIN:$PATH" \
@@ -769,19 +801,17 @@ PATH="$FAKEBIN:$PATH" \
   FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=9999999 FM_HEARTBEAT=9999999 \
   "$WATCH" > "$TMP_ROOT/beat-watch.out" 2> "$TMP_ROOT/beat-watch.err" &
 WATCH_PID=$!
-i=0
-while [ ! -e "$BEAT_HOME/state/.last-watcher-beat" ] && [ "$i" -lt 200 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -e "$BEAT_HOME/state/.last-watcher-beat" ] && [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$WATCH_PID" 2>/dev/null || break
   sleep 0.05
-  i=$((i + 1))
 done
 [ -e "$BEAT_HOME/state/.last-watcher-beat" ] \
   || fail "the stalled-publication watcher never beat: $(cat "$TMP_ROOT/beat-watch.err" 2>/dev/null)"
-beat_mtime() { python3 -c 'import os,sys; print(os.stat(sys.argv[1]).st_mtime)' "$1"; }
 seen=0
 last=$(beat_mtime "$BEAT_HOME/state/.last-watcher-beat")
-i=0
-while [ "$seen" -lt 3 ] && [ "$i" -lt 200 ]; do
+deadline=$((SECONDS + 60))
+while [ "$seen" -lt 3 ] && [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$WATCH_PID" 2>/dev/null \
     || fail "the stalled-publication watcher exited: $(cat "$TMP_ROOT/beat-watch.err" 2>/dev/null)"
   sleep 0.1
@@ -790,10 +820,9 @@ while [ "$seen" -lt 3 ] && [ "$i" -lt 200 ]; do
     seen=$((seen + 1))
     last=$now
   fi
-  i=$((i + 1))
 done
 [ "$seen" -ge 3 ] \
-  || fail "the beacon advanced only $seen time(s) in 20 seconds while publication was stalled"
+  || fail "the beacon advanced only $seen time(s) while publication was stalled"
 kill "$WATCH_PID" >/dev/null 2>&1 || true
 wait "$WATCH_PID" >/dev/null 2>&1 || true
 WATCH_PID=
@@ -829,14 +858,14 @@ FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$RESTART_HOME" bash -c '
   . "$1/bin/fm-wake-lib.sh"
   fm_lock_acquire_wait "$2/state/.home-summary-refresh.lock"
   : > "$3"
-  sleep 30
-' _ "$ROOT" "$RESTART_HOME" "$RESTART_LOCK_MARKER" &
+  deadline=$((SECONDS + 600))
+  while [ -d "$4" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
+' _ "$ROOT" "$RESTART_HOME" "$RESTART_LOCK_MARKER" "$TMP_ROOT" &
 LOCK_HOLDER_PID=$!
-i=0
-while [ ! -e "$RESTART_LOCK_MARKER" ] && [ "$i" -lt 100 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -e "$RESTART_LOCK_MARKER" ] && [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$LOCK_HOLDER_PID" 2>/dev/null || break
   sleep 0.05
-  i=$((i + 1))
 done
 [ -e "$RESTART_LOCK_MARKER" ] || fail "could not hold the publication lock for restart coverage"
 PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$RESTART_HOME" \
@@ -844,69 +873,88 @@ PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$RESTART_HOME" \
   FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=9999999 FM_HEARTBEAT=9999999 \
   "$WATCH" > "$TMP_ROOT/restart-watch-one.out" 2> "$TMP_ROOT/restart-watch-one.err" &
 WATCH_PID=$!
-i=0
-while [ ! -e "$RESTART_HOME/state/.last-watcher-beat" ] && [ "$i" -lt 100 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -e "$RESTART_HOME/state/.last-watcher-beat" ] && [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$WATCH_PID" 2>/dev/null || break
   sleep 0.05
-  i=$((i + 1))
 done
 [ -e "$RESTART_HOME/state/.last-watcher-beat" ] \
   || fail "the first restart watcher did not begin polling"
 printf 'needs-decision [key=restart-gate]: restart the watcher\n' \
   > "$RESTART_HOME/state/restart-task.status"
-i=0
-while kill -0 "$WATCH_PID" 2>/dev/null && [ "$i" -lt 100 ]; do
+deadline=$((SECONDS + 60))
+while kill -0 "$WATCH_PID" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.05
-  i=$((i + 1))
 done
 kill -0 "$WATCH_PID" 2>/dev/null \
   && fail "the first restart watcher did not surface its actionable signal"
 wait "$WATCH_PID" >/dev/null 2>&1 || true
 WATCH_PID=
+# Handle that signal as firstmate would: drain and acknowledge the delivered
+# wake, and retire the task. The replacement watcher then has nothing to
+# resurface or find stale, so it stays in its poll loop behind the live lock.
+FM_HOME="$RESTART_HOME" FM_STATE_OVERRIDE="$RESTART_HOME/state" "$ROOT/bin/fm-wake-drain.sh" \
+  >/dev/null 2> "$TMP_ROOT/restart-drain.err" \
+  || fail "could not drain the first restart watcher's wake"
+restart_seq=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through \([0-9][0-9]*\) --recovery-generation .*/\1/p' \
+  "$TMP_ROOT/restart-drain.err")
+restart_generation=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--recovery-generation \([A-Za-z0-9._-][A-Za-z0-9._-]*\)$/\1/p' \
+  "$TMP_ROOT/restart-drain.err")
+[ -n "$restart_seq" ] && [ -n "$restart_generation" ] \
+  || fail "the first restart watcher's wake asked for no acknowledgement: $(cat "$TMP_ROOT/restart-drain.err")"
+FM_HOME="$RESTART_HOME" FM_STATE_OVERRIDE="$RESTART_HOME/state" "$ROOT/bin/fm-wake-drain.sh" \
+  --ack-through "$restart_seq" --recovery-generation "$restart_generation" >/dev/null \
+  || fail "could not acknowledge the first restart watcher's wake"
+rm -f "$RESTART_HOME/state/restart-task.meta"
 rm -f "$RESTART_HOME/state/.last-watcher-beat"
 PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$RESTART_HOME" \
   FM_POLL=1 FM_HOME_SUMMARY_INTERVAL=999999 FM_HOME_SUMMARY_TIMEOUT=2 \
   FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=9999999 FM_HEARTBEAT=9999999 \
   "$WATCH" > "$TMP_ROOT/restart-watch-two.out" 2> "$TMP_ROOT/restart-watch-two.err" &
 WATCH_PID=$!
-i=0
-while [ ! -e "$RESTART_HOME/state/.last-watcher-beat" ] && [ "$i" -lt 100 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -e "$RESTART_HOME/state/.last-watcher-beat" ] && [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$WATCH_PID" 2>/dev/null || break
   sleep 0.05
-  i=$((i + 1))
 done
 [ -e "$RESTART_HOME/state/.last-watcher-beat" ] \
   || fail "the replacement restart watcher did not begin polling"
-sleep 4
+# Five complete polls behind the live lock, however long a loaded host takes:
+# longer than the 2 s refresh timeout, so a refresh wrongly started at the first
+# poll has timed out and logged by now.
+wait_for_polls "$RESTART_HOME/state/.last-watcher-beat" "$WATCH_PID" 5 \
+  || fail "the replacement restart watcher did not complete five polls: $(cat "$TMP_ROOT/restart-watch-two.out" "$TMP_ROOT/restart-watch-two.err" 2>/dev/null)"
 [ ! -s "$RESTART_HOME/state/.home-summary-refresh.log" ] \
   || fail "watcher restart queued refreshes behind a live publication lock: $(cat "$RESTART_HOME/state/.home-summary-refresh.log")"
-if ! kill -0 "$WATCH_PID" 2>/dev/null; then
-  wait "$WATCH_PID" >/dev/null 2>&1 || true
-  rm -f "$RESTART_HOME/state/.last-watcher-beat"
-  PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$RESTART_HOME" \
-    FM_POLL=1 FM_HOME_SUMMARY_INTERVAL=999999 FM_HOME_SUMMARY_TIMEOUT=2 \
-    FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=9999999 FM_HEARTBEAT=9999999 \
-    "$WATCH" > "$TMP_ROOT/restart-watch-three.out" 2> "$TMP_ROOT/restart-watch-three.err" &
-  WATCH_PID=$!
-  i=0
-  while [ ! -e "$RESTART_HOME/state/.last-watcher-beat" ] && [ "$i" -lt 100 ]; do
-    kill -0 "$WATCH_PID" 2>/dev/null || break
-    sleep 0.05
-    i=$((i + 1))
-  done
-  [ -e "$RESTART_HOME/state/.last-watcher-beat" ] \
-    || fail "the recovery replacement watcher did not begin polling"
-fi
+# The dead-lock phase runs under a fresh watcher with the production refresh
+# deadline. The 2 s deadline above only bounds the live-lock phase; kept here,
+# a refresh the watcher starts after the holder dies could not finish on a slow
+# host, while the idle-mode writer below defers to that in-flight refresh, so
+# nothing would publish however long the case waited.
+kill "$WATCH_PID" >/dev/null 2>&1 || true
+wait "$WATCH_PID" >/dev/null 2>&1 || true
+rm -f "$RESTART_HOME/state/.last-watcher-beat"
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$RESTART_HOME" \
+  FM_POLL=1 FM_HOME_SUMMARY_INTERVAL=999999 \
+  FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=9999999 FM_HEARTBEAT=9999999 \
+  "$WATCH" > "$TMP_ROOT/restart-watch-three.out" 2> "$TMP_ROOT/restart-watch-three.err" &
+WATCH_PID=$!
+deadline=$((SECONDS + 60))
+while [ ! -e "$RESTART_HOME/state/.last-watcher-beat" ] && [ "$SECONDS" -lt "$deadline" ]; do
+  kill -0 "$WATCH_PID" 2>/dev/null || break
+  sleep 0.05
+done
+[ -e "$RESTART_HOME/state/.last-watcher-beat" ] \
+  || fail "the recovery replacement watcher did not begin polling"
 kill -KILL "$LOCK_HOLDER_PID" >/dev/null 2>&1 || true
 wait "$LOCK_HOLDER_PID" >/dev/null 2>&1 || true
 LOCK_HOLDER_PID=
 PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$RESTART_HOME" \
   FM_HOME_SUMMARY_IF_IDLE=1 "$WRITER" --best-effort \
   || fail "stale-lock recovery changed the best-effort caller result"
-i=0
-while [ ! -e "$RESTART_HOME/state/home-summary.json" ] && [ "$i" -lt 200 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -e "$RESTART_HOME/state/home-summary.json" ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.05
-  i=$((i + 1))
 done
 [ -e "$RESTART_HOME/state/home-summary.json" ] \
   || fail "a dead publication lock wedged publication"
@@ -1005,14 +1053,14 @@ EOF
 REAL_DATE=$(command -v date)
 cat > "$ORDER_DATE_BIN/date" <<'SH'
 #!/usr/bin/env bash
+# The attempt's own stamp is the first one taken; every later stamp reads as
+# after the newer ledger, however long the host takes between them.
 if [ "$#" -eq 2 ] && [ "$1" = -u ] && [ "$2" = +%Y-%m-%dT%H:%M:%SZ ]; then
-  python3 - "$FM_TEST_ORDER_START" "$FM_TEST_ORDER_EARLY" "$FM_TEST_ORDER_LATE" <<'PY'
-import sys
-import time
-
-started = float(sys.argv[1])
-print(sys.argv[2] if time.time() - started < 1 else sys.argv[3])
-PY
+  if mkdir "$FM_TEST_ORDER_FIRST_STAMP" 2>/dev/null; then
+    printf '%s\n' "$FM_TEST_ORDER_EARLY"
+  else
+    printf '%s\n' "$FM_TEST_ORDER_LATE"
+  fi
   exit 0
 fi
 exec "$FM_TEST_REAL_DATE" "$@"
@@ -1023,19 +1071,18 @@ FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$ORDER_HOME" bash -c '
   . "$1/bin/fm-wake-lib.sh"
   fm_lock_acquire_wait "$2/state/.home-summary-refresh.lock"
   : > "$3"
-  sleep 30
-' _ "$ROOT" "$ORDER_HOME" "$ORDER_LOCK_MARKER" &
+  deadline=$((SECONDS + 600))
+  while [ -d "$4" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
+' _ "$ROOT" "$ORDER_HOME" "$ORDER_LOCK_MARKER" "$TMP_ROOT" &
 LOCK_HOLDER_PID=$!
-i=0
-while [ ! -e "$ORDER_LOCK_MARKER" ] && [ "$i" -lt 100 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -e "$ORDER_LOCK_MARKER" ] && [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$LOCK_HOLDER_PID" 2>/dev/null || break
   sleep 0.05
-  i=$((i + 1))
 done
 [ -e "$ORDER_LOCK_MARKER" ] || fail "could not hold the publication lock for ordering coverage"
-order_started=$(python3 -c 'import time; print(time.time())')
 PATH="$ORDER_DATE_BIN:$FAKEBIN:$PATH" FM_TEST_REAL_DATE="$REAL_DATE" \
-  FM_TEST_ORDER_START="$order_started" FM_TEST_ORDER_EARLY="$NOW_ONE" \
+  FM_TEST_ORDER_FIRST_STAMP="$TMP_ROOT/order-first-stamp" FM_TEST_ORDER_EARLY="$NOW_ONE" \
   FM_TEST_ORDER_LATE="$NOW_THREE" FM_ROOT_OVERRIDE="$ROOT" \
   FM_HOME="$ORDER_HOME" FM_HOME_SUMMARY_TIMEOUT=2 \
   "$WRITER" --best-effort \

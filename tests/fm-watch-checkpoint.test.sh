@@ -63,12 +63,15 @@ test_signal_passes_through_and_exits_zero() {
   home=$(make_home signal)
   out="$home/out.txt"
   err="$home/err.txt"
+  # The wake is written once the watcher has begun polling, however long a loaded
+  # host takes to start it, and the checkpoint's bound is only a hang guard.
   (
-    sleep 1
+    deadline=$((SECONDS + 60))
+    while [ ! -e "$home/state/.last-watcher-beat" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.05; done
     printf 'done: synthetic wake\n' > "$home/state/demo.status"
   ) &
   status=0
-  FM_HOME="$home" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 "$CHECKPOINT" --seconds 8 >"$out" 2>"$err" || status=$?
+  FM_HOME="$home" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 "$CHECKPOINT" --seconds 60 >"$out" 2>"$err" || status=$?
   expect_code 0 "$status" "signal checkpoint exit"
   assert_contains "$(cat "$out")" "signal:" "signal wake was not passed through"
   drained=$(FM_HOME="$home" "$ROOT/bin/fm-wake-drain.sh")
@@ -89,7 +92,7 @@ SH
   FM_HOME="$home" "$ROOT/bin/fm-check-register.sh" env-check >/dev/null \
     || fail "could not register checkpoint custom check"
   status=0
-  FM_HOME="$home" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=1 "$CHECKPOINT" --seconds 5 >"$out" 2>"$err" || status=$?
+  FM_HOME="$home" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=1 "$CHECKPOINT" --seconds 60 >"$out" 2>"$err" || status=$?
   expect_code 0 "$status" "check checkpoint exit"
   assert_contains "$(cat "$out")" "check:" "check wake was not passed through"
   assert_contains "$(cat "$out")" "FM_CHECK_INTERVAL=1" "watcher environment was not preserved"
@@ -111,8 +114,50 @@ test_existing_singleton_watcher_is_not_success() {
   pass "checkpoint rejects an existing watcher singleton as unowned"
 }
 
+# Hosts with neither timeout nor gtimeout (stock macOS) use the perl fallback. GNU
+# timeout never follows TERM with KILL, so the watcher always finishes its exit
+# cleanup; the fallback used to KILL it 0.2 s after TERM, which cut the cleanup
+# short on a slow host and left the watch lock behind. A stub watcher whose
+# cleanup deliberately takes a full second shows the difference without depending
+# on how fast the host is.
+test_perl_fallback_lets_the_watcher_finish_its_cleanup() {
+  local home root toolbin tool real status out
+  home=$(make_home perl-fallback)
+  root="$home/root"
+  toolbin="$home/toolbin"
+  out="$home/out.txt"
+  mkdir -p "$root/bin" "$toolbin"
+  cp "$CHECKPOINT" "$root/bin/fm-watch-checkpoint.sh"
+  cat > "$root/bin/fm-watch.sh" <<'SH'
+#!/usr/bin/env bash
+[ "${1:-}" != --warm ] || exit 0
+trap 'sleep 1; : > "$FM_FIXTURE/cleaned"; exit 143' TERM
+: > "$FM_FIXTURE/started"
+while :; do sleep 0.05; done
+SH
+  chmod +x "$root/bin/fm-watch-checkpoint.sh" "$root/bin/fm-watch.sh"
+  # The first run of a freshly written executable is slow on macOS (about a second
+  # and a half); run the stub once now so the checkpoint's own bound cannot expire
+  # before the stub has started.
+  "$root/bin/fm-watch.sh" --warm
+  for tool in bash env mktemp grep cat rm dirname perl sleep; do
+    real=$(command -v "$tool" || true)
+    [ -n "$real" ] || fail "missing tool for the perl-fallback path: $tool"
+    ln -s "$real" "$toolbin/$tool"
+  done
+  [ ! -e "$toolbin/timeout" ] && [ ! -e "$toolbin/gtimeout" ] || fail "the fixture PATH still offers a timeout command"
+  status=0
+  PATH="$toolbin" FM_FIXTURE="$home" "$root/bin/fm-watch-checkpoint.sh" --seconds 15 >"$out" 2>/dev/null || status=$?
+  expect_code 124 "$status" "perl-fallback checkpoint exit"
+  assert_contains "$(cat "$out")" "checkpoint: no actionable wake within 15s" "perl-fallback checkpoint line missing"
+  assert_present "$home/started" "the stub watcher never started"
+  assert_present "$home/cleaned" "the perl fallback ended the watcher before its exit cleanup finished"
+  pass "the perl fallback lets the watcher finish its exit cleanup after TERM"
+}
+
 test_quiet_checkpoint_exits_124_cleanly
 test_startup_timeout_releases_an_acquired_lock
 test_signal_passes_through_and_exits_zero
 test_registered_check_uses_preserved_watcher_environment
 test_existing_singleton_watcher_is_not_success
+test_perl_fallback_lets_the_watcher_finish_its_cleanup

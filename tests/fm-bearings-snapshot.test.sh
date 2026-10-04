@@ -51,7 +51,7 @@ SH
 #!/usr/bin/env bash
 echo "gh $*" >> "$NET_LOG"
 if [ "${FAKE_GH_FAIL:-0}" = 1 ]; then exit 1; fi
-if [ "${FAKE_GH_SLEEP:-0}" = 1 ]; then sleep 30; fi
+if [ "${FAKE_GH_SLEEP:-0}" = 1 ]; then sleep "${FAKE_GH_SLEEP_SECONDS:-30}"; fi
 if [ "${FAKE_GH_MANY:-0}" = 1 ]; then
   cat <<'JSON'
 [{"number":1,"title":"One","url":"https://github.com/acme/repo/pull/1","headRefName":"fm/one","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]},{"number":2,"title":"Two","url":"https://github.com/acme/repo/pull/2","headRefName":"fm/two","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]},{"number":3,"title":"Three","url":"https://github.com/acme/repo/pull/3","headRefName":"fm/three","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]}]
@@ -260,11 +260,44 @@ args=()
 while IFS= read -r -d '' arg; do args+=("$arg"); done \
   < <(perl -MMIME::Base64=decode_base64 -e 'print decode_base64($ARGV[0])' "$4")
 printf '%s\t%s\n' "$remote_home" "${args[0]:-}" >> "$FM_TEST_LEDGER_CALL_LOG"
+event() { printf '%s %s\n' "$1" "$$" >> "$FM_TEST_LEDGER_EVENT_LOG"; }
+# wait_for_events <event> <count> blocks until <count> reads have logged <event>.
+# It is bounded by a poll count rather than a clock, so a loaded host stretches
+# the wait along with the work it waits for; the bound only keeps a regression
+# that serializes the reads from hanging the suite.
+wait_for_events() {
+  local name=$1 want=$2 polls=0
+  while [ "$polls" -lt 1200 ]; do
+    [ "$(grep -c "^$name " "$FM_TEST_LEDGER_EVENT_LOG")" -lt "$want" ] || return 0
+    sleep 0.05
+    polls=$((polls + 1))
+  done
+  return 1
+}
+event started
+# A home's state/slow-ledger-read marker makes its read slow. The marker's first
+# word picks how: `wedge` (also an empty marker) never answers until the
+# collector cancels it, `rendezvous <n>` stays in flight until <n> reads have
+# started and then fails, and `after-peers <n>` stays in flight until <n> other
+# reads have finished and then fails.
 if [ -f "$remote_home/state/slow-ledger-read" ]; then
-  sleep 30 &
-  sleeper=$!
-  printf '%s %s\n' "$$" "$sleeper" >> "$FM_TEST_LEDGER_PID_LOG"
-  wait "$sleeper"
+  read -r slow_mode slow_count < "$remote_home/state/slow-ledger-read" || true
+  case "${slow_mode:-wedge}" in
+    wedge)
+      sleep 600 &
+      sleeper=$!
+      printf '%s %s\n' "$$" "$sleeper" >> "$FM_TEST_LEDGER_PID_LOG"
+      wait "$sleeper"
+      ;;
+    rendezvous)
+      if wait_for_events started "$slow_count"; then event overlapped; fi
+      exit 1
+      ;;
+    after-peers)
+      if wait_for_events done "$slow_count"; then event peers-done; else event guard-expired; fi
+      exit 1
+      ;;
+  esac
 fi
 case "${args[0]:-}" in
   fm-remote-file.sh)
@@ -274,6 +307,7 @@ case "${args[0]:-}" in
     else
       cat "$remote_home/state/home-summary.json"
     fi
+    event done
     ;;
   *) exit 91 ;;
 esac
@@ -282,14 +316,71 @@ SH
   printf '%s\n' "$fb"
 }
 
-run_remote_ledger_bearings() {  # <parent-home> <fakebin> <epoch>
-  local parent=$1 fakebin=$2 epoch=$3
+# The collection budget is a wall-clock deadline that also covers process start-up,
+# which a loaded host stretches past any small figure. Every case whose property
+# is not the deadline itself therefore runs under a hang-guard budget, so the
+# reads it checks are never cut off by the host's speed; only the case that
+# asserts cancellation by the deadline passes a short one.
+REMOTE_LEDGER_HANG_GUARD_BUDGET=30
+# The cancellation case's budget is the snapshot's own default, far below the
+# 600 seconds a wedged read would otherwise take to answer.
+REMOTE_LEDGER_CUTOFF_BUDGET=5
+
+run_remote_ledger_bearings() {  # <parent-home> <fakebin> <epoch> [<budget-seconds>]
+  local parent=$1 fakebin=$2 epoch=$3 budget=${4:-$REMOTE_LEDGER_HANG_GUARD_BUDGET}
   FM_HOME="$parent" FM_ROOT_OVERRIDE="$ROOT" FM_SSH_BIN="$fakebin/fake-ssh" \
     FM_TEST_LEDGER_CALL_LOG="$parent/ledger-calls.log" \
     FM_TEST_LEDGER_PID_LOG="$parent/ledger-pids.log" \
+    FM_TEST_LEDGER_EVENT_LOG="$parent/ledger-events.log" \
     FM_SNAPSHOT_CACHE_DIR="$parent/state/summary-cache" \
-    FM_SNAPSHOT_BUDGET=3 FM_SNAPSHOT_NOW_EPOCH="$epoch" \
+    FM_SNAPSHOT_BUDGET="$budget" FM_SNAPSHOT_NOW_EPOCH="$epoch" \
     FM_BEARINGS_NOW=2026-09-01T22:00:00Z "$BEARINGS" --json
+}
+
+# set_remote_ledger_slow <count> [<marker>] marks homes 1..<count> slow with the
+# given marker line (default: wedge, see make_remote_ledger_ssh);
+# clear_remote_ledger_slow <count> removes the marker again.
+set_remote_ledger_slow() {
+  local count=$1 marker=${2:-wedge} i=1
+  while [ "$i" -le "$count" ]; do
+    printf '%s\n' "$marker" > "$TMP_ROOT/remote-ledger-home-$i/state/slow-ledger-read"
+    i=$((i + 1))
+  done
+}
+
+clear_remote_ledger_slow() {
+  local count=$1 i=1
+  while [ "$i" -le "$count" ]; do
+    rm -f "$TMP_ROOT/remote-ledger-home-$i/state/slow-ledger-read"
+    i=$((i + 1))
+  done
+}
+
+# remote_ledger_events <parent-home> <event> prints how many reads logged <event>.
+remote_ledger_events() {
+  grep -c "^$2 " "$1/ledger-events.log" || true
+}
+
+# remote_ledger_processes_gone <pid-log> succeeds once every process the wedged
+# reads recorded has exited. A killed process leaves the table when the system
+# reaps it, which a loaded host can delay, so poll for it rather than sleeping a
+# fixed settle; the poll count only bounds a regression where a cancelled read
+# truly survives.
+remote_ledger_processes_gone() {
+  local log=$1 collector_pid sleeper_pid pid alive
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    alive=0
+    while read -r collector_pid sleeper_pid; do
+      for pid in "$collector_pid" "$sleeper_pid"; do
+        [ -n "$pid" ] || continue
+        if kill -0 "$pid" 2>/dev/null; then alive=1; fi
+      done
+    done < "$log"
+    [ "$alive" -eq 1 ] || return 0
+    sleep 0.05
+  done
+  return 1
 }
 
 # End-to-end Domain Alpha regression fixture.
@@ -1183,25 +1274,31 @@ test_partial_github_failure_degrades() {
 }
 
 test_perl_fallback_bounds_github_call() {
-  local home fakebin toolbin cmd json started elapsed
+  local home fakebin toolbin cmd json
   home=$(make_home perl-timeout); write_fixture "$home"
   fakebin=$(make_fakebin "$home")
   toolbin="$home/toolbin"
   mkdir -p "$toolbin"
-  for cmd in bash dirname basename jq date sed git grep tail cut tr head sort wc perl sleep cat find mktemp rm mkdir chmod mv cp awk; do
+  # env belongs here because the bounded gh call runs through it: without it on
+  # this restricted PATH the call fails to start at all, which reads as the same
+  # "unavailable" a timeout produces and leaves the bound unexercised.
+  for cmd in bash dirname basename jq date sed git grep tail cut tr head sort wc perl sleep cat find mktemp rm mkdir chmod mv cp awk env; do
     ln -s "$(command -v "$cmd")" "$toolbin/$cmd"
   done
   for cmd in shasum sha256sum; do
     command -v "$cmd" >/dev/null 2>&1 || continue
     ln -s "$(command -v "$cmd")" "$toolbin/$cmd"
   done
-  started=$(date +%s)
+  # The stalled gh would answer after ten seconds: far past the one-second bound
+  # this case sets, and before the twenty-second default that bound replaces. A
+  # real answer therefore means the configured bound was not honored, so the
+  # unavailable note below can only come from the call being cut off first, with
+  # no host-dependent clock reading involved.
   json=$(PATH="$fakebin:$toolbin" FM_HOME="$home" FM_BEARINGS_NOW=2026-07-11T18:00:00Z \
-    FM_BEARINGS_PR_TIMEOUT=1 NET_LOG="$home/net.log" FAKE_GH_SLEEP=1 "$BEARINGS" --include-prs --json)
-  elapsed=$(( $(date +%s) - started ))
-  [ "$elapsed" -lt 10 ] || fail "Perl fallback did not bound a stalled gh call (${elapsed}s)"
+    FM_BEARINGS_PR_TIMEOUT=1 NET_LOG="$home/net.log" FAKE_GH_SLEEP=1 FAKE_GH_SLEEP_SECONDS=10 \
+    "$BEARINGS" --include-prs --json)
   printf '%s' "$json" | jq -e '.prs | test("unavailable")' >/dev/null \
-    || fail "timed-out gh call did not fail soft: $json"
+    || fail "Perl fallback did not bound a stalled gh call to the configured timeout: $json"
   pass "Perl fallback bounds stalled GitHub calls without coreutils timeout"
 }
 
@@ -2199,10 +2296,9 @@ SH
   REAL_CP="$real_cp" FAKE_CP_STARTED="$home/cp-started" FAKE_CP_RELEASE="$home/cp-release" \
     run "$home" "$fakebin" --json > "$home/snapshot.json" &
   snapshot_pid=$!
-  i=0
-  while [ ! -e "$home/cp-started" ] && [ "$i" -lt 500 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ ! -e "$home/cp-started" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.01
-    i=$((i + 1))
   done
   if [ ! -e "$home/cp-started" ]; then
     kill "$snapshot_pid" 2>/dev/null || true
@@ -2340,18 +2436,31 @@ SH
 }
 
 test_large_local_snapshot_overlaps_local_reads_without_projection_drift() {
-  local home fakebin worktree serial parallel parallel_file snapshot_pid i
-  local serial_started serial_elapsed parallel_started parallel_elapsed saved
+  local home fakebin worktree serial parallel i events started overlapped
   home=$(make_home large-local-snapshot)
   worktree="$home/projects/shared-worktree"
   fm_git_init_commit "$worktree"
   git -C "$worktree" checkout -qb fm/synthetic-large-local
   fakebin=$(make_fakebin "$home")
+  # `axi status` is each local task's one current-state read. With
+  # FAKE_NM_RENDEZVOUS=<n> it stays in flight until <n> such reads have started,
+  # logging `overlapped` once they have. The wait is bounded by a poll count
+  # rather than a clock, so a loaded host stretches it along with the work it
+  # waits for; the bound only keeps a regression that serializes the reads from
+  # hanging the suite.
   cat > "$fakebin/no-mistakes" <<'SH'
 #!/usr/bin/env bash
-if [ "$*" = "axi status" ] && [ "${FAKE_NM_DELAY:-0}" = 1 ]; then
-  [ -z "${FAKE_NM_SIGNAL:-}" ] || : > "$FAKE_NM_SIGNAL"
-  sleep 1
+if [ "$*" = "axi status" ] && [ -n "${FAKE_NM_RENDEZVOUS:-}" ]; then
+  printf 'started %s\n' "$$" >> "$FAKE_NM_EVENTS"
+  polls=0
+  while [ "$polls" -lt 1200 ]; do
+    if [ "$(grep -c '^started ' "$FAKE_NM_EVENTS")" -ge "$FAKE_NM_RENDEZVOUS" ]; then
+      printf 'overlapped %s\n' "$$" >> "$FAKE_NM_EVENTS"
+      break
+    fi
+    sleep 0.05
+    polls=$((polls + 1))
+  done
 fi
 exit 0
 SH
@@ -2380,44 +2489,32 @@ SH
     i=$((i + 1))
   done
 
-  serial=$(FAKE_NM_DELAY=0 FM_SNAPSHOT_LOCAL_READ_CONCURRENCY=1 run "$home" "$fakebin" --json)
+  # The per-read bounds are wall-clock deadlines that also cover process start-up,
+  # which a loaded host stretches past their idle-host defaults. Neither run
+  # asserts a bound, so both run under hang-guard values that host speed cannot
+  # reach.
+  serial=$(FM_SNAPSHOT_CREW_STATE_TIMEOUT=30 FM_CREW_STATE_NM_TIMEOUT=30 \
+    FM_SNAPSHOT_LOCAL_READ_CONCURRENCY=1 run "$home" "$fakebin" --json)
 
-  # Serialized reads pay every worker's delay end to end while concurrent reads
-  # overlap them. Time both runs and compare, because the two pay the same
-  # composition overhead: the difference isolates the overlap this change
-  # delivers, where an absolute wall-clock budget would instead measure how
-  # loaded the host happens to be and flake on a busy runner.
-  serial_started=$(date +%s)
-  FAKE_NM_DELAY=1 FM_SNAPSHOT_LOCAL_READ_CONCURRENCY=1 \
-    run "$home" "$fakebin" --json >/dev/null \
-    || fail "serialized local snapshot failed"
-  serial_elapsed=$(( $(date +%s) - serial_started ))
-
-  parallel_started=$(date +%s)
-  parallel_file="$home/parallel-snapshot.json"
-  FAKE_NM_DELAY=1 FAKE_NM_SIGNAL="$home/nm-started" \
-    FM_SNAPSHOT_LOCAL_READ_CONCURRENCY=8 \
-    run "$home" "$fakebin" --json > "$parallel_file" &
-  snapshot_pid=$!
-  i=0
-  while [ ! -e "$home/nm-started" ] && [ "$i" -lt 100 ]; do
-    sleep 0.05
-    i=$((i + 1))
-  done
-  if [ ! -e "$home/nm-started" ]; then
-    kill "$snapshot_pid" 2>/dev/null || true
-    wait "$snapshot_pid" 2>/dev/null || true
-    fail "concurrent local snapshot never began a current-state read"
-  fi
-  wait "$snapshot_pid" || fail "concurrent local snapshot failed"
-  parallel=$(<"$parallel_file")
-  parallel_elapsed=$(( $(date +%s) - parallel_started ))
-  # Five one-second reads serialize into five seconds and overlap into about
-  # one, so at least two of those four seconds must show up as real savings.
-  # Serializing the reads again collapses that difference to roughly zero.
-  saved=$(( serial_elapsed - parallel_elapsed ))
-  [ "$saved" -ge 2 ] \
-    || fail "concurrent local reads saved no measurable time (serial ${serial_elapsed}s vs concurrent ${parallel_elapsed}s)"
+  # Five reads that each stay in flight until all five have started. Reads the
+  # snapshot ran one after another could never all be in flight together, so the
+  # first would wait alone, while concurrent reads release one another. Every
+  # read logging `overlapped` therefore proves all five were in flight at once,
+  # which no amount of host load can change. Each read's one `axi status` is
+  # the only thing that logs `started`, so five of them in flight together are
+  # five distinct tasks' reads.
+  events="$home/nm-events.log"
+  : > "$events"
+  parallel=$(FAKE_NM_RENDEZVOUS=5 FAKE_NM_EVENTS="$events" \
+    FM_SNAPSHOT_CREW_STATE_TIMEOUT=30 FM_CREW_STATE_NM_TIMEOUT=30 \
+    FM_SNAPSHOT_LOCAL_READ_CONCURRENCY=8 run "$home" "$fakebin" --json) \
+    || fail "concurrent local snapshot failed"
+  overlapped=$(grep -c '^overlapped ' "$events" || true)
+  started=$(grep -c '^started ' "$events" || true)
+  [ "$overlapped" -eq 5 ] \
+    || fail "concurrent local reads were not all in flight at once: $overlapped saw all five started and $started started at all, so the snapshot ran them serially"
+  [ "$started" -eq 5 ] \
+    || fail "five local tasks did not each issue exactly one current-state read ($started started)"
   [ "$parallel" = "$serial" ] \
     || fail "concurrent local observation changed the fm-bearings.v1 projection"
   printf '%s' "$parallel" | jq -e '
@@ -2430,7 +2527,7 @@ SH
 }
 
 test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
-  local parent fakebin json started elapsed i remote_home pid collector_pid sleeper_pid duplicate_base
+  local parent fakebin json i remote_home duplicate_base
   parent=$(make_home concurrent-remote-ledgers)
   make_remote_ledger_fleet "$parent" 5
   fakebin=$(make_remote_ledger_ssh "$parent/remote-ssh")
@@ -2469,49 +2566,63 @@ test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
     || fail "bounding one faulty primary ledger added remote reads"
   rm -f "$TMP_ROOT/remote-ledger-home-1/state/unbounded-ledger-read"
 
-  i=1
-  while [ "$i" -le 5 ]; do
-    remote_home="$TMP_ROOT/remote-ledger-home-$i"
-    : > "$remote_home/state/slow-ledger-read"
-    i=$((i + 1))
-  done
+  # Five reads that each stay in flight until all five have started. Reads that
+  # overlap release one another; reads the collector ran one after another could
+  # never all be in flight together, so the first would wait out the hang guard
+  # alone. Every read logging `overlapped` therefore proves all five were in
+  # flight at once, which is the property a shared budget depends on and which no
+  # amount of host load can change. Each read then fails, so the cache answers.
+  set_remote_ledger_slow 5 "rendezvous 5"
+  : > "$parent/ledger-calls.log"
+  : > "$parent/ledger-events.log"
+  json=$(run_remote_ledger_bearings "$parent" "$fakebin" 2000)
+  [ "$(remote_ledger_events "$parent" overlapped)" -eq 5 ] \
+    || fail "five slow remote reads were not all in flight at once: $(remote_ledger_events "$parent" overlapped) saw all five started and $(remote_ledger_events "$parent" started) started at all, so the collector ran them serially"
+  [ "$(remote_ledger_events "$parent" started)" -eq 5 ] \
+    || fail "five slow remote reads did not each start exactly once ($(remote_ledger_events "$parent" started) started)"
+  printf '%s' "$json" | jq -e '
+    (.secondmates | length) == 5
+      and all(.secondmates[]; .freshness == "cached" and .age_seconds == 1000
+        and .provenance == "structured-home-cache")
+      and ([.omitted[] | select(.surface | contains("served from cached home ledger"))] | length) == 5
+  ' >/dev/null || fail "failed homes did not use and disclose age-labeled cache rows: $json"
+
+  # Five reads that never answer are cut off by the one shared budget: no read
+  # reaches its own 600-second end (that would make it fresh), every row is served
+  # from cache, and every process the collector started is gone once the snapshot
+  # returns. The assertions hold however many reads the host let start before
+  # the deadline; the overlap above is what proves they all can.
+  set_remote_ledger_slow 5 wedge
   : > "$parent/ledger-calls.log"
   : > "$parent/ledger-pids.log"
-  started=$(date +%s)
-  json=$(run_remote_ledger_bearings "$parent" "$fakebin" 2000)
-  elapsed=$(( $(date +%s) - started ))
-  # The three-second bound covers remote collection, while setup, cache validation,
-  # and projection run outside it. Keep the end-to-end ceiling well below the
-  # fifteen seconds that five serial three-second reads would require, without
-  # treating slower stock-macOS jq/process startup as collector serialization.
-  [ "$elapsed" -lt 12 ] || fail "five wedged remote reads behaved serially despite the shared three-second budget (${elapsed}s)"
+  : > "$parent/ledger-events.log"
+  json=$(run_remote_ledger_bearings "$parent" "$fakebin" 2000 "$REMOTE_LEDGER_CUTOFF_BUDGET")
   printf '%s' "$json" | jq -e '
     (.secondmates | length) == 5
       and all(.secondmates[]; .freshness == "cached" and .age_seconds == 1000
         and .provenance == "structured-home-cache")
       and ([.omitted[] | select(.surface | contains("served from cached home ledger"))] | length) == 5
   ' >/dev/null || fail "wedged homes did not use and disclose age-labeled cache rows: $json"
-  sleep 0.3
-  while read -r collector_pid sleeper_pid; do
-    for pid in "$collector_pid" "$sleeper_pid"; do
-      [ -n "$pid" ] || continue
-      if kill -0 "$pid" 2>/dev/null; then
-        fail "a cancelled remote ledger collector process survived the total budget (pid $pid)"
-      fi
-    done
-  done < "$parent/ledger-pids.log"
+  remote_ledger_processes_gone "$parent/ledger-pids.log" \
+    || fail "a cancelled remote ledger collector process survived the total budget"
 
   i=1
   while [ "$i" -le 5 ]; do
     remote_home="$TMP_ROOT/remote-ledger-home-$i"
     remote_home=$(cd "$remote_home" && pwd -P)
-    rm -f "$remote_home/state/slow-ledger-read"
     write_remote_home_summary "$remote_home" 1990
     i=$((i + 1))
   done
-  : > "$TMP_ROOT/remote-ledger-home-1/state/slow-ledger-read"
+  # Home 1 answers only after the other four have finished, so it is the slow one
+  # by construction rather than by a clock. It is released by its peers finishing
+  # while it is still in flight (`peers-done`); reads run in series with it first
+  # would instead wait out the hang guard (`guard-expired`) with the four peers
+  # never started, leaving them cached rather than fresh.
+  clear_remote_ledger_slow 5
+  set_remote_ledger_slow 1 "after-peers 4"
   : > "$parent/ledger-calls.log"
   : > "$parent/ledger-pids.log"
+  : > "$parent/ledger-events.log"
   json=$(run_remote_ledger_bearings "$parent" "$fakebin" 2000)
   printf '%s' "$json" | jq -e '
     ([.secondmates[] | select(.freshness == "fresh" and .age_seconds == 10)] | length) == 4
@@ -2519,6 +2630,8 @@ test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
         and .age_seconds == 1000 and .provenance == "structured-home-cache")] | length) == 1
       and ([.omitted[] | select(.surface == "secondmate ledger-1 served from cached home ledger")] | length) == 1
   ' >/dev/null || fail "one slow home prevented four fresh rows or hid its cache disclosure: $json"
+  [ "$(remote_ledger_events "$parent" peers-done)" -eq 1 ] \
+    || fail "the slow home was not released by its four peers finishing while it was in flight ($(remote_ledger_events "$parent" guard-expired) guard expiries)"
   [ "$(wc -l < "$parent/ledger-calls.log" | tr -d ' ')" -eq 5 ] \
     || fail "the mixed-speed snapshot made more than one remote read per ledger home"
   pass "remote ledgers collect concurrently under one budget, reuse aged cache, and cancel wedged collectors"

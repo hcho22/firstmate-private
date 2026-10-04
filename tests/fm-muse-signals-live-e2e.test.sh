@@ -153,7 +153,8 @@ export PATH
   || fail "could not launch Muse with the echo provider"
 
 SESSION_LOG=
-for _ in $(seq 1 150); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   SESSION_LOG=$(fm_busy_muse_matching_logs "$LAB/data/muse/sessions" "$WORKSPACE" 2>/dev/null | head -1)
   [ -z "$SESSION_LOG" ] || break
   sleep 0.2
@@ -161,7 +162,8 @@ done
 [ -n "$SESSION_LOG" ] || fail "real Muse produced no workspace-bound session.jsonl"
 
 RUN_STATE=
-for _ in $(seq 1 150); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   RUN_STATE=$(fm_busy_muse_run_state "$SESSION_LOG" 2>/dev/null || true)
   [ "$RUN_STATE" = busy ] && break
   sleep 0.2
@@ -187,7 +189,8 @@ NODE
 pass "Muse's real session protocol emits one matched run bracket"
 
 COMPOSER_STATE=
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   COMPOSER_STATE=$(fm_tmux_composer_state "$TARGET")
   [ "$COMPOSER_STATE" = empty ] && break
   sleep 0.2

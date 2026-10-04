@@ -81,10 +81,25 @@ count_results() {  # <home> <source-id>
   printf '%s\n' "$n"
 }
 
+# The wait helpers bound a hang, never a speed: a slow host stretches the event
+# they wait for, and only a genuine hang should reach the bound. A [tries] request
+# (0.1 s each) is therefore raised to a 60 s floor.
+WAIT_FLOOR_TRIES=600
 wait_for() {  # <file> [tries]
   local f=$1 n=${2:-100}
+  [ "$n" -ge "$WAIT_FLOOR_TRIES" ] || n=$WAIT_FLOOR_TRIES
   for _ in $(seq 1 "$n"); do [ -s "$f" ] && return 0; sleep 0.1; done
   return 1
+}
+
+# wait_gone <pid>: wait until the process is gone, bounded by the same 60 s floor.
+wait_gone() {
+  local pid=$1 deadline=$((SECONDS + 60))
+  while kill -0 "$pid" 2>/dev/null; do
+    [ "$SECONDS" -lt "$deadline" ] || return 1
+    sleep 0.05
+  done
+  return 0
 }
 
 # <file> <count> [tries]: wait until <file> holds at least <count> lines. A
@@ -93,6 +108,7 @@ wait_for() {  # <file> [tries]
 # rather than assume a fixed settle window covered it on a loaded machine.
 wait_for_lines() {
   local f=$1 want=$2 n=${3:-100} have
+  [ "$n" -ge "$WAIT_FLOOR_TRIES" ] || n=$WAIT_FLOOR_TRIES
   for _ in $(seq 1 "$n"); do
     have=$(wc -l < "$f" 2>/dev/null | tr -d ' ')
     case "$have" in ''|*[!0-9]*) have=0 ;; esac
@@ -649,10 +665,8 @@ assert_not_contains "$quiet_out" "not-autohandled" \
 # makes "no wake" a real observation instead of a race the test won by being
 # early.
 QUIET_HANDLED="$HEMPTY/state/procevent-inbox/$quiet_id.1.handled"
-for _ in $(seq 1 100); do
-  [ -f "$QUIET_HANDLED" ] && break
-  sleep 0.1
-done
+quiet_deadline=$((SECONDS + 60))
+until [ -f "$QUIET_HANDLED" ] || [ "$SECONDS" -ge "$quiet_deadline" ]; do sleep 0.05; done
 [ -f "$QUIET_HANDLED" ] \
   || fail "a silenced result was not durably recorded handled, so a later reconcile would announce it"
 [ "$(count_results "$HEMPTY" "$quiet_id")" = 1 ] \
@@ -988,7 +1002,7 @@ runner_pid=$(sed -n '2p' "$FM_PROCEVENT_CLAIM_ROOT/shared-src.claim" 2>/dev/null
 [ -n "$runner_pid" ] || fail "no runner pid recorded for the blocked source"
 kill -0 "$runner_pid" 2>/dev/null || fail "the blocked runner is not live before retirement"
 pe "$HA" retire shared-src >/dev/null
-for _ in $(seq 1 40); do kill -0 "$runner_pid" 2>/dev/null || break; sleep 0.1; done
+wait_gone "$runner_pid" || true
 kill -0 "$runner_pid" 2>/dev/null && fail "retire left the blocked runner alive"
 assert_absent "$FM_PROCEVENT_CLAIM_ROOT/shared-src.claim" "retire releases the claim"
 pass "retiring a never-completing source stops its runner and its blocked child"
@@ -998,15 +1012,17 @@ TRIG4="$TMP_ROOT/trigger-four"
 HZ="$TMP_ROOT/hz"; new_home "$HZ"
 pe_register "$HZ" lavish orphan-src -- "$BLOCKER" "$TRIG4" "orphan" >/dev/null
 pe "$HZ" reconcile >/dev/null
-sleep 0.5
-orphan_pid=$(sed -n '2p' "$FM_PROCEVENT_CLAIM_ROOT/orphan-src.claim" 2>/dev/null)
-if [ -z "$orphan_pid" ] || ! kill -0 "$orphan_pid" 2>/dev/null; then
-  fail "orphan fixture runner did not start"
-fi
+orphan_deadline=$((SECONDS + 60))
+orphan_pid=
+until orphan_pid=$(sed -n '2p' "$FM_PROCEVENT_CLAIM_ROOT/orphan-src.claim" 2>/dev/null) \
+  && [ -n "$orphan_pid" ] && kill -0 "$orphan_pid" 2>/dev/null; do
+  [ "$SECONDS" -lt "$orphan_deadline" ] || fail "orphan fixture runner did not start"
+  sleep 0.05
+done
 rm -f "$HZ/state/procevent/orphan-src.source"
 out=$(pe "$HZ" reconcile)
 assert_contains "$out" "stopped=1" "reconcile stops a runner whose registration was removed"
-for _ in $(seq 1 40); do kill -0 "$orphan_pid" 2>/dev/null || break; sleep 0.1; done
+wait_gone "$orphan_pid" || true
 kill -0 "$orphan_pid" 2>/dev/null && fail "reconcile left an orphaned runner alive"
 pass "reconcile reaps a runner whose source registration is gone"
 
@@ -1102,7 +1118,7 @@ case "$orphan_leader" in ''|*[!0-9]*) fail "could not read the runner leader pid
 printf '%s\n' "$orphan_leader" > "$ORPHAN_GROUP"
 
 kill -KILL "$orphan_leader" 2>/dev/null || fail "could not kill the runner leader"
-for _ in $(seq 1 50); do kill -0 "$orphan_leader" 2>/dev/null || break; sleep 0.1; done
+wait_gone "$orphan_leader" || true
 kill -0 "$orphan_leader" 2>/dev/null && fail "the runner leader survived SIGKILL"
 kill -0 -"$orphan_leader" 2>/dev/null || fail "fixture invalid: the owned child group did not survive the leader"
 
@@ -1258,7 +1274,8 @@ assert_present "$FM_PROCEVENT_CLAIM_ROOT/sweep-one.claim" "home sweep preflight 
 out=$(pe "$HM" sweep-home)
 assert_contains "$out" "swept: attempted=2" "home sweep retires registrations and owned claim-only sources"
 for sweep_pid in "$sweep_pid_one" "$sweep_pid_two"; do
-  for _ in $(seq 1 40); do kill -0 "$sweep_pid" 2>/dev/null || break; sleep 0.1; done
+  deadline=$((SECONDS + 60))
+  while kill -0 "$sweep_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   kill -0 "$sweep_pid" 2>/dev/null && fail "home sweep left a runner alive"
 done
 assert_absent "$HM/state/procevent/sweep-one.source" "home sweep removes registrations"
@@ -1362,7 +1379,8 @@ FM_PROCEVENT_MAX_OUTPUT_BYTES=100 pe "$HG" reconcile >/dev/null
 wait_for "$NOISY_PID" || fail "noisy source child did not start"
 noisy_child=$(cat "$NOISY_PID")
 staged=
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   for candidate in "$HG/state/procevent"/.noisy-src.*.output; do
     if [ -f "$candidate" ]; then staged=$candidate; break; fi
   done

@@ -296,8 +296,21 @@ SH
   printf '%s\n' "$dir"
 }
 
+# wait_for_exit <pid> [ticks]: wait for <pid> to exit on its own and return its
+# status; 124 (after killing it) means it never exited. A tick is 0.1 s.
+#
+# The budget is a hang guard, never a speed assertion: no caller asserts how fast
+# a process exits, and a watcher or arm does bounded startup work (many process
+# spawns) before its first poll, so a budget tuned on an idle host reaps a
+# process that is merely slow to start and reports a spurious failure. Under CPU
+# contention a one-poll watcher took 6 s against the old 4 s default. <ticks> is
+# therefore a request, raised to FM_TEST_HANG_GUARD_TICKS (60 s) when smaller. A
+# process that never exits still fails when the guard runs out, and a healthy
+# one returns the moment it exits, so passing runs take no longer.
+FM_TEST_HANG_GUARD_TICKS=600
 wait_for_exit() {
   local pid=$1 limit=${2:-50} i=0
+  [ "$limit" -ge "$FM_TEST_HANG_GUARD_TICKS" ] || limit=$FM_TEST_HANG_GUARD_TICKS
   while [ "$i" -lt "$limit" ]; do
     if ! is_live_non_zombie "$pid"; then
       wait "$pid"

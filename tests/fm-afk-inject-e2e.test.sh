@@ -118,6 +118,7 @@ submit_line() {
 }
 
 redraw
+: > "$LOG.ready"
 while IFS= read -r -n 1 _ch; do
   if [ -z "$_ch" ]; then
     submit_line
@@ -135,7 +136,12 @@ chmod +x "$LOOP_SCRIPT"
 # Start the loop in the supervisor pane.
 "$REAL_TMUX" -L "$SOCKET" send-keys -t "$SUPERVISOR_PANE" \
   "bash '$LOOP_SCRIPT' '$LOG_FILE'" Enter
-sleep 1  # let the loop start and settle
+# Wait for the loop to own the pane: it marks itself ready after its first draw.
+loop_deadline=$((SECONDS + 60))
+until [ -e "$LOG_FILE.ready" ]; do
+  [ "$SECONDS" -lt "$loop_deadline" ] || fail "the supervisor loop did not start within 60s"
+  sleep 0.1
+done
 
 # tmux shim: redirects bare `tmux` to the private socket. Optionally swallows
 # the first Enter (file-based flag) for Scenario B.
@@ -179,15 +185,14 @@ start_daemon() {
   nohup "$DAEMON" >"$STATE_DIR/daemon.out" 2>"$STATE_DIR/daemon.err" &
   DAEMON_PID=$!
   # Wait for the daemon to start and acquire the lock.
-  local i=0
-  while [ "$i" -lt 30 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -f "$STATE_DIR/.supervise-daemon.pid" ] && break
     sleep 0.2
-    i=$((i + 1))
   done
   [ -f "$STATE_DIR/.supervise-daemon.pid" ] || {
     echo "daemon stderr:" >&2; cat "$STATE_DIR/daemon.err" >&2
-    fail "daemon did not start (no pid file after 6s)"
+    fail "daemon did not start (no pid file within 60s)"
   }
 }
 
@@ -246,15 +251,70 @@ selfcheck_pane_input_pending() {
 }
 
 wait_for_pane_input_pending() {
-  local i=0
-  while [ "$i" -lt 30 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     if PATH="$TMUX_SHIM_DIR:$PATH" pane_input_pending "$SUPERVISOR_PANE"; then
       return 0
     fi
     sleep 0.1
-    i=$((i + 1))
   done
   return 1
+}
+
+# Wait for the daemon to deliver the escalation digest: a submitted digest line
+# in the supervisor log and an empty escalation buffer. The daemon clears the
+# buffer only after the backend confirms the submit, so by then every keystroke
+# of that delivery, including any retried Enter, has landed in the log. A
+# duplicate digest or a stray Enter would come from a later daemon cycle, so it
+# then waits until two housekeeping ticks after the delivery have finished. Each
+# tick stamps .subsuper-last-housekeep before it runs, so the third new stamp
+# proves the two ticks before it complete.
+wait_for_digest_delivered() {  # <scenario>
+  local deadline=$((SECONDS + 60)) delivered=0 last now ticks=0
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if grep -q 'Supervisor escalate' "$LOG_FILE" && [ ! -s "$STATE_DIR/.subsuper-escalations" ]; then
+      delivered=1
+      break
+    fi
+    kill -0 "$DAEMON_PID" 2>/dev/null || fail "$1: daemon exited before delivering the digest"
+    sleep 0.2
+  done
+  [ "$delivered" -eq 1 ] \
+    || fail "$1: digest was not delivered within 60s; daemon log tail: $(tail -5 "$STATE_DIR/.supervise-daemon.log" 2>/dev/null)"
+  deadline=$((SECONDS + 60))
+  last=$(cat "$STATE_DIR/.subsuper-last-housekeep" 2>/dev/null || true)
+  while [ "$ticks" -lt 3 ]; do
+    [ "$SECONDS" -lt "$deadline" ] || fail "$1: the daemon ran no further housekeeping after delivering the digest"
+    kill -0 "$DAEMON_PID" 2>/dev/null || fail "$1: daemon exited after delivering the digest"
+    sleep 0.2
+    now=$(cat "$STATE_DIR/.subsuper-last-housekeep" 2>/dev/null || true)
+    if [ "$now" != "$last" ]; then
+      ticks=$((ticks + 1))
+      last=$now
+    fi
+  done
+}
+
+# Wait for the daemon's first injection attempt after line <offset> of its log:
+# either a logged deferral or a digest already submitted to the supervisor log.
+wait_for_inject_attempt() {  # <scenario> <daemon-log-offset>
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    tail -n +"$(($2 + 1))" "$STATE_DIR/.supervise-daemon.log" 2>/dev/null \
+      | grep -qF 'inject deferred: supervisor ' && return 0
+    grep -q 'Supervisor escalate' "$LOG_FILE" && return 0
+    kill -0 "$DAEMON_PID" 2>/dev/null || fail "$1: daemon exited before attempting the injection"
+    sleep 0.2
+  done
+  fail "$1: daemon made no injection attempt within 60s"
+}
+
+daemon_log_lines() {
+  if [ -f "$STATE_DIR/.supervise-daemon.log" ]; then
+    wc -l < "$STATE_DIR/.supervise-daemon.log" | tr -d ' '
+  else
+    echo 0
+  fi
 }
 
 selfcheck_pane_input_pending
@@ -274,10 +334,12 @@ test_scenario_a() {
 
   # Write a captain-relevant status to trigger a real escalation through the
   # real watcher child.
+  local offset
+  offset=$(daemon_log_lines)
   echo "done: PR https://example.test/pr/100" > "$STATE_DIR/fake-c1.status"
 
   # Wait for the watcher to detect the change and the daemon to attempt inject.
-  sleep 6
+  wait_for_inject_attempt "Scenario A" "$offset"
 
   # Assert: the digest was NOT injected while the pane had pending input.
   if grep -q 'Supervisor escalate' "$LOG_FILE"; then
@@ -292,10 +354,9 @@ test_scenario_a() {
 
   # Now submit the human's text (Enter). The pane goes idle.
   "$REAL_TMUX" -L "$SOCKET" send-keys -t "$SUPERVISOR_PANE" Enter
-  sleep 0.5
 
   # Wait for the daemon to retry injection (housekeeping tick = 1s).
-  sleep 6
+  wait_for_digest_delivered "Scenario A"
 
   # Assert: human text was submitted alone (as a user message).
   grep -q 'human draft text' "$LOG_FILE" \
@@ -347,7 +408,7 @@ test_scenario_b() {
 
   # Wait for the daemon to process the escalation and attempt inject (with the
   # swallowed Enter, the retry path fires).
-  sleep 8
+  wait_for_digest_delivered "Scenario B"
 
   # Assert: exactly ONE terminal-safe marker in the log (no duplicate, no loss).
   local marker_count
@@ -389,7 +450,7 @@ test_scenario_c() {
   start_daemon
 
   echo "done: PR https://example.test/pr/300" > "$STATE_DIR/fake-c1.status"
-  sleep 6
+  wait_for_digest_delivered "Scenario C"
 
   # Exactly one terminal-safe marker in the submitted log (no duplicate, no loss).
   local marker_count

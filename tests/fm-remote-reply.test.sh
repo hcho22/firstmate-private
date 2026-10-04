@@ -70,8 +70,8 @@ remote_env() {
 }
 
 wait_for() {
-  local path=$1
-  for _ in $(seq 1 100); do
+  local path=$1 deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -e "$path" ] && return 0
     sleep 0.05
   done
@@ -404,7 +404,8 @@ rm -f -- "$PARENT/state/remote-replies/ios.caught-up"
 remote_env "$ADAPTER" source ios > "$TMP_ROOT/preempted-source.out" 2>&1 &
 PREEMPTED_SOURCE=$!
 running_poll=''
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   for job in "$TMP_ROOT"/remote-jobs/jobs/job-*; do
     [ -d "$job" ] || continue
     if [ "$(fm_remote_job_read_state "$job" 2>/dev/null || true)" = running ]; then

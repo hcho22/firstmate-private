@@ -316,6 +316,7 @@ Its before/after tripwire requires the live default-session snapshot to remain b
 
 The helper's header and `--help` own exact commands.
 Tests use thin compatibility wrappers in `tests/herdr-test-safety.sh` and never duplicate the destructive policy.
+Only the real-Herdr and live opt-in test families may reach the installed `herdr` at all: `bin/fm-test-run.sh` runs every other script with a refusing stand-in first on `PATH` and fails a script that calls it, because a stray CLI call against a production session name such as `fm-remote` starts a real server in the operator's Herdr config.
 
 ## Active limits
 

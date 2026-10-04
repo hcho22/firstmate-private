@@ -149,7 +149,15 @@ case " $* " in
   *" headRefOid "*) printf '%s\n' "${FM_TEST_GH_HEAD:-0123456789abcdef0123456789abcdef01234567}" ;;
   *" state "*)
     [ "${FM_TEST_GH_FAIL:-0}" = 0 ] || exit 1
-    [ "${FM_TEST_GH_SLEEP:-0}" = 0 ] || sleep "$FM_TEST_GH_SLEEP"
+    # FM_TEST_GH_HOLD names a release file: the answer is held back until the case
+    # creates it. The hang guard only keeps a forgotten hold from lasting forever; it
+    # lets the answer through, so a poll that was never cut off still shows it.
+    if [ -n "${FM_TEST_GH_HOLD:-}" ]; then
+      hold_deadline=$((SECONDS + ${FM_TEST_HANG_GUARD_SECS:-120}))
+      while [ ! -e "$FM_TEST_GH_HOLD" ] && [ "$SECONDS" -lt "$hold_deadline" ]; do
+        sleep 0.02
+      done
+    fi
     printf '%s\n' "${FM_TEST_GH_STATE:-OPEN}"
     ;;
 esac
@@ -614,11 +622,26 @@ SH
   pass "valid direct and merge flows record exact metadata and reject multiline head metadata"
 }
 
+# The watcher exits by itself once it surfaces or retires a poll, so the first two
+# bounds below are only hang guards and never part of an assertion. One cycle is
+# hundreds of short-lived processes (retiring a merged poll alone re-validates and
+# hashes every artifact), so its wall time scales with host load: roughly 8 s once
+# the load average is in the hundreds, which a 10 s bound turned into a silent exit 124.
+# HANG_GUARD_EVENT_SECS is the same kind of bound for a case that waits on an event
+# it expects (a process reaching a milestone, a fake being released, a watcher
+# exiting). Such a wait is measured by the clock through SECONDS and never by a
+# count of sleeps, because a start-up that spawns freshly written executables costs
+# seconds on a contended host while a count of 0.01 s sleeps stays near 3 s.
+HANG_GUARD_WATCHER_SECS=120
+HANG_GUARD_CHECK_SECS=30
+HANG_GUARD_EVENT_SECS=120
+
 run_watcher_bounded() {
   local home=$1 fakebin=$2 check_interval=${FM_TEST_CHECK_INTERVAL:-0} watch_root=${FM_TEST_WATCH_ROOT:-$ROOT}
   shift 2
-  perl -e 'my $pid=fork; die unless defined $pid; if (!$pid) { exec @ARGV } local $SIG{ALRM}=sub { kill "TERM", $pid; waitpid $pid, 0; exit 124 }; alarm 10; waitpid $pid, 0; alarm 0; exit($? >> 8)' \
-    env FM_HOME="$home" FM_ROOT_OVERRIDE="$watch_root" FM_CHECK_INTERVAL="$check_interval" FM_CHECK_TIMEOUT=1 \
+  perl -e 'my $t=shift; my $pid=fork; die unless defined $pid; if (!$pid) { exec @ARGV } local $SIG{ALRM}=sub { kill "TERM", $pid; waitpid $pid, 0; exit 124 }; alarm $t; waitpid $pid, 0; alarm 0; exit($? >> 8)' \
+    "$HANG_GUARD_WATCHER_SECS" \
+    env FM_HOME="$home" FM_ROOT_OVERRIDE="$watch_root" FM_CHECK_INTERVAL="$check_interval" FM_CHECK_TIMEOUT="$HANG_GUARD_CHECK_SECS" \
       FM_POLL=0.02 FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 PATH="$fakebin:$BASE_PATH" "$WATCH" "$@"
 }
 
@@ -713,12 +736,18 @@ test_static_poll_contract() {
   [ -z "$out" ] || fail "static poll emitted with malformed numeric data"
 
   make_poll_fixture "$dir"
+  # A poll stuck inside gh must be cut off by the check timeout and emit nothing.
+  # The fake gh holds its merged answer back until the case releases it, so only
+  # the timeout can end the poll: a wrapper that did not enforce it would let the
+  # held answer through and the poll would print merged.
   set +e
   out=$(FM_STATE_OVERRIDE="$dir/home/state" FM_CHECK_TIMEOUT=1 FM_TEST_GH_LOG="$dir/gh.log" \
-    FM_TEST_GH_SLEEP=3 PATH="$dir/fakebin:$BASE_PATH" \
+    FM_TEST_GH_STATE=MERGED FM_TEST_GH_HOLD="$dir/gh-release" \
+    FM_TEST_HANG_GUARD_SECS="$HANG_GUARD_EVENT_SECS" PATH="$dir/fakebin:$BASE_PATH" \
     bash -c '. "$1"; run_check "$2"' bash "$WATCH" "$dir/home/state/task-a.check.sh")
   rc=$?
   set -e
+  : > "$dir/gh-release"
   [ "$rc" -eq 0 ] || fail "watcher run_check timeout wrapper failed"
   [ -z "$out" ] || fail "timed-out static poll emitted output"
 
@@ -764,33 +793,61 @@ SH
 }
 
 test_concurrent_watcher_sees_only_complete_publication() {
-  local n dir direct_pid rc i
+  local n dir staged release direct_pid watcher_pid rc deadline
   n=1
   while [ "$n" -le 3 ]; do
     dir=$(make_case "concurrent-$n")
     write_task_meta "$dir"
+    staged="$dir/cp-staged"
+    release="$dir/cp-release"
+    # The arm stages the poll check by copying the template before it publishes
+    # anything. This cp holds that moment open: it reports the finished staged copy
+    # and then blocks until the case releases it, so the watcher is guaranteed to
+    # cycle while the publication is half done, however long the arm took to get
+    # there. Any other cp (the watcher's own summary refresh runs one) passes through.
     cat > "$dir/fakebin/cp" <<SH
 #!/usr/bin/env bash
 '$REAL_CP' "\$@" || exit 1
-sleep 0.3
+for last in "\$@"; do :; done
+case "\$last" in
+  */.fm-pr-poll-check.*)
+    : > '$staged'
+    deadline=\$((SECONDS + $HANG_GUARD_EVENT_SECS))
+    while [ ! -e '$release' ]; do
+      [ "\$SECONDS" -lt "\$deadline" ] || exit 1
+      sleep 0.02
+    done
+    ;;
+esac
 SH
     chmod +x "$dir/fakebin/cp"
 
     FM_TEST_GH_HEAD=0123456789abcdef0123456789abcdef01234567 \
       run_check_entry "$dir" task-a https://github.com/o/r/pull/1 > "$dir/direct.out" 2> "$dir/direct.err" &
     direct_pid=$!
-    i=0
-    while [ "$i" -lt 100 ] && ! find "$dir/home/state" -name '.fm-pr-poll-check.*' -print | grep . >/dev/null; do
-      sleep 0.01
-      i=$((i + 1))
+    deadline=$((SECONDS + HANG_GUARD_EVENT_SECS))
+    while [ ! -e "$staged" ] && kill -0 "$direct_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
+      sleep 0.02
     done
-    [ "$i" -lt 100 ] || fail "atomic publication did not reach staged check"
+    [ -e "$staged" ] || fail "atomic publication did not reach staged check: $(cat "$dir/direct.err")"
 
+    FM_TEST_GH_STATE=MERGED run_watcher_bounded "$dir/home" "$dir/fakebin" > "$dir/watch.out" 2> "$dir/watch.err" &
+    watcher_pid=$!
+    # The watcher writes .last-check at the end of a full sweep of the state's
+    # checks, so its appearance proves a whole cycle ran while the publication was
+    # staged and nothing runnable was published yet.
+    deadline=$((SECONDS + HANG_GUARD_EVENT_SECS))
+    while [ ! -e "$dir/home/state/.last-check" ] && kill -0 "$watcher_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
+      sleep 0.02
+    done
+    [ -e "$dir/home/state/.last-check" ] || fail "concurrent watcher never completed a cycle during the staged publication"
+    : > "$release"
+
+    wait "$direct_pid" || fail "concurrent direct arming failed"
     set +e
-    FM_TEST_GH_STATE=MERGED run_watcher_bounded "$dir/home" "$dir/fakebin" > "$dir/watch.out" 2> "$dir/watch.err"
+    wait "$watcher_pid"
     rc=$?
     set -e
-    wait "$direct_pid" || fail "concurrent direct arming failed"
     [ "$rc" -eq 0 ] || fail "concurrent watcher did not complete"
     grep -q '^check: .*: merged$' "$dir/watch.out" || fail "concurrent watcher never saw complete poll"
     [ ! -s "$dir/watch.err" ] || fail "concurrent watcher observed a partial artifact error"
@@ -1029,13 +1086,14 @@ test_bootstrap_leaves_unauthenticated_checks() {
 }
 
 test_custom_snapshot_cleanup_on_signal() {
-  local dir state child_pid_file pid child_pid i rc
+  local dir state child_pid_file pid child_pid deadline rc
   dir=$(make_case custom-snapshot-signal)
   state="$dir/home/state"
   child_pid_file="$dir/custom-child.pid"
   # shellcheck disable=SC2016  # The generated child expands $$ when it runs.
   printf '%s\n' '#!/usr/bin/env bash' 'trap "" TERM' \
-    'printf "%s\n" "$$" > "$FM_TEST_CUSTOM_CHILD_PID"' 'while :; do sleep 1; done' \
+    'printf "%s\n" "$$" > "$FM_TEST_CUSTOM_CHILD_PID"' \
+    'while [ -d "${FM_TEST_CUSTOM_CHILD_PID%/*}" ]; do sleep 1; done' \
     > "$state/custom.check.sh"
   chmod 0700 "$state/custom.check.sh"
   cat > "$dir/fakebin/timeout" <<'SH'
@@ -1055,27 +1113,27 @@ SH
     PATH="$dir/fakebin:$BASE_PATH" "$WATCH" \
     > "$dir/watch.out" 2> "$dir/watch.err" &
   pid=$!
-  i=0
-  while [ "$i" -lt 100 ]; do
-    [ -s "$child_pid_file" ] && break
-    kill -0 "$pid" 2>/dev/null || break
+  deadline=$((SECONDS + HANG_GUARD_EVENT_SECS))
+  while [ ! -s "$child_pid_file" ] && kill -0 "$pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.02
-    i=$((i + 1))
   done
   [ -s "$child_pid_file" ] || fail "watcher did not start the custom check child"
   find "$state" -maxdepth 1 -name '.fm-custom-check.*' -print | grep . >/dev/null \
     || fail "watcher did not create the custom check snapshot"
   child_pid=$(cat "$child_pid_file")
   kill -TERM "$pid" 2>/dev/null || fail "could not signal watcher during custom check"
-  i=0
-  while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 100 ]; do
+  # The check child ignores TERM and exits by itself only once its case is gone,
+  # so the watcher can only stop by draining it: exiting at all is the structural
+  # proof, and the wait is a hang guard rather than a promptness bound that a
+  # loaded host would turn flaky.
+  deadline=$((SECONDS + HANG_GUARD_EVENT_SECS))
+  while kill -0 "$pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.02
-    i=$((i + 1))
   done
   if kill -0 "$pid" 2>/dev/null; then
     kill -KILL "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true
-    fail "signaled watcher did not exit promptly"
+    fail "signaled watcher did not exit after SIGTERM"
   fi
   rc=0
   wait "$pid" || rc=$?
@@ -1086,24 +1144,29 @@ SH
   ! find "$state" -maxdepth 1 -name '.fm-check-output.*' -print | grep . >/dev/null \
     || fail "signaled watcher left a private check output file"
   [ ! -e "$state/.watch.lock/pid" ] || fail "signaled watcher left its singleton lock"
-  pass "watcher signals promptly stop custom checks and clean private state"
+  pass "watcher signals stop custom checks and clean private state"
 }
 
 test_returned_custom_check_descendants_are_drained() {
-  local backend dir state fakebin ready direct_done child_pid_file sentinel watcher_pid child_pid i rc alive force_fallback
+  local backend dir state fakebin ready release direct_done child_pid_file sentinel watcher_pid child_pid deadline rc alive force_fallback
   for backend in installed-timeout fallback-timeout; do
     dir=$(make_case "returned-custom-descendant-$backend")
     state="$dir/home/state"
     fakebin="$dir/fakebin"
     ready="$dir/descendant-ready"
+    release="$dir/descendant-release"
     direct_done="$dir/direct-check-done"
     child_pid_file="$dir/descendant.pid"
     sentinel="$dir/descendant-sentinel"
     cat > "$state/custom.check.sh" <<'SH'
 #!/usr/bin/env bash
-perl -e '$SIG{TERM}="IGNORE"; open my $ready, ">", $ENV{FM_TEST_DESCENDANT_READY} or die $!; print {$ready} "ready\n"; close $ready; select undef, undef, undef, 4; open my $sentinel, ">", $ENV{FM_TEST_DESCENDANT_SENTINEL} or die $!; print {$sentinel} "late\n"; close $sentinel; select undef, undef, undef, 1' &
+perl -e '$SIG{TERM}="IGNORE"; open my $ready, ">", $ENV{FM_TEST_DESCENDANT_READY} or die $!; print {$ready} "ready\n"; close $ready; my $deadline = time + $ENV{FM_TEST_HANG_GUARD_SECS}; until (-e $ENV{FM_TEST_DESCENDANT_RELEASE}) { exit 1 if time > $deadline; select undef, undef, undef, 0.05 } open my $sentinel, ">", $ENV{FM_TEST_DESCENDANT_SENTINEL} or die $!; print {$sentinel} "late\n"; close $sentinel' &
 printf '%s\n' "$!" > "$FM_TEST_DESCENDANT_PID"
-while [ ! -s "$FM_TEST_DESCENDANT_READY" ]; do sleep 0.01; done
+deadline=$((SECONDS + FM_TEST_HANG_GUARD_SECS))
+while [ ! -s "$FM_TEST_DESCENDANT_READY" ]; do
+  [ "$SECONDS" -lt "$deadline" ] || exit 1
+  sleep 0.01
+done
 : > "$FM_TEST_DIRECT_DONE"
 SH
     chmod 0700 "$state/custom.check.sh"
@@ -1123,29 +1186,27 @@ SH
     fi
 
     FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_POLL=0.1 FM_CHECK_INTERVAL=999999 \
-      FM_CHECK_TIMEOUT=10 FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 \
+      FM_CHECK_TIMEOUT="$HANG_GUARD_EVENT_SECS" FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 \
       FM_CHECK_FORCE_FALLBACK="$force_fallback" FM_TEST_DESCENDANT_READY="$ready" \
       FM_TEST_DESCENDANT_SENTINEL="$sentinel" FM_TEST_DESCENDANT_PID="$child_pid_file" \
-      FM_TEST_DIRECT_DONE="$direct_done" PATH="$fakebin:$BASE_PATH" "$WATCH" \
+      FM_TEST_DIRECT_DONE="$direct_done" FM_TEST_DESCENDANT_RELEASE="$release" \
+      FM_TEST_HANG_GUARD_SECS="$HANG_GUARD_EVENT_SECS" PATH="$fakebin:$BASE_PATH" "$WATCH" \
       > "$dir/watch.out" 2> "$dir/watch.err" &
     watcher_pid=$!
-    i=0
-    while [ "$i" -lt 200 ]; do
-      [ -s "$ready" ] && [ -s "$child_pid_file" ] && [ -e "$direct_done" ] \
-        && [ -e "$state/.last-check" ] && break
-      kill -0 "$watcher_pid" 2>/dev/null || break
+    deadline=$((SECONDS + HANG_GUARD_EVENT_SECS))
+    while { [ ! -s "$ready" ] || [ ! -s "$child_pid_file" ] || [ ! -e "$direct_done" ] \
+        || [ ! -e "$state/.last-check" ]; } \
+      && kill -0 "$watcher_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
       sleep 0.02
-      i=$((i + 1))
     done
     [ -s "$ready" ] && [ -s "$child_pid_file" ] && [ -e "$direct_done" ] \
       && [ -e "$state/.last-check" ] \
       || fail "$backend watcher did not complete the direct custom check"
     child_pid=$(cat "$child_pid_file")
     kill -TERM "$watcher_pid" 2>/dev/null || fail "could not stop $backend watcher"
-    i=0
-    while process_is_live_non_zombie "$watcher_pid" && [ "$i" -lt 150 ]; do
+    deadline=$((SECONDS + HANG_GUARD_EVENT_SECS))
+    while process_is_live_non_zombie "$watcher_pid" && [ "$SECONDS" -lt "$deadline" ]; do
       sleep 0.02
-      i=$((i + 1))
     done
     if process_is_live_non_zombie "$watcher_pid"; then
       kill -KILL "$watcher_pid" 2>/dev/null || true
@@ -1156,6 +1217,11 @@ SH
     rc=0
     wait "$watcher_pid" || rc=$?
     [ "$rc" -ne 0 ] || fail "$backend signaled watcher exited successfully"
+    # The descendant ignores TERM and holds on this file until the case releases it,
+    # then writes its sentinel. Releasing only now, after the watcher has stopped,
+    # keeps the outcome independent of how long the drain took: a descendant the
+    # drain missed is either still alive or has already written its sentinel.
+    : > "$release"
     alive=0
     process_is_live_non_zombie "$child_pid" && alive=1
     [ "$alive" -eq 0 ] || kill -KILL "$child_pid" 2>/dev/null || true

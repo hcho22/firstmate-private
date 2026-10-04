@@ -737,7 +737,7 @@ assert_local_secondmate_parent_record() {
 }
 
 test_local_secondmate_seed_publishes_parent_before_identity() {
-  local parent child parent_resolved fakebin entered release manifest_out real_mv seed_pid wait_count
+  local parent child parent_resolved fakebin entered release manifest_out real_mv seed_pid wait_deadline
   parent=$(make_home seed-publication-parent relay-off)
   child="$TMP_ROOT/seed-publication-child"
   parent_resolved=$(cd "$parent" && pwd -P)
@@ -752,10 +752,11 @@ destination=${!#}
 case "$destination" in
   */.fm-secondmate-home)
     touch "$FM_TEST_PUBLISH_ENTERED"
-    wait_count=0
+    # Held until the case releases it; the clock-based guard only ends a hold
+    # the case forgot, so a slow host cannot make the fake give up early.
+    hold_deadline=$((SECONDS + 60))
     while [ ! -f "$FM_TEST_PUBLISH_RELEASE" ]; do
-      wait_count=$((wait_count + 1))
-      [ "$wait_count" -le 250 ] || exit 97
+      [ "$SECONDS" -lt "$hold_deadline" ] || exit 97
       sleep 0.02
     done
     ;;
@@ -769,12 +770,13 @@ SH
     FM_TEST_PUBLISH_RELEASE="$release" \
     "$ROOT/bin/fm-home-seed.sh" mate "$child" --no-projects > "$manifest_out" 2>&1 &
   seed_pid=$!
-  wait_count=0
+  # A hang guard measured by the clock, not a count of sleeps: seeding is many
+  # process spawns, a loaded host stretches it, and an early exit fails at once.
+  wait_deadline=$((SECONDS + 60))
   while [ ! -f "$entered" ]; do
     kill -0 "$seed_pid" 2>/dev/null \
       || fail "local seeding exited before its identity completion marker: $(cat "$manifest_out")"
-    wait_count=$((wait_count + 1))
-    [ "$wait_count" -le 250 ] || fail "local seeding never reached its identity completion marker"
+    [ "$SECONDS" -lt "$wait_deadline" ] || fail "local seeding never reached its identity completion marker"
     sleep 0.02
   done
   assert_local_secondmate_parent_record "$child" "$parent_resolved"
@@ -1490,7 +1492,7 @@ test_control_registered_followon_is_guarded() {
 }
 
 test_rechain_delivers_second_post_on_same_thread() {
-  local parent log out posts command command_log
+  local parent log out posts command command_log emit_path fake_emit
   parent=$(make_home rechain-parent)
   log="$parent/curl.log"; : > "$log"
   seed_repro_commitment "$parent" public-final-a req-rechain main scout-a
@@ -1521,7 +1523,11 @@ SH
   ')
   assert_contains "$command" "--outcome-text" \
     "the exact rechain command must remain continuous through outcome text"
-  command=${command/"$ROOT/bin/fm-public-followup-emit.sh"/"$parent/fakebin/record-emit"}
+  # Bash 3.2 splits a quoted ${var/pattern/replacement} at a literal slash inside
+  # the quotes, so the paths go through variables and never carry a literal slash.
+  emit_path="$ROOT/bin/fm-public-followup-emit.sh"
+  fake_emit="$parent/fakebin/record-emit"
+  command=${command/"$emit_path"/"$fake_emit"}
   command=${command//<value>/https://github.com/example/repo/pull/99}
   RECORD_ARGS="$command_log" bash -c "$command" \
     || fail "the exact rechain command must execute after filling its deliverable value"
@@ -1946,7 +1952,7 @@ test_rechain_refuses_unclaimed_existing_destination() {
 }
 
 test_pending_skips_concurrent_retirement() {
-  local home log real_tasks pending_pid locker_pid rc=0
+  local home log real_tasks pending_pid locker_pid deadline rc=0
   home=$(make_home pending-retirement-race)
   log="$home/curl.log"; : > "$log"
   seed_commitment "$home" pf-race req-race discord main work-race
@@ -1975,7 +1981,8 @@ test_pending_skips_concurrent_retirement() {
     fm_pf_registry_lock_release "$FM_RACE_HOME/state" pf-race
   ' &
   locker_pid=$!
-  for _ in $(seq 1 100); do [ -e "$home/lock-ready" ] && break; sleep 0.02; done
+  deadline=$((SECONDS + 60))
+  while [ ! -e "$home/lock-ready" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.02; done
   [ -e "$home/lock-ready" ] || fail "race locker did not start"
 
   real_tasks=$(command -v tasks-axi)
@@ -1992,7 +1999,8 @@ SH
   REAL_TASKS_AXI="$real_tasks" PENDING_LISTED="$home/pending-listed" \
     run_pf "$home" pending > "$home/pending-race.out" 2>&1 &
   pending_pid=$!
-  for _ in $(seq 1 100); do [ -e "$home/pending-listed" ] && break; sleep 0.02; done
+  deadline=$((SECONDS + 60))
+  while [ ! -e "$home/pending-listed" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.02; done
   [ -e "$home/pending-listed" ] || fail "pending did not snapshot the backlog"
   : > "$home/release-lock"
   wait "$locker_pid" || fail "race retirement failed"

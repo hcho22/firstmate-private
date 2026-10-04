@@ -18,7 +18,7 @@ fi
 
 extension_segment=${FM_EXTENSION_BINDING_SEGMENT:-all}
 case "$extension_segment" in
-  all|coordinator|early-bind|early-validation|early-handshake|early-integrity|matrix|matrix-runtime|lifecycle-flow|lifecycle-lock|lifecycle-runner|lifecycle-state|lifecycle-invocation-cleanup|remote-envelope|remote-activation|remote-lifecycle|remote-retirement|example|coordinator-fail|coordinator-wait|coordinator-stubborn|coordinator-pass|coordinator-late-pass|coordinator-scheduler-block|coordinator-scheduler-late) ;;
+  all|coordinator|early-bind|early-validation|early-handshake|early-integrity|matrix|matrix-runtime|lifecycle-flow|lifecycle-lock|lifecycle-runner|lifecycle-state|lifecycle-invocation-cleanup|remote-envelope|remote-activation|remote-lifecycle|remote-retirement|example|startup-bounds|coordinator-fail|coordinator-wait|coordinator-stubborn|coordinator-pass|coordinator-late-pass|coordinator-scheduler-block|coordinator-scheduler-late) ;;
   *) printf 'unknown extension-binding segment: %s\n' "$extension_segment" >&2; exit 64 ;;
 esac
 
@@ -188,6 +188,7 @@ if verb == "handshake":
         except FileExistsError: pass
         else:
             while not os.path.exists(release): time.sleep(.01)
+    if fixed == "handshake-slow-when-flagged" and os.path.exists(release): time.sleep(float(marker))
     if fixed == "handshake-wrong-id": raw(handshake(request_id="sha256:" + "0" * 64))
     elif fixed == "handshake-unknown": raw(handshake(authority="merge"))
     elif fixed == "handshake-duplicate": raw(json.dumps(handshake()).replace('"request_id": ', f'"request_id":"{request["request_id"]}","request_id": ', 1))
@@ -228,6 +229,12 @@ elif mode in ("timeout", "leak", "foreground-leak"):
         while True: time.sleep(1)
     if mode == "leak": time.sleep(.1)
     raw(success({"status":"result", "output":"must not be accepted\n"}))
+elif mode == "flag-slow-handshake":
+    # Raise the flag the handshake-slow-when-flagged scenario reads, then answer:
+    # the poll succeeds and every LATER handshake is slow, which is the order of a
+    # terminal check that follows a captured result.
+    with open(release, "w", encoding="utf-8") as output: output.write("slow\n")
+    raw(success({"status":"result", "output":"evidence ahead of a slow terminal check\n"}))
 elif mode == "overlap":
     os.makedirs(state, exist_ok=True)
     with open(os.path.join(state, "overlap-ready"), "w", encoding="utf-8") as output: output.write("ready\n")
@@ -252,7 +259,7 @@ elif mode.startswith("active-block|"):
     raw(success({"status":"result", "output":"active runner completed\n"}))
 elif request["operation"] == "source.poll": raw(success({"status":"no-result" if mode == "no-result" else "result", "output":"" if mode == "no-result" else f"external evidence: {mode}\n"}))
 elif request["operation"] == "result.classify": raw(success({"classification":"external-ready"}))
-elif request["operation"] == "result.terminal": raw(success({"value":True}))
+elif request["operation"] == "result.terminal": raw(success({"value":fixed != "terminal-false"}))
 elif request["operation"] == "result.silent":
     content = request.get("input", {}).get("content", "")
     if content == "external evidence: crash-silent\\n":
@@ -331,13 +338,47 @@ if [ "${FM_TEST_OWNER_ONLY:-0}" = 1 ]; then
   exit 0
 fi
 
-wait_for_file() {
-  local file=$1
-  for _ in $(seq 1 100); do
-    [ -s "$file" ] && return 0
+# Every positive wait in this suite is a hang guard measured by time, never a
+# fixed iteration count: a starved host only stretches the wait, and only a
+# genuine hang reaches the guard.  The guard sits well below the section
+# coordinator's EXTENSION_SECTION_HANG_GUARD_SECS so a hung lane reports its own
+# failure. A multi-step case, the inner result.silent crash recovery, outran a
+# 60 s guard at load average 900 on a 20-CPU macOS host.
+EXTENSION_WAIT_SECONDS=180
+
+# The host's own startup bounds (5 s by default, docs/extension-bindings.md) are
+# a speed expectation the sections below do not test, and a starved host can
+# exceed them while a package merely starts. Widen them to a 60 s hang guard so
+# only a genuine hang fails; the startup-bounds section runs the handshake default.
+# They stay below EXTENSION_WAIT_SECONDS because the cleanup wait is also how long
+# a TERM-ignoring fixture lingers before its KILL on a passing path.
+# The overrides reach only the hosts this suite starts locally. The remote-lifecycle
+# lane's host runs under the remote job worker, which starts every job with a fixed
+# environment (bin/fm-remote-job-worker.sh), so that lane keeps the 5 s defaults:
+# a residual recorded by the remote-extension-bounds decision, which made no
+# product change to carry the overrides across the worker.
+EXTENSION_HOST_BOUND_SECONDS=60
+FM_EXTENSION_HANDSHAKE_TIMEOUT_MS=$((EXTENSION_HOST_BOUND_SECONDS * 1000))
+FM_EXTENSION_LAUNCH_READY_WAIT_MS=$((EXTENSION_HOST_BOUND_SECONDS * 1000))
+FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS=$((EXTENSION_HOST_BOUND_SECONDS * 1000))
+FM_EXTENSION_CLEANUP_WAIT_MS=$((EXTENSION_HOST_BOUND_SECONDS * 1000))
+export FM_EXTENSION_HANDSHAKE_TIMEOUT_MS FM_EXTENSION_LAUNCH_READY_WAIT_MS \
+  FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS FM_EXTENSION_CLEANUP_WAIT_MS
+
+wait_until() {  # <command...> - poll until it succeeds or the hang guard expires
+  local deadline=$((SECONDS + EXTENSION_WAIT_SECONDS))
+  until "$@"; do
+    [ "$SECONDS" -lt "$deadline" ] || return 1
     sleep 0.05
   done
-  return 1
+}
+
+process_gone() {  # <pid>
+  ! kill -0 "$1" 2>/dev/null
+}
+
+wait_for_file() {
+  wait_until test -s "$1"
 }
 
 wake_payloads() {
@@ -402,6 +443,7 @@ terminate_section_lanes() {
 terminate_section_lane_child() {
   local section_child_pid=$1 cleanup_attempt
   kill -TERM "$section_child_pid" 2>/dev/null || true
+  # fm-lint-waits: allow a reap grace before the forced kill below
   for ((cleanup_attempt = 0; cleanup_attempt < 20; cleanup_attempt++)); do
     kill -0 "$section_child_pid" 2>/dev/null || break
     sleep 0.05
@@ -428,19 +470,27 @@ run_extension_section_lane() {
   return "$section_rc"
 }
 
+# The coordinator's deadline is a hang guard, never a speed check: no
+# assertion depends on how long a section takes, and the sections spawn many
+# node and bash processes, so on a loaded macOS host the aggregate measured
+# 88 to 92 s against a 7 s CI hint. A section that is still running when the
+# guard expires is reported by name.
+EXTENSION_SECTION_HANG_GUARD_SECS=600
+
 run_extension_section_lanes() {
   local section result_file section_rc timeout_seconds deadline index remaining launched total maximum_sections
-  local active maximum_concurrent
+  local active maximum_concurrent unfinished
   local -a sections=("$@")
   local -a section_pids=()
   local -a section_results=()
   local -a section_complete=()
+  local -a section_names=()
   local section_result_root
-  timeout_seconds=${FM_EXTENSION_BINDING_COORDINATOR_TIMEOUT_SECONDS:-90}
+  timeout_seconds=${FM_EXTENSION_BINDING_COORDINATOR_TIMEOUT_SECONDS:-$EXTENSION_SECTION_HANG_GUARD_SECS}
   case "$timeout_seconds" in
     ''|*[!0-9]*) return 64 ;;
   esac
-  [ "$timeout_seconds" -gt 0 ] && [ "$timeout_seconds" -le 90 ] || return 64
+  [ "$timeout_seconds" -gt 0 ] && [ "$timeout_seconds" -le "$EXTENSION_SECTION_HANG_GUARD_SECS" ] || return 64
   section_result_root=$(mktemp -d "$TMP_ROOT/section-lanes.XXXXXX") || return 1
   total=${#sections[@]}
   # Sixteen selectors are validated here. The bounded aggregate keeps its
@@ -458,6 +508,7 @@ run_extension_section_lanes() {
     section_pids+=("$!")
     section_results+=("$result_file")
     section_complete+=("")
+    section_names+=("$section")
     launched=$((launched + 1))
     active=$((active + 1))
   done
@@ -481,10 +532,12 @@ run_extension_section_lanes() {
           active=$((active - 1))
           ;;
         ''|*[!0-9]*)
+          printf 'section coordinator: section %s published an invalid result\n' "${section_names[$index]}" >&2
           terminate_section_lanes
           return 125
           ;;
         *)
+          printf 'section coordinator: section %s failed (exit %s)\n' "${section_names[$index]}" "$section_rc" >&2
           terminate_section_lanes
           return "$section_rc"
           ;;
@@ -497,11 +550,18 @@ run_extension_section_lanes() {
       section_pids+=("$!")
       section_results+=("$result_file")
       section_complete+=("")
+      section_names+=("$section")
       launched=$((launched + 1))
       active=$((active + 1))
     done
     [ "$remaining" -eq 0 ] && break
     if [ "$SECONDS" -ge "$deadline" ]; then
+      unfinished=
+      for index in "${!section_pids[@]}"; do
+        [ -n "${section_complete[$index]:-}" ] || unfinished="$unfinished ${section_names[$index]}"
+      done
+      printf 'section coordinator: %ss deadline reached with unfinished sections:%s\n' \
+        "$timeout_seconds" "${unfinished:- (none launched)}" >&2
       terminate_section_lanes
       return 124
     fi
@@ -557,7 +617,7 @@ if [ "$extension_segment" = all ] || [ "$extension_segment" = coordinator ]; the
     (
       trap - EXIT HUP INT
       trap 'terminate_section_lanes; exit 143' TERM
-      run_extension_section_lanes lifecycle-flow remote-lifecycle example
+      run_extension_section_lanes lifecycle-flow remote-lifecycle example startup-bounds
     ) &
     section_coordinator_pid=$!
   fi
@@ -675,11 +735,7 @@ H_CONCURRENT="$HOMES/concurrent"; new_home "$H_CONCURRENT"
 bind_package "$H_CONCURRENT" "$P_CONCURRENT_ONE" ext-concurrent \
   > "$TMP_ROOT/concurrent-first.out" 2>&1 &
 first_bind_pid=$!
-for _ in $(seq 1 200); do
-  [ -s "$concurrent_marker" ] && break
-  sleep 0.01
-done
-[ -s "$concurrent_marker" ] || fail "first concurrent bind never reached its pre-publication handshake"
+wait_for_file "$concurrent_marker" || fail "first concurrent bind never reached its pre-publication handshake"
 bind_package "$H_CONCURRENT" "$P_CONCURRENT_TWO" ext-concurrent > "$TMP_ROOT/concurrent-second.out" 2>&1 &
 second_bind_pid=$!
 sleep 0.2
@@ -913,17 +969,9 @@ for scenario in malformed invalid-utf8 bom control multiple duplicate wrong-id u
   assert_not_contains "$out" "MERGE NOW" "extension diagnostic text escaped into host evidence"
 done
 leaked_pid=$(cat "$H_MATRIX/state/extensions/org.example.matrix/leaked.pid")
-for _ in $(seq 1 50); do
-  kill -0 "$leaked_pid" 2>/dev/null || break
-  sleep 0.05
-done
-kill -0 "$leaked_pid" 2>/dev/null && fail "a successful response left its background descendant alive"
+wait_until process_gone "$leaked_pid" || fail "a successful response left its background descendant alive"
 rapid_pid=$(cat "$H_MATRIX/state/extensions/org.example.matrix/foreground-leak.pid")
-for _ in $(seq 1 50); do
-  kill -0 "$rapid_pid" 2>/dev/null || break
-  sleep 0.05
-done
-kill -0 "$rapid_pid" 2>/dev/null && fail "a foreground descendant escaped invocation-group cleanup"
+wait_until process_gone "$rapid_pid" || fail "a foreground descendant escaped invocation-group cleanup"
 pass "malformed, invalid UTF-8, BOM, control, multiple, duplicate, unknown, oversized, crash, nonzero, stderr, and foreground leaked-process responses are rejected"
 
 overlap_out="$TMP_ROOT/overlap.out"
@@ -997,11 +1045,7 @@ assert_contains "$out" '"code":"timeout"' "timeout did not produce deterministic
 timeout_state_root="$H_TIMEOUT/state/extensions/org.example.timeout"
 wait_for_file "$timeout_state_root/descendant.pid" || fail "timeout fixture never started its descendant"
 descendant=$(cat "$timeout_state_root/descendant.pid")
-for _ in $(seq 1 50); do
-  kill -0 "$descendant" 2>/dev/null || break
-  sleep 0.05
-done
-kill -0 "$descendant" 2>/dev/null && fail "timed-out extension left its descendant alive"
+wait_until process_gone "$descendant" || fail "timed-out extension left its descendant alive"
 pass "timeout escalates through invocation-group cleanup and reaps descendants"
 
 # A missing installed executable is actionable evidence, never fallback to a
@@ -1061,7 +1105,7 @@ pass "one external adapter registers, invokes, captures unhandled evidence, clas
 FM_HOME="$H_FLOW" "$PROCEVENT" register-extension ext-flow crash-silent-source --config-ref crash-silent >/dev/null
 FM_HOME="$H_FLOW" "$PROCEVENT" start crash-silent-source > "$TMP_ROOT/crash-silent-start.out" 2>&1 &
 crash_silent_start_pid=$!
-crash_silent_deadline=$((SECONDS + 30))
+crash_silent_deadline=$((SECONDS + EXTENSION_WAIT_SECONDS))
 while [ "$SECONDS" -lt "$crash_silent_deadline" ]; do
   if [ -f "$TMP_ROOT/claims/crash-silent-source.claim" ]; then
     # The successful crash-recovery path may release this durable claim between
@@ -1215,7 +1259,8 @@ owner_lock="$H_LOCK_OWNER/state/procevent/.extension-binding-lifecycle.lock"
 FM_HOME="$H_LOCK_OWNER" "$HOST" retire-binding org.example.lock-owner --if-binding-digest "$owner_binding_digest" > "$TMP_ROOT/lock-owner-retire.out" 2>&1 &
 owner_retire_pid=$!
 owner_worker_pid=
-for _ in $(seq 1 400); do
+owner_lock_deadline=$((SECONDS + EXTENSION_WAIT_SECONDS))
+while [ "$SECONDS" -lt "$owner_lock_deadline" ]; do
   if [ -e "$owner_lock/pid" ]; then
     candidate=$(cat "$owner_lock/pid" 2>/dev/null || true)
     if [ -n "$candidate" ] && kill -STOP "$candidate" 2>/dev/null; then
@@ -1256,7 +1301,8 @@ signal_lock="$H_SIGNAL_LOCK/state/procevent/.extension-binding-lifecycle.lock"
 FM_HOME="$H_SIGNAL_LOCK" "$HOST" retire-binding org.example.signal-lock --if-binding-digest "$signal_binding_digest" > "$TMP_ROOT/signal-lock-retire.out" 2>&1 &
 signal_retire_pid=$!
 signal_worker_pid=
-for _ in $(seq 1 400); do
+signal_lock_deadline=$((SECONDS + EXTENSION_WAIT_SECONDS))
+while [ "$SECONDS" -lt "$signal_lock_deadline" ]; do
   if [ -e "$signal_lock/pid" ]; then
     candidate=$(cat "$signal_lock/pid" 2>/dev/null || true)
     if [ -n "$candidate" ] && kill -STOP "$candidate" 2>/dev/null; then
@@ -1269,11 +1315,7 @@ done
 [ -n "$signal_worker_pid" ] || fail "signal retirement worker never acquired its lifecycle lock"
 kill -TERM "$signal_worker_pid" 2>/dev/null || fail "cannot signal retirement worker"
 kill -CONT "$signal_worker_pid" 2>/dev/null || fail "cannot resume signalled retirement worker"
-for _ in $(seq 1 400); do
-  kill -0 "$signal_worker_pid" 2>/dev/null || break
-  sleep 0.005
-done
-kill -0 "$signal_worker_pid" 2>/dev/null && fail "signalled retirement worker did not exit"
+wait_until process_gone "$signal_worker_pid" || fail "signalled retirement worker did not exit"
 signal_worker_pid=
 wait "$signal_retire_pid" 2>/dev/null || true
 signal_retire_pid=
@@ -1720,8 +1762,8 @@ first_invocation_owner() {  # <home>
 }
 
 wait_for_invocation_owner() {  # <home>
-  local candidate
-  for _ in $(seq 1 200); do
+  local candidate deadline=$((SECONDS + EXTENSION_WAIT_SECONDS))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     candidate=$(first_invocation_owner "$1" 2>/dev/null || true)
     [ -n "$candidate" ] && { printf '%s\n' "$candidate"; return 0; }
     sleep 0.01
@@ -1979,11 +2021,8 @@ expect_failure "prior runner remains active" remote_direct fm-procevent.sh regis
 expect_failure "prior runner remains active" remote_direct fm-procevent.sh register lavish remote-active-source -- /bin/echo remote-built-in
 touch "$remote_active_release"
 remote_active_release=
-for _ in $(seq 1 400); do
-  [ ! -e "$H_REMOTE/state/procevent/remote-active-source.source" ] && break
-  sleep 0.01
-done
-assert_absent "$H_REMOTE/state/procevent/remote-active-source.source" "remote terminal runner retained its registration"
+wait_until test ! -e "$H_REMOTE/state/procevent/remote-active-source.source" \
+  || fail "remote terminal runner retained its registration"
 remote_direct fm-procevent.sh handled remote-active-source 1 >/dev/null
 remote_direct fm-procevent.sh register lavish remote-active-source -- /bin/echo remote-built-in >/dev/null
 remote_direct fm-procevent.sh retire remote-active-source --if-matches lavish -- /bin/echo remote-built-in >/dev/null
@@ -2144,19 +2183,25 @@ bind_package "$H_EXAMPLE" "$P_EXAMPLE" file-signal --consent artifact-references
 SIGNAL_FILE="$TMP_ROOT/example-result.txt"
 example_registration=$(FM_HOME="$H_EXAMPLE" "$PROCEVENT" register-extension file-signal example-file --config-ref "file:$SIGNAL_FILE")
 example_token=$(printf '%s\n' "$example_registration" | sed -n 's/^owner-token: //p')
-FM_HOME="$H_EXAMPLE" "$PROCEVENT" start example-file > "$TMP_ROOT/example-start.out" &
+FM_HOME="$H_EXAMPLE" "$PROCEVENT" start example-file > "$TMP_ROOT/example-start.out" 2>&1 &
 example_start=$!
-for _ in $(seq 1 100); do
-  [ -f "$FM_PROCEVENT_CLAIM_ROOT/example-file.claim" ] && break
-  sleep 0.05
-done
-assert_present "$FM_PROCEVENT_CLAIM_ROOT/example-file.claim" "example source never started waiting"
+wait_until test -f "$FM_PROCEVENT_CLAIM_ROOT/example-file.claim" || fail "example source never started waiting"
 printf 'build 42 completed successfully\n' > "$SIGNAL_FILE"
 wait "$example_start" || fail "example source failed after its file appeared"
 example_result=$(first_result "$H_EXAMPLE" example-file) || fail "example captured no file result"
 assert_grep 'build 42 completed successfully' "$example_result" "example did not preserve external evidence"
 assert_contains "$(FM_HOME="$H_EXAMPLE" "$PROCEVENT" classify "$example_result")" "file-signal" "example result did not classify through the package"
-assert_absent "$H_EXAMPLE/state/procevent/example-file.source" "example terminal result did not retire its source"
+if [ -e "$H_EXAMPLE/state/procevent/example-file.source" ]; then
+  fail "example terminal result did not retire its source
+--- runner output ---
+$(cat "$TMP_ROOT/example-start.out")
+--- procevent list ---
+$(FM_HOME="$H_EXAMPLE" "$PROCEVENT" list 2>&1)
+--- failed terminal checks ---
+$(cat "$H_EXAMPLE"/state/procevent-inbox/*.terminal-check-failed 2>/dev/null)"
+fi
+assert_not_contains "$(cat "$TMP_ROOT/example-start.out")" "terminal-check-failed" \
+  "the example terminal check failed to answer"
 FM_HOME="$H_EXAMPLE" "$PROCEVENT" retire example-file --if-owner "$example_token" >/dev/null
 pass "the shipped file-signal package is a runnable end-to-end external adapter"
 
@@ -2169,14 +2214,10 @@ SIGNAL_FILE_SYMLINKED="$TMP_ROOT/example-symlinked-result.txt"
 symlinked_registration=$(FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" register-extension file-signal example-symlinked \
   --config-ref "file:$SIGNAL_FILE_SYMLINKED")
 symlinked_token=$(printf '%s\n' "$symlinked_registration" | sed -n 's/^owner-token: //p')
-FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" start example-symlinked > "$TMP_ROOT/example-symlinked-start.out" &
+FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" start example-symlinked > "$TMP_ROOT/example-symlinked-start.out" 2>&1 &
 symlinked_start=$!
-for _ in $(seq 1 100); do
-  [ -f "$FM_PROCEVENT_CLAIM_ROOT/example-symlinked.claim" ] && break
-  sleep 0.05
-done
-assert_present "$FM_PROCEVENT_CLAIM_ROOT/example-symlinked.claim" \
-  "a home reached through a symlinked ancestor never started its external source"
+wait_until test -f "$FM_PROCEVENT_CLAIM_ROOT/example-symlinked.claim" \
+  || fail "a home reached through a symlinked ancestor never started its external source"
 printf 'build 43 completed successfully\n' > "$SIGNAL_FILE_SYMLINKED"
 wait "$symlinked_start" \
   || fail "a home reached through a symlinked ancestor failed its external source"
@@ -2184,8 +2225,38 @@ symlinked_result=$(first_result "$H_EXAMPLE" example-symlinked) \
   || fail "a home reached through a symlinked ancestor captured no external result"
 assert_grep 'build 43 completed successfully' "$symlinked_result" \
   "the symlinked-ancestor home did not preserve external evidence"
+assert_not_contains "$(cat "$TMP_ROOT/example-symlinked-start.out")" "terminal-check-failed" \
+  "the symlinked-ancestor home failed its terminal check: $(cat "$TMP_ROOT/example-symlinked-start.out")"
+assert_absent "$H_EXAMPLE/state/procevent/example-symlinked.source" \
+  "the symlinked-ancestor home did not retire its terminal source"
 FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" retire example-symlinked --if-owner "$symlinked_token" >/dev/null
-pass "a home reached through a symlinked ancestor captures external evidence normally"
+pass "a home reached through a symlinked ancestor captures and retires external evidence normally"
+
+# A runner can start with descriptors already open below the capture range
+# (whatever launched it left 3 to 5 open). Its terminal check must still receive
+# the pinned claim, capability, inbox, and result descriptors intact.
+SIGNAL_FILE_INHERITED="$TMP_ROOT/example-inherited-result.txt"
+inherited_registration=$(FM_HOME="$H_EXAMPLE" "$PROCEVENT" register-extension file-signal example-inherited \
+  --config-ref "file:$SIGNAL_FILE_INHERITED")
+inherited_token=$(printf '%s\n' "$inherited_registration" | sed -n 's/^owner-token: //p')
+FM_HOME="$H_EXAMPLE" "$PROCEVENT" start example-inherited 3</dev/null 4</dev/null 5</dev/null \
+  > "$TMP_ROOT/example-inherited-start.out" 2>&1 &
+inherited_start=$!
+wait_until test -f "$FM_PROCEVENT_CLAIM_ROOT/example-inherited.claim" \
+  || fail "a runner with inherited descriptors never started its external source"
+printf 'build 44 completed successfully\n' > "$SIGNAL_FILE_INHERITED"
+wait "$inherited_start" \
+  || fail "a runner with inherited descriptors failed its external source"
+inherited_result=$(first_result "$H_EXAMPLE" example-inherited) \
+  || fail "a runner with inherited descriptors captured no external result"
+assert_grep 'build 44 completed successfully' "$inherited_result" \
+  "a runner with inherited descriptors did not preserve external evidence"
+assert_not_contains "$(cat "$TMP_ROOT/example-inherited-start.out")" "terminal-check-failed" \
+  "a runner with inherited descriptors failed its terminal check: $(cat "$TMP_ROOT/example-inherited-start.out")"
+assert_absent "$H_EXAMPLE/state/procevent/example-inherited.source" \
+  "a runner with inherited descriptors did not retire its terminal source"
+FM_HOME="$H_EXAMPLE" "$PROCEVENT" retire example-inherited --if-owner "$inherited_token" >/dev/null
+pass "a runner started with descriptors open below the capture range still retires its terminal source"
 
 P_HANDSHAKE_ORPHAN="$PACKAGES/handshake-orphan"
 P_HANDSHAKE_RECOVER="$PACKAGES/handshake-recover"
@@ -2201,15 +2272,106 @@ handshake_orphan_pid=$(cat "$handshake_orphan_pid_file")
 assert_contains "$handshake_orphan_out" "process-leak" "handshake leak did not reject binding publication"
 assert_absent "$H_HANDSHAKE_ORPHAN/config/extensions.d/org.example.handshake-orphan.json" "handshake orphan published an enabled binding"
 kill -0 "$handshake_orphan_pid" 2>/dev/null && fail "handshake leak escaped invocation-group cleanup"
-for _ in $(seq 1 50); do
-  kill -0 "$handshake_orphan_pid" 2>/dev/null || break
-  sleep 0.05
-done
 handshake_orphan_pid=
 bind_package "$H_HANDSHAKE_ORPHAN" "$P_HANDSHAKE_RECOVER" ext-handshake-orphan >/dev/null
 assert_contains "$(FM_HOME="$H_HANDSHAKE_ORPHAN" "$HOST" verify org.example.handshake-orphan)" "verified: org.example.handshake-orphan@1.2.3" \
   "cleaned handshake state did not permit safe binding"
 pass "handshake execution rejects and reaps foreground descendants"
+fi
+
+# --- startup bounds ----------------------------------------------------------
+if section_enabled startup-bounds; then
+# The host's four startup bounds default to 5000/5000/5000/2000 ms and each has an
+# environment override. The slow fixture delays only handshakes made after its
+# flag file exists, so a package that handshakes quickly can be made slow on the
+# next handshake.
+P_SLOW="$PACKAGES/slow-handshake"
+SLOW_FLAG="$TMP_ROOT/slow-handshake.flag"
+make_package "$P_SLOW" org.example.slow ext-slow "$(printf 'handshake-slow-when-flagged\n7\n%s' "$SLOW_FLAG")"
+H_SLOW="$HOMES/slow"; new_home "$H_SLOW"
+bind_package "$H_SLOW" "$P_SLOW" ext-slow >/dev/null
+: > "$SLOW_FLAG"
+expect_failure "extension handshake exceeded 5000 ms" \
+  env -u FM_EXTENSION_HANDSHAKE_TIMEOUT_MS FM_HOME="$H_SLOW" "$HOST" verify org.example.slow
+expect_failure "extension handshake exceeded 1500 ms" \
+  env FM_EXTENSION_HANDSHAKE_TIMEOUT_MS=1500 FM_HOME="$H_SLOW" "$HOST" verify org.example.slow
+assert_contains "$(env FM_EXTENSION_HANDSHAKE_TIMEOUT_MS=60000 FM_HOME="$H_SLOW" "$HOST" verify org.example.slow)" \
+  "verified: org.example.slow@1.2.3" "a handshake slower than the default bound was refused despite a wider override"
+rm -f "$SLOW_FLAG"
+for bound in FM_EXTENSION_HANDSHAKE_TIMEOUT_MS FM_EXTENSION_LAUNCH_READY_WAIT_MS \
+  FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS FM_EXTENSION_CLEANUP_WAIT_MS; do
+  for invalid in abc 99 3600001 -5 1.5; do
+    expect_failure "$bound must be an integer from 100 to 3600000" \
+      env "$bound=$invalid" FM_HOME="$H_SLOW" "$HOST" list
+  done
+done
+pass "the handshake bound keeps its 5000 ms default and accepts overrides, and every startup bound refuses malformed values"
+
+# A terminal check whose handshake fails to answer is not a verdict. It must keep
+# the registration armed (the safe false path) AND leave a durable record, where
+# before it was discarded without a trace and the source silently stayed registered.
+# An adapter that answers "not terminal" also keeps the registration armed, but
+# that is a verdict and leaves no record. The answering source's id, slow, is a
+# prefix of the failing source's id, slow.terminal, so list must count each
+# source's own records and results only.
+P_SLOWT="$PACKAGES/slow-terminal"
+SLOWT_FLAG="$TMP_ROOT/slow-terminal.flag"
+make_package "$P_SLOWT" org.example.slowterm ext-slowterm "$(printf 'handshake-slow-when-flagged\n20\n%s' "$SLOWT_FLAG")"
+P_NOTTERM="$PACKAGES/not-terminal"
+make_package "$P_NOTTERM" org.example.notterm ext-notterm terminal-false
+H_SLOWT="$HOMES/slow-terminal"; new_home "$H_SLOWT"
+bind_package "$H_SLOWT" "$P_SLOWT" ext-slowterm >/dev/null
+bind_package "$H_SLOWT" "$P_NOTTERM" ext-notterm >/dev/null
+notterm_registration=$(FM_HOME="$H_SLOWT" "$PROCEVENT" register-extension ext-notterm slow --config-ref good)
+notterm_token=$(printf '%s\n' "$notterm_registration" | sed -n 's/^owner-token: //p')
+FM_HOME="$H_SLOWT" "$PROCEVENT" start slow > "$TMP_ROOT/not-terminal-start.out" 2>&1 \
+  || fail "a not-terminal verdict made the runner fail: $(cat "$TMP_ROOT/not-terminal-start.out")"
+assert_grep 'external evidence: good' "$H_SLOWT/state/procevent-inbox/slow.1.result" \
+  "the not-terminal source captured no result"
+assert_present "$H_SLOWT/state/procevent/slow.source" "a not-terminal verdict retired its source"
+assert_not_contains "$(cat "$TMP_ROOT/not-terminal-start.out")" "terminal-check-failed" \
+  "the runner reported a not-terminal verdict as a failed terminal check"
+[ -z "$(find "$H_SLOWT/state/procevent-inbox" -name '*.terminal-check-failed')" ] \
+  || fail "a not-terminal verdict left a failed-terminal-check record"
+slowt_registration=$(FM_HOME="$H_SLOWT" "$PROCEVENT" register-extension ext-slowterm slow.terminal --config-ref flag-slow-handshake)
+slowt_token=$(printf '%s\n' "$slowt_registration" | sed -n 's/^owner-token: //p')
+# 15 s is far above a healthy handshake and below the fixture's 20 s delay, so only
+# the deliberately slow terminal-check handshake can reach it.
+FM_EXTENSION_HANDSHAKE_TIMEOUT_MS=15000 FM_HOME="$H_SLOWT" "$PROCEVENT" start slow.terminal \
+  > "$TMP_ROOT/slow-terminal-start.out" 2>&1 || fail "a failed terminal check made the runner fail"
+slowt_result=$(first_result "$H_SLOWT" slow.terminal) || fail "the slow.terminal source captured no result"
+assert_grep 'evidence ahead of a slow terminal check' "$slowt_result" "the captured evidence was lost"
+assert_present "$H_SLOWT/state/procevent/slow.terminal.source" "a terminal check that failed to answer retired its source"
+slowt_base=${slowt_result%.result}
+slowt_record="$slowt_base.terminal-check-failed"
+assert_present "$slowt_record" "a terminal check that failed to answer left no durable record"
+[ "$(stat -c '%a' "$slowt_record" 2>/dev/null || stat -f '%Lp' "$slowt_record")" = 600 ] \
+  || fail "the failed-terminal-check record is not private"
+assert_grep '"operation":"result.terminal"' "$slowt_record" "the record did not name the failed operation"
+assert_grep '"code":"timeout"' "$slowt_record" "the record did not name the failure code"
+assert_grep '"extension_id":"org.example.slowterm"' "$slowt_record" "the record did not name the extension"
+assert_no_grep 'evidence ahead' "$slowt_record" "the record copied source output"
+assert_contains "$(cat "$TMP_ROOT/slow-terminal-start.out")" "terminal-check-failed: slow.terminal" \
+  "the runner did not report the failed terminal check"
+slowt_list=$(FM_HOME="$H_SLOWT" "$PROCEVENT" list)
+assert_contains "$slowt_list" "FAILED-TERMINAL-CHECKS" "list omitted the failed-terminal-check column"
+printf '%s\n' "$slowt_list" | awk '$1 == "slow.terminal" && $(NF - 1) == 1 && $NF == 1 { found = 1 } END { exit !found }' \
+  || fail "list did not count the failed terminal check for its source: $slowt_list"
+printf '%s\n' "$slowt_list" | awk '$1 == "slow" && $(NF - 1) == 1 && $NF == 0 { found = 1 } END { exit !found }' \
+  || fail "list counted another source's records or results for a source whose id prefixes it: $slowt_list"
+FM_HOME="$H_SLOWT" "$PROCEVENT" retire slow.terminal --if-owner "$slowt_token" >/dev/null
+FM_HOME="$H_SLOWT" "$PROCEVENT" retire slow --if-owner "$notterm_token" >/dev/null
+pass "a terminal check that fails to answer leaves a durable record, a not-terminal verdict leaves none, and both keep the registration armed"
+# A host that fails before it reaches the adapter must not exit 1, which the
+# runner reads as the "not terminal" verdict and records nowhere.
+host_failure_rc=0
+host_failure_out=$(FM_HOME="$TMP_ROOT/missing-home" "$HOST" process-event ext-slowterm result.terminal \
+  --result-file "$slowt_result" --expect-extension org.example.slowterm 2>/dev/null) || host_failure_rc=$?
+[ "$host_failure_rc" -eq 70 ] \
+  || fail "a terminal check whose host failed exited $host_failure_rc instead of 70: $host_failure_out"
+assert_contains "$host_failure_out" '"code":"home-invalid"' "the host failure evidence did not name its cause"
+assert_contains "$host_failure_out" '"operation":"result.terminal"' "the host failure evidence did not name its operation"
+pass "a terminal check whose host fails before the adapter answers reports evidence, never a verdict"
 fi
 
 printf '\nall extension-binding tests passed\n'

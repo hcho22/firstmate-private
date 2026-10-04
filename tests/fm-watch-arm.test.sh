@@ -30,16 +30,15 @@ ARM_PID=
 
 # Start the real watcher as the singleton holder.
 start_seed_watcher() {  # <state> <fakebin> <watch-out>
-  local state=$1 fakebin=$2 out=$3 i
+  local state=$1 fakebin=$2 out=$3
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 \
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
   SEED_PID=$!
-  i=0
-  while [ "$i" -lt 60 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$SEED_PID" ] \
       && [ -e "$state/.last-watcher-beat" ] && break
     sleep 0.1
-    i=$((i + 1))
   done
   [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$SEED_PID" ] \
     || fail "seed watcher did not take the lock"
@@ -47,15 +46,14 @@ start_seed_watcher() {  # <state> <fakebin> <watch-out>
 
 # Attach a real arm to the live cycle.
 start_attached_arm() {  # <state> <fakebin> <arm-out> <confirm-timeout>
-  local state=$1 fakebin=$2 armout=$3 confirm=$4 i
+  local state=$1 fakebin=$2 armout=$3 confirm=$4
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_ARM_ATTACH_POLL=0.1 \
     FM_ARM_CONFIRM_TIMEOUT="$confirm" "$WATCH_ARM" > "$armout" &
   ARM_PID=$!
-  i=0
-  while [ "$i" -lt 80 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -qF "watcher: attached pid=$SEED_PID" "$armout" 2>/dev/null && break
     sleep 0.1
-    i=$((i + 1))
   done
   grep -qF "watcher: attached pid=$SEED_PID" "$armout" \
     || fail "arm did not attach to the live watcher: $(cat "$armout")"
@@ -106,10 +104,10 @@ status_signature() {  # <status-path>
 
 wait_for_file_text() {  # <file> <fixed-text>
   local file=$1 expected=$2 i=0
-  while [ "$i" -lt 100 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -F "$expected" "$file" >/dev/null 2>&1 && return 0
     sleep 0.05
-    i=$((i + 1))
   done
   return 1
 }
@@ -140,19 +138,22 @@ drain_ack_pair() {  # <drain-stderr>
   printf '%s\t%s\n' "$sequence" "$generation"
 }
 
+# The confirmation window is the test-wide 60 s hang guard rather than the
+# production 10 s default: no re-arm case depends on confirmation timing out, and
+# a loaded host can take longer than 10 s to publish the lock and a fresh beacon.
 start_rearm_arm() {  # <home> <state> <fakebin> <arm-out> [predecessor-arm-pid]
   local home=$1 state=$2 fakebin=$3 armout=$4 predecessor=${5:-} i
   PATH="$fakebin:$PATH" FM_HOME="$home" FM_STATE_OVERRIDE="$state" \
     FM_POLL=1 FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
+    FM_ARM_CONFIRM_TIMEOUT=60 \
     FM_WATCH_PREDECESSOR_ARM_PID="$predecessor" \
     "$WATCH_ARM" --restart > "$armout" &
   ARM_PID=$!
-  i=0
-  while [ "$i" -lt 80 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -q '^watcher: started ' "$armout" 2>/dev/null && return 0
     is_live_non_zombie "$ARM_PID" || return 0
     sleep 0.05
-    i=$((i + 1))
   done
   return 0
 }
@@ -244,7 +245,7 @@ test_attached_arm_still_fails_on_a_wake_it_did_not_deliver() {
 }
 
 test_rearm_resurfaces_durable_queue_and_remote_open_decision() {
-  local dir home state fakebin result armout drainout status watcher_pid sequence generation decision_recovery_arm decision_successor
+  local dir home state fakebin result armout drainout status watcher_pid sequence generation decision_recovery_arm decision_successor i
   dir=$(make_case rearm-resurface)
   home="$dir/home"
   state="$dir/state"
@@ -288,7 +289,15 @@ test_rearm_resurfaces_durable_queue_and_remote_open_decision() {
   append_wake "$state" check startup-network 'check: startup-network'
 
   start_rearm_arm "$home" "$state" "$fakebin" "$armout"
-  sleep 0.25
+  # A healthy re-arm announces its watcher, surfaces the durable wakes, and exits
+  # on its own; the regression this guards leaves it live. Wait for that exit
+  # rather than a fixed settle: a loaded host can take far longer than any fixed
+  # window to get there. The 60s bound only catches a genuine hang.
+  i=0
+  while [ "$i" -lt 600 ] && is_live_non_zombie "$ARM_PID"; do
+    sleep 0.1
+    i=$((i + 1))
+  done
   if is_live_non_zombie "$ARM_PID"; then
     # End the fixture through an ordinary actionable status transition so this
     # failing pre-fix path leaves no child behind.

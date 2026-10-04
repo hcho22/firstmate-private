@@ -852,6 +852,56 @@ fm_procevent_mark_handled() {
   return 2
 }
 
+# fm_procevent_terminal_check_failed_marker <state> <source-id> <sequence>
+fm_procevent_terminal_check_failed_marker() {
+  if [ "${FM_PROCEVENT_CAPTURE_PINNED_INBOX:-}" = 1 ]; then
+    printf './%s.%s.terminal-check-failed\n' "$2" "$3"
+    return
+  fi
+  printf '%s/%s.%s.terminal-check-failed\n' "$(fm_procevent_inbox_dir "$1")" "$2" "$3"
+}
+
+# fm_procevent_record_terminal_check_failed <state> <source-id> <sequence> <evidence>
+# Durably record that the source's adapter FAILED to answer the terminal check
+# for one captured result (a handshake timeout, for example), as opposed to
+# answering "not terminal". The verdict stays false and the registration stays
+# armed; this only keeps the failure from vanishing. <evidence> is the host's
+# own one-line firstmate.process-event-extension-error.v1 record, which carries
+# a code and never source output. Private at mode 0600, create-once per
+# generation like the handled acknowledgement. 0 = recorded, 1 = already
+# recorded, 2 = error.
+fm_procevent_record_terminal_check_failed() {
+  local state=$1 id=$2 seq=$3 evidence=$4 inbox marker tmp
+  fm_procevent_source_id_valid "$id" || return 2
+  case "$seq" in ''|*[!0-9]*) return 2 ;; esac
+  case "$evidence" in
+    '{"code":'*'}') ;;
+    *) return 2 ;;
+  esac
+  [ "${#evidence}" -le 512 ] || return 2
+  case "$evidence" in *[![:print:]]*) return 2 ;; esac
+  if [ "${FM_PROCEVENT_CAPTURE_PINNED_INBOX:-}" = 1 ]; then
+    inbox=.
+  else
+    inbox=$(fm_procevent_inbox_dir "$state")
+  fi
+  [ -f "$inbox/$id.$seq.result" ] && [ ! -L "$inbox/$id.$seq.result" ] || return 2
+  marker=$(fm_procevent_terminal_check_failed_marker "$state" "$id" "$seq")
+  [ ! -L "$marker" ] || return 2
+  tmp=$(umask 077; mktemp "$inbox/.terminal-check-failed.XXXXXX") || return 2
+  if ! printf '%s\n' "$evidence" > "$tmp" || ! chmod 0600 "$tmp"; then
+    rm -f -- "$tmp"
+    return 2
+  fi
+  if ln "$tmp" "$marker" 2>/dev/null; then
+    rm -f -- "$tmp"
+    return 0
+  fi
+  rm -f -- "$tmp"
+  [ -f "$marker" ] && [ ! -L "$marker" ] && return 1
+  return 2
+}
+
 # fm_procevent_result_source_id <result-path>
 fm_procevent_result_source_id() {
   local base=${1##*/}

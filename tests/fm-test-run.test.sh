@@ -507,9 +507,12 @@ PY
   timeout_script=tests/fm-calm-pi-extension.test.sh
   mkdir -p "$timeout_repo/bin" "$timeout_repo/tests"
   cp "$RUNNER" "$timeout_repo/bin/fm-test-run.sh"
+  # The automatic path's guard is the progress-aware runner; this stub reports a
+  # silent script at the 900s floor without running it.
   cat >"$timeout_repo/bin/fm-timeout-lib.sh" <<'SH'
-fm_run_timed() {
+fm_run_progress_bounded() {
   [ "$1" -eq 900 ] || return 99
+  printf 'idle\n' >"$4"
   return 124
 }
 SH
@@ -535,6 +538,90 @@ SH
 
   rm -rf "$tmp"
   pass "changed defaults to bounded automatic scheduling with serial override"
+}
+
+# The automatic --changed bound is a hang guard with a 900s floor, but a script
+# with a measured duration hint runs at several times that hint on a slow shared
+# host (fm-watch-triage measured 761s against a 263s hint and was cut off at 900s
+# while still progressing). A script with a hint therefore gets the larger of the
+# floor and six times the hint, a script without one keeps the floor, an explicit
+# --per-script-timeout-secs stays flat, and a hung script still fails at its bound.
+test_changed_bound_scales_with_the_duration_hint() {
+  local tmp repo hinted unhinted log rc bound backstop
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-hintbound.XXXXXX")
+  repo="$tmp/repo"
+  hinted=tests/fm-watch-triage.test.sh
+  unhinted=tests/fm-calm-pi-extension.test.sh
+  log="$tmp/bounds.log"
+  mkdir -p "$repo/bin" "$repo/tests"
+  cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+  # Both bounded runners log the bound they were handed and report a hang: the
+  # automatic path's progress-aware guard (bound, backstop, watched output,
+  # reason file) and the explicit flat bound. The guard runs the wrapped command,
+  # as the real one does, and logs watched-own-output only when the file it was
+  # told to watch received that script's output, however the runner schedules it.
+  cat >"$repo/bin/fm-timeout-lib.sh" <<'SH'
+fm_run_progress_bounded() {
+  local watch=$3
+  printf '%s\n' "$*" >>"$FM_TEST_BOUND_LOG"
+  printf 'idle\n' >"$4"
+  shift 4
+  "$@"
+  if grep -qx 'fixture: the script wrote this' "$watch" 2>/dev/null; then
+    printf 'watched-own-output %s\n' "$*" >>"$FM_TEST_BOUND_LOG"
+  fi
+  return 124
+}
+fm_run_timed() {
+  printf '%s\n' "$*" >>"$FM_TEST_BOUND_LOG"
+  return 124
+}
+SH
+  for s in "$hinted" "$unhinted"; do
+    printf '#!/usr/bin/env bash\necho "fixture: the script wrote this"\n' >"$repo/$s"
+    chmod +x "$repo/$s"
+  done
+  chmod +x "$repo/bin/fm-test-run.sh"
+  git -C "$repo" init -q
+  git -C "$repo" add .
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm baseline
+  for s in "$hinted" "$unhinted"; do printf '\n' >>"$repo/$s"; done
+
+  : >"$log"
+  set +e
+  (cd "$repo" && FM_TEST_BOUND_LOG="$log" bin/fm-test-run.sh --changed --base HEAD) >"$tmp/out" 2>"$tmp/err"
+  rc=$?
+  set -e
+  [ "$rc" -eq 1 ] || fail "hung scripts must fail the run, got $rc: $(cat "$tmp/out")"
+  # The hinted script's bound is read back from what the runner handed the timeout
+  # helper. The exact hint is the runner's own balance data and is refreshed over
+  # time, so assert the rule rather than a number: above the 900s floor, and in
+  # the range of a small multiple of a hint that is a few minutes long.
+  bound=$(awk -v s="$hinted" 'index($0, s) { print $1; exit }' "$log")
+  case "$bound" in ''|*[!0-9]*) fail "$hinted was not run under a numeric bound: $(cat "$log")" ;; esac
+  [ "$bound" -gt 900 ] || fail "$hinted kept the flat 900s floor instead of a hint-proportional bound ($bound s)"
+  [ "$bound" -le 6000 ] || fail "$hinted got an implausibly large bound ($bound s)"
+  backstop=$(awk -v s="$hinted" 'index($0, s) { print $2; exit }' "$log")
+  [ "$backstop" = "$((bound * 4))" ] \
+    || fail "$hinted got backstop $backstop instead of 4 x its ${bound}s bound: $(cat "$log")"
+  grep -Eq "^900 3600 .*$unhinted" "$log" || fail "$unhinted lost the 900s floor or its backstop: $(cat "$log")"
+  grep -Fq "$hinted made no progress for ${bound}s, its per-script bound, and was terminated" "$tmp/out" \
+    || fail "a silent hinted script was not reported at its own bound: $(cat "$tmp/out")"
+  grep -Eq "^FM_TEST_END .+ $hinted exit=124 " "$tmp/out" || fail "a hung hinted script was not recorded as exit 124"
+  for s in "$hinted" "$unhinted"; do
+    grep -Eq "^watched-own-output .*$s" "$log" \
+      || fail "the guard did not watch $s's own output file: $(cat "$log")"
+  done
+
+  : >"$log"
+  set +e
+  (cd "$repo" && FM_TEST_BOUND_LOG="$log" bin/fm-test-run.sh --changed --base HEAD --per-script-timeout-secs 7) >"$tmp/out2" 2>"$tmp/err2"
+  set -e
+  grep -Eq "^7 .*$hinted" "$log" || fail "an explicit bound was scaled for a hinted script: $(cat "$log")"
+  grep -Eq "^7 .*$unhinted" "$log" || fail "an explicit bound was not applied flat: $(cat "$log")"
+
+  rm -rf "$tmp"
+  pass "the automatic changed bound scales with the duration hint and stays flat when explicit"
 }
 
 # A local verification round names the subjects it cares about. Exercise begin/end
@@ -606,6 +693,131 @@ PYJSON
 
   rm -rf "$tmp"
   pass "a plain script list defaults to bounded automatic concurrency without an automatic timeout"
+}
+
+# Every script, serial or concurrent, runs with its own private mode-0700 TMPDIR
+# under the run's temporary root, never the caller's shared one: temp roots
+# cannot collide, and the orphaned-worker sweeps a test's fixtures run (which
+# tests/lib.sh scopes to TMPDIR) cannot reach another script's or run's fixtures.
+test_every_script_gets_a_private_tmpdir() {
+  local tmp repo script report caller_tmp count distinct row name dir tmpvar mode
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-private-tmp.XXXXXX")
+  tmp=$(cd "$tmp" && pwd -P)
+  repo="$tmp/repo"
+  caller_tmp="$tmp/caller-tmp"
+  report="$tmp/report.tsv"
+  mkdir -p "$caller_tmp"
+  init_changed_fixture_repo "$repo"
+  # fm-cd-pretool-check and fm-pr-merge are individually proven isolated, so a
+  # plain list runs them concurrently; fm-backend-orca is not, so it runs in the
+  # serial tail, and --jobs 1 runs all three serially.
+  for script in fm-cd-pretool-check.test.sh fm-pr-merge.test.sh fm-backend-orca.test.sh; do
+    cat >"$repo/tests/$script" <<'SH'
+#!/usr/bin/env bash
+mode=$(stat -c %a "$TMPDIR" 2>/dev/null || stat -f %Lp "$TMPDIR" 2>/dev/null)
+printf '%s\t%s\t%s\t%s\n' "$(basename "$0")" "$TMPDIR" "${TMP:-}" "$mode" >>"$FM_TEST_TMPDIR_REPORT"
+echo "ok - private tmpdir fixture"
+SH
+    chmod +x "$repo/tests/$script"
+  done
+
+  for jobs in 1 auto; do
+    : >"$report"
+    if [ "$jobs" = 1 ]; then
+      set -- --jobs 1
+    else
+      set --
+    fi
+    (cd "$repo" && TMPDIR="$caller_tmp" FM_TEST_TMPDIR_REPORT="$report" bin/fm-test-run.sh \
+        tests/fm-cd-pretool-check.test.sh tests/fm-pr-merge.test.sh tests/fm-backend-orca.test.sh "$@") \
+      >"$tmp/run-$jobs.out" 2>"$tmp/run-$jobs.err" \
+      || fail "the private-tmpdir run (jobs=$jobs) failed: $(cat "$tmp/run-$jobs.err")"
+    count=$(wc -l <"$report" | tr -d ' ')
+    [ "$count" = 3 ] || fail "expected 3 private-tmpdir reports (jobs=$jobs), got $count: $(cat "$report")"
+    distinct=$(cut -f2 "$report" | sort -u | wc -l | tr -d ' ')
+    [ "$distinct" = 3 ] || fail "scripts shared a TMPDIR (jobs=$jobs): $(cat "$report")"
+    while IFS= read -r row; do
+      IFS=$'\t' read -r name dir tmpvar mode <<EOF
+$row
+EOF
+      case "$dir" in
+        "$caller_tmp"/fm-test-run.*/*) ;;
+        *) fail "$name ran with TMPDIR outside the run's own root (jobs=$jobs): $dir" ;;
+      esac
+      [ "$tmpvar" = "$dir" ] || fail "$name saw TMP=$tmpvar beside TMPDIR=$dir (jobs=$jobs)"
+      [ "$mode" = 700 ] || fail "$name's TMPDIR was mode $mode, not 700 (jobs=$jobs)"
+    done <"$report"
+  done
+
+  rm -rf "$tmp"
+  pass "every script, serial or concurrent, runs with its own private TMPDIR"
+}
+
+# Only the real-herdr-gated and live-harness-optin families may reach the real
+# herdr binary. Every other script finds the runner's refusing stand-in first on
+# PATH, so it can neither talk to a live Herdr session nor start a server in the
+# real Herdr config, and the runner fails it even when the script exits 0.
+test_non_herdr_scripts_cannot_reach_the_real_herdr() {
+  local tmp repo realbin script jobs rc out
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-herdr-guard.XXXXXX")
+  repo="$tmp/repo"
+  realbin="$tmp/realbin"
+  mkdir -p "$realbin"
+  init_changed_fixture_repo "$repo"
+  # Stands in for the installed binary: every call it receives is recorded.
+  cat >"$realbin/herdr" <<'SH'
+#!/usr/bin/env bash
+printf '%s %s\n' "$(basename "$FM_TEST_HERDR_CALLER")" "$*" >>"$FM_TEST_REAL_HERDR_LOG"
+SH
+  chmod +x "$realbin/herdr"
+  # fm-cd-pretool-check is proven isolated (concurrent under auto), fm-backend-orca
+  # is a guarded family in the serial tail, fm-pr-merge never calls herdr, and
+  # fm-backend-herdr-smoke is real-herdr-gated.
+  for script in fm-cd-pretool-check.test.sh fm-backend-orca.test.sh fm-backend-herdr-smoke.test.sh; do
+    cat >"$repo/tests/$script" <<'SH'
+#!/usr/bin/env bash
+FM_TEST_HERDR_CALLER=$0 herdr status --json >/dev/null 2>&1 || true
+echo "ok - herdr guard fixture"
+SH
+    chmod +x "$repo/tests/$script"
+  done
+  cat >"$repo/tests/fm-pr-merge.test.sh" <<'SH'
+#!/usr/bin/env bash
+echo "ok - no herdr fixture"
+SH
+  chmod +x "$repo/tests/fm-pr-merge.test.sh"
+
+  for jobs in 1 auto; do
+    : >"$tmp/real.log"
+    if [ "$jobs" = 1 ]; then
+      set -- --jobs 1
+    else
+      set --
+    fi
+    rc=0
+    (cd "$repo" && PATH="$realbin:$PATH" FM_TEST_REAL_HERDR_LOG="$tmp/real.log" bin/fm-test-run.sh \
+        tests/fm-cd-pretool-check.test.sh tests/fm-backend-orca.test.sh tests/fm-pr-merge.test.sh \
+        tests/fm-backend-herdr-smoke.test.sh "$@") >"$tmp/run-$jobs.out" 2>&1 || rc=$?
+    out=$(cat "$tmp/run-$jobs.out")
+    [ "$rc" -ne 0 ] || fail "a run whose scripts reached the real herdr passed (jobs=$jobs): $out"
+    for script in fm-cd-pretool-check.test.sh fm-backend-orca.test.sh; do
+      assert_contains "$out" "not ok - tests/$script reached the real herdr binary 1 time(s) (first: herdr status --json)" \
+        "the guarded $script was not failed for reaching herdr (jobs=$jobs)"
+      printf '%s\n' "$out" | grep -E "^FM_TEST_END .* tests/$script exit=1 " >/dev/null \
+        || fail "the guarded $script did not record exit 1 (jobs=$jobs): $out"
+    done
+    printf '%s\n' "$out" | grep -E '^FM_TEST_END .* tests/fm-pr-merge.test.sh exit=0 ' >/dev/null \
+      || fail "a guarded script that never calls herdr was failed (jobs=$jobs): $out"
+    printf '%s\n' "$out" | grep -E '^FM_TEST_END .* tests/fm-backend-herdr-smoke.test.sh exit=0 ' >/dev/null \
+      || fail "the real-herdr-gated script was failed (jobs=$jobs): $out"
+    assert_not_contains "$out" "fm-backend-herdr-smoke.test.sh reached the real herdr" \
+      "the real-herdr-gated script was refused (jobs=$jobs)"
+    [ "$(cat "$tmp/real.log")" = "fm-backend-herdr-smoke.test.sh status --json" ] \
+      || fail "only the real-herdr-gated script may reach the real binary (jobs=$jobs): $(cat "$tmp/real.log")"
+  done
+
+  rm -rf "$tmp"
+  pass "only the real-herdr-gated and live-harness-optin families reach the real herdr; any other script that does is failed"
 }
 
 test_family_proofs_run_in_separate_concurrent_phases() {
@@ -1154,8 +1366,79 @@ test_concurrent_runs_are_ordered_longest_first() {
 # --max-wall-ms is checked after the run, so it cannot end a run that never
 # finishes. A hung script has to become a bounded failure, because an unbounded
 # suite is exactly what silently outruns its caller's invocation budget.
+# The automatic --changed bound is fm_run_progress_bounded: it measures silence,
+# not total time. Driven here with small bounds against real processes. Each
+# verdict is read from the guard's own reason file and the command's output, so
+# no case depends on how fast the host is: a command that stops writing is
+# stopped (with its whole process group), one that keeps writing runs as long as
+# it needs, and one that writes forever meets the backstop. Each guard watches
+# the very file its command writes to, and the fixture programs are
+# single-quoted for the child processes that run them.
+# shellcheck disable=SC2094,SC2016
+test_progress_guard_bounds_silence_not_slowness() {
+  local tmp rc grandchild
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-progress-guard.XXXXXX")
+
+  # Silent: prints one line, then a TERM-ignoring grandchild and the command
+  # both sit idle far longer than the 3 s bound.
+  rc=0
+  (. "$ROOT/bin/fm-timeout-lib.sh"
+    fm_run_progress_bounded 3 60 "$tmp/silent.out" "$tmp/silent.why" bash -c '
+      echo started
+      sh -c "trap \"\" TERM; echo \$\$ >\"\$1\"; sleep 120" _ "$1" &
+      sleep 120' _ "$tmp/grandchild.pid" >"$tmp/silent.out" 2>&1) || rc=$?
+  [ "$rc" -eq 124 ] || fail "a silent command was not stopped (rc=$rc): $(cat "$tmp/silent.out")"
+  [ "$(cat "$tmp/silent.why" 2>/dev/null)" = idle ] \
+    || fail "a silent command was stopped for the wrong reason: $(cat "$tmp/silent.why" 2>/dev/null)"
+  [ -s "$tmp/grandchild.pid" ] || fail "the silent fixture did not record its grandchild"
+  grandchild=$(cat "$tmp/grandchild.pid")
+  local deadline=$((SECONDS + 60))
+  while kill -0 "$grandchild" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
+    sleep 0.1
+  done
+  kill -0 "$grandchild" 2>/dev/null && fail "the guard left a TERM-ignoring grandchild alive"
+
+  # Progressing: 16 lines half a second apart, about 8 s in all, against a 4 s
+  # silence bound - slower than the bound, never silent for it.
+  rc=0
+  (. "$ROOT/bin/fm-timeout-lib.sh"
+    fm_run_progress_bounded 4 120 "$tmp/progress.out" "$tmp/progress.why" perl -e \
+      '$| = 1; for (1 .. 16) { print "ok - tick $_\n"; select undef, undef, undef, 0.5 }' \
+      >"$tmp/progress.out" 2>&1) || rc=$?
+  [ "$rc" -eq 0 ] || fail "a progressing command was stopped (rc=$rc, reason $(cat "$tmp/progress.why" 2>/dev/null))"
+  [ ! -e "$tmp/progress.why" ] || fail "a completed command left a guard reason behind"
+  [ "$(grep -c '^ok - tick' "$tmp/progress.out")" -eq 16 ] \
+    || fail "a progressing command did not finish its work: $(cat "$tmp/progress.out")"
+
+  # Printing forever: never silent, so only the backstop can stop it.
+  rc=0
+  (. "$ROOT/bin/fm-timeout-lib.sh"
+    fm_run_progress_bounded 4 8 "$tmp/forever.out" "$tmp/forever.why" perl -e \
+      '$| = 1; while (1) { print "ok - tick\n"; select undef, undef, undef, 0.5 }' \
+      >"$tmp/forever.out" 2>&1) || rc=$?
+  [ "$rc" -eq 124 ] || fail "a command printing forever was not stopped (rc=$rc)"
+  [ "$(cat "$tmp/forever.why" 2>/dev/null)" = backstop ] \
+    || fail "a command printing forever was stopped for the wrong reason: $(cat "$tmp/forever.why" 2>/dev/null)"
+  grep -q '^ok - tick' "$tmp/forever.out" || fail "the backstop case never made progress"
+
+  # The command's own status passes through, and a signal death is not success.
+  rc=0
+  (. "$ROOT/bin/fm-timeout-lib.sh"
+    fm_run_progress_bounded 30 60 "$tmp/status.out" "$tmp/status.why" bash -c 'exit 3' \
+      >"$tmp/status.out" 2>&1) || rc=$?
+  [ "$rc" -eq 3 ] || fail "the command's own status was not passed through (rc=$rc)"
+  rc=0
+  (. "$ROOT/bin/fm-timeout-lib.sh"
+    fm_run_progress_bounded 30 60 "$tmp/signal.out" "$tmp/signal.why" bash -c 'kill -TERM $$' \
+      >"$tmp/signal.out" 2>&1) || rc=$?
+  [ "$rc" -eq 143 ] || fail "a command ended by TERM was not reported as 143 (rc=$rc)"
+
+  rm -rf "$tmp"
+  pass "the progress-aware guard stops silence and the backstop, never slow progress"
+}
+
 test_per_script_timeout_bounds_a_hang() {
-  local tmp repo runner hang rc began ended grandchild_pid grandchild waited
+  local tmp repo runner hang rc began ended grandchild_pid grandchild
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-hang.XXXXXX")
   repo="$tmp/repo"
   runner="$repo/bin/fm-test-run.sh"
@@ -1192,10 +1475,9 @@ SH
     || fail "the bounded run did not report a complete summary: $(cat "$tmp/out")"
   [ -s "$grandchild_pid" ] || fail "the hanging fixture did not record its grandchild"
   grandchild=$(cat "$grandchild_pid")
-  waited=0
-  while kill -0 "$grandchild" 2>/dev/null && [ "$waited" -lt 50 ]; do
+  local deadline=$((SECONDS + 60))
+  while kill -0 "$grandchild" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
   if kill -0 "$grandchild" 2>/dev/null; then
     kill -KILL "$grandchild" 2>/dev/null || true
@@ -1211,6 +1493,87 @@ SH
 
   rm -rf "$tmp"
   pass "--per-script-timeout-secs turns a hung script into a bounded failure"
+}
+
+# A script run from an agent's own pane inherits that firstmate session's
+# internal variables and its live Herdr or tmux identity. The reproduced case:
+# an inherited FM_SESSION_START_STAGE_FILE made fm-session-start.sh believe it
+# was already the bounded child, so its runtime-bound test ran unbounded and
+# hung for 44 minutes. Production-read names and live session identity must not
+# reach a script; test-owned controls and opt-in gates must.
+test_scripts_run_without_the_callers_firstmate_state() {
+  local tmp repo runner fixture rc out
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-env.XXXXXX")
+  repo="$tmp/repo"
+  runner="$repo/bin/fm-test-run.sh"
+  fixture=tests/fm-env-fixture.test.sh
+  mkdir -p "$repo/bin" "$repo/tests"
+  cp "$RUNNER" "$runner"
+  cat >"$repo/bin/fm-env-reader.sh" <<'SH'
+#!/usr/bin/env bash
+# A stand-in production script: the runner treats any FM_ name read here as one
+# that an ambient value must not reach, except the test-owned controls and
+# opt-in gates, which pass through even though production reads them.
+printf '%s %s\n' "${FM_ENVFIX_STAGE_FILE:-}" "${FMX_ENVFIX_TOKEN:-}"
+printf '%s %s %s %s %s %s %s\n' "${FM_TEST_ENVFIX_CONTROL:-}" "${FM_ISOLATION_ENVFIX_PROBE:-}" \
+  "${FM_ENVFIX_PROBE_LIVE:-}" "${FM_ENVFIX_PROBE_LIVE_E2E:-}" "${FM_ENVFIX_PROBE_E2E:-}" \
+  "${FM_ENVFIX_PROBE_EVAL:-}" "${FM_HARNESS_LIVENESS_DRIFT:-}"
+SH
+  cat >"$repo/$fixture" <<'SH'
+#!/usr/bin/env bash
+for name in FM_ENVFIX_STAGE_FILE FMX_ENVFIX_TOKEN HERDR_ENV HERDR_PANE_ID \
+  HERDR_SOCKET_PATH TMUX TMUX_PANE ZELLIJ_PANE_ID CMUX_WORKSPACE_ID \
+  ORCA_WORKTREE_ID FM_ENVFIX_UNREAD FM_TEST_ENVFIX_CONTROL FM_ISOLATION_ENVFIX_PROBE \
+  FM_ENVFIX_PROBE_LIVE FM_ENVFIX_PROBE_LIVE_E2E FM_ENVFIX_PROBE_E2E FM_ENVFIX_PROBE_EVAL \
+  FM_HARNESS_LIVENESS_DRIFT; do
+  if [ -n "$(printenv "$name" || true)" ]; then
+    echo "ok - visible $name"
+  else
+    echo "ok - hidden $name"
+  fi
+done
+SH
+  chmod +x "$runner" "$repo/bin/fm-env-reader.sh" "$repo/$fixture"
+
+  set +e
+  FM_ENVFIX_STAGE_FILE=/stage FMX_ENVFIX_TOKEN=t HERDR_ENV=1 HERDR_PANE_ID=wG:pZ \
+    HERDR_SOCKET_PATH=/live.sock TMUX=/tmp/tmux-1/default,1,0 TMUX_PANE=%1 \
+    ZELLIJ_PANE_ID=1 CMUX_WORKSPACE_ID=w ORCA_WORKTREE_ID=o FM_ENVFIX_UNREAD=keep \
+    FM_TEST_ENVFIX_CONTROL=keep FM_ISOLATION_ENVFIX_PROBE=1 FM_ENVFIX_PROBE_LIVE=1 \
+    FM_ENVFIX_PROBE_LIVE_E2E=1 FM_ENVFIX_PROBE_E2E=1 FM_ENVFIX_PROBE_EVAL=1 \
+    FM_HARNESS_LIVENESS_DRIFT=1 "$runner" "$fixture" >"$tmp/out" 2>"$tmp/err"
+  rc=$?
+  set -e
+  out=$(cat "$tmp/out")
+  [ "$rc" -eq 0 ] || fail "the environment fixture run failed: $out $(cat "$tmp/err")"
+  for name in FM_ENVFIX_STAGE_FILE FMX_ENVFIX_TOKEN HERDR_ENV HERDR_PANE_ID HERDR_SOCKET_PATH \
+    TMUX TMUX_PANE ZELLIJ_PANE_ID CMUX_WORKSPACE_ID ORCA_WORKTREE_ID; do
+    assert_contains "$out" "ok - hidden $name" "$name reached a script run by the runner"
+  done
+  for name in FM_ENVFIX_UNREAD FM_TEST_ENVFIX_CONTROL FM_ISOLATION_ENVFIX_PROBE FM_ENVFIX_PROBE_LIVE \
+    FM_ENVFIX_PROBE_LIVE_E2E FM_ENVFIX_PROBE_E2E FM_ENVFIX_PROBE_EVAL FM_HARNESS_LIVENESS_DRIFT; do
+    assert_contains "$out" "ok - visible $name" "$name is a test-owned control or opt-in gate and must pass through"
+  done
+  assert_contains "$(cat "$tmp/err")" "FM_ENVFIX_STAGE_FILE" "the runner did not name what it dropped"
+  assert_not_contains "$(cat "$tmp/err")" "FM_ENVFIX_UNREAD" "the runner reported dropping a pass-through variable"
+
+  # With nothing to drop the runner stays silent about it.
+  set +e
+  env -i HOME="$HOME" PATH="$PATH" TMPDIR="${TMPDIR:-/tmp}" "$runner" "$fixture" >"$tmp/out2" 2>"$tmp/err2"
+  rc=$?
+  set -e
+  [ "$rc" -eq 0 ] || fail "the clean-environment fixture run failed: $(cat "$tmp/out2") $(cat "$tmp/err2")"
+  for name in FM_ENVFIX_STAGE_FILE FMX_ENVFIX_TOKEN HERDR_ENV HERDR_PANE_ID HERDR_SOCKET_PATH \
+    TMUX TMUX_PANE ZELLIJ_PANE_ID CMUX_WORKSPACE_ID ORCA_WORKTREE_ID FM_ENVFIX_UNREAD \
+    FM_TEST_ENVFIX_CONTROL FM_ISOLATION_ENVFIX_PROBE FM_ENVFIX_PROBE_LIVE FM_ENVFIX_PROBE_LIVE_E2E \
+    FM_ENVFIX_PROBE_E2E FM_ENVFIX_PROBE_EVAL FM_HARNESS_LIVENESS_DRIFT; do
+    assert_contains "$(cat "$tmp/out2")" "ok - hidden $name" "the clean-environment run did not run the fixture"
+  done
+  assert_not_contains "$(cat "$tmp/err2")" "ignoring ambient variables" \
+    "the runner reported a drop when the environment was already clean"
+
+  rm -rf "$tmp"
+  pass "scripts run without the caller's firstmate state and live session identity"
 }
 
 # The duration regression this guard exists for: a suite whose scripts are all
@@ -1309,10 +1672,9 @@ SH
   cat >"$repo/$a" <<'SH'
 #!/usr/bin/env bash
 if [ -n "${SCHED_WAIT_FOR_REPLACEMENT:-}" ]; then
-  waited=0
-  while [ ! -e "$SCHED_EVIDENCE/replacement-started" ] && [ "$waited" -lt 600 ]; do
+  deadline=$((SECONDS + 60))
+  while [ ! -e "$SCHED_EVIDENCE/replacement-started" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
-    waited=$((waited + 1))
   done
 fi
 touch "$SCHED_EVIDENCE/slow-done"
@@ -1494,8 +1856,11 @@ test_changed_runner_surfaces_select_their_family
 test_changed_context_selects_documentation_and_guidance_checks
 test_changed_dependency_selection_and_unmapped_failure
 test_changed_bin_reference_selects_per_script_not_per_family
+test_changed_bound_scales_with_the_duration_hint
 test_changed_uses_bounded_automatic_concurrency
 test_script_list_uses_bounded_automatic_concurrency
+test_every_script_gets_a_private_tmpdir
+test_non_herdr_scripts_cannot_reach_the_real_herdr
 test_family_proofs_run_in_separate_concurrent_phases
 test_empty_selection_emits_summary
 test_timing_markers_and_json
@@ -1512,6 +1877,8 @@ test_jobs_admits_a_concurrent_safe_family
 test_unmapped_new_test_never_inherits_family_concurrency
 test_concurrent_runs_are_ordered_longest_first
 test_per_script_timeout_bounds_a_hang
+test_progress_guard_bounds_silence_not_slowness
+test_scripts_run_without_the_callers_firstmate_state
 test_max_wall_ms_is_a_result_not_advice
 test_jobs_parallel_scheduler_and_failure_propagation
 test_herdr_ci_family_run_has_a_step_timeout

@@ -71,9 +71,9 @@ new_world() {
 # test deliberately breaks one. Mirrors fm-bootstrap.test.sh's fixture.
 make_fake_toolchain() {
   local fakebin=$1
-  fm_fake_exit0 "$fakebin" tmux node chrome-devtools-axi
-  fm_fake_version_tool "$fakebin" lavish-axi FM_FAKE_LAVISH_AXI_VERSION 0.1.46
-  cat > "$fakebin/gh-axi" <<'SH'
+  fm_shared_stub_exit0 "$fakebin" tmux node chrome-devtools-axi
+  fm_shared_stub_version_tool "$fakebin" lavish-axi FM_FAKE_LAVISH_AXI_VERSION 0.1.46
+  fm_shared_stub "$fakebin" "gh-axi" <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = --version ]; then
   printf '%s\n' '0.1.29'
@@ -81,13 +81,11 @@ if [ "${1:-}" = --version ]; then
 fi
 exit 0
 SH
-  chmod +x "$fakebin/gh-axi"
-  cat > "$fakebin/gh" <<'SH'
+  fm_shared_stub "$fakebin" "gh" <<'SH'
 #!/usr/bin/env bash
 exit 0
 SH
-  chmod +x "$fakebin/gh"
-  cat > "$fakebin/treehouse" <<'SH'
+  fm_shared_stub "$fakebin" "treehouse" <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = get ] && [ "${2:-}" = --help ]; then
   printf '%s\n' 'Usage: treehouse get [--lease]'
@@ -95,8 +93,7 @@ if [ "${1:-}" = get ] && [ "${2:-}" = --help ]; then
 fi
 exit 0
 SH
-  chmod +x "$fakebin/treehouse"
-  cat > "$fakebin/no-mistakes" <<'SH'
+  fm_shared_stub "$fakebin" "no-mistakes" <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = --version ]; then
   printf '%s\n' 'no-mistakes version v1.46.0 (fake) 2026-06-27T00:02:18Z'
@@ -104,7 +101,6 @@ if [ "${1:-}" = --version ]; then
 fi
 exit 0
 SH
-  chmod +x "$fakebin/no-mistakes"
   printf '%s\n' manual > "${fakebin%/*}/home-placeholder" 2>/dev/null || true
 }
 
@@ -116,7 +112,7 @@ SH
 # can be driven past its limit.
 make_fake_tasks_axi_compact() {
   local fakebin=$1
-  cat > "$fakebin/tasks-axi" <<'SH'
+  fm_shared_stub "$fakebin" "tasks-axi" <<'SH'
 #!/usr/bin/env bash
 set -u
 log=${FM_FAKE_TASKS_AXI_LOG:-}
@@ -202,7 +198,6 @@ case "${1:-}" in
 esac
 exit 1
 SH
-  chmod +x "$fakebin/tasks-axi"
 }
 
 # make_fake_ps_claude <fakebin>: harness_pid()/holder_alive() (fm-lock.sh) walk
@@ -215,7 +210,7 @@ make_fake_ps_claude() {
 
 make_fake_ps_harness() {
   local fakebin=$1 harness=$2
-  cat > "$fakebin/ps" <<'SH'
+  fm_shared_stub "$fakebin" "ps" <<'SH'
 #!/usr/bin/env bash
 set -u
 harness=${FM_FAKE_HARNESS:-claude}
@@ -251,13 +246,12 @@ case "$*" in
 esac
 exit 1
 SH
-  chmod +x "$fakebin/ps"
   printf '%s\n' "$harness" > "$fakebin/.harness-name"
 }
 
 make_fake_ps_pi_holder() {
   local fakebin=$1 holder_pid=$2
-  cat > "$fakebin/ps" <<SH
+  fm_shared_stub "$fakebin" "ps" <<SH
 #!/usr/bin/env bash
 set -u
 pid=""
@@ -287,7 +281,6 @@ case "\$*" in
 esac
 exit 1
 SH
-  chmod +x "$fakebin/ps"
 }
 
 # make_fake_tmux <fakebin> <live-target>: display-message succeeds only for
@@ -295,7 +288,7 @@ SH
 # fm_backend_target_exists uses for a tmux endpoint liveness read.
 make_fake_tmux() {
   local fakebin=$1 live=$2
-  cat > "$fakebin/tmux" <<SH
+  fm_shared_stub "$fakebin" "tmux" <<SH
 #!/usr/bin/env bash
 set -u
 case "\${1:-}" in
@@ -312,7 +305,6 @@ case "\${1:-}" in
 esac
 exit 1
 SH
-  chmod +x "$fakebin/tmux"
 }
 
 # make_fake_tmux_secondmate_recovery <fakebin>: a stateful tmux boundary
@@ -323,7 +315,7 @@ SH
 # recording the environment it was started with in <spawned>.server.env.
 make_fake_tmux_secondmate_recovery() {
   local fakebin=$1
-  cat > "$fakebin/tmux" <<'SH'
+  fm_shared_stub "$fakebin" "tmux" <<'SH'
 #!/usr/bin/env bash
 set -u
 mode=${FM_FAKE_TMUX_MODE:?}
@@ -418,7 +410,6 @@ case "${1:-}" in
 esac
 exit 0
 SH
-  chmod +x "$fakebin/tmux"
 }
 
 make_fake_herdr_secondmate_recovery() {
@@ -426,7 +417,7 @@ make_fake_herdr_secondmate_recovery() {
   # The recovery kill now requires the shared named-session lock and an exact
   # focus snapshot. Keep a focused sibling tab so this test's husk close is
   # provably non-workspace-emptying and never needs to signal a fake shell pid.
-  cat > "$fakebin/herdr" <<'SH'
+  fm_shared_stub "$fakebin" "herdr" <<'SH'
 #!/usr/bin/env bash
 set -u
 log=${FM_FAKE_HERDR_LOG:?}
@@ -497,7 +488,6 @@ case "${1:-} ${2:-}" in
 esac
 exit 0
 SH
-  chmod +x "$fakebin/herdr"
 }
 
 # make_fake_herdr <fakebin> <live-pane>: `herdr pane get <pane>` succeeds only
@@ -506,7 +496,7 @@ SH
 # liveness check must never auto-start a server (fm-backend.sh's contract).
 make_fake_herdr() {
   local fakebin=$1 live=$2
-  cat > "$fakebin/herdr" <<SH
+  fm_shared_stub "$fakebin" "herdr" <<SH
 #!/usr/bin/env bash
 set -u
 if [ "\${1:-}" = pane ] && [ "\${2:-}" = get ]; then
@@ -515,7 +505,6 @@ if [ "\${1:-}" = pane ] && [ "\${2:-}" = get ]; then
 fi
 exit 1
 SH
-  chmod +x "$fakebin/herdr"
 }
 
 # run_session_start <home> <root> <path>
@@ -586,7 +575,7 @@ EOF
   ln -s "$ROOT/bin" "$root/bin"
   make_fake_toolchain "$fakebin"
   make_fake_ps_claude "$fakebin"
-  fm_fake_exit0 "$fakebin" pi
+  fm_shared_stub_exit0 "$fakebin" pi
   make_fake_tmux_secondmate_recovery "$fakebin"
   : > "$log"
   printf '%s|%s|%s|%s|%s|%s\n' "$root" "$home" "$fakebin" "$mate" "$log" "$spawned"
@@ -633,7 +622,7 @@ EOF
   ln -s "$ROOT/bin" "$root/bin"
   make_fake_toolchain "$fakebin"
   make_fake_ps_claude "$fakebin"
-  fm_fake_exit0 "$fakebin" pi
+  fm_shared_stub_exit0 "$fakebin" pi
   make_fake_herdr_secondmate_recovery "$fakebin"
   : > "$log"
   printf '%s|%s|%s|%s|%s|%s\n' "$root" "$home" "$fakebin" "$mate" "$log" "$state"
@@ -659,11 +648,10 @@ wait_for_network_stage() {
 }
 
 wait_for_network_wake() {
-  local home=$1 limit=${2:-30} waited=0
+  local home=$1 deadline=$((SECONDS + 60))
   while ! grep -Fq $'check\tstartup-network' "$home/state/.wake-queue" 2>/dev/null \
-    && [ "$waited" -lt "$limit" ]; do
+    && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 1
-    waited=$((waited + 1))
   done
   grep -Fq $'check\tstartup-network' "$home/state/.wake-queue" 2>/dev/null
 }
@@ -898,7 +886,7 @@ EOF
   winners="$home/winners"
   mkdir -p "$ready" "$completed"
   : > "$winners"
-  cat > "$fakebin/ps" <<'SH'
+  fm_shared_stub "$fakebin" "ps" <<'SH'
 #!/usr/bin/env bash
 set -u
 pid=
@@ -926,7 +914,6 @@ case "$*" in
   *) exit 1 ;;
 esac
 SH
-  chmod +x "$fakebin/ps"
 
   pids=
   i=1
@@ -1059,7 +1046,7 @@ EOF
     make_fake_toolchain "$fakebin"
     make_fake_ps_claude "$fakebin"
     rm -f "$fakebin/tmux"
-    fm_fake_exit0 "$fakebin" herdr jq
+    fm_shared_stub_exit0 "$fakebin" herdr jq
     printf '%s\n' manual > "$home/config/backlog-backend"
     mask="$home/mask-tmux.bash"
     cat > "$mask" <<'SH'
@@ -1382,7 +1369,7 @@ EOF
 # exactly that environment.
 make_fake_herdr_server_recorder() {  # <fakebin>
   local fakebin=$1
-  cat > "$fakebin/herdr" <<'SH'
+  fm_shared_stub "$fakebin" "herdr" <<'SH'
 #!/usr/bin/env bash
 set -u
 dir=${FM_FAKE_HERDR_DIR:?}
@@ -1405,7 +1392,6 @@ case "${args[0]:-} ${args[1]:-}" in
     ;;
 esac
 SH
-  chmod +x "$fakebin/herdr"
 }
 
 # startup_variables_in_server_env <server-env-file> <allowed-pattern>...: the FM_
@@ -1605,22 +1591,29 @@ EOF
 
 # --- deferred network stage -------------------------------------------------
 
-# install_slow_gh <fakebin> <seconds>: one external-network call the digest used
-# to make directly. Making it pathologically slow is how a test stands in for an
-# unreachable host without touching one: if any part of the blocking path still
-# waits on the network, the digest cannot finish before this does.
-install_slow_gh() {
-  local fakebin=$1 seconds=$2 finished_marker=${3:-}
-  cat > "$fakebin/gh" <<SH
+# install_held_gh <fakebin> <release> [finished-marker]: one external-network
+# call the digest used to make directly. It stands in for an unreachable host
+# without touching one: `gh auth` does not answer until the case creates
+# <release>, so if any part of the blocking path still waited on the network
+# the digest could not return before the case releases it. The case releases
+# only after the digest has returned, so that verdict never depends on how fast
+# the host composes the digest. The 120 s hang guard only ends a hold a failed
+# case forgot, and the hold also ends once the case's world is gone.
+install_held_gh() {
+  local fakebin=$1 release=$2 finished_marker=${3:-}
+  fm_shared_stub "$fakebin" "gh" <<SH
 #!/usr/bin/env bash
 if [ "\${1:-}" = auth ]; then
-  sleep $seconds
+  deadline=\$((SECONDS + 120))
+  while [ ! -e '$release' ] && [ "\$SECONDS" -lt "\$deadline" ]; do
+    [ -d '${release%/*}' ] || exit 1
+    sleep 0.05
+  done
   [ -z '$finished_marker' ] || : > '$finished_marker'
   exit 1
 fi
 exit 0
 SH
-  chmod +x "$fakebin/gh"
 }
 
 # The locked startup scan may need the same expensive current-state read that a
@@ -1631,7 +1624,7 @@ SH
 # so "the digest did not wait for it" is decided by what had happened when the
 # digest returned and not by how fast the host was.
 test_inactive_reconcile_never_blocks_the_digest() {
-  local rec root home fakebin world worktree crew_state calls out waited=0
+  local rec root home fakebin world worktree crew_state calls out deadline
   local release_gate read_finished
   rec=$(new_world inactive-reconcile-deferred)
   IFS='|' read -r root home fakebin <<EOF
@@ -1648,7 +1641,7 @@ EOF
 
   release_gate="$world/slow-state-read.release"
   read_finished="$world/slow-state-read.finished"
-  cat > "$fakebin/no-mistakes" <<'SH'
+  fm_shared_stub "$fakebin" "no-mistakes" <<'SH'
 #!/usr/bin/env bash
 set -u
 if [ "${1:-}" = --version ]; then
@@ -1673,10 +1666,9 @@ if [ "${1:-} ${2:-}" = 'axi status' ]; then
   # Stay outstanding until the case releases this read. A caller that waits for
   # it therefore waits indefinitely rather than for a fixed interval a loaded
   # host could out-run. The tick bound only stops a broken case hanging forever.
-  ticks=0
-  while [ ! -e "${FM_FAKE_NM_RELEASE:?}" ] && [ "$ticks" -lt 300 ]; do
+  deadline=$((SECONDS + 60))
+  while [ ! -e "${FM_FAKE_NM_RELEASE:?}" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    ticks=$((ticks + 1))
   done
   : > "${FM_FAKE_NM_READ_FINISHED:?}"
   printf '%s\n' 'slow validation state answered'
@@ -1689,7 +1681,7 @@ set -u
 no-mistakes axi status >/dev/null
 printf '%s\n' 'state: done · source: run-step · passed'
 SH
-  chmod +x "$fakebin/no-mistakes" "$crew_state"
+  chmod +x "$crew_state"
 
   fm_write_meta "$home/state/slow-child.meta" \
     'window=firstmate:fm-slow-child' "worktree=$worktree" 'project=firstmate' \
@@ -1712,10 +1704,10 @@ SH
     || fail "the digest called the slow state reader on its blocking path"
   : > "$release_gate"
 
+  deadline=$((SECONDS + 60))
   while ! grep -Fq $'\tcheck\tinactive-outcome:' "$home/state/.wake-queue" 2>/dev/null \
-    && [ "$waited" -lt 150 ]; do
+    && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
   assert_grep 'check	inactive-outcome:' "$home/state/.wake-queue" \
     "the deferred scan's terminal finding never reached the durable wake queue (calls=$(cat "$calls" 2>/dev/null), report=$(network_stage_report "$home" "$root" 2>/dev/null), queue=$(cat "$home/state/.wake-queue" 2>/dev/null))"
@@ -1725,24 +1717,23 @@ SH
 }
 
 # The headline guarantee: an unreachable host delays a reported CHECK, never the
-# startup. The fake host hangs for 12s; the digest must be done long before that,
-# must say so rather than implying the checks passed, and the sweeps must still
-# run and land afterwards.
+# startup. The fake host does not answer until the digest has returned; the
+# digest must still complete, must say so rather than implying the checks
+# passed, and the sweeps must still run and land afterwards.
 test_unreachable_network_never_blocks_the_digest() {
-  local rec root home fakebin mate log spawned network_finished out started elapsed
+  local rec root home fakebin mate log spawned network_finished network_release out
   rec=$(prepare_session_start_secondmate secondmate-slow-network)
   IFS='|' read -r root home fakebin mate log spawned <<EOF
 $rec
 EOF
   network_finished="${root%/root}/network-finished"
-  install_slow_gh "$fakebin" 12 "$network_finished"
+  network_release="${root%/root}/network-release"
+  install_held_gh "$fakebin" "$network_release" "$network_finished"
 
-  started=$(date +%s)
   out=$(run_session_start_secondmate "$root" "$home" "$fakebin" "$mate" "$log" "$spawned" missing)
-  elapsed=$(( $(date +%s) - started ))
-
   [ ! -e "$network_finished" ] \
-    || fail "the digest waited for the 12s unreachable-host probe instead of returning from local state (${elapsed}s)"
+    || fail "the digest waited for the unreachable-host probe instead of returning from local state"
+  : > "$network_release"
   assert_contains "$out" "SESSION START" "the digest did not complete"
   assert_contains "$out" "IN PROGRESS - the deferred network checks have not finished yet." \
     "the digest did not disclose that its network checks were still running"
@@ -1771,12 +1762,15 @@ test_deferred_result_reaches_the_agent_when_the_digest_cannot_print_it() {
   IFS='|' read -r root home fakebin mate log spawned <<EOF
 $rec
 EOF
-  install_slow_gh "$fakebin" 8
+  # The host answers only once the digest has returned, so the digest can never
+  # print this result itself, however slow the host composes it.
+  install_held_gh "$fakebin" "${root%/root}/network-release"
   queue="$home/state/.wake-queue"
 
   run_session_start_secondmate "$root" "$home" "$fakebin" "$mate" "$log" "$spawned" missing >/dev/null
+  : > "${root%/root}/network-release"
   wait_for_network_stage "$home" "$root" 60 || fail "the deferred stage never finished"
-  wait_for_network_wake "$home" 60 || fail "the deferred stage never settled wake delivery"
+  wait_for_network_wake "$home" || fail "the deferred stage never settled wake delivery"
   assert_grep 'check	startup-network' "$queue" \
     "a result the digest could not print never reached the agent: $(cat "$queue" 2>/dev/null)"
   pass "session start: a deferred result the digest outran still reaches the agent as a wake"
@@ -1794,7 +1788,7 @@ EOF
   make_fake_toolchain "$fakebin"
   make_fake_ps_claude "$fakebin"
   printf '999999\n' > "$home/state/.lock"
-  cat > "$fakebin/ps" <<'SH'
+  fm_shared_stub "$fakebin" "ps" <<'SH'
 #!/usr/bin/env bash
 set -u
 case "$*" in
@@ -1803,7 +1797,6 @@ case "$*" in
 esac
 exit 0
 SH
-  chmod +x "$fakebin/ps"
 
   out=$(run_session_start "$home" "$root" "$fakebin:$BASE_PATH")
 
@@ -2042,17 +2035,38 @@ EOF
 # bootstrap runs it inside its own command substitution.
 make_hanging_tool() {
   local fakebin=$1 name=$2
-  cat > "$fakebin/$name" <<'SH'
+  fm_shared_stub "$fakebin" "$name" <<'SH'
 #!/usr/bin/env bash
 trap '' TERM
 sleep 600
 SH
-  chmod +x "$fakebin/$name"
+}
+
+# make_stage_gated_sleep <fakebin>: the pure-Bash watchdog's deadline sleep is
+# the only `sleep <FM_TEST_GATED_SLEEP_SECONDS>` in the world. Hold it until
+# session start records a stage past "lock" in its stage file under
+# FM_TEST_GATED_SLEEP_STAGE_DIR, so the bound fires inside the hung bootstrap
+# stage however long a loaded host takes to finish the lock stage. Every other
+# sleep runs as is. The 120 s deadline is only a hang guard for a session start
+# that never leaves the lock stage; the banner assertion then names that stage.
+make_stage_gated_sleep() {
+  local fakebin=$1
+  fm_shared_stub "$fakebin" "sleep" <<'SH'
+#!/usr/bin/env bash
+if [ "${1:-}" = "${FM_TEST_GATED_SLEEP_SECONDS:-}" ]; then
+  deadline=$((SECONDS + 120))
+  until grep -qvx lock "$FM_TEST_GATED_SLEEP_STAGE_DIR"/fm-session-start-stage.* 2>/dev/null; do
+    [ "$SECONDS" -lt "$deadline" ] || break
+    /bin/sleep 0.1
+  done
+fi
+exec /bin/sleep "$@"
+SH
 }
 
 make_term_escalating_timeout() {
   local fakebin=$1
-  cat > "$fakebin/timeout" <<'SH'
+  fm_shared_stub "$fakebin" "timeout" <<'SH'
 #!/usr/bin/env perl
 use strict;
 use warnings;
@@ -2077,11 +2091,10 @@ waitpid $pid, 0;
 alarm 0;
 exit($? >> 8);
 SH
-  chmod +x "$fakebin/timeout"
 }
 
 test_runtime_bound_truncates_loudly_and_exits_zero() {
-  local rec root home fakebin out status=0 stray mechanism
+  local rec root home fakebin out status=0 stray mechanism stage_dir
   rec=$(new_world runtime-bound)
   IFS='|' read -r root home fakebin <<EOF
 $rec
@@ -2089,12 +2102,17 @@ EOF
   make_fake_toolchain "$fakebin"
   make_fake_ps_claude "$fakebin"
   make_hanging_tool "$fakebin" git
+  make_stage_gated_sleep "$fakebin"
+  # A TMPDIR of its own keeps this run's stage file the only one the gate reads.
+  stage_dir="${home%/home}/session-tmp"
+  mkdir -p "$stage_dir"
 
   mechanism=$(FM_TIMEOUT_MECHANISM_OVERRIDE=bash bash -c '. "$1"; fm_timeout_mechanism' \
     _ "$ROOT/bin/fm-timeout-lib.sh")
   [ "$mechanism" = bash ] || fail "the forced pure-Bash timeout fixture selected '$mechanism'"
 
-  out=$(FM_TIMEOUT_MECHANISM_OVERRIDE=bash FM_SESSION_START_TIMEOUT=3 FM_STARTUP_NETWORK_TIMEOUT=2 \
+  out=$(TMPDIR="$stage_dir" FM_TEST_GATED_SLEEP_SECONDS=3 FM_TEST_GATED_SLEEP_STAGE_DIR="$stage_dir" \
+    FM_TIMEOUT_MECHANISM_OVERRIDE=bash FM_SESSION_START_TIMEOUT=3 FM_STARTUP_NETWORK_TIMEOUT=2 \
     run_session_start "$home" "$root" "$fakebin:$BASE_PATH") || status=$?
 
   expect_code 0 "$status" "a truncated session start must still exit 0 so the session can open"
@@ -2143,12 +2161,16 @@ fm_run_timed 1 "$@"
 SH
   chmod +x "$driver"
 
+  # The outer alarm is only a hang guard for a command that ignores TERM and
+  # never gets killed (exit 99); the 1 s bound under test sits inside it. A 5 s
+  # guard also covered the start-up of the driver chain, so a slow host reported
+  # the guard's own 99 although the escalation worked.
   perl -e '
     my $pid = fork;
     die "fork failed" unless defined $pid;
     if (!$pid) { setpgrp(0, 0); exec @ARGV }
     local $SIG{ALRM} = sub { kill "KILL", -$pid; waitpid $pid, 0; exit 99 };
-    alarm 5;
+    alarm 60;
     waitpid $pid, 0;
     exit($? >> 8);
   ' env PATH="$fakebin:$BASE_PATH" "$driver" "$ROOT/bin/fm-timeout-lib.sh" \
@@ -2195,7 +2217,7 @@ EOF
   # fm-session-lock-lib.sh walks a BOUNDED sixteen parents to find it, and the
   # runtime bound spends some of that budget on its own wrapper processes, so
   # this pins that the budget still reaches a realistically deep session.
-  cat > "$fakebin/ps" <<'SH'
+  fm_shared_stub "$fakebin" "ps" <<'SH'
 #!/usr/bin/env bash
 set -u
 pid=
@@ -2217,7 +2239,6 @@ case "$*" in
   *) exit 1 ;;
 esac
 SH
-  chmod +x "$fakebin/ps"
 
   # Each level forks rather than execs, so the counter really is process depth.
   nest="$home/nest.sh"
@@ -2462,14 +2483,13 @@ EOF
     "a missing SHA-256 baseline did not conservatively refresh a supported rebuild"
 
   rm -f "$fakebin/shasum" "$fakebin/sha256sum" "$home/state/.session-start-complete"
-  cat > "$fakebin/mv" <<SH
+  fm_shared_stub "$fakebin" "mv" <<SH
 #!/usr/bin/env bash
 case "\${*: -1}" in
   "$home/state/.session-start-complete") exit 1 ;;
 esac
 exec /bin/mv "\$@"
 SH
-  chmod +x "$fakebin/mv"
   FM_FAKE_HARNESS=pi run_pi_session_start "$home" "$root" "$fakebin:$BASE_PATH" --source startup >/dev/null
   assert_absent "$home/state/.session-start-complete" \
     "startup published completion despite the atomic completion write failure"
@@ -2544,7 +2564,7 @@ $rec
 EOF
   make_fake_toolchain "$fakebin"
   make_fake_ps_claude "$fakebin"
-  fm_fake_exit0 "$fakebin" curl jq
+  fm_shared_stub_exit0 "$fakebin" curl jq
   printf 'FMX_PAIRING_TOKEN=tok-next-step\n' > "$home/.env"
 
   out=$(run_session_start "$home" "$root" "$fakebin:$BASE_PATH")

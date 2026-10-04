@@ -570,8 +570,8 @@ done
 HOME="$CASE_HOME" FM_ROOT_OVERRIDE="$ROOT" FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux \
   "$ROOT/bin/fm-remote-job-worker.sh" > "$CASE_STATE/worker.out" 2> "$CASE_STATE/worker.err" &
 DOCTOR_WORKER_PID=$!
-for _ in $(seq 1 100); do
-  [ -f "$CASE_HOME/.firstmate/remote-job/worker.ready" ] && break
+deadline=$((SECONDS + 60))
+while [ ! -f "$CASE_HOME/.firstmate/remote-job/worker.ready" ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.05
 done
 assert_present "$CASE_HOME/.firstmate/remote-job/worker.ready" "the stale-identity fixture worker did not start"
@@ -590,6 +590,7 @@ assert_contains "$DOCTOR_OUT" 'check remote-job-probe=ok: the remote job worker 
   "doctor did not probe tools through the refreshed worker"
 DOCTOR_WORKER_PID=$(cat "$CASE_HOME/.firstmate/remote-job/worker.pid")
 kill -TERM "$DOCTOR_WORKER_PID"
+# fm-lint-waits: allow a reap grace before the forced kill below
 for _ in $(seq 1 100); do
   kill -0 "$DOCTOR_WORKER_PID" 2>/dev/null || break
   sleep 0.05

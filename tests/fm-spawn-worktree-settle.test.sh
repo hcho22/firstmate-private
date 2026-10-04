@@ -12,6 +12,13 @@
 # transient-then-settled pane_current_path sequence with a fake tmux and
 # asserts the recorded worktree resolves to the real, settled worktree, never
 # the stale first read.
+#
+# The loop's cost is asserted structurally, never as elapsed seconds: the fake
+# tmux and a fake sleep append one event per pane read and per sleep to a shared
+# log, so the test reads back exactly how many polls ran and where the one-second
+# inter-poll sleeps fell. Wall-clock time measures host load rather than the loop
+# (a loaded host spends seconds in unrelated process startup), while the event
+# order is the same however slow the host is.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -24,6 +31,9 @@ TMP_ROOT=$(fm_test_tmproot fm-spawn-worktree-settle)
 # query returns FM_FAKE_PANE_STALE for the first FM_FAKE_PANE_STALE_READS
 # calls, then FM_FAKE_PANE_PATH forever after - reproducing a pane that
 # transiently reports a stale cwd before settling into the real worktree.
+# Each pane read appends `read` to FM_FAKE_EVENTLOG, and a fake sleep appends
+# `sleep <duration>` to the same log instead of sleeping, so the log is the
+# ordered record of every poll and every inter-poll wait the spawn performed.
 make_settle_fakebin() {
   local dir=$1 fakebin
   fakebin=$(fm_fakebin "$dir")
@@ -32,11 +42,11 @@ make_settle_fakebin() {
 set -u
 case "$*" in
   *"#{pane_current_path}"*)
-    countfile="${FM_FAKE_PANE_COUNTFILE:?FM_FAKE_PANE_COUNTFILE unset}"
+    eventlog="${FM_FAKE_EVENTLOG:?FM_FAKE_EVENTLOG unset}"
     n=0
-    [ -f "$countfile" ] && n=$(cat "$countfile")
+    [ -f "$eventlog" ] && n=$(grep -c '^read$' "$eventlog")
     n=$((n + 1))
-    printf '%s\n' "$n" > "$countfile"
+    printf 'read\n' >> "$eventlog"
     if [ "$n" -le "${FM_FAKE_PANE_STALE_READS:-0}" ]; then
       printf '%s\n' "${FM_FAKE_PANE_STALE:-}"
     else
@@ -54,8 +64,22 @@ esac
 exit 0
 SH
   chmod +x "$fakebin/tmux"
+  cat > "$fakebin/sleep" <<'SH'
+#!/usr/bin/env bash
+printf 'sleep %s\n' "${1:-}" >> "${FM_FAKE_EVENTLOG:?FM_FAKE_EVENTLOG unset}"
+exit 0
+SH
+  chmod +x "$fakebin/sleep"
   fm_fake_exit0 "$fakebin" treehouse
   printf '%s\n' "$fakebin"
+}
+
+# settle_poll_trace <eventlog> prints the settle loop's poll shape on one line:
+# `R` for each pane_current_path read and `S` for each one-second inter-poll
+# sleep, in order. Other sleeps the spawn performs elsewhere are not part of
+# the loop and are left out.
+settle_poll_trace() {
+  awk '$0 == "read" { printf "R" } $0 == "sleep 1" { printf "S" } END { printf "\n" }' "$1"
 }
 
 # make_settle_case <name> <id> <stale_reads> builds a home, a primary project
@@ -64,13 +88,13 @@ SH
 # entirely, distinct from both the project and the worktree - mirroring the
 # live incident where the stale read was another real firstmate home).
 make_settle_case() {
-  local name=$1 id=$2 stale_reads=$3 case_dir home proj wt stale fakebin countfile
+  local name=$1 id=$2 stale_reads=$3 case_dir home proj wt stale fakebin eventlog
   case_dir="$TMP_ROOT/$name"
   home="$case_dir/home"
   proj="$case_dir/project"
   wt="$case_dir/wt"
   stale="$case_dir/stale-other-checkout"
-  countfile="$case_dir/pane-call-count"
+  eventlog="$case_dir/pane-events"
   fakebin=$(make_settle_fakebin "$case_dir/fake")
   mkdir -p "$home/data" "$home/projects" "$home/state" "$home/config"
   printf 'codex\n' > "$home/config/crew-harness"
@@ -86,11 +110,11 @@ Exercise settled-worktree detection for $id.
 Record only the pane's stable worktree.
 EOF
   touch "$home/state/.last-watcher-beat"
-  printf '%s\n' "$case_dir|$home|$proj|$wt|$stale|$fakebin|$countfile|$stale_reads"
+  printf '%s\n' "$case_dir|$home|$proj|$wt|$stale|$fakebin|$eventlog|$stale_reads"
 }
 
 read_settle_record() {
-  IFS='|' read -r _ HOME_DIR PROJ_DIR WT_DIR STALE_DIR FAKEBIN_DIR COUNTFILE STALE_READS <<EOF
+  IFS='|' read -r _ HOME_DIR PROJ_DIR WT_DIR STALE_DIR FAKEBIN_DIR EVENTLOG STALE_READS <<EOF
 $1
 EOF
 }
@@ -102,7 +126,7 @@ run_settle_spawn() {
     FM_PROJECTS_OVERRIDE="$HOME_DIR/projects" FM_CONFIG_OVERRIDE="$HOME_DIR/config" \
     FM_SPAWN_NO_GUARD=1 TMUX="fake,1,0" \
     FM_FAKE_PANE_PATH="$WT_DIR" FM_FAKE_PANE_STALE="$STALE_DIR" \
-    FM_FAKE_PANE_STALE_READS="$STALE_READS" FM_FAKE_PANE_COUNTFILE="$COUNTFILE" \
+    FM_FAKE_PANE_STALE_READS="$STALE_READS" FM_FAKE_EVENTLOG="$EVENTLOG" \
     PATH="$FAKEBIN_DIR:$PATH" \
     "$SPAWN" "$id" "$PROJ_DIR" --mode no-mistakes --yolo off 2>&1
 }
@@ -111,7 +135,7 @@ run_settle_spawn() {
 # loop should keep polling until two consecutive reads agree, landing on the
 # real settled worktree instead.
 test_single_stale_first_read_is_not_accepted() {
-  local rec id out status
+  local rec id out status trace
   id=settle-single-stale-z1
   rec=$(make_settle_case settle-single "$id" 1)
   read_settle_record "$rec"
@@ -124,27 +148,32 @@ test_single_stale_first_read_is_not_accepted() {
     "meta did not record the settled worktree"
   assert_no_grep "worktree=$STALE_DIR" "$HOME_DIR/state/$id.meta" \
     "meta wrongly recorded the transient stale path as the worktree"
+  # Read 1 is the stale path, read 2 is the real worktree (a new candidate, not
+  # yet confirmed), read 3 agrees with read 2 and is accepted, with one
+  # inter-poll sleep after each unconfirmed read.
+  trace=$(settle_poll_trace "$EVENTLOG")
+  [ "$trace" = RSRSR ] || fail "the loop did not poll stale, settled, then confirm the settled path (poll trace: $trace, expected RSRSR)"
   pass "a single transient stale pane_current_path read is not accepted as the worktree"
 }
 
 # A pane that reports the real worktree from the very first read still only
 # costs the loop's existing one-second inter-poll sleep to confirm - not an
-# extra full cycle on top of that.
+# extra full cycle on top of that. Asserted as the poll shape, not elapsed
+# seconds: exactly two reads, with exactly one inter-poll sleep between them
+# and no read or sleep after the confirming read.
 test_already_settled_pane_costs_one_confirm_sleep() {
-  local rec id out status start end elapsed
+  local rec id out status trace
   id=settle-already-settled-z2
   rec=$(make_settle_case settle-already-settled "$id" 0)
   read_settle_record "$rec"
 
-  start=$(date +%s)
   out=$(run_settle_spawn "$id")
   status=$?
-  end=$(date +%s)
-  elapsed=$((end - start))
   expect_code 0 "$status" "spawn should succeed when the pane is already settled"
   assert_grep "worktree=$WT_DIR" "$HOME_DIR/state/$id.meta" \
     "meta did not record the already-settled worktree"
-  [ "$elapsed" -le 5 ] || fail "already-settled pane took ${elapsed}s to confirm - expected close to the single inter-poll sleep"
+  trace=$(settle_poll_trace "$EVENTLOG")
+  [ "$trace" = RSR ] || fail "an already-settled pane was not confirmed by one read, one inter-poll sleep, and one read (poll trace: $trace, expected RSR)"
   pass "an already-settled pane confirms via the existing inter-poll sleep, not an extra full cycle"
 }
 

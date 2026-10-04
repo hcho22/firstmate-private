@@ -927,11 +927,10 @@ SH
         FM_LINT_TELEMETRY="$telemetry_file" FM_TEST_SHELLCHECK_PID="$pid_file" \
         "$LINT" "$fixture" > "$out_file" 2>&1 &
       parent_pid=$!
-      i=0
-      while [ "$i" -lt 500 ] && [ ! -s "$pid_file" ]; do
+      local deadline=$((SECONDS + 60))
+      while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$pid_file" ]; do
         kill -0 "$parent_pid" 2>/dev/null || break
         sleep 0.01
-        i=$((i + 1))
       done
       [ -s "$pid_file" ] || {
         kill -TERM "$parent_pid" 2>/dev/null || true
@@ -944,10 +943,9 @@ SH
       parent_rc=0
       wait "$parent_pid" 2>/dev/null || parent_rc=$?
       survivor=0
-      i=0
-      while [ "$i" -lt 100 ] && kill -0 "$shellcheck_pid" 2>/dev/null; do
+      local deadline=$((SECONDS + 60))
+      while [ "$SECONDS" -lt "$deadline" ] && kill -0 "$shellcheck_pid" 2>/dev/null; do
         sleep 0.01
-        i=$((i + 1))
       done
       if kill -0 "$shellcheck_pid" 2>/dev/null; then
         survivor=1

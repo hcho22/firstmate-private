@@ -935,7 +935,7 @@ test_send_text_submit_send_failed_when_target_absent() {
   fb=$(make_cmux_fakebin "$dir")
   out=$( PATH="$fb:$PATH" FM_CMUX_LOG="$dir/log" FM_CMUX_RESPONSES="$dir/responses" \
     bash -c '. "$0/bin/backends/cmux.sh"; fm_backend_cmux_send_text_submit "aaaaaaaa-0000-0000-0000-000000000000:bbbbbbbb-1111-1111-1111-111111111111" "x" 2 0.01 0.01' "$ROOT" )
-  [ "$out" = send-failed ] || fail "send_text_submit should report send-failed when the target is absent, got '$out'"
+  [ "$out" = send-failed ] || fail "send_text_submit should report send-failed when the target is absent, got '$out'"$'\n'"fake cmux calls (fields space-separated):"$'\n'"$(tr '\037' ' ' < "$dir/log" 2>/dev/null)"
   pass "fm_backend_cmux_send_text_submit: reports 'send-failed' when the target workspace/surface is absent"
 }
 

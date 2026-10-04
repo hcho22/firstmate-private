@@ -121,7 +121,14 @@ SH
 #!/usr/bin/env bash
 echo "$$" >> "$FM_HOME/state/arm-ran"
 : > "$FM_HOME/state/arm-waiting"
-while [ ! -e "$FM_HOME/state/arm-release" ]; do sleep 0.02; done
+# A case that fails before releasing this arm removes its home on exit, and a
+# regression that blocks the case itself never releases it; stop at either
+# instead of spinning on a release that can never come.
+deadline=$((SECONDS + 120))
+while [ ! -e "$FM_HOME/state/arm-release" ]; do
+  [ -d "$FM_HOME/state" ] && [ "$SECONDS" -lt "$deadline" ] || exit 1
+  sleep 0.02
+done
 printf 'watcher: FAILED - cycle ended without an actionable reason\n'
 exit 1
 SH
@@ -140,7 +147,15 @@ SH
       cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
 echo "$$" >> "$FM_HOME/state/arm-ran"
-sleep 6
+n=$(wc -l < "$FM_HOME/state/arm-ran" | tr -d ' ')
+# Arm N stays mid-arm until its case releases it (arm-release.N). A case that
+# fails first removes its home, and a regression that blocks the case itself
+# never releases it; stop at either instead of waiting forever.
+deadline=$((SECONDS + 120))
+while [ ! -e "$FM_HOME/state/arm-release.$n" ]; do
+  [ -d "$FM_HOME/state" ] && [ "$SECONDS" -lt "$deadline" ] || exit 1
+  sleep 0.02
+done
 printf 'watcher: started pid=%s (beacon fresh)\n' "$$"
 printf 'stale: fixture-win actionable\n'
 exit 0
@@ -200,6 +215,26 @@ run_autoarm_bg() {
         "$FM_HOME/bin/fm-claude-stop-autoarm.sh"
       ' > "$out" 2>&1 &
   RUN_AUTOARM_BG_PID=$!
+}
+
+# start_standin <case-dir> [shell]: start a stand-in for a live owner, watcher,
+# lock holder, or (with shell $FAKE_CLAUDE) harness, and set STANDIN_PID once it
+# is running its own command. It lives until its case directory is removed
+# (under a 600 s guard) or a case ends it, so no case depends on the host's
+# speed, and a check that it died can pass only when something really ended it.
+# Returning only after it signals readiness keeps a recorded identity or a
+# harness check from seeing the fork before its exec.
+start_standin() {
+  local ready=$1/.standin-ready.$RANDOM$RANDOM deadline
+  "${2:-bash}" -c ': > "$2"; deadline=$((SECONDS + 600))
+    while [ -d "$1" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done' _ "$1" "$ready" &
+  STANDIN_PID=$!
+  deadline=$((SECONDS + 60))
+  until [ -e "$ready" ]; do
+    kill -0 "$STANDIN_PID" 2>/dev/null || fail "an owner stand-in exited before it was ready"
+    [ "$SECONDS" -lt "$deadline" ] || fail "an owner stand-in never became ready"
+    sleep 0.02
+  done
 }
 
 watcher_identity() {
@@ -273,10 +308,10 @@ test_inert_when_lock_held_by_other_harness() {
   dir=$(make_primary_dir "$TMP_ROOT/other-lock")
   : > "$dir/state/task.meta"
   write_arm_fixture "$dir" actionable
-  # The trailing no-op keeps the fake harness process alive instead of allowing
-  # bash to exec the final sleep into a non-harness process.
-  "$FAKE_CLAUDE" -c 'sleep 60; :' &
-  other=$!
+  # The fake harness stays a harness process for the whole case: its wait loop
+  # never lets bash exec a final command into a non-harness process.
+  start_standin "$dir" "$FAKE_CLAUDE"
+  other=$STANDIN_PID
   printf '%s\n' "$other" > "$dir/state/.lock"
   out=$(printf '%s\n' '{"session_id":"s"}' | FM_HOME="$dir" "$FAKE_CLAUDE" -c '"$FM_HOME/bin/fm-claude-stop-autoarm.sh"' 2>&1); status=$?
   owner_after=$(cat "$dir/state/.lock")
@@ -396,8 +431,8 @@ test_actionable_close_with_live_successor_rewakes_once() {
   dir=$(make_primary_dir "$TMP_ROOT/actionable-live-successor")
   : > "$dir/state/task.meta"
   write_arm_fixture "$dir" actionable
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   identity=$(watcher_identity "$dir" "$pid") || fail "could not identify live successor for actionable close"
   record_watcher_lock "$dir" "$pid" "$identity"
   touch "$dir/state/.last-watcher-beat"
@@ -515,8 +550,8 @@ test_benign_cycle_end_with_live_watcher_is_silent() {
   dir=$(make_primary_dir "$TMP_ROOT/benign-live")
   : > "$dir/state/task.meta"
   write_arm_fixture "$dir" benign-live
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   identity=$(watcher_identity "$dir" "$pid") || fail "could not identify live watcher holder for benign close"
   record_watcher_lock "$dir" "$pid" "$identity"
   touch "$dir/state/.last-watcher-beat"
@@ -544,15 +579,15 @@ test_positive_recovery_budget_contention_preserves_episode() {
   dir=$(make_primary_dir "$TMP_ROOT/recovery-budget-contention")
   : > "$dir/state/task.meta"
   write_arm_fixture "$dir" benign-live
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   identity=$(watcher_identity "$dir" "$pid") || fail "could not identify live watcher holder for recovery contention"
   record_watcher_lock "$dir" "$pid" "$identity"
   touch "$dir/state/.last-watcher-beat"
   printf 'session=sess-autoarm\ncount=3\nepoch=9\n' > "$dir/state/.turnend-claude-blocks"
   : > "$dir/state/.claude-autoarm-failure-notified"
-  sleep 60 &
-  holder=$!
+  start_standin "$dir"
+  holder=$STANDIN_PID
   mkdir -p "$dir/state/.turnend-claude-blocks.lock"
   printf '%s\n' "$holder" > "$dir/state/.turnend-claude-blocks.lock/pid"
   out=$(run_autoarm "$dir" 2>/dev/null); status=$?
@@ -573,29 +608,32 @@ test_positive_recovery_budget_contention_preserves_episode() {
 }
 
 test_owner_mutex_contention_preserves_failure_episode_reset() {
-  local dir out hook_pid status watcher watcher_id holder i
+  local dir out hook_pid status watcher watcher_id holder deadline
   dir=$(make_primary_dir "$TMP_ROOT/reset-owner-contention")
   : > "$dir/state/task.meta"
   : > "$dir/state/.turnend-claude-blocks"
   : > "$dir/state/.claude-autoarm-failure-notified"
   : > "$dir/state/.claude-autoarm-failure-alarmed"
   write_arm_fixture "$dir" reset-boundary
-  sleep 60 &
-  watcher=$!
+  start_standin "$dir"
+  watcher=$STANDIN_PID
   watcher_id=$(watcher_identity "$dir" "$watcher") || fail "could not identify reset-contention watcher"
   record_watcher_lock "$dir" "$watcher" "$watcher_id"
   touch "$dir/state/.last-watcher-beat"
   out="$dir/state/hook.out"
   run_autoarm_bg "$dir" "$out"
   hook_pid=$RUN_AUTOARM_BG_PID
-  i=0
+  # Waits on a background hook's milestone are bounded by time, not by a count
+  # of sleeps: the hook is many process spawns, a loaded host stretches them,
+  # and only a genuine hang should reach the 60 s guard.
+  deadline=$((SECONDS + 60))
   while [ ! -e "$dir/state/arm-waiting" ]; do
-    [ "$i" -lt 50 ] || fail "healthy owner never reached the reset boundary"
+    kill -0 "$hook_pid" 2>/dev/null || fail "healthy owner exited before the reset boundary: $(cat "$out")"
+    [ "$SECONDS" -lt "$deadline" ] || fail "healthy owner never reached the reset boundary"
     sleep 0.05
-    i=$((i + 1))
   done
-  sleep 60 &
-  holder=$!
+  start_standin "$dir"
+  holder=$STANDIN_PID
   mkdir -p "$dir/state/.claude-autoarm.lock"
   printf '%s\n' "$holder" > "$dir/state/.claude-autoarm.lock/pid"
   : > "$dir/state/arm-release"
@@ -703,8 +741,8 @@ test_abandoned_owner_claim_is_reclaimed_and_rearms() {
   : > "$dir/state/task1.meta"
   : > "$dir/state/task2.meta"
   write_arm_fixture "$dir" actionable
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   record_autoarm_owner "$dir" "$pid"
   record_autoarm_epoch "$dir" 464 "$pid" rewake
   out=$(run_autoarm "$dir" 2>/dev/null); status=$?
@@ -727,8 +765,8 @@ test_arming_claim_with_fresh_beacon_is_never_reclaimed() {
   dir=$(make_primary_dir "$TMP_ROOT/arming-claim")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" actionable
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   record_autoarm_owner "$dir" "$pid"
   # An owner foregrounds the arm for the whole watcher cycle, so an old "arming"
   # entry is still in progress while its watcher keeps beating the beacon.
@@ -753,8 +791,8 @@ test_fresh_arming_claim_with_stale_beacon_is_never_reclaimed() {
   dir=$(make_primary_dir "$TMP_ROOT/fresh-arming-claim")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" actionable
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   record_autoarm_owner "$dir" "$pid"
   record_autoarm_owner_identity "$dir" "$pid" || fail "could not record a claim pid-identity"
   printf 'epoch=464 owner_pid=%s outcome=arming updated_at=%s\n' "$pid" "$(date +%s)" \
@@ -775,8 +813,8 @@ test_claim_not_named_by_the_ledger_is_never_reclaimed() {
   dir=$(make_primary_dir "$TMP_ROOT/unnamed-claim")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" actionable
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   record_autoarm_owner "$dir" "$pid"
   # A fresh claimant holds the lock before it writes "arming", so until it does
   # the ledger still names the PREVIOUS owner. Requiring the two pids to match is
@@ -805,8 +843,8 @@ test_pid_reused_arming_claim_is_reclaimed_and_rearms() {
   : > "$dir/state/task1.meta"
   : > "$dir/state/task2.meta"
   write_arm_fixture "$dir" actionable
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   record_autoarm_owner "$dir" "$pid"
   record_autoarm_owner_identity "$dir" "$$" || fail "could not record a claim pid-identity"
   record_autoarm_epoch "$dir" 464 "$pid" arming
@@ -832,8 +870,8 @@ test_pid_reused_claim_with_no_ledger_is_reclaimed_and_rearms() {
   dir=$(make_primary_dir "$TMP_ROOT/reused-pid-no-ledger")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" actionable
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   record_autoarm_owner "$dir" "$pid"
   record_autoarm_owner_identity "$dir" "$$" || fail "could not record a claim pid-identity"
   assert_absent "$dir/state/.claude-autoarm-epoch" "this case must start with no ledger at all"
@@ -857,8 +895,8 @@ test_identity_matched_arming_claim_is_never_reclaimed() {
   dir=$(make_primary_dir "$TMP_ROOT/identity-matched-arming")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" actionable
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   record_autoarm_owner "$dir" "$pid"
   record_autoarm_owner_identity "$dir" "$pid" || fail "could not record a claim pid-identity"
   record_autoarm_epoch "$dir" 464 "$pid" arming
@@ -879,8 +917,8 @@ test_terminal_check_claim_is_never_reclaimed() {
   dir=$(make_primary_dir "$TMP_ROOT/terminal-check-claim")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" actionable
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   # The synchronous guard takes the same lock under its own role while it decides
   # the attended fail-open. Reclaiming that would race the guard's own decision.
   record_autoarm_owner "$dir" "$pid" terminal-check
@@ -899,20 +937,24 @@ test_terminal_check_claim_is_never_reclaimed() {
 # retired with TERM before its lock is removed, because old-build code cannot
 # re-check generations and would otherwise resume and act after supersession.
 test_stuck_live_legacy_owner_is_retired_and_reclaimed() {
-  local dir out status pid
+  local dir out status pid rc
   dir=$(make_primary_dir "$TMP_ROOT/legacy-term")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" actionable
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   record_autoarm_owner "$dir" "$pid"
   record_autoarm_owner_identity "$dir" "$pid" || fail "could not record a claim pid-identity"
   record_autoarm_epoch "$dir" 464 "$pid" arming
   touch -t 202001010000 "$dir/state/.last-watcher-beat"
   out=$(run_autoarm "$dir" 2>/dev/null); status=$?
   expect_code 2 "$status" "a proven-stuck identity-verified live legacy owner must be retired and reclaimed"
-  kill -0 "$pid" 2>/dev/null && fail "the stuck legacy owner was reclaimed without being retired"
-  wait "$pid" 2>/dev/null || true
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -KILL "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+    fail "the stuck legacy owner was reclaimed without being retired"
+  fi
+  wait "$pid"; rc=$?
+  [ "$rc" -eq 143 ] || fail "the stuck legacy owner was not retired by TERM (exit $rc)"
   [ -e "$dir/state/arm-ran" ] || fail "the reclaimed home did not re-arm"
   assert_contains "$out" "firstmate watcher wake" "the reclaimed cycle must still translate its wake"
   assert_absent "$dir/state/.claude-autoarm.lock" "reclaim left the legacy owner lock behind"
@@ -924,29 +966,35 @@ test_stuck_live_legacy_owner_is_retired_and_reclaimed() {
 # pending TERM on the verified owner is retirement-safe because delivery
 # precedes any further user code when the process continues.
 test_stopped_legacy_owner_is_reclaimed_with_term_pending() {
-  local dir out status pid i
+  local dir out status pid deadline rc
   dir=$(make_primary_dir "$TMP_ROOT/legacy-term-stopped")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" actionable
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   record_autoarm_owner "$dir" "$pid"
   record_autoarm_owner_identity "$dir" "$pid" || fail "could not record a claim pid-identity"
   record_autoarm_epoch "$dir" 464 "$pid" arming
   touch -t 202001010000 "$dir/state/.last-watcher-beat"
   kill -STOP "$pid" 2>/dev/null || fail "could not stop the legacy owner fixture"
   out=$(run_autoarm "$dir" 2>/dev/null); status=$?
+  # Continue the owner as soon as the hook returns, so a failing assertion below
+  # never leaves a stopped process behind. The stand-in outlives every wait here,
+  # so only the queued TERM can end it, and its exit status proves which signal.
+  kill -CONT "$pid" 2>/dev/null || true
   expect_code 2 "$status" "a stopped legacy owner with TERM queued must not block the reclaim forever"
   [ -e "$dir/state/arm-ran" ] || fail "the reclaimed home did not re-arm past the stopped owner"
   assert_absent "$dir/state/.claude-autoarm.lock" "reclaim left the stopped owner's lock behind"
-  kill -CONT "$pid" 2>/dev/null || true
-  i=0
-  while [ "$i" -lt 40 ] && kill -0 "$pid" 2>/dev/null; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && kill -0 "$pid" 2>/dev/null; do
     sleep 0.05
-    i=$((i + 1))
   done
-  kill -0 "$pid" 2>/dev/null && fail "the queued TERM did not retire the owner on continue"
-  wait "$pid" 2>/dev/null || true
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -KILL "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+    fail "the queued TERM did not retire the owner on continue"
+  fi
+  wait "$pid"; rc=$?
+  [ "$rc" -eq 143 ] || fail "the continued owner was not retired by the queued TERM (exit $rc)"
   pass "auto-arm: a SIGSTOPped legacy owner is reclaimed with TERM pending and dies on continue"
 }
 
@@ -976,8 +1024,8 @@ test_open_generation_claim_defers_without_any_lock() {
   dir=$(make_primary_dir "$TMP_ROOT/v2-open-claim")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" actionable
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   record_autoarm_v2_claim "$dir" 464 "$pid" arming "$pid" || fail "could not record a v2 claim"
   touch -t 202001010000 "$dir/state/.claude-autoarm-epoch"
   : > "$dir/state/.last-watcher-beat"
@@ -1001,8 +1049,8 @@ test_stuck_generation_claim_is_superseded_and_rearms() {
   : > "$dir/state/task1.meta"
   : > "$dir/state/task2.meta"
   write_arm_fixture "$dir" actionable
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   record_autoarm_v2_claim "$dir" 464 "$pid" arming "$pid" || fail "could not record a v2 claim"
   touch -t 202001010000 "$dir/state/.claude-autoarm-epoch"
   touch -t 202001010000 "$dir/state/.last-watcher-beat"
@@ -1026,8 +1074,8 @@ test_identityless_ledger_never_defers() {
   dir=$(make_primary_dir "$TMP_ROOT/v2-identityless-ledger")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" actionable
-  sleep 60 &
-  pid=$!
+  start_standin "$dir"
+  pid=$STANDIN_PID
   printf 'epoch=464 owner_pid=%s outcome=arming updated_at=1\n' "$pid" \
     > "$dir/state/.claude-autoarm-epoch"
   touch -t 202001010000 "$dir/state/.claude-autoarm-epoch"
@@ -1070,18 +1118,18 @@ test_superseded_owner_never_reinvokes_the_arm() {
 #      superseded and goes completely silent (exit 0, no banner, no ledger
 #      write), so one supersession episode produces exactly one translation.
 test_superseded_owner_goes_silent_and_never_double_translates() {
-  local dir a_out a_pid b_out b_status c_out c_status a_status i count
+  local dir a_out a_pid b_out b_status c_out c_status a_status deadline count
   dir=$(make_primary_dir "$TMP_ROOT/v2-superseded-silence")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" blocking-actionable
   a_out="$dir/state/a.out"
   run_autoarm_bg "$dir" "$a_out"
   a_pid=$RUN_AUTOARM_BG_PID
-  i=0
+  deadline=$((SECONDS + 60))
   while [ "$(epoch_outcome "$dir")" != arming ] || [ ! -e "$dir/state/arm-ran" ]; do
-    [ "$i" -lt 50 ] || fail "owner A never published its arming claim"
+    kill -0 "$a_pid" 2>/dev/null || fail "owner A exited before publishing its arming claim: $(cat "$a_out")"
+    [ "$SECONDS" -lt "$deadline" ] || fail "owner A never published its arming claim"
     sleep 0.1
-    i=$((i + 1))
   done
   b_out=$(run_autoarm "$dir" 2>/dev/null); b_status=$?
   expect_code 0 "$b_status" "a firing during a live open claim must defer promptly (no mutex is held across arming)"
@@ -1092,9 +1140,14 @@ test_superseded_owner_goes_silent_and_never_double_translates() {
   kill -0 "$a_pid" 2>/dev/null || fail "owner A finished before the supersession could be exercised"
   touch -t 202001010000 "$dir/state/.claude-autoarm-epoch"
   touch -t 202001010000 "$dir/state/.last-watcher-beat"
+  # C's own arm (the second) returns at once; A's stays mid-arm until C has
+  # superseded it and translated its close.
+  : > "$dir/state/arm-release.2"
   c_out=$(run_autoarm "$dir" 2>/dev/null); c_status=$?
   expect_code 2 "$c_status" "the superseding generation must translate its own close"
   assert_contains "$c_out" "firstmate watcher wake" "the superseding generation must carry the rewake banner"
+  kill -0 "$a_pid" 2>/dev/null || fail "owner A returned before its arm was released: $(cat "$a_out")"
+  : > "$dir/state/arm-release.1"
   wait "$a_pid"
   a_status=$?
   expect_code 0 "$a_status" "the superseded owner must exit 0 instead of double-translating"

@@ -35,7 +35,7 @@
 # It NEVER reports started/attached/healthy off a stale beacon or a dead/reused pid: a
 # stale-beacon or dead-pid holder either self-heals (the fresh child steals the
 # dead lock per the singleton self-eviction/steal path and is confirmed) or this
-# returns the FAILED line. On started it waits the child and propagates the wake
+# returns the FAILED line. On started it follows the child and propagates the wake
 # reason; on attached it stays live across identity-matched successors. A cycle
 # that ends with no reason line and no healthy successor is resolved against the
 # watcher's identity-bound delivery record: a matching record reports that wake
@@ -77,7 +77,8 @@ case "${OSTYPE:-}" in
   *) ARM_CONFIRM_DEFAULT=10 ;;
 esac
 CONFIRM_TIMEOUT=${FM_ARM_CONFIRM_TIMEOUT:-$ARM_CONFIRM_DEFAULT}
-# Poll interval while attached to an existing healthy watcher.
+# Poll interval while following a live watcher: an attached peer's, or the
+# child this arm owns.
 ATTACH_POLL=${FM_ARM_ATTACH_POLL:-0.5}
 CYCLE_LOG="$STATE/.watch-cycle-exits.log"
 CYCLE_LOG_LOCK="$STATE/.watch-cycle-exits.lock"
@@ -443,11 +444,29 @@ if [ "$mode" = arm ] && healthy_watcher; then
 fi
 
 # Start a watcher as a tracked child and confirm it before settling in. The child
-# stays our child for its whole life: we wait on it, so killing this arm (the
+# stays our child for its whole life: we follow it, so killing this arm (the
 # harness-tracked task) tears the watcher down too, and the watcher's eventual
 # wake exit propagates out so the harness re-notifies firstmate.
 child=
 child_out=
+
+# Follow the live owned child until it exits, then return its status.
+#
+# This polls instead of blocking in a bare `wait "$child"` on purpose. Stock
+# macOS bash 3.2 interrupts a blocked `wait` for a trapped signal, but a signal
+# that became pending in the instant before the builtin started blocking is not
+# noticed until the child exits, which for a live watcher is never: the arm
+# ignored the HUP or TERM that stopped it and kept the watcher running (a
+# harness stopping the arm right after it printed 'started' hit this). Traps do
+# run at every command boundary, so a foreground sleep between liveness checks
+# bounds the delay to one poll, and once the child is gone `wait` only collects
+# the status bash already holds.
+follow_owned_child() {
+  while fm_pid_alive "$child"; do
+    sleep "$ATTACH_POLL"
+  done
+  wait "$child"
+}
 cleanup_child() {
   if [ -n "$child" ] && fm_pid_alive "$child"; then
     kill -TERM "$child" 2>/dev/null || true
@@ -563,13 +582,13 @@ while :; do
       else
         echo "watcher: started pid=$child (beacon fresh)"
       fi
-      wait "$child"
+      follow_owned_child
       rc=$?
       owned_child_finished "$rc"
       exit $?
     fi
     # Another watcher won the singleton; our child stood down.
-    wait "$child"
+    follow_owned_child
     rc=$?
     owned_child_finished "$rc"
     exit $?

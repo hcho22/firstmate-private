@@ -72,10 +72,18 @@
 #                   script paths, which use the bounded automatic scheduler.
 #   --per-script-timeout-secs N
 #                   terminate a script that runs longer than N seconds and
-#                   record it as exit 124 (0 disables, the default). The
-#                   --changed applies 900s automatically: no real script
-#                   approaches it, so it only converts a HUNG
-#                   script into a bounded failure. --max-wall-ms is checked
+#                   record it as exit 124 (0 disables, the default). An
+#                   explicit value is a flat bound for every script. The
+#                   --changed applies a progress-aware bound automatically: a
+#                   script is terminated (exit 124) once it has written no new
+#                   output for its bound - at least 900s, and for a script with
+#                   a measured duration hint (the runner's own balance hints) at
+#                   least 6 times that hint - or once it has run 4 times that
+#                   bound in total. A script that goes silent is stopped as
+#                   quickly as a flat bound would stop it, and one that keeps
+#                   finishing cases is never stopped just because a loaded host
+#                   runs it slowly.
+#                   --max-wall-ms is checked
 #                   after the run and so cannot catch a hang on its own.
 #                   External interruption cleanup is outside this runner's
 #                   guarantee; configured per-script bounds remain authoritative.
@@ -86,6 +94,34 @@
 #                   bounded by --per-script-timeout-secs. Pathological output
 #                   sinks that block finalization are explicitly out of scope.
 #   -h, --help      print this header
+#
+# Hermetic environment (execution only, serial and concurrent alike): every
+# script runs without the caller's firstmate state. The runner drops each
+# inherited FM_/FMX_ variable that a script under bin/, .pi/, .agents/, or
+# skills/ reads, and the session identity a multiplexer injects (HERDR_ENV,
+# HERDR_PANE_ID, HERDR_TAB_ID, HERDR_WORKSPACE_ID, HERDR_SOCKET_PATH,
+# HERDR_SESSION, HERDR_STARTUP_CWD, TMUX, TMUX_PANE, ZELLIJ*, CMUX_WORKSPACE_ID,
+# CMUX_SURFACE_ID, ORCA_WORKTREE_ID, ORCA_TERMINAL). A test therefore sees
+# production defaults unless it sets a value itself, and a run inside an agent's
+# pane behaves like a run in CI instead of failing on, or touching, the live
+# session it was launched from. Test-owned controls pass through: FM_TEST_* and
+# FM_ISOLATION_*, and the opt-in gates (*_LIVE, *_LIVE_E2E, *_E2E, *_EVAL,
+# FM_HARNESS_LIVENESS_DRIFT). A line names whatever was dropped. Every script
+# also gets its own private mode-0700 TMPDIR (and TMP) under this run's
+# temporary root, so temp roots never collide and the orphaned-worker sweeps a
+# test's fixtures run, which tests/lib.sh scopes to TMPDIR, never reach another
+# script's or another run's fixtures. Running a test directly with bash does not
+# go through this runner and inherits the caller's environment.
+#
+# Real Herdr guard (execution only, serial and concurrent alike): only the
+# real-herdr-gated and live-harness-optin families may reach the real herdr
+# binary, and they do so through their own isolated lab sessions. Every other
+# script runs with a refusing `herdr` stand-in first on PATH, so a case without
+# a fake herdr of its own can neither talk to a live Herdr session nor start a
+# server in the real Herdr config (the herdr CLI starts one for a session it
+# does not find). The stand-in records each refused call, and the runner fails
+# the script with a line naming it even when the script itself exits 0, so a
+# missing fake is fixed rather than silently tolerated.
 #
 # Per-script machine-parseable markers (stdout):
 #   FM_TEST_BEGIN <iso8601> <script> family=<family> expected_gate_skip=<class>
@@ -154,16 +190,34 @@ JOBS_EXPLICIT=0
 JOBS_MAX=8
 MAX_WALL_MS=
 PER_SCRIPT_TIMEOUT_SECS=0
-# Bound applied automatically on the automatic --changed path, derived from
-# measured healthy runtimes with margin rather than picked: the slowest measured
-# behavior test is the 341s Herdr presentation E2E, and the slowest script in a
-# runner-file changed selection is tests/fm-calm-pi-extension.test.sh at 77s
-# once its Chrome reap terminates. 900s leaves roughly 2.6x headroom over the
-# slowest real script, so this can only ever fire on a script that is genuinely
-# stuck. It is a guard, not a speed control: a HUNG script becomes a bounded
-# failure instead of an unbounded suite, which is the shape that silently
-# outruns a caller's invocation budget.
+PER_SCRIPT_TIMEOUT_AUTO=0
+# Bound applied automatically on the automatic --changed path. The floor was
+# derived from healthy runtimes measured on the CI reference host: the slowest
+# measured behavior test is the 341s Herdr presentation E2E, and the slowest
+# script in a runner-file changed selection is tests/fm-calm-pi-extension.test.sh
+# at 77s once its Chrome reap terminates, so 900s left roughly 2.6x headroom there.
+# That headroom does not hold everywhere. On a macOS host with stock bash 3.2 under
+# shared load, tests/fm-watch-triage.test.sh measured 761s in one run and was
+# still progressing, 88 assertions in, when 900s terminated it in the next,
+# against a 263s hint: about 3x the reference. So the bound for a script with a
+# measured duration hint (portable_serial_weight_hints) is the larger of this
+# floor and CHANGED_HINT_BOUND_FACTOR times that hint, which keeps the floor, and
+# the quick detection of a hang, for every script without a hint. It is a guard,
+# not a speed control: a HUNG script becomes a bounded failure instead of an
+# unbounded suite, which is the shape that silently outruns a caller's invocation
+# budget. So the automatic bound measures silence, not total time
+# (fm_run_progress_bounded in bin/fm-timeout-lib.sh): a script is stopped once it
+# has written nothing new for the bound, or once it has run
+# CHANGED_BACKSTOP_FACTOR times the bound in total, for a script that keeps
+# printing without finishing. Under heavy external load (load averages of 120 to
+# 470 on 20 cores) healthy scripts that were still finishing cases ran past their
+# total-time bounds - fm-teardown at 900s (2066s to complete), the remote
+# secondmate lifecycle e2e at 1258s - while a hung script stops producing output
+# whatever the load. An explicit --per-script-timeout-secs is a flat bound and is
+# not scaled.
 CHANGED_DEFAULT_TIMEOUT_SECS=900
+CHANGED_HINT_BOUND_FACTOR=6
+CHANGED_BACKSTOP_FACTOR=4
 
 # How many separate-runner shards the portable serial remainder splits into.
 # One owner: CI lane names carry this count and are refused when they disagree.
@@ -230,10 +284,10 @@ family_for_basename() {
     fm-calm-pi-extension.test.sh|fm-cd-pretool-check.test.sh|\
     fm-classify-decision-key.test.sh|\
     fm-composer-ghost.test.sh|fm-composer-lib.test.sh|\
-    fm-crew-state.test.sh|fm-captain-hold-lifecycle.test.sh|\
+    fm-crew-state.test.sh|fm-captain-hold-lifecycle.test.sh|fm-captain-hold-records.test.sh|\
     fm-documentation-audiences.test.sh|fm-ensure-agents-md.test.sh|fm-grok-harness.test.sh|\
     fm-kimi-harness.test.sh|fm-muse-harness.test.sh|fm-herdr-lab.test.sh|fm-lint.test.sh|\
-    fm-lint-workflows.test.sh|\
+    fm-lint-workflows.test.sh|fm-lint-waits.test.sh|\
     fm-evidence-import-contract.test.sh|\
     fm-operational-input.test.sh|fm-pi-primary-types.test.sh|\
     fm-harness-adapter-references.test.sh|\
@@ -406,6 +460,7 @@ tests/fm-arm-pretool-check.test.sh
 tests/fm-backend-herdr.test.sh
 tests/fm-brief.test.sh
 tests/fm-captain-hold-lifecycle.test.sh
+tests/fm-captain-hold-records.test.sh
 tests/fm-cd-pretool-check.test.sh
 tests/fm-composer-ghost.test.sh
 tests/fm-composer-lib.test.sh
@@ -432,10 +487,14 @@ EOF
 # Portable parallel shard 1: LPT balance of the proven-isolated set using the
 # current concurrent-proof durations in docs/fm-test-isolation-proof.json.
 # Execution order is longest first so wall-clock stays near the balanced sum.
+# tests/fm-captain-hold-records.test.sh and tests/fm-captain-hold-lifecycle.test.sh
+# are the two halves of the suite that proof measured as one file, so together
+# they keep its slot and the balance (docs/fm-test-portable-shards.md).
 list_portable_parallel_1() {
   cat <<'EOF'
 tests/fm-x-mode.test.sh
 tests/fm-cd-pretool-check.test.sh
+tests/fm-captain-hold-records.test.sh
 tests/fm-captain-hold-lifecycle.test.sh
 tests/fm-test-run.test.sh
 tests/fm-composer-ghost.test.sh
@@ -1328,7 +1387,7 @@ families_for_changed_path() {
       # lane's contract coverage re-runs.
       printf '%s\n' real-herdr-gated
       ;;
-    bin/fm-lint.sh|bin/fm-lint-workflows.sh|bin/fm-install-shellcheck.sh|\
+    bin/fm-lint.sh|bin/fm-lint-workflows.sh|bin/fm-lint-waits.sh|bin/fm-install-shellcheck.sh|\
     bin/fm-install-actionlint.sh|\
     bin/fm-brief.sh|bin/fm-dod-lib.sh|bin/fm-release.sh|bin/fm-release.py|bin/fm-ensure-agents-md.sh|bin/fm-crew-state.sh|\
     bin/fm-captain-hold.sh|bin/fm-decision-hold.sh|bin/fm-supervision*|bin/fm-transition-lib.sh|\
@@ -1908,6 +1967,7 @@ AUTO_CONCURRENCY=0
 if { [ "$MODE" = changed ] || [ "$MODE" = scripts ]; } && [ "$JOBS_EXPLICIT" -eq 0 ]; then
   if [ "$MODE" = changed ] && [ "${#SCRIPTS[@]}" -gt 0 ] && [ "$PER_SCRIPT_TIMEOUT_SECS" -eq 0 ]; then
     PER_SCRIPT_TIMEOUT_SECS=$CHANGED_DEFAULT_TIMEOUT_SECS
+    PER_SCRIPT_TIMEOUT_AUTO=1
   fi
   auto_admissible=0
   for s in "${SCRIPTS[@]}"; do
@@ -2066,7 +2126,54 @@ prepare_test_runtimes() {
   export PATH="$RUN_TMP/runtime-bin:$PATH"
 }
 
+# scrub_ambient_environment: see "Hermetic environment" in the header. The
+# production names are read from the tree under test, so a new variable a script
+# starts reading is covered without editing a list here.
+scrub_ambient_environment() {
+  local production name scrubbed=
+  production=$(grep -rhoE '\bFMX?_[A-Z0-9_]+\b' "$ROOT/bin" "$ROOT/.pi" "$ROOT/.agents" "$ROOT/skills" 2>/dev/null \
+    | sort -u) || production=
+  while IFS= read -r name; do
+    case "$name" in
+      FM_TEST_*|FM_ISOLATION_*|*_LIVE|*_LIVE_E2E|*_E2E|*_EVAL|FM_HARNESS_LIVENESS_DRIFT) continue ;;
+      FM_*|FMX_*) printf '%s\n' "$production" | grep -qxF -- "$name" || continue ;;
+      HERDR_ENV|HERDR_PANE_ID|HERDR_TAB_ID|HERDR_WORKSPACE_ID|HERDR_SOCKET_PATH|\
+      HERDR_SESSION|HERDR_STARTUP_CWD|TMUX|TMUX_PANE|ZELLIJ|ZELLIJ_*|\
+      CMUX_WORKSPACE_ID|CMUX_SURFACE_ID|ORCA_WORKTREE_ID|ORCA_TERMINAL) ;;
+      *) continue ;;
+    esac
+    unset "$name"
+    scrubbed="${scrubbed}${scrubbed:+ }$name"
+  done <<EOF
+$(compgen -e)
+EOF
+  [ -z "$scrubbed" ] || log "ignoring ambient variables a firstmate script reads or that name a live session: $scrubbed"
+}
+
+# prepare_herdr_guard: see "Real Herdr guard" in the header.
+prepare_herdr_guard() {
+  HERDR_GUARD_BIN="$RUN_TMP/herdr-guard-bin"
+  mkdir -p "$HERDR_GUARD_BIN"
+  cat >"$HERDR_GUARD_BIN/herdr" <<'SH'
+#!/usr/bin/env bash
+# bin/fm-test-run.sh's refusing herdr stand-in (header: "Real Herdr guard").
+printf 'herdr %s\n' "$*" >>"${FM_TEST_HERDR_GUARD_LOG:-/dev/null}" 2>/dev/null || true
+echo "fm-test-run: refused: this test reached the real herdr binary (herdr $*); only the real-herdr-gated and live-harness-optin families may, so give the case a fake herdr" >&2
+exit 97
+SH
+  chmod 0755 "$HERDR_GUARD_BIN/herdr"
+}
+
+herdr_guarded_family() {  # <family>
+  case "$1" in
+    real-herdr-gated|live-harness-optin) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
 [ "${#SCRIPTS[@]}" -eq 0 ] || prepare_test_runtimes
+[ "${#SCRIPTS[@]}" -eq 0 ] || scrub_ambient_environment
+[ "${#SCRIPTS[@]}" -eq 0 ] || prepare_herdr_guard
 
 RUN_ID="fm-test-run-${RUN_STARTED_MS}-$$"
 TOTAL=0
@@ -2144,40 +2251,107 @@ record_script_result() {
 # positive, a script that outruns it is terminated and reported as exit 124: a
 # hung script must become a bounded failure rather than an unbounded suite,
 # because an unbounded suite is what silently outruns its caller's budget.
+# script_bound_secs <script>: the bound this script runs under. A flat explicit
+# bound (or 0, no bound) is returned as given. The automatic bound is raised to
+# CHANGED_HINT_BOUND_FACTOR times the script's measured duration hint when that is
+# larger, see CHANGED_DEFAULT_TIMEOUT_SECS.
+script_bound_secs() {
+  local script=$1 bound=$PER_SCRIPT_TIMEOUT_SECS hint_ms hinted
+  if [ "$PER_SCRIPT_TIMEOUT_AUTO" -eq 1 ]; then
+    hint_ms=$(portable_serial_weight_hints | awk -v script="$script" '$1 == script { print $2; exit }')
+    case "$hint_ms" in
+      ''|*[!0-9]*) ;;
+      *)
+        hinted=$(( (hint_ms * CHANGED_HINT_BOUND_FACTOR + 999) / 1000 ))
+        [ "$hinted" -le "$bound" ] || bound=$hinted
+        ;;
+    esac
+  fi
+  printf '%s\n' "$bound"
+}
+
+# bounded_script_command <bound> <out> <command...>: run under the explicit flat
+# bound, or, on the automatic --changed path, under the progress-aware bound
+# watching <out>, where every caller sends the script's output.
+bounded_script_command() {
+  local bound=$1 out=$2
+  shift 2
+  if [ "$PER_SCRIPT_TIMEOUT_AUTO" -eq 1 ]; then
+    fm_run_progress_bounded "$bound" "$((bound * CHANGED_BACKSTOP_FACTOR))" \
+      "$out" "$out.guard" "$@"
+  else
+    fm_run_timed "$bound" "$@"
+  fi
+}
+
 run_script_bounded() {  # <script> <out> <stream> <id>
   local script=$1 out=$2 stream=$3 id=$4
-  local rc
+  local rc bound reason herdr_guard=0 saved_path=$PATH
   : "$id"
+  bound=$(script_bound_secs "$script")
+  rm -f "$out.guard" "$out.herdr"
+  if herdr_guarded_family "$(family_for_basename "$(basename "$script")")"; then
+    herdr_guard=1
+    export FM_TEST_HERDR_GUARD_LOG="$out.herdr"
+    PATH="$HERDR_GUARD_BIN:$PATH"
+  fi
   set +e
   if [ "$stream" -eq 1 ]; then
-    if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
+    if [ "$bound" -gt 0 ]; then
       # Expansion is intentionally deferred to the child bash passed to -c.
       # shellcheck disable=SC2016
-      fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash -c \
+      bounded_script_command "$bound" "$out" bash -c \
         'bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' _ "$script" "$out"
       rc=$?
     else
       bash "$script" 2>&1 | tee "$out"
       rc=${PIPESTATUS[0]}
     fi
-  elif [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
-    fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash "$script" >"$out" 2>&1
+  elif [ "$bound" -gt 0 ]; then
+    # The guard only reads the size of the file the script writes to.
+    # shellcheck disable=SC2094
+    bounded_script_command "$bound" "$out" bash "$script" >"$out" 2>&1
     rc=$?
   else
     bash "$script" >"$out" 2>&1
     rc=$?
   fi
-  if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ] && [ "$rc" -eq 124 ]; then
-    printf 'not ok - %s exceeded the per-script bound of %ss and was terminated\n' \
-      "$script" "$PER_SCRIPT_TIMEOUT_SECS" >>"$out"
-    [ "$stream" -eq 1 ] && tail -1 "$out"
+  if [ "$bound" -gt 0 ] && [ "$rc" -eq 124 ]; then
+    reason=
+    if [ "$PER_SCRIPT_TIMEOUT_AUTO" -eq 1 ]; then
+      reason=$(cat "$out.guard" 2>/dev/null || true)
+    else
+      reason=flat
+    fi
+    case "$reason" in
+      idle)
+        printf 'not ok - %s made no progress for %ss, its per-script bound, and was terminated\n' \
+          "$script" "$bound" >>"$out" ;;
+      backstop)
+        printf 'not ok - %s exceeded the per-script backstop of %ss and was terminated\n' \
+          "$script" "$((bound * CHANGED_BACKSTOP_FACTOR))" >>"$out" ;;
+      flat)
+        printf 'not ok - %s exceeded the per-script bound of %ss and was terminated\n' \
+          "$script" "$bound" >>"$out" ;;
+    esac
+    [ -z "$reason" ] || { [ "$stream" -eq 1 ] && tail -1 "$out"; }
   fi
+  rm -f "$out.guard"
+  PATH=$saved_path
+  unset FM_TEST_HERDR_GUARD_LOG
+  if [ "$herdr_guard" -eq 1 ] && [ -s "$out.herdr" ]; then
+    printf 'not ok - %s reached the real herdr binary %s time(s) (first: %s); only the real-herdr-gated and live-harness-optin families may, so give the case a fake herdr\n' \
+      "$script" "$(wc -l <"$out.herdr" | tr -d '[:space:]')" "$(head -1 "$out.herdr")" >>"$out"
+    [ "$stream" -eq 1 ] && tail -1 "$out"
+    [ "$rc" -ne 0 ] || rc=1
+  fi
+  rm -f "$out.herdr"
   return "$rc"
 }
 
 run_one_serial() {
   local script=$1
-  local base family expected out begin_iso begin_ms end_ms end_iso duration rc
+  local base family expected out work begin_iso begin_ms end_ms end_iso duration rc
   base=$(basename "$script")
   family=$(family_for_basename "$base")
   expected=$(expected_gate_skip_for_family "$family")
@@ -2188,9 +2362,14 @@ run_one_serial() {
   printf 'FM_TEST_BEGIN %s %s family=%s expected_gate_skip=%s\n' \
     "$begin_iso" "$script" "$family" "$expected"
 
+  # A private TMPDIR, as every concurrent worker gets (see the header).
+  work="$RUN_TMP/s$TOTAL"
+  mkdir -p "$work/tmp"
+  chmod 0700 "$work" "$work/tmp" || die "could not chmod 0700 serial script root $work"
+
   set +e
   # Stream live output while retaining a copy for gate-skip detection.
-  run_script_bounded "$script" "$out" 1 "s$TOTAL"
+  TMPDIR="$work/tmp" TMP="$work/tmp" run_script_bounded "$script" "$out" 1 "s$TOTAL"
   rc=$?
   set -e
   : "${rc:=1}"
@@ -2210,8 +2389,8 @@ if [ "$JOBS" -eq 1 ]; then
   done
 else
   # Bounded concurrent execution for admitted scripts. Each worker gets a
-  # private mode-0700 TMPDIR so mktemp roots cannot collide. Retries are never
-  # used as a green strategy.
+  # private mode-0700 TMPDIR (see the header). Retries are never used as a green
+  # strategy.
   worker_n=0
   active_workers=0
 
@@ -2297,8 +2476,6 @@ else
       set +e
       export TMPDIR="$work/tmp"
       export TMP="$work/tmp"
-      unset FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_ROOT_OVERRIDE \
-        FM_PROJECTS_OVERRIDE FM_CONFIG_OVERRIDE FM_BACKEND 2>/dev/null || true
       cd "$ROOT" || exit 1
       begin_ms=$(now_ms)
       set +e

@@ -12,7 +12,9 @@
 # production shell is already a canonical, source-aware root of this same run.
 # The default (no explicit-path) path also runs bin/fm-lint-workflows.sh so a
 # malformed GitHub workflow, including a self-broken ci.yml, fails locally
-# before merge instead of only failing to run as CI.
+# before merge instead of only failing to run as CI, and bin/fm-lint-waits.sh
+# so a test that waits for an event with a fixed count of short sleeps, which
+# fails on a loaded host, is caught before it lands.
 #
 # With no explicit paths, the file set depends on context:
 #   - In CI (GITHUB_ACTIONS=true or CI=true), on the main branch, or when no
@@ -117,11 +119,15 @@ fm_lint_usage() {
   ' "$SELF"
 }
 
-# Default no-args lint also validates GitHub workflows. Explicit paths stay a
-# ShellCheck-only override so callers can target one shell root.
-fm_lint_run_workflows() {
+# Default no-args lint also validates GitHub workflows and the tests' event
+# waits. Explicit paths stay a ShellCheck-only override so callers can target
+# one shell root.
+fm_lint_run_default_checks() {
   [ "$EXPLICIT_PATHS" -eq 0 ] || return 0
-  "$SELF_DIR/fm-lint-workflows.sh"
+  local rc=0
+  "$SELF_DIR/fm-lint-workflows.sh" || rc=$?
+  "$SELF_DIR/fm-lint-waits.sh" || { [ "$rc" -ne 0 ] || rc=1; }
+  return "$rc"
 }
 
 JOBS=${FM_LINT_JOBS:-1}
@@ -282,7 +288,7 @@ fi
 if [ "$CHANGED_MODE" -eq 1 ] && [ "$ROOT_COUNT" -eq 0 ]; then
   printf 'fm-lint.sh: no changed lint targets\n'
   overall_rc=0
-  fm_lint_run_workflows || overall_rc=$?
+  fm_lint_run_default_checks || overall_rc=$?
   exit "$overall_rc"
 fi
 
@@ -587,9 +593,9 @@ EOF
 fi
 
 if [ "$overall_rc" -eq 0 ]; then
-  fm_lint_run_workflows || overall_rc=$?
+  fm_lint_run_default_checks || overall_rc=$?
 else
-  fm_lint_run_workflows || true
+  fm_lint_run_default_checks || true
 fi
 
 exit "$overall_rc"

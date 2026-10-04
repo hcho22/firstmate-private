@@ -88,6 +88,12 @@ The mode-`0600` document has schema `firstmate.extension-binding.v1` and exactly
 - `consents` records `trusted_same_user_code` plus every supported consent fact as an explicit boolean.
 - `timeout_ms` bounds one invocation between 100 and 3,600,000 milliseconds.
 
+The host has four startup bounds of its own, separate from `timeout_ms`.
+The handshake that precedes every invocation defaults to 5,000 milliseconds, launch readiness to 5,000, the launch barrier's wait for release to 5,000, and the wait for a killed process group to disappear to 2,000.
+Each can be widened or narrowed by an environment variable: `FM_EXTENSION_HANDSHAKE_TIMEOUT_MS`, `FM_EXTENSION_LAUNCH_READY_WAIT_MS`, `FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS`, and `FM_EXTENSION_CLEANUP_WAIT_MS`.
+An override is a whole number of milliseconds in the same 100 to 3,600,000 range as `timeout_ms`, and the host refuses any other value instead of ignoring it.
+The defaults are unchanged and the overrides exist for hosts whose process starts are slow enough to exceed them.
+
 The host supports at most 128 binding records and refuses malformed, unsafe, duplicate-id, or duplicate-adapter registries rather than selecting around them.
 Binding publication is atomic and does not replace a concurrent file.
 `list`, `inspect`, and `verify` expose the resulting identity and live compatibility without creating state when no registry exists.
@@ -191,6 +197,9 @@ For `result.terminal` and `result.silent`, the live core runner passes the host 
 Public lifecycle entry, environment, paths, and caller-supplied descriptors cannot create that handoff or authorize capture; runner claim release and dead-owner reconciliation remove its pending or consumed reservation state from the claim's recorded, revalidated state root.
 A source failure becomes a small host-produced `firstmate.process-event-extension-error.v1` result, so missing packages, invalid responses, crashes, nonzero exits, and timeouts become actionable evidence rather than silent fallback.
 Unknown or malformed terminal and silent responses take the safe false path.
+A `result.terminal` or `result.silent` step that the host itself fails at any point, such as a handshake timeout or a refused capture handoff, prints the same one-line error evidence on stdout and exits 70, distinct from the verdict exits 0 and 1.
+The safe false path still applies, so the registration stays armed.
+For `result.terminal` the runner also records the evidence beside the captured result as `<source-id>.<sequence>.terminal-check-failed` at mode `0600`, once per generation, and `fm-procevent.sh list` counts those records per source in its `FAILED-TERMINAL-CHECKS` column.
 
 External registration stores the extension id and version, capability version, package digest, binding digest, source configuration reference, and a fresh random registration token beside the adapter and source id.
 For `source.poll`, core derives the request id from that registration generation and the next uncaptured source sequence, so a retry before durable capture reuses the same id while the first invocation after a capture receives the next id.

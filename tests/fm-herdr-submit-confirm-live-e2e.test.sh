@@ -87,11 +87,10 @@ lab pane run "$PANE" "CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false CLAUDE_CODE_SEN
   || fail "could not launch Claude Code ($VERSION) in the isolated Herdr pane"
 
 idle=0
-i=0
-while [ "$i" -lt 45 ]; do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   st=$(lab agent get "$PANE" 2>/dev/null | jq -r '.result.agent.agent_status // empty')
   case "$st" in idle|done|blocked) idle=1; break ;; esac
-  i=$((i + 1))
   sleep 1
 done
 [ "$idle" = 1 ] || fail "Claude Code ($VERSION) on $HERDR_VER never registered an idle agent in the lab pane"
@@ -106,16 +105,15 @@ CHECKED=1
 # Confirm the instruction reached Claude, not merely that the composer cleared.
 # The token occurs once in the submitted prompt and once in Claude's reply.
 landed=0
-i=0
 screen=''
-while [ "$i" -lt 45 ]; do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   screen=$(lab pane read "$PANE" --source recent --lines 200 2>/dev/null || true)
   occurrences=$(printf '%s\n' "$screen" | grep -F -c "$TOKEN" || true)
   if [ "$occurrences" -ge 2 ]; then
     landed=1
     break
   fi
-  i=$((i + 1))
   sleep 1
 done
 [ "$landed" = 1 ] \

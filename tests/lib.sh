@@ -35,6 +35,13 @@ FM_TEST_LIB_SOURCED=1
 # strips this to verify real refusal.
 export FM_GATE_REFUSE_BYPASS=1
 
+# Keep every orphaned-worker sweep a test triggers (each fm-teardown.sh runs one)
+# inside this test's own TMPDIR instead of the whole host, so parallel scripts
+# and other suite runs cannot stop each other's stand-in workers and a test run
+# never stops a real process. bin/fm-remote-job-reap-orphans.sh owns the scope
+# rule; tests/fm-remote-job-orphan-reap.test.sh covers both scoped and host-wide.
+export FM_REMOTE_JOB_REAP_SCOPE="${TMPDIR:-/tmp}"
+
 # Startup passes these to its own children and withdraws them once read. A shell
 # that inherited them from a pane started before that was true would otherwise
 # point every fm-crew-state.sh read here at one task's long-gone snapshot.
@@ -212,15 +219,14 @@ case "$target" in
     ;;
 esac
 kill -KILL "$target" 2>/dev/null || true
-waited=0
-while [ "$waited" -lt 600 ]; do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   case "$(ps -o state= -p "$target" 2>/dev/null | tr -d '[:space:]')" in
     ''|Z*) exit 0 ;;
   esac
-  waited=$((waited + 1))
   sleep 0.05
 done
-echo "fm-crash-inject: pid $target still running 30s after SIGKILL" >&2
+echo "fm-crash-inject: pid $target still running 60s after SIGKILL" >&2
 exit 1
 SH
   chmod +x "$fakebin/fm-crash-inject"
@@ -241,6 +247,90 @@ fi
 exit 0
 SH
   chmod +x "$fakebin/$tool"
+}
+
+# --- shared stub executables ------------------------------------------------
+#
+# fm_shared_stub <dir> <name>: install an executable stub, its body read from
+# stdin, as a link to one shared read-only copy per distinct body. On macOS the
+# first run of a newly created executable costs about 1 s (0.9 to 2.2 s
+# measured on a loaded host) and later runs about 0.05 s, per file, and a run
+# through a link to an already-run file is as fast as the later runs. A fake
+# toolchain rebuilt for every case therefore pays that cost for each stub in
+# each case; linking to shared copies pays it once per distinct body.
+# fm_shared_stub_exit0 and fm_shared_stub_version_tool are the shared forms of
+# fm_fake_exit0 and fm_fake_version_tool, with identical stub bodies.
+#
+# A case that needs a different stub calls fm_shared_stub again, which replaces
+# its link. Never write, truncate, or chmod through such a link: the shared copy
+# is read-only, so a write fails loudly, but a chmod would change the stub for
+# every case. The store lives in the test's TMPDIR, keyed by the test process
+# ($$ names it in subshells too), and is removed with the other temp roots.
+fm_shared_stub_store() {
+  local store="${TMPDIR:-/tmp}/fm-shared-stubs.$$"
+  if mkdir -m 0700 "$store" 2>/dev/null; then
+    printf '%s\n%s\n' "$$" "$FM_TEST_OWNER_IDENTITY" > "$store/.fm-test-fixture"
+    printf '%s\n' "$store" >> "$FM_TEST_CLEANUP_REGISTRY"
+  fi
+  [ -d "$store" ] || return 1
+  printf '%s\n' "$store"
+}
+
+fm_shared_stub() {  # <dir> <name>; the stub body is read from stdin
+  local dir=$1 name=$2 store staged key cached n=0
+  store=$(fm_shared_stub_store) || fail "could not create the shared stub store"
+  staged=$(mktemp "$store/.staged.XXXXXX") || fail "could not stage a shared stub for $name"
+  cat > "$staged"
+  key=$(cksum < "$staged" | tr -s ' \t' '--')
+  cached="$store/$key"
+  while [ -e "$cached" ] && ! cmp -s "$staged" "$cached"; do
+    n=$((n + 1))
+    cached="$store/$key.$n"
+  done
+  if [ -e "$cached" ]; then
+    rm -f "$staged"
+  else
+    chmod 0555 "$staged"
+    mv "$staged" "$cached"
+  fi
+  mkdir -p "$dir"
+  rm -f "$dir/$name"
+  ln -s "$cached" "$dir/$name"
+}
+
+fm_shared_stub_exit0() {  # <dir> <tool>...
+  local dir=$1 tool
+  shift
+  for tool in "$@"; do
+    printf '#!/usr/bin/env bash\nexit 0\n' | fm_shared_stub "$dir" "$tool"
+  done
+}
+
+fm_shared_stub_version_tool() {  # <dir> <tool> <override-env-var> <default-version>
+  fm_shared_stub "$1" "$2" <<SH
+#!/usr/bin/env bash
+if [ "\${1:-}" = --version ]; then
+  printf '%s\n' "\${$3:-$4}"
+  exit 0
+fi
+exit 0
+SH
+}
+
+# fm_fake_herdr_without_pane <dir>: a herdr whose server answers status and
+# holds no panes, so a remote leg's doorbell ring fails the way it does on a
+# host where the mate's pane is absent. A case whose code path rings a Herdr
+# pane needs this (or its own fake): bin/fm-test-run.sh refuses the installed
+# herdr outside the real-Herdr families, whose CLI would otherwise start a real
+# server for a production session such as fm-remote in the operator's config.
+fm_fake_herdr_without_pane() {
+  fm_shared_stub "$1" herdr <<'SH'
+#!/usr/bin/env bash
+case "${1:-}" in
+  status) printf '%s\n' '{"client":{"protocol":14,"version":"0.7.5"},"server":{"running":true,"protocol":14,"version":"0.7.5"}}' ;;
+  *) echo "error: pane not found" >&2; exit 1 ;;
+esac
+SH
 }
 
 # --- deterministic git identity and fixtures --------------------------------

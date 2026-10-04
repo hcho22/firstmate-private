@@ -196,7 +196,7 @@ probe_process_opens() {  # <harness> <version> <lab> <expect-resume> <cold-argv.
   local harness=$1 version=$2 lab=$3 expect_resume=$4
   shift 4
   local record="$lab/record" cold=() resume=() seen_sep=0 arg out source
-  local marker="$lab/detach-marker" waited
+  local marker="$lab/detach-marker" deadline
   for arg in "$@"; do
     if [ "$arg" = -- ] && [ "$seen_sep" -eq 0 ]; then seen_sep=1; continue; fi
     if [ "$seen_sep" -eq 0 ]; then cold+=("$arg"); else resume+=("$arg"); fi
@@ -221,8 +221,8 @@ probe_process_opens() {  # <harness> <version> <lab> <expect-resume> <cold-argv.
   # (c) The harness process is gone; the worker it detached must not be. The
   # marker is written 6s after the hook returned, so it can only exist if the
   # worker outlived the whole session-open boundary.
-  waited=0
-  while [ ! -s "$marker" ] && [ "$waited" -lt 30 ]; do sleep 1; waited=$((waited + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ ! -s "$marker" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 1; done
   [ -s "$marker" ] \
     || fail "$harness $version: the session-open hook's detached worker did not survive the hook, so session start's deferred network checks would never run on this harness"
   pass "$harness $version: a worker detached by the session-open hook outlives it, so the deferred network checks still run"
@@ -249,7 +249,7 @@ probe_process_opens() {  # <harness> <version> <lab> <expect-resume> <cold-argv.
 probe_context_reset() {  # <harness> <version> <lab> <clear-command> <launch-argv...>
   local harness=$1 version=$2 lab=$3 clear_cmd=$4
   shift 4
-  local record="$lab/record" session="fmss-$harness" reset n compact_seed compact_reply
+  local record="$lab/record" session="fmss-$harness" reset n compact_seed compact_reply deadline
   : > "$record"
   tmux -L "$SOCKET" new-session -d -s "$session" -c "$lab" -x 200 -y 50 \
     -e FM_LIVE_RECORD="$record" -e FM_ROOT_OVERRIDE="$lab" -e FM_HOME="$lab" \
@@ -280,8 +280,8 @@ probe_context_reset() {  # <harness> <version> <lab> <clear-command> <launch-arg
     || { capture "$session" >&2; fail "$harness $version: hook stdout did not reach interactive model context"; }
 
   send_line "$session" "$clear_cmd"
-  n=0
-  while [ "$n" -lt 20 ] && [ -z "$(sed -n '2p' "$record")" ]; do sleep 2; n=$((n + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ -z "$(sed -n '2p' "$record")" ]; do sleep 2; done
   reset=$(sed -n '2p' "$record")
   [ -n "$reset" ] \
     || { capture "$session" >&2; fail "$harness $version: '$clear_cmd' fired no session-open event, so a context reset leaves the session blind"; }
@@ -337,7 +337,7 @@ probe_context_reset() {  # <harness> <version> <lab> <clear-command> <launch-arg
 # path reaches the same result.
 probe_pi_sessionstart_prerequisite() {
   local version lab project home config sessions session=pi-race
-  local pane i session_file first_line second_line
+  local pane session_file first_line second_line deadline
   command -v pi >/dev/null 2>&1 || fail "pi not found for the offline /new provider-prerequisite regression"
   version=$(pi --version 2>/dev/null | head -n 1)
   [ -n "$version" ] || version=unknown
@@ -505,21 +505,20 @@ TS
   tmux -L "$SOCKET" new-session -d -s "$session" -c "$project" -x 180 -y 50 \
     "env FM_HOME='$home' FM_ROOT_OVERRIDE='$project' PI_CODING_AGENT_DIR='$config' PI_OFFLINE=1 pi --approve --session-dir '$sessions' --no-context-files --no-skills --no-prompt-templates --tools bash --model race-local/deterministic; rc=\$?; printf '\nPI_EXIT=%s\n' \"\$rc\"; sleep 60" \
     || fail "Pi $version: could not start the offline /new lab"
-  i=0
-  while [ "$i" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     pane=$(capture "$session")
     printf '%s\n' "$pane" | grep -Fq 'race-local-provider.ts' && \
       printf '%s\n' "$pane" | grep -Fq 'deterministic' && break
     sleep 0.05
-    i=$((i + 1))
   done
   printf '%s\n' "$pane" | grep -Fq 'deterministic' \
     || { printf '%s\n' "$pane" >&2; fail "Pi $version: offline local provider did not reach the ready composer"; }
 
   tmux -L "$SOCKET" send-keys -t "$session" -l /new
   tmux -L "$SOCKET" send-keys -t "$session" Enter
-  i=0
-  while [ "$i" -lt 500 ] && [ ! -f "$home/state/native-started-1" ]; do sleep 0.01; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -f "$home/state/native-started-1" ]; do sleep 0.01; done
   [ -f "$home/state/native-started-1" ] \
     || { capture "$session" >&2; fail "Pi $version: immediate /new native generation never started"; }
   tmux -L "$SOCKET" send-keys -t "$session" -l IMMEDIATE_RACE_PROMPT
@@ -530,10 +529,9 @@ TS
   [ ! -f "$home/state/manual-started" ] \
     || fail "Pi $version: manual startup ran concurrently with the native generation"
   : > "$home/state/release-native-1"
-  i=0
-  while [ "$i" -lt 1000 ] && ! grep -Fq 'prompt=immediate native_count=1 manual=false' "$home/state/provider-calls" 2>/dev/null; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && ! grep -Fq 'prompt=immediate native_count=1 manual=false' "$home/state/provider-calls" 2>/dev/null; do
     sleep 0.01
-    i=$((i + 1))
   done
   grep -Fqx 'prompt=immediate native_count=1 manual=false' "$home/state/provider-calls" \
     || { capture "$session" >&2; fail "Pi $version: immediate first payload lacked exactly one native startup context"; }
@@ -550,13 +548,13 @@ TS
 
   tmux -L "$SOCKET" send-keys -t "$session" -l /new
   tmux -L "$SOCKET" send-keys -t "$session" Enter
-  i=0
-  while [ "$i" -lt 500 ] && [ ! -f "$home/state/native-started-2" ]; do sleep 0.01; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -f "$home/state/native-started-2" ]; do sleep 0.01; done
   [ -f "$home/state/native-started-2" ] \
     || { capture "$session" >&2; fail "Pi $version: proven /new native generation never started"; }
   : > "$home/state/release-native-2"
-  i=0
-  while [ "$i" -lt 500 ] && [ ! -f "$home/state/native-completed-2" ]; do sleep 0.01; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -f "$home/state/native-completed-2" ]; do sleep 0.01; done
   [ -f "$home/state/native-completed-2" ] || fail "Pi $version: proven native generation did not complete"
   tmux -L "$SOCKET" send-keys -t "$session" -l PROVEN_RACE_PROMPT
   tmux -L "$SOCKET" send-keys -t "$session" Enter

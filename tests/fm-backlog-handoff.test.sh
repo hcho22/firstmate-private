@@ -56,6 +56,21 @@ doorbell_count() { # <backend-log>
   grep -cF 'Firstmate instruction waiting:' "$1" 2>/dev/null || true
 }
 
+# Wait for a fixture stub to signal that the handoff under test reached it.
+# The wait is bounded by time rather than by a count of sleeps: a handoff is many
+# process spawns (a node-backed tasks-axi move among them), a loaded host
+# stretches that, and only a genuine hang should reach the 60 s guard. A handoff
+# that dies first fails at once instead of waiting out the guard.
+await_handoff_event() { # <event-file> <handoff-pid> <exited-message> <hung-message>
+  local event=$1 pid=$2 exited_message=$3 hung_message=$4 deadline
+  deadline=$((SECONDS + 60))
+  while [ ! -f "$event" ]; do
+    kill -0 "$pid" 2>/dev/null || fail "$exited_message"
+    [ "$SECONDS" -lt "$deadline" ] || fail "$hung_message"
+    sleep 0.02
+  done
+}
+
 # A live local receiver gets the routed-work instruction through its durable
 # inbox record while the endpoint receives only the constant doorbell.
 test_handoff_wakes_live_local_receiver() {
@@ -198,7 +213,7 @@ SH
 
 test_known_failure_restores_retry_after_reconciliation_race() {
   local home="$TMP_ROOT/reconcile-race-main" sub="$TMP_ROOT/reconcile-race-sub"
-  local basebin blockbin="$TMP_ROOT/reconcile-race-block" handoff i corr phase
+  local basebin blockbin="$TMP_ROOT/reconcile-race-block" handoff corr phase
   setup_homes "$home" "$sub"
   mkdir -p "$sub/data" "$blockbin"
   cat > "$home/data/backlog.md" <<'EOF'
@@ -213,7 +228,11 @@ EOF
 #!/usr/bin/env bash
 if [ "${1:-}" = send-keys ]; then
   touch "$FM_RECONCILE_RACE_ENTERED"
-  while [ ! -f "$FM_RECONCILE_RACE_RELEASE" ]; do sleep 0.02; done
+  # A case that fails before releasing removes the temp root: stop then.
+  while [ ! -f "$FM_RECONCILE_RACE_RELEASE" ]; do
+    [ -d "${FM_RECONCILE_RACE_RELEASE%/*}" ] || exit 1
+    sleep 0.02
+  done
   exit 1
 fi
 exec "$FM_BASE_TMUX" "$@"
@@ -229,13 +248,9 @@ SH
     "$ROOT/bin/fm-backlog-handoff.sh" design reconcile-race \
     > "$TMP_ROOT/reconcile-race.out" 2>&1 &
   handoff=$!
-  i=0
-  while [ ! -f "$TMP_ROOT/reconcile-race.entered" ]; do
-    kill -0 "$handoff" 2>/dev/null || fail "reconciliation-race handoff exited before backend delivery"
-    i=$((i + 1))
-    [ "$i" -le 250 ] || fail "reconciliation-race handoff never reached backend delivery"
-    sleep 0.02
-  done
+  await_handoff_event "$TMP_ROOT/reconcile-race.entered" "$handoff" \
+    "reconciliation-race handoff exited before backend delivery" \
+    "reconciliation-race handoff never reached backend delivery"
   corr=$(cut -d: -f2- "$home/state/.backlog-handoff-design.wake-pending")
   FM_PENDING_REPLY_NOW=9999999999 bash -c '
     . "$1"
@@ -545,7 +560,7 @@ SH
 
 test_concurrent_local_handoffs_serialize_move_and_wake() {
   local home="$TMP_ROOT/concurrent-main" sub="$TMP_ROOT/concurrent-sub"
-  local basebin blockbin="$TMP_ROOT/concurrent-blockbin" first second i wake_count
+  local basebin blockbin="$TMP_ROOT/concurrent-blockbin" first second wake_count
   setup_homes "$home" "$sub"
   mkdir -p "$sub/data" "$blockbin"
   printf '## Queued\n\n## Done\n' > "$sub/data/backlog.md"
@@ -562,7 +577,11 @@ case "$*" in
   *"Firstmate instruction waiting:"*)
     if mkdir "$FM_BLOCK_WAKE_ONCE" 2>/dev/null; then
       touch "$FM_BLOCK_WAKE_ENTERED"
-      while [ ! -f "$FM_BLOCK_WAKE_RELEASE" ]; do sleep 0.02; done
+      # A case that fails before releasing removes the temp root: stop then.
+      while [ ! -f "$FM_BLOCK_WAKE_RELEASE" ]; do
+        [ -d "${FM_BLOCK_WAKE_RELEASE%/*}" ] || exit 1
+        sleep 0.02
+      done
     fi
     ;;
 esac
@@ -579,13 +598,9 @@ SH
     FM_FAKE_TMUX_CAPTURE="$TMP_ROOT/concurrent-fake/pane.txt" \
     "$ROOT/bin/fm-backlog-handoff.sh" design concurrent-a > "$TMP_ROOT/concurrent-a.out" 2>&1 &
   first=$!
-  i=0
-  while [ ! -f "$TMP_ROOT/concurrent.entered" ]; do
-    kill -0 "$first" 2>/dev/null || fail "first concurrent handoff exited before its blocked wake"
-    i=$((i + 1))
-    [ "$i" -le 250 ] || fail "first concurrent handoff never reached its receiver wake"
-    sleep 0.02
-  done
+  await_handoff_event "$TMP_ROOT/concurrent.entered" "$first" \
+    "first concurrent handoff exited before its blocked wake" \
+    "first concurrent handoff never reached its receiver wake"
   cat > "$home/data/backlog.md" <<'EOF'
 ## Queued
 - [ ] concurrent-b - second routed item (repo: alpha)
@@ -618,7 +633,7 @@ EOF
 
 test_local_teardown_waits_for_handoff_wake() {
   local home="$TMP_ROOT/teardown-race-main" sub="$TMP_ROOT/teardown-race-sub"
-  local basebin blockbin="$TMP_ROOT/teardown-race-blockbin" handoff teardown i
+  local basebin blockbin="$TMP_ROOT/teardown-race-blockbin" handoff teardown
   setup_homes "$home" "$sub"
   printf 'project=%s\n' "$ROOT" >> "$home/state/design.meta"
   mkdir -p "$sub/data" "$blockbin"
@@ -635,7 +650,11 @@ EOF
 case "$*" in
   *"Firstmate instruction waiting:"*)
     touch "$FM_BLOCK_WAKE_ENTERED"
-    while [ ! -f "$FM_BLOCK_WAKE_RELEASE" ]; do sleep 0.02; done
+    # A case that fails before releasing removes the temp root: stop then.
+    while [ ! -f "$FM_BLOCK_WAKE_RELEASE" ]; do
+      [ -d "${FM_BLOCK_WAKE_RELEASE%/*}" ] || exit 1
+      sleep 0.02
+    done
     ;;
 esac
 exec "$FM_BASE_TMUX" "$@"
@@ -649,13 +668,9 @@ SH
     FM_FAKE_TMUX_CAPTURE="$TMP_ROOT/teardown-race-fake/pane.txt" \
     "$ROOT/bin/fm-backlog-handoff.sh" design teardown-race > "$TMP_ROOT/teardown-race-handoff.out" 2>&1 &
   handoff=$!
-  i=0
-  while [ ! -f "$TMP_ROOT/teardown-race.entered" ]; do
-    kill -0 "$handoff" 2>/dev/null || fail "teardown-race handoff exited before its blocked wake"
-    i=$((i + 1))
-    [ "$i" -le 250 ] || fail "teardown-race handoff never reached its receiver wake"
-    sleep 0.02
-  done
+  await_handoff_event "$TMP_ROOT/teardown-race.entered" "$handoff" \
+    "teardown-race handoff exited before its blocked wake" \
+    "teardown-race handoff never reached its receiver wake"
   PATH="$basebin:$PATH" FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
     FM_FAKE_TMUX_WINDOW='firstmate:fm-design' \
     FM_FAKE_TMUX_LOG="$TMP_ROOT/teardown-race-tmux.log" \

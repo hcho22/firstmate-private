@@ -88,13 +88,16 @@ while IFS= read -r -d '' a; do rargs+=("$a"); done \
 cmd=${rargs[0]}
 rc=0
 if [ "${FM_TEST_RECONCILE_REMOTE_DELAY:-0}" -gt 0 ]; then
-  sleep "$FM_TEST_RECONCILE_REMOTE_DELAY"
+  delay_end=$((SECONDS + FM_TEST_RECONCILE_REMOTE_DELAY + 1))
+  while [ "$SECONDS" -lt "$delay_end" ] && [ -d "$remote_home" ]; do sleep 0.1; done
 fi
 env FM_HOME="$remote_home" FM_ROOT_OVERRIDE="$FM_REMOTE_CODE_ROOT" \
   "$FM_REMOTE_CODE_ROOT/bin/$cmd" "${rargs[@]:1}" || rc=$?
 exit "$rc"
 SH
   chmod +x "$fb/fake-ssh"
+  # The remote leg rings the mate's pane through Herdr session fm-remote.
+  fm_fake_herdr_without_pane "$fb"
   printf '%s\n' "$fb"
 }
 
@@ -199,7 +202,10 @@ hold_lock_until_released() {  # <lock> <ready> <release>
     . "$1"
     fm_lock_acquire_wait "$2"
     : > "$3"
-    while [ ! -f "$4" ]; do sleep 0.01; done
+    while [ ! -f "$4" ]; do
+      [ -d "${4%/*}" ] || break
+      sleep 0.01
+    done
     fm_lock_release "$2"
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$1" "$2" "$3" &
 }
@@ -417,8 +423,11 @@ test_a_failed_send_is_retried_on_the_next_run() {
   pass "a failed ask starts no cooldown, so the next run retries it"
 }
 
+# Lock acquisition here is non-blocking, so notify must not wait on a busy lock
+# at all: every sleep it requests goes through a recording stub and none may be
+# requested. The 60 s deadline only bounds a notify that blocks outright.
 test_busy_lifecycle_locks_never_hold_up_the_digest() {
-  local label home mate fakebin snap lock ready release holder notify out i
+  local label home mate fakebin snap lock ready release holder notify out deadline sleepbin sleep_log
   for label in reconcile control meta; do
     { read -r home; read -r mate; read -r fakebin; } < <(make_main_home "busy-$label" mate)
     snap="$home/snapshot.json"
@@ -432,12 +441,26 @@ test_busy_lifecycle_locks_never_hold_up_the_digest() {
     release="$home/lock-release"
     hold_lock_until_released "$lock" "$ready" "$release"
     holder=$!
-    while [ ! -f "$ready" ]; do sleep 0.01; done
-    run_notify "$home" "$fakebin" "busy-$label" "$snap" > "$home/notify.out" 2>&1 &
+    deadline=$((SECONDS + 60))
+    while [ ! -f "$ready" ] && kill -0 "$holder" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
+      sleep 0.01
+    done
+    [ -f "$ready" ] || fail "the $label lock holder never took its lock"
+    sleepbin="$home/sleepbin"
+    sleep_log="$home/notify-sleeps"
+    mkdir -p "$sleepbin"
+    cat > "$sleepbin/sleep" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_TEST_SLEEP_LOG"
+exec /bin/sleep "$@"
+SH
+    chmod +x "$sleepbin/sleep"
+    : > "$sleep_log"
+    FM_TEST_SLEEP_LOG="$sleep_log" PATH="$sleepbin:$PATH" \
+      run_notify "$home" "$fakebin" "busy-$label" "$snap" > "$home/notify.out" 2>&1 &
     notify=$!
-    i=0
-    while kill -0 "$notify" 2>/dev/null && [ "$i" -lt 40 ]; do
-      i=$((i + 1))
+    deadline=$((SECONDS + 60))
+    while kill -0 "$notify" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
       sleep 0.05
     done
     if kill -0 "$notify" 2>/dev/null; then
@@ -449,6 +472,8 @@ test_busy_lifecycle_locks_never_hold_up_the_digest() {
     wait "$notify" || fail "a busy $label lock made notify fail"
     : > "$release"
     wait "$holder" || fail "the $label lock holder failed"
+    [ ! -s "$sleep_log" ] \
+      || fail "a busy $label lock made notify wait for it (requested sleeps: $(tr '\n' ' ' < "$sleep_log"))"
     out=$(cat "$home/notify.out")
     assert_contains "$out" "skipped: mate lock" \
       "a busy $label lock was not reported as a skipped nudge: $out"
@@ -719,17 +744,16 @@ test_a_row_with_no_identity_at_all_fails_loudly() {
   pass "a row with neither a spawn generation nor a host fails loudly instead of vanishing"
 }
 
+# The stream never ends, so a request that returns at all stopped reading at its
+# byte bound; the 60 s alarm only bounds one that does not.
 test_reconcile_request_rejects_an_unbounded_input_without_filling_storage() {
-  local home started elapsed files
+  local home files rc=0
   { read -r home; read -r _; read -r _; } < <(make_main_home bounded-request bounded-request-mate)
-  started=$(date +%s)
-  if yes x | FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" FM_STATE_OVERRIDE="$home/state" \
-      FM_RECONCILE_REQUEST_MAX_BYTES=64 "$RECONCILE" request --snapshot - \
-      > "$home/request.out" 2> "$home/request.err"; then
-    fail "an oversized streaming request was accepted"
-  fi
-  elapsed=$(( $(date +%s) - started ))
-  [ "$elapsed" -lt 3 ] || fail "an oversized streaming request did not stop at its byte bound"
+  yes x | FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" FM_STATE_OVERRIDE="$home/state" \
+    FM_RECONCILE_REQUEST_MAX_BYTES=64 perl -e 'alarm shift; exec @ARGV' 60 "$RECONCILE" request --snapshot - \
+    > "$home/request.out" 2> "$home/request.err" || rc=$?
+  [ "$rc" -ne 142 ] || fail "an oversized streaming request did not stop at its byte bound"
+  [ "$rc" -ne 0 ] || fail "an oversized streaming request was accepted"
   files=$(find "$home/state/reconcile-notify" -maxdepth 1 -type f | wc -l | tr -d '[:space:]')
   [ "$files" -eq 0 ] || fail "an oversized streaming request left captured data behind"
   pass "reconcile requests stop oversized streams at the capture bound"
@@ -874,7 +898,7 @@ META
 }
 
 test_bearings_request_returns_before_remote_delivery_and_supervision_sends_later() {
-  local home rhome fakebin snap warm started elapsed watcher i requests beat_before beat_after processing beacon_advanced=0
+  local home rhome fakebin snap warm watcher deadline requests beat_before beat_after processing beacon_advanced=0
   fakebin=$(make_remote_ssh_stub "$TMP_ROOT/remote-offpath")
   rhome=$(make_remote_secondmate_home remote-offpath-mate)
   rhome=$(cd "$rhome" && pwd -P)
@@ -889,15 +913,17 @@ test_bearings_request_returns_before_remote_delivery_and_supervision_sends_later
 
   warm=$(FM_SSH_BIN="$fakebin/fake-ssh" FM_REMOTE_CODE_ROOT="$ROOT" \
     PATH="$fakebin:$PATH" FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
-    FM_STATE_OVERRIDE="$home/state" FM_SNAPSHOT_BUDGET=3 FM_SNAPSHOT_NOW_EPOCH=2000 \
+    FM_STATE_OVERRIDE="$home/state" FM_SNAPSHOT_BUDGET=60 FM_SNAPSHOT_NOW_EPOCH=2000 \
     FM_BEARINGS_NOW=2026-09-01T22:00:00Z "$ROOT/bin/fm-bearings-snapshot.sh" --json) \
     || fail "the initial remote ledger could not seed the parent cache"
   printf '%s' "$warm" | jq -e '.secondmate_reconcile | any(.id == "remote-offpath-mate" and .kind == "orphan_in_flight")' >/dev/null \
     || fail "the warm remote ledger did not carry its inventory mismatch"
   touch "$home/state/home-summary.json"
 
-  started=$(date +%s)
-  snap=$(FM_TEST_RECONCILE_REMOTE_DELAY=30 \
+  # The remote read is held for longer than the case can last, so the cached row
+  # asserted below shows the 1 s collector budget cut it off rather than Bearings
+  # waiting it out (that would have made the row fresh).
+  snap=$(FM_TEST_RECONCILE_REMOTE_DELAY=600 \
     FM_SSH_BIN="$fakebin/fake-ssh" FM_REMOTE_CODE_ROOT="$ROOT" \
     PATH="$fakebin:$PATH" FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
     FM_STATE_OVERRIDE="$home/state" FM_SNAPSHOT_BUDGET=1 FM_SNAPSHOT_NOW_EPOCH=2000 \
@@ -906,9 +932,6 @@ test_bearings_request_returns_before_remote_delivery_and_supervision_sends_later
   printf '%s\n' "$snap" | FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" FM_STATE_OVERRIDE="$home/state" \
     "$RECONCILE" request --snapshot - > "$home/request.out" \
     || fail "the reconcile notify request could not be recorded"
-  elapsed=$(( $(date +%s) - started ))
-  [ "$elapsed" -lt 5 ] \
-    || fail "Bearings and request publication waited past the collector budget behind remote delivery (${elapsed}s)"
   printf '%s' "$snap" | jq -e '.secondmates | any(.id == "remote-offpath-mate" and .freshness == "cached" and .age_seconds == 100)' >/dev/null \
     || fail "the delayed queue did not leave an age-labeled cached mismatch row"
   requests=$(find "$home/state/reconcile-notify" -maxdepth 1 -type f -name 'request-*.json' | wc -l | tr -d '[:space:]')
@@ -928,38 +951,35 @@ test_bearings_request_returns_before_remote_delivery_and_supervision_sends_later
     FM_STATE_OVERRIDE="$home/state" FM_POLL=1 FM_HOME_SUMMARY_INTERVAL=999999 \
     "$ROOT/bin/fm-watch.sh" > "$home/watch.out" 2> "$home/watch.err" &
   watcher=$!
-  i=0
   processing=''
-  while [ "$i" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     processing=$(find "$home/state/reconcile-notify" -maxdepth 1 -type f -name '.processing-*.json' -print -quit)
     [ -n "$processing" ] && [ -e "$home/state/.last-watcher-beat" ] && break
     kill -0 "$watcher" 2>/dev/null || break
-    i=$((i + 1))
     sleep 0.05
   done
   [ -n "$processing" ] || fail "supervision did not claim the durable reconcile request"
   beat_before=$(stat -c %Y "$home/state/.last-watcher-beat" 2>/dev/null || stat -f %m "$home/state/.last-watcher-beat")
-  i=0
-  while [ -e "$processing" ] && [ "$i" -lt 70 ]; do
+  deadline=$((SECONDS + 60))
+  while [ -e "$processing" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
     beat_after=$(stat -c %Y "$home/state/.last-watcher-beat" 2>/dev/null || stat -f %m "$home/state/.last-watcher-beat")
     if [ "$beat_after" -gt "$beat_before" ]; then
       beacon_advanced=1
       break
     fi
-    i=$((i + 1))
   done
   [ "$beacon_advanced" -eq 1 ] \
     || fail "the watcher beacon stalled behind delayed reconcile delivery"
   # Delivery is detached from the watcher loop.
   # Observe the durable lifecycle itself rather than using watcher liveness as a proxy.
   # A watcher may exit after it has launched the delivery child.
-  i=0
+  deadline=$((SECONDS + 60))
   while { [ -z "$(remote_inbox_records "$rhome" remote-offpath-mate)" ] \
       || [ ! -s "$home/state/remote-offpath-mate.reconcile-nudged" ] \
       || [ "$(find "$home/state/reconcile-notify" -maxdepth 1 -type f -name '*.json' | wc -l | tr -d '[:space:]')" -gt 0 ]; } \
-      && [ "$i" -lt 600 ]; do
-    i=$((i + 1))
+      && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
   done
   kill "$watcher" 2>/dev/null || true

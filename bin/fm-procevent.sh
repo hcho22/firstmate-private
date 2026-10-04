@@ -77,7 +77,8 @@
 # extension-bind
 #            Serialize tracked binding publication against extension resolution,
 #            registration publication, and retirement in this home.
-# list       Show registered sources, owners, and pending captured results.
+# list       Show registered sources, owners, pending captured results, and
+#            recorded failed terminal checks.
 #
 # Terminal knowledge is adapter-owned. This runner never inspects a result and
 # never names an adapter-specific status: built-ins keep the existing
@@ -271,16 +272,47 @@ extension_result_command() {  # <adapter> <operation> <result-file>
   "${command[@]}"
 }
 
+# A host that FAILED to answer the terminal check (a handshake timeout, for
+# example) exits 70 with its one-line error evidence on stdout, where a verdict
+# exits 0 or 1. The verdict stays "not terminal" and the registration stays
+# armed, but the failure is recorded beside the captured result instead of
+# vanishing: this runner's own output is discarded in production, so a durable
+# file is what an operator can see (fm-procevent.sh list counts them).
+record_terminal_check_failure() {  # <result-file> <evidence>
+  local id seq
+  id=$(fm_procevent_result_source_id "$1")
+  seq=$(fm_procevent_result_sequence "$1")
+  fm_procevent_record_terminal_check_failed "$STATE" "$id" "$seq" "$2"
+  case "$?" in
+    0|1) printf 'terminal-check-failed: %s (the adapter failed to answer; the registration stays armed)\n' "$id" >&2 ;;
+    *) printf 'cannot record the failed terminal check: %s\n' "$id" >&2 ;;
+  esac
+}
+
 # Ask the source's own adapter whether a captured result ends the source. Exit 0
 # is the only terminal verdict; everything else - including a missing adapter
 # command - keeps the registration armed. See the terminal-knowledge note in the
 # header: no adapter-specific condition may appear in this runner.
 adapter_result_is_terminal() {  # <adapter> <result-file>
-  local script owner_state
+  local script owner_state evidence evidence_file rc
   fm_procevent_result_extension_load "$2"
   owner_state=$?
   case "$owner_state" in
-    0) extension_result_command "$1" result.terminal "$2" >/dev/null 2>&1; return $? ;;
+    0)
+      # The capture handoff accepts only this runner process as the helper's
+      # parent, so stdout goes to a private file, never a command substitution.
+      evidence_file=$(umask 077; mktemp "${TMPDIR:-/tmp}/fm-procevent-terminal.XXXXXX" 2>/dev/null) || evidence_file=/dev/null
+      extension_result_command "$1" result.terminal "$2" >"$evidence_file" 2>/dev/null
+      rc=$?
+      evidence=
+      if [ "$evidence_file" != /dev/null ]; then
+        IFS= read -r evidence < "$evidence_file" || true
+        rm -f -- "$evidence_file"
+      fi
+      [ "$rc" -ne 0 ] || return 0
+      [ "$rc" -ne 70 ] || record_terminal_check_failure "$2" "$evidence"
+      return 1
+      ;;
     2) return 1 ;;
   esac
   script=$(adapter_script "$1")
@@ -1369,13 +1401,28 @@ cmd_sweep_home() {
   printf 'swept: attempted=%s\n' "$attempted"
 }
 
+# Count the paths on stdin named <source-id>.<sequence>.<suffix>. A source id
+# may contain dots, so a name that merely starts with "<source-id>." can belong
+# to another source whose id extends this one.
+count_source_files() {  # <source-id> <suffix>
+  local name seq count=0
+  while IFS= read -r name; do
+    seq=${name##*/}
+    seq=${seq#"$1".}
+    seq=${seq%."$2"}
+    case "$seq" in ''|*[!0-9]*) continue ;; esac
+    count=$((count + 1))
+  done
+  printf '%s\n' "$count"
+}
+
 cmd_list() {
-  local rec id adapter owner pending
+  local rec id adapter owner pending failed_checks
   if ! fm_procevent_any_registered "$STATE"; then
     printf 'no sources registered\n'
     return 0
   fi
-  printf '%-28s %-12s %-10s %s\n' SOURCE ADAPTER OWNER PENDING
+  printf '%-28s %-12s %-10s %-8s %s\n' SOURCE ADAPTER OWNER PENDING FAILED-TERMINAL-CHECKS
   for rec in "$REG"/*.source; do
     [ -e "$rec" ] || continue
     id=${rec##*/}; id=${id%.source}
@@ -1384,8 +1431,10 @@ cmd_list() {
     fm_procevent_claim_state_locked "$id"
     case "$?" in 0) owner=live ;; 1) owner=none ;; 3) owner=orphaned ;; *) owner=uncertain ;; esac
     fm_procevent_source_lock_release "$id"
-    pending=$(fm_procevent_pending "$STATE" | grep -c "/$id\." || true)
-    printf '%-28s %-12s %-10s %s\n' "$id" "$adapter" "$owner" "$pending"
+    pending=$(fm_procevent_pending "$STATE" | count_source_files "$id" result)
+    failed_checks=$(find "$(fm_procevent_inbox_dir "$STATE")" -maxdepth 1 -name "$id.*.terminal-check-failed" 2>/dev/null \
+      | count_source_files "$id" terminal-check-failed)
+    printf '%-28s %-12s %-10s %-8s %s\n' "$id" "$adapter" "$owner" "$pending" "$failed_checks"
   done
 }
 

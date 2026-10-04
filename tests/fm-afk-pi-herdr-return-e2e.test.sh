@@ -194,7 +194,7 @@ PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_HOME="$HOME_DIR" FM_S
   FM_SUPERVISOR_BACKEND=herdr FM_SUPERVISOR_TARGET="$PRIMARY_TARGET" FM_AFK_LAUNCH_ENTRY="$TMP_ROOT/daemon-entry" \
   "$ROOT/bin/fm-afk-launch.sh" start >/dev/null
 DAEMON_STARTED=1
-for _ in $(seq 1 100); do [ -s "$STATE/.supervise-daemon.pid" ] && break; sleep 0.1; done
+deadline=$((SECONDS + 60)); while [ ! -s "$STATE/.supervise-daemon.pid" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
 [ -s "$STATE/.supervise-daemon.pid" ] || fail "away daemon did not start"
 
 # Pending input is never an injection target. Leave a real draft in Pi before
@@ -205,13 +205,13 @@ composer=$(PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" fm_backend_co
 [ "$composer" = pending ] || fail "real Pi draft did not classify pending (got $composer)"
 CHILD_CMD=$(printf "printf 'blocked [key=synthetic-dependency]: firstmate can refresh the synthetic token\\n' >> %q; exec sleep 120" "$STATE/repair-task.status")
 "$LAB_HELPER" run "$SESSION" pane run "$CHILD_PANE" "$CHILD_CMD" >/dev/null
-for _ in $(seq 1 160); do [ -s "$STATE/.subsuper-inject-wedged" ] && break; sleep 0.1; done
+deadline=$((SECONDS + 60)); while [ ! -s "$STATE/.subsuper-inject-wedged" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
 [ -s "$STATE/.subsuper-inject-wedged" ] || fail "persistently pending real Pi composer did not raise the defense-in-depth alarm"
 [ -s "$STATE/.subsuper-escalations" ] || fail "pending real Pi composer lost the buffered blocker"
 [ ! -s "$CAPTURE" ] || fail "daemon submitted into Pi while the real human draft was pending"
 plain=$("$LAB_HELPER" run "$SESSION" pane read "$PRIMARY_PANE" --source recent --lines 200)
 printf '%s' "$plain" | grep -F 'privacy safe human draft' >/dev/null || fail "pending Pi draft was modified or forcibly submitted"
-for _ in $(seq 1 50); do [ -s "$NOTIFY_LOG" ] && break; sleep 0.1; done
+deadline=$((SECONDS + 60)); while [ ! -s "$NOTIFY_LOG" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
 [ -s "$NOTIFY_LOG" ] || fail "wedge alarm marker appeared but its active notifier did not finish"
 [ "$(wc -l < "$NOTIFY_LOG" | tr -d ' ')" -eq 1 ] || fail "wedge alarm was not observed exactly once before recovery"
 assert_blocker_open 'while the Pi composer was pending'
@@ -221,7 +221,8 @@ pass "real Pi/Herdr pending composer refuses injection without forced submit and
 # native idle state plus a complete Pi separator composer and must accept quickly.
 "$LAB_HELPER" run "$SESSION" pane send-keys "$PRIMARY_PANE" ctrl+c >/dev/null
 wait_for_idle || fail "real Pi did not return idle after clearing the draft"
-for _ in $(seq 1 80); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   composer=$(PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" fm_backend_composer_state herdr "$PRIMARY_TARGET")
   [ "$composer" = empty ] && break
   sleep 0.1
@@ -231,7 +232,7 @@ wait_for_prompt 'any(.[]; .prompt | startswith("\u2063Supervisor escalate"))' \
   || fail "real Pi did not receive the buffered escalation after becoming safely idle"
 INJECT_HEX=$(jq -r 'select(.prompt | startswith("\u2063Supervisor escalate")) | .hex' "$CAPTURE" | tail -1)
 case "$INJECT_HEX" in e281a3*) ;; *) fail "real Pi escalation lost the terminal-safe marker: $INJECT_HEX" ;; esac
-for _ in $(seq 1 80); do [ ! -s "$STATE/.subsuper-escalations" ] && break; sleep 0.1; done
+deadline=$((SECONDS + 60)); while [ -s "$STATE/.subsuper-escalations" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
 [ ! -s "$STATE/.subsuper-escalations" ] || fail "confirmed real Pi delivery did not clear the escalation buffer"
 [ ! -e "$STATE/.subsuper-inject-wedged" ] || fail "confirmed real Pi delivery did not clear the old wedge marker"
 sleep 4
@@ -244,7 +245,8 @@ pass "real idle Pi/Herdr accepts one marked escalation promptly, verifies submit
 # The captain returns with an ordinary unmarked Bearings request. The request is
 # captured byte-exact, then the public return owner must gate it on the blocker.
 wait_for_idle || fail "real Pi did not settle after the injected catch-up"
-for _ in $(seq 1 80); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   composer=$(PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" fm_backend_composer_state herdr "$PRIMARY_TARGET")
   [ "$composer" = empty ] && break
   sleep 0.1

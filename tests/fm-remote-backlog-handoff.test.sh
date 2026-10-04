@@ -26,25 +26,23 @@ mkdir -p "$PARENT/data" "$PARENT/state" "$REMOTE_ROOT/bin" \
 # So wait for the worker to actually exit and drain the shell's background jobs
 # before removing the tree, then retry rm -rf until the now-quiesced tree is gone.
 fm_remote_handoff_teardown() {
-  local worker_pid i
-  touch "$TMP_ROOT/put.release" "$TMP_ROOT/route.release" 2>/dev/null || true
+  local worker_pid
+  touch "$TMP_ROOT/put.release" "$TMP_ROOT/route.release" "$TMP_ROOT/serialize.release" 2>/dev/null || true
   if [ -f "$TMP_ROOT/remote-jobs/worker.pid" ]; then
     worker_pid=$(cat "$TMP_ROOT/remote-jobs/worker.pid" 2>/dev/null || true)
     if [ -n "$worker_pid" ]; then
       kill "$worker_pid" 2>/dev/null || true
-      i=0
-      while [ "$i" -lt 500 ] && kill -0 "$worker_pid" 2>/dev/null; do
+      local deadline=$((SECONDS + 60))
+      while [ "$SECONDS" -lt "$deadline" ] && kill -0 "$worker_pid" 2>/dev/null; do
         sleep 0.01
-        i=$((i + 1))
       done
     fi
   fi
   wait 2>/dev/null || true
-  i=0
-  while [ "$i" -lt 50 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     rm -rf -- "$TMP_ROOT" 2>/dev/null && return 0
     sleep 0.02
-    i=$((i + 1))
   done
   rm -rf -- "$TMP_ROOT" 2>/dev/null || true
 }
@@ -183,11 +181,12 @@ race_hash=$(sha256_file "$TMP_ROOT/race-payload")
     put state/handoff/race.outbox.md 1024 "$race_bytes" "$race_hash" 1
 ) > "$TMP_ROOT/put-race.out" 2>&1 &
 put_race_pid=$!
-put_wait=0
+# The waits below are for the event itself, bounded by time rather than by a count
+# of sleeps: a slow host stretches them, and only a genuine hang reaches 60 s.
+put_wait_deadline=$((SECONDS + 60))
 while ! find "$REMOTE/state/handoff" -maxdepth 1 -name '.put.*' -print -quit | grep -q .; do
   kill -0 "$put_race_pid" 2>/dev/null || fail "confined put exited before staging input"
-  put_wait=$((put_wait + 1))
-  [ "$put_wait" -le 250 ] || fail "confined put never staged input"
+  [ "$SECONDS" -lt "$put_wait_deadline" ] || fail "confined put never staged input"
   sleep 0.02
 done
 mv "$REMOTE/state/handoff" "$TMP_ROOT/pinned-handoff"
@@ -280,11 +279,10 @@ write_backlog '- [ ] serialized-a - first concurrent handoff (repo: alpha)'
 FM_FAKE_SSH_MODE=serialize handoff_env "$ROOT/bin/fm-backlog-handoff.sh" ios serialized-a \
   > "$TMP_ROOT/serialized-a.out" 2>&1 &
 handoff_a=$!
-wait_for_serialization=0
+wait_for_serialization_deadline=$((SECONDS + 60))
 while [ ! -f "$TMP_ROOT/serialize.entered" ]; do
   kill -0 "$handoff_a" 2>/dev/null || fail "first serialized handoff exited before receipt"
-  wait_for_serialization=$((wait_for_serialization + 1))
-  [ "$wait_for_serialization" -le 250 ] || fail "first serialized handoff never reached receipt"
+  [ "$SECONDS" -lt "$wait_for_serialization_deadline" ] || fail "first serialized handoff never reached receipt"
   sleep 0.02
 done
 write_backlog '- [ ] serialized-b - second concurrent handoff (repo: alpha)'
@@ -418,11 +416,10 @@ FM_HOME="$PARENT" /bin/bash -c '
 ' _ "$ROOT/bin/fm-wake-lib.sh" "$registry_lock" "$handoff_lock" \
   "$TMP_ROOT/route.entered" "$TMP_ROOT/route.release" "$PARENT/data/secondmates.md" &
 route_holder_pid=$!
-route_wait=0
+route_wait_deadline=$((SECONDS + 60))
 while [ ! -f "$TMP_ROOT/route.entered" ]; do
   kill -0 "$route_holder_pid" 2>/dev/null || fail "route lock holder exited before acquiring lifecycle locks"
-  route_wait=$((route_wait + 1))
-  [ "$route_wait" -le 250 ] || fail "route lock holder never acquired lifecycle locks"
+  [ "$SECONDS" -lt "$route_wait_deadline" ] || fail "route lock holder never acquired lifecycle locks"
   sleep 0.02
 done
 handoff_env "$ROOT/bin/fm-backlog-handoff.sh" ios route-race \

@@ -76,10 +76,9 @@ SH
   done
   cat >"$repo/tests/fm-proof-slow.test.sh" <<'SH'
 #!/usr/bin/env bash
-waited=0
-while [ ! -e "$PROOF_SCHED_EVIDENCE/replacement-started" ] && [ "$waited" -lt 200 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -e "$PROOF_SCHED_EVIDENCE/replacement-started" ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.05
-  waited=$((waited + 1))
 done
 touch "$PROOF_SCHED_EVIDENCE/slow-done"
 echo "ok - slow proof fixture"

@@ -79,10 +79,9 @@ if [ -n "${FM_FLASH_CLOSE_COMPLETE_MARKER:-}" ] \
   env PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" run "$HERDR_LAB_SESSION" "$@" || status=$?
   [ "$status" -eq 0 ] || exit "$status"
   : > "$FM_FLASH_CLOSE_COMPLETE_MARKER"
-  attempt=0
-  while [ ! -e "$FM_FLASH_FOCUS_OBSERVED_MARKER" ] && [ "$attempt" -lt 500 ]; do
+  deadline=$((SECONDS + 60))
+  while [ ! -e "$FM_FLASH_FOCUS_OBSERVED_MARKER" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.01
-    attempt=$((attempt + 1))
   done
   [ -e "$FM_FLASH_FOCUS_OBSERVED_MARKER" ] || {
     printf 'focus sampler did not observe the completed explicit close\n' >&2
@@ -110,11 +109,10 @@ focus_snapshot() {
 }
 ws_order() { lab workspace list | jq -er '[.result.workspaces[].workspace_id] | join(",")'; }
 wait_ws_gone() {  # <workspace_id>
-  local i=0
-  while [ "$i" -lt 80 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     lab workspace get "$1" >/dev/null 2>&1 || return 0
     sleep 0.1
-    i=$((i + 1))
   done
   return 1
 }
@@ -175,10 +173,9 @@ SAMPLER_STOP="$TMP_ROOT/sampler.stop"
   done
 ) &
 SAMPLER_PID=$!
-B_READY_ATTEMPT=0
-while [ ! -e "$B_SAMPLER_READY" ] && [ "$B_READY_ATTEMPT" -lt 100 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -e "$B_SAMPLER_READY" ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.01
-  B_READY_ATTEMPT=$((B_READY_ATTEMPT + 1))
 done
 [ -e "$B_SAMPLER_READY" ] || fail 'the Part B focus sampler did not start'
 : > "$B_OPERATION_ACTIVE"
@@ -261,9 +258,9 @@ lab pane run "$C_DOOMED_PANE" 'cd / && sleep 3000' >/dev/null \
   || fail 'could not start the Part C persistent-child command'
 C_CHILD_IDENTITY=
 C_PREVIOUS_CHILD_IDENTITY=
-C_CHILD_ATTEMPT=0
 C_CHILD_STABLE=0
-while [ "$C_CHILD_ATTEMPT" -lt 100 ]; do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   C_CHILD_IDENTITY=$(lab pane process-info --pane "$C_DOOMED_PANE" 2>/dev/null \
     | jq -er '
       .result.process_info as $process
@@ -281,7 +278,6 @@ while [ "$C_CHILD_ATTEMPT" -lt 100 ]; do
   fi
   C_PREVIOUS_CHILD_IDENTITY=$C_CHILD_IDENTITY
   sleep 0.1
-  C_CHILD_ATTEMPT=$((C_CHILD_ATTEMPT + 1))
 done
 [ "$C_CHILD_STABLE" -ge 2 ] || fail 'the Part C doomed pane never reported a stable persistent child process'
 
@@ -316,10 +312,9 @@ SAMPLER_STOP="$TMP_ROOT/sampler-c.stop"
   done
 ) &
 SAMPLER_PID=$!
-C_READY_ATTEMPT=0
-while [ ! -e "$C_SAMPLER_READY" ] && [ "$C_READY_ATTEMPT" -lt 100 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -e "$C_SAMPLER_READY" ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.01
-  C_READY_ATTEMPT=$((C_READY_ATTEMPT + 1))
 done
 [ -e "$C_SAMPLER_READY" ] || fail 'the Part C focus sampler did not start'
 : > "$C_OPERATION_ACTIVE"

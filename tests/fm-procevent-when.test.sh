@@ -51,18 +51,21 @@ first_result() {  # <home> <source-id>
   return 1
 }
 
-wait_for_result() {  # <home> <source-id> [tries]
-  local n=${3:-150}
-  for _ in $(seq 1 "$n"); do
+# Both waits are hang guards measured by the clock, never speed checks: every
+# caller fails when one runs out, and a loaded host stretches the runner's
+# polls and actions far past any count of short sleeps.
+wait_for_result() {  # <home> <source-id>
+  local deadline=$((SECONDS + 120))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     first_result "$1" "$2" >/dev/null 2>&1 && return 0
     sleep 0.1
   done
   return 1
 }
 
-wait_for_file() {  # <file> [tries]
-  local n=${2:-150}
-  for _ in $(seq 1 "$n"); do [ -e "$1" ] && return 0; sleep 0.1; done
+wait_for_file() {  # <file>
+  local deadline=$((SECONDS + 120))
+  while [ "$SECONDS" -lt "$deadline" ]; do [ -e "$1" ] && return 0; sleep 0.1; done
   return 1
 }
 
@@ -162,8 +165,8 @@ assert_grep 'action ran against' "$RESULT" "the outcome carries the action outpu
 assert_contains "$(when "$H" classify "$RESULT")" fired "classify reads the outcome"
 when "$H" terminal "$RESULT" || fail "a fired outcome must be terminal"
 # The generic runner retires a terminal source: no restart, no second fire.
-for _ in $(seq 1 100); do
-  [ ! -e "$H/state/procevent/when-fire.source" ] && break
+deadline=$((SECONDS + 60))
+while [ -e "$H/state/procevent/when-fire.source" ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.1
 done
 assert_absent "$H/state/procevent/when-fire.source" "a fired watch retires its registration"
@@ -194,8 +197,8 @@ when "$H" arm flap --interval 0.1 --stable 2 \
   --condition "$FLAP" "$TMP_ROOT/flap-count" \
   --action "$ACT" "$FLAPLOG" >/dev/null
 pe "$H" reconcile >/dev/null
-for _ in $(seq 1 150); do
-  [ "$(count_lines "$TMP_ROOT/flap-count")" -ge 5 ] && break
+deadline=$((SECONDS + 60))
+while [ "$(count_lines "$TMP_ROOT/flap-count")" -lt 5 ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.1
 done
 [ "$(count_lines "$TMP_ROOT/flap-count")" -ge 5 ] || fail "the flapping condition was not polled enough to judge"
@@ -279,18 +282,30 @@ H="$TMP_ROOT/h-timeout"; new_home "$H"
 DESCENDANT_EFFECT="$TMP_ROOT/descendant-effect"
 DESCENDANT_PID="$TMP_ROOT/descendant-pid"
 SPAWNER="$TMP_ROOT/spawner.sh"
+# The descendant ignores TERM and outlives any wait the case makes (it leaves
+# its late effect only after a 120 s hang guard), so only the timeout's group
+# KILL can stop it; it also stops once the case's temp root is gone.
 cat > "$SPAWNER" <<'SH'
 #!/usr/bin/env bash
 (
   trap '' TERM
-  sleep 10
+  deadline=$((SECONDS + 120))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    [ -d "${1%/*}" ] || exit 1
+    sleep 0.05
+  done
   printf 'late effect\n' > "$1"
 ) &
 printf '%s\n' "$!" > "$2"
 wait
 SH
 chmod +x "$SPAWNER"
-when "$H" arm timeout --stable 1 --action-timeout 1 \
+# The action's timeout clock starts when the action is forked, so the action
+# must start its descendant before that bound for the case to exercise it. A
+# 1 s bound lost that race on a loaded host (the timeout fired before the
+# fixture had recorded any descendant); 10 s is a margin over the fixture's own
+# startup, and the case still fails below if no descendant was recorded.
+when "$H" arm timeout --stable 1 --action-timeout 10 \
   --condition true --action "$SPAWNER" "$DESCENDANT_EFFECT" "$DESCENDANT_PID" >/dev/null
 pe "$H" reconcile >/dev/null
 wait_for_result "$H" when-timeout || fail "no outcome was captured for the timed-out action"
@@ -299,7 +314,8 @@ assert_grep 'status: action-failed' "$RESULT" "the action timeout is captured as
 assert_grep 'action_exit: 124' "$RESULT" "the action timeout uses the shared timeout status"
 wait_for_file "$DESCENDANT_PID" || fail "the timeout fixture did not record its descendant"
 descendant_pid=$(cat "$DESCENDANT_PID")
-for _ in $(seq 1 20); do
+descendant_deadline=$((SECONDS + 30))
+while [ "$SECONDS" -lt "$descendant_deadline" ]; do
   descendant_state=$(ps -o stat= -p "$descendant_pid" 2>/dev/null | tr -d ' ' || true)
   case "$descendant_state" in ''|Z*) break ;; esac
   sleep 0.1

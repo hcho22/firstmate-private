@@ -627,15 +627,38 @@ test_hook_silent_without_stdin() {
   pass "fm-turnend-guard: silent no-op on empty stdin"
 }
 
+# The hook runs on every turn end, so it must never wait beyond its one
+# documented bounded poll: in --claude mode it gives the Stop-owned auto-arm
+# FM_CLAUDE_AUTOARM_SYNC_WAIT_MS (800 ms by default, in 100 ms sleeps) to claim
+# recovery. Its wall time is mostly process startup, which host load stretches,
+# so the case counts the waiting it does instead of timing it: every sleep goes
+# through a recording stub, an unhealthy stop that no auto-arm claims must spend
+# that poll and no more before it blocks, and a 60 s hang guard catches a hook
+# that never returns.
 test_hook_runs_fast() {
-  local dir start elapsed_s
+  local dir fakebin sleep_log status slept
   dir=$(make_primary_dir "$TMP_ROOT/hook-timing")
   : > "$dir/state/task1.meta"
-  start=$SECONDS
-  run_hook "$dir" false >/dev/null
-  elapsed_s=$((SECONDS - start))
-  [ "$elapsed_s" -lt 3 ] || fail "hook took ${elapsed_s}s, expected well under a second (generous 3s CI margin)"
-  pass "fm-turnend-guard: runs well under the generous timing margin (${elapsed_s}s)"
+  fakebin=$(fm_fakebin "$TMP_ROOT/hook-timing-fake")
+  sleep_log="$TMP_ROOT/hook-timing-sleeps"
+  : > "$sleep_log"
+  cat > "$fakebin/sleep" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_TEST_SLEEP_LOG"
+exec /bin/sleep "$@"
+SH
+  chmod +x "$fakebin/sleep"
+  status=0
+  printf '{"stop_hook_active":false,"session_id":"sess-claude-mode"}' | CLAUDECODE=1 FM_HOME="$(cd "$dir" && pwd)" \
+    FM_TEST_SLEEP_LOG="$sleep_log" PATH="$fakebin:$PATH" \
+    perl -e 'alarm shift; exec @ARGV' 60 bash "$dir/bin/fm-turnend-guard.sh" --claude >/dev/null 2>&1 || status=$?
+  [ "$status" -ne 142 ] || fail "hook did not return within the 60s hang guard"
+  expect_code 2 "$status" "an unhealthy, unclaimed --claude stop must block"
+  slept=$(awk '{ for (i = 1; i <= NF; i++) total += $i } END { printf "%d", total * 1000 + 0.5 }' "$sleep_log")
+  [ "$slept" -gt 0 ] || fail "hook blocked without giving the auto-arm its sync poll"
+  [ "$slept" -le 800 ] \
+    || fail "hook waited ${slept}ms, beyond its 800ms sync budget: $(tr '\n' ' ' < "$sleep_log")"
+  pass "fm-turnend-guard --claude: an unclaimed unhealthy stop waits only within its sync budget (${slept}ms requested)"
 }
 
 test_grok_adapter_forces_one_resume_when_unhealthy() {

@@ -75,22 +75,22 @@ harness_version() {  # <binary>
 }
 
 check_harness_idle_empty() {  # <name> <launch-cmd...>
-  local name=$1 win="hx-$1" verdict='' i=0 budget=${FM_COMPOSER_MATRIX_LIVE_POLLS:-45} version dismissed=0 startup_screen
+  local name=$1 win="hx-$1" verdict='' started budget=${FM_COMPOSER_MATRIX_LIVE_SECS:-60} version dismissed=0 startup_screen
   shift
   version=$(harness_version "$1")
   tmux -L "$SOCKET" new-window -d -t "$SESSION:" -n "$win" -c "$ROOT" -- "$@" \
     || fail "$name ($version): could not launch in the isolated tmux server"
-  while [ "$i" -lt "$budget" ]; do
+  started=$SECONDS
+  while [ $((SECONDS - started)) -lt "$budget" ]; do
     verdict=$(fm_tmux_composer_state "$SESSION:$win")
     [ "$verdict" = empty ] && break
-    i=$((i + 1))
     # A fresh harness may park on a vendor update-available modal (observed
     # live: codex 0.146.0 and opencode 1.14.46), which the strict classifier
     # correctly refuses to call a composer. Dismiss it once, mid-budget, with
     # a single Escape - the one key that submits nothing anywhere and is how
     # the audit declined the same prompts. Never Enter: on codex's dialog
     # Enter would RUN the upgrade.
-    if [ "$dismissed" -eq 0 ] && [ "$i" -ge $((budget / 3)) ]; then
+    if [ "$dismissed" -eq 0 ] && [ $((SECONDS - started)) -ge $((budget / 3)) ]; then
       # Trust prompts also accept Escape, but there it exits the harness and
       # erases the actionable failure surface. Preserve those prompts; only
       # dismiss a non-trust startup modal.
@@ -160,9 +160,8 @@ if command -v zellij >/dev/null 2>&1; then
   zellij delete-session --force "$ZELLIJ_SESSION" >/dev/null 2>&1 || true
   zellij --session "$ZELLIJ_SESSION" options --default-shell bash >/dev/null 2>&1 &
   ZJ_BG=$!
-  i=0
-  while [ "$i" -lt 10 ] && ! fm_backend_zellij_session_exists "$ZELLIJ_SESSION"; do
-    i=$((i + 1))
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && ! fm_backend_zellij_session_exists "$ZELLIJ_SESSION"; do
     sleep 0.5
   done
   fm_backend_zellij_session_exists "$ZELLIJ_SESSION" \

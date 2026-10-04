@@ -105,12 +105,26 @@ watch_bg() {  # <state> <fakebin> <out> [extra env assignments...]
     env "$@" "$WATCH" > "$out" 2>/dev/null &
 }
 
-wait_watcher_gone() {  # <pid> [limit-ticks]
-  local pid=$1 limit=${2:-120} i=0
-  while [ "$i" -lt "$limit" ]; do
+wait_watcher_gone() {  # <pid> [limit-secs]
+  local pid=$1 deadline=$((SECONDS + ${2:-60}))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     kill -0 "$pid" 2>/dev/null || return 0
     sleep 0.1
-    i=$((i + 1))
+  done
+  return 1
+}
+
+# wait_for_poll_after <state> <ref> <pid>: touch <ref>, then wait under the 60 s
+# guard for the watcher to begin a poll after it. The watcher stamps its beacon
+# as each poll begins and runs polls one at a time, so a newer beacon also proves
+# that every earlier poll, including any doorbell it was writing, has finished.
+wait_for_poll_after() {
+  local state=$1 ref=$2 pid=$3 deadline=$((SECONDS + 60))
+  touch "$ref"
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    [ "$state/.last-watcher-beat" -nt "$ref" ] && return 0
+    kill -0 "$pid" 2>/dev/null || return 1
+    sleep 0.1
   done
   return 1
 }
@@ -384,12 +398,11 @@ test_watcher_rerings_idle_pane_quietly() {
     FM_SEND_LOG="$log" FM_FAKE_TMUX_CAPTURE="$(idle_capture "$dir")" \
     FM_TASK_INBOX_RING_MAX=99
   pid=$!
-  local i=0
-  while [ "$i" -lt 100 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -qF 'Firstmate instruction waiting' "$log" 2>/dev/null && break
     kill -0 "$pid" 2>/dev/null || break
     sleep 0.1
-    i=$((i + 1))
   done
   grep -qF "Firstmate instruction waiting: list $state/t1.inbox/*.msg" "$log" \
     || { kill "$pid" 2>/dev/null; fail "the watcher never re-rang the doorbell:"$'\n'"$(cat "$log")"; }
@@ -398,10 +411,18 @@ test_watcher_rerings_idle_pane_quietly() {
   [ ! -s "$state/.wake-queue" ] \
     || { kill "$pid" 2>/dev/null; fail "a healthy re-ring queued a wake:"$'\n'"$(cat "$state/.wake-queue")"; }
   # The acknowledgement silences the ladder: no further doorbells after the mv.
+  # A poll that read the record just before the mv may still ring, so clear the
+  # log only once a poll has begun after the mv. Then observe three polls that
+  # begin after the clear: the first two each finish a full scan of the handled
+  # inbox, more than one 1 s grace apart, so an unsilenced ladder rings in them.
   mv "$rec" "$state/t1.inbox/handled/"
-  sleep 2.5
+  wait_for_poll_after "$state" "$dir/acked.ref" "$pid" \
+    || { kill "$pid" 2>/dev/null; fail "the watcher stopped polling after the ack"; }
   : > "$log"
-  sleep 2.5
+  for _ in 1 2 3; do
+    wait_for_poll_after "$state" "$dir/observed.ref" "$pid" \
+      || { kill "$pid" 2>/dev/null; fail "the watcher stopped polling while the ack was observed"; }
+  done
   kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
   [ ! -s "$log" ] || fail "the watcher kept ringing after the ack:"$'\n'"$(cat "$log")"
   pass "watcher: an unhandled aged message on an idle pane re-rings without waking firstmate, and the ack silences it"
@@ -443,7 +464,7 @@ test_watcher_quiet_on_healthy_inbox() {
 }
 
 test_watcher_ack_silences_unwritable_ladder() {
-  local dir state out log pid rec rings i=0
+  local dir state out log pid rec rings
   dir=$(setup_watch_case ack-unwritable-ladder)
   state="$dir/state"; out="$dir/watch.out"; log="$dir/send.log"; : > "$log"
   rec=$(inbox_lib "$state" fm_task_inbox_write "$state" t1 "please continue")
@@ -453,11 +474,11 @@ test_watcher_ack_silences_unwritable_ladder() {
     FM_SEND_LOG="$log" FM_FAKE_TMUX_CAPTURE="$(idle_capture "$dir")" \
     FM_ACK_RECORD="$rec" FM_TASK_INBOX_RING_MAX=99
   pid=$!
-  while [ "$i" -lt 100 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -f "$state/t1.inbox/handled/001.msg" ] && break
     kill -0 "$pid" 2>/dev/null || break
     sleep 0.1
-    i=$((i + 1))
   done
   [ -f "$state/t1.inbox/handled/001.msg" ] \
     || { kill "$pid" 2>/dev/null; fail "the doorbell stub did not acknowledge the record"; }

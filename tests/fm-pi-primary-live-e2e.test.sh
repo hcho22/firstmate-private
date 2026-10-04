@@ -109,10 +109,10 @@ send_prompt() {
 
 wait_pid_dead() {
   local pid=$1 i=0
-  while [ "$i" -lt 50 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     kill -0 "$pid" 2>/dev/null || return 0
     sleep 0.1
-    i=$((i + 1))
   done
   return 1
 }
@@ -281,14 +281,13 @@ sleep 1
 send_prompt "/calm"
 sleep 0.2
 send_prompt "Reply exactly CALM_LIVE_WORKING_VISIBLE"
-i=0
-while [ "$i" -lt 240 ]; do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   pane=$(capture)
   if printf '%s\n' "$pane" | grep -Fq '\__/'; then
     break
   fi
   sleep 0.05
-  i=$((i + 1))
 done
 printf '%s\n' "$pane" | grep -Fq '\__/' \
   || fail "Calm did not show the working ship on the credentialed provider path"

@@ -532,15 +532,16 @@ test_remote_secondmate_is_refused_by_placement() {
   pass "fm-control: a remotely placed secondmate is refused by placement, not by a metadata complaint"
 }
 
-hold_lifecycle_lock() {  # <lock-path>
-  local lifecycle_lock_path=$1
+hold_lifecycle_lock() {  # <lock-path>: holds it until its state directory is gone
+  local lifecycle_lock_path=$1 deadline
   . "$ROOT/bin/fm-wake-lib.sh"
   fm_lock_try_acquire "$lifecycle_lock_path" || return 1
-  sleep 30
+  deadline=$((SECONDS + 600))
+  while [ -d "${lifecycle_lock_path%/*}" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
 }
 
 test_interrupt_and_exit_lock_before_task_state_resolution() {
-  local case_dir out rc verb lifecycle_lock_path holder i
+  local case_dir out rc verb lifecycle_lock_path holder deadline
   for verb in interrupt exit; do
     case_dir=$(new_case "locked-$verb")
     add_task "$case_dir" t1 claude
@@ -548,10 +549,9 @@ test_interrupt_and_exit_lock_before_task_state_resolution() {
     lifecycle_lock_path="$case_dir/home/state/.control-t1.lock"
     hold_lifecycle_lock "$lifecycle_lock_path" &
     holder=$!
-    i=0
-    while [ ! -e "$lifecycle_lock_path" ] && [ "$i" -lt 100 ]; do
+    deadline=$((SECONDS + 60))
+    while [ ! -e "$lifecycle_lock_path" ] && kill -0 "$holder" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
       sleep 0.1
-      i=$((i + 1))
     done
     [ -e "$lifecycle_lock_path" ] || fail "could not stage the lifecycle lock for $verb"
     sed 's/^endpoint_task_id=t1$/endpoint_task_id=other/' "$case_dir/home/state/t1.meta" \

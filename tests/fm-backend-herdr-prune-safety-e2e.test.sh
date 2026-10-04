@@ -83,7 +83,8 @@ pass "repro setup: a pre-existing workspace labeled 'firstmate' collides with th
 # "the pane object still exists").
 PANE_READY=false
 READY_SAMPLES=0
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   PROCESS_INFO=$(fm_backend_herdr_cli "$SESSION" pane process-info --pane "$LIVE_PANE_ID" 2>/dev/null || true)
   if printf '%s' "$PROCESS_INFO" | jq -e '
     .result.process_info as $process

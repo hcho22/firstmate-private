@@ -600,6 +600,14 @@ fm_backend_expected_label_of_selector() {  # <raw-target> <state-dir>
 fm_backend_source() {  # <name>
   local name=$1
   fm_backend_validate "$name" || return 1
+  # Check for the adapter file before every `.`: stock macOS bash 3.2 treats a
+  # failed `.` of a missing file as fatal to the whole non-interactive shell, so
+  # the `|| return 1` below would never run and the caller could not refuse.
+  case "$name" in
+    tmux|herdr|zellij|orca|cmux)
+      [ -r "$FM_BACKEND_LIB_DIR/backends/$name.sh" ] || return 1
+      ;;
+  esac
   case "$name" in
     tmux)
       if [ -z "${_FM_BACKEND_TMUX_SOURCED:-}" ]; then

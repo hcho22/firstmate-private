@@ -25,7 +25,39 @@ set -u
 TMP_ROOT=$(fm_test_tmproot fm-startup-network-tests)
 DRAIN="$ROOT/bin/fm-wake-drain.sh"
 FM_TEST_CLEANUP_DIRS+=("$TMP_ROOT")
-trap fm_test_cleanup EXIT
+
+# A case that `start`s a detached worker with this shell as its claimant leaves the
+# worker parked in its delivery wait when the case ends. Removing the state
+# directory under it then strands it polling a lock in a directory that no longer
+# exists, which spins until its own delivery budget runs out: a couple of minutes
+# of busy loop per leftover worker, on the host that is also running the next
+# tests. So every process whose command line names this run's private root is
+# retired, by exact pid, before the directories go.
+retire_stage_workers() {
+  local pids pid deadline
+  pids=$(pgrep -f "$TMP_ROOT/" 2>/dev/null | grep -vx -e "$$" -e "${BASHPID:-$$}" || true)
+  [ -n "$pids" ] || return 0
+  for pid in $pids; do
+    kill -TERM "$pid" 2>/dev/null || true
+  done
+  deadline=$((SECONDS + 60))
+  for pid in $pids; do
+    while kill -0 "$pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
+      sleep 0.05
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -KILL "$pid" 2>/dev/null || true
+    fi
+  done
+}
+
+stage_test_cleanup() {
+  retire_stage_workers
+  fm_test_cleanup
+}
+trap stage_test_cleanup EXIT
+trap 'stage_test_cleanup; exit 130' INT
+trap 'stage_test_cleanup; exit 143' TERM
 
 # new_world <name>: an FM_HOME plus a fake code root whose bin/ is a real
 # firstmate bin/ except for fm-bootstrap.sh, which is replaced by a scriptable
@@ -60,7 +92,24 @@ if [ -n "${FM_TIMING_LOG:-}" ]; then
   fm_timing_record phase "${FM_FAKE_TIMING_PHASE:-gh-auth}" \
     "$(( $(fm_timing_now_ms) - 1500 ))" "${FM_FAKE_TIMING_DETAIL:-}"
 fi
+# Everything this sweep is going to record is on disk once it gets here, so a test
+# that must act only AFTER that point waits for this file, not for some elapsed time.
+[ -z "${FM_FAKE_SWEEP_RECORDED:-}" ] || : > "$FM_FAKE_SWEEP_RECORDED"
 [ -z "${FM_FAKE_BOOTSTRAP_SLEEP:-}" ] || sleep "$FM_FAKE_BOOTSTRAP_SLEEP"
+# FM_FAKE_BOOTSTRAP_HOLD names a release file: the sweep stays in flight until
+# the case creates it, so a case that must act WHILE a sweep runs does not race a
+# fixed sleep. The sweep marks <hold>.passed once it moves on, so a case can
+# prove something happened before the sweep finished. The hang guard only keeps
+# a forgotten hold from lasting forever, and a case that failed before releasing
+# it removes its temp root, which ends the hold at once.
+if [ -n "${FM_FAKE_BOOTSTRAP_HOLD:-}" ]; then
+  hold_deadline=$((SECONDS + 120))
+  while [ ! -e "$FM_FAKE_BOOTSTRAP_HOLD" ] && [ "$SECONDS" -lt "$hold_deadline" ]; do
+    [ -d "${FM_FAKE_BOOTSTRAP_HOLD%/*}" ] || exit 1
+    sleep 0.05
+  done
+  : > "$FM_FAKE_BOOTSTRAP_HOLD.passed"
+fi
 [ -z "${FM_FAKE_BOOTSTRAP_OUT:-}" ] || printf '%s\n' "$FM_FAKE_BOOTSTRAP_OUT"
 exit "${FM_FAKE_BOOTSTRAP_RC:-0}"
 SH
@@ -91,10 +140,10 @@ SH
 # the whole point of not blocking - so a test that wants to observe the worker
 # waits for its record rather than assuming instant publication.
 await_worker_record() {  # <home>
-  local home=$1 waited=0
-  while [ ! -s "$home/state/.startup-network.status" ] && [ "$waited" -lt 100 ]; do
+  local home=$1
+  local deadline=$((SECONDS + 60))
+  while [ ! -s "$home/state/.startup-network.status" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
   [ -s "$home/state/.startup-network.status" ] || fail "the detached worker never recorded itself"
 }
@@ -120,12 +169,11 @@ run_stage() {  # <home> <root> <args...>
     FM_HOME="$home" FM_ROOT_OVERRIDE="$root" "$root/bin/fm-startup-network.sh" "$@"
 }
 
-wait_for_startup_network_wake() {  # <home> [tenths]
-  local home=$1 limit=${2:-50} waited=0
+wait_for_startup_network_wake() {  # <home>
+  local home=$1 deadline=$((SECONDS + 60))
   while ! grep -Fq $'check\tstartup-network' "$home/state/.wake-queue" 2>/dev/null \
-    && [ "$waited" -lt "$limit" ]; do
+    && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
   grep -Fq $'check\tstartup-network' "$home/state/.wake-queue" 2>/dev/null
 }
@@ -138,20 +186,21 @@ wait_for_startup_network_wake() {  # <home> [tenths]
 # path, so this asserts both halves: start returns fast, AND the pipe closes
 # while the worker is still running.
 test_start_returns_without_holding_the_callers_stdout() {
-  local rec home root log started elapsed pending
+  local rec home root log hold pending
   rec=$(new_world start-nonblocking)
   IFS='|' read -r home root log <<EOF
 $rec
 EOF
   printf '%s\n' $$ > "$home/state/.lock"
+  hold="$TMP_ROOT/start-nonblocking.hold"
 
-  started=$(date +%s)
-  # Command substitution reads to EOF, exactly like a hook harvesting hook output.
-  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=10 \
-    run_stage "$home" "$root" start --locked 1 --harvest-pid $$ >/dev/null
-  elapsed=$(( $(date +%s) - started ))
-
-  [ "$elapsed" -lt 4 ] || fail "start blocked for ${elapsed}s behind a 10s worker"
+  # Command substitution reads to EOF, exactly like a hook harvesting hook output,
+  # and the worker's sweep stays in flight until the case releases it. So start
+  # returning before the sweep passed its hold shows it neither waited for the
+  # worker nor left the worker holding the caller's stdout.
+  : "$(FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_HOLD="$hold" \
+    run_stage "$home" "$root" start --locked 1 --harvest-pid $$)"
+  [ ! -e "$hold.passed" ] || fail "start returned only after its worker's sweep had finished"
   await_worker_record "$home"
   pending=$(run_stage "$home" "$root" report)
   [ "$(printf '%s\n' "$pending" | head -1)" = "IN PROGRESS - the deferred network checks have not finished yet." ] \
@@ -160,13 +209,14 @@ EOF
     "the pending guidance still promised a wake for clean success"
   assert_contains "$pending" "$root/bin/fm-startup-network.sh report" \
     "the pending guidance omitted the durable on-demand report path"
+  : > "$hold"
   run_stage "$home" "$root" wait 30 >/dev/null || fail "the worker never published"
   assert_grep 'network=only' "$log" "the worker did not run bootstrap's network-only phase"
   pass "fm-startup-network: start returns immediately and never holds the caller's stdout open"
 }
 
 test_harvest_acknowledgement_suppresses_the_wake_and_no_claim_produces_it() {
-  local rec home root log claimant output waited=0 worker_pid
+  local rec home root log claimant output worker_pid
   rec=$(new_world claim-handshake)
   IFS='|' read -r home root log <<EOF
 $rec
@@ -186,9 +236,9 @@ EOF
     || fail "harvest did not durably acknowledge the result it printed"
   kill "$claimant" 2>/dev/null || true
   wait "$claimant" 2>/dev/null || true
-  while kill -0 "$worker_pid" 2>/dev/null && [ "$waited" -lt 50 ]; do
+  local deadline=$((SECONDS + 60))
+  while kill -0 "$worker_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
   ! kill -0 "$worker_pid" 2>/dev/null \
     || fail "the worker did not settle after harvest acknowledged its result"
@@ -474,19 +524,22 @@ EOF
 }
 
 test_locked_start_is_not_satisfied_by_an_inflight_probe() {
-  local rec home root log waited=0
+  local rec home root log hold deadline
   rec=$(new_world probe-then-locked)
   IFS='|' read -r home root log <<EOF
 $rec
 EOF
+  hold="$TMP_ROOT/probe-then-locked.hold"
   printf '%s\n' $$ > "$home/state/.lock"
   printf '../other-home\n' > "$home/.fm-secondmate-home"
 
-  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=6 \
+  # The probe-only sweep stays in flight until the case releases it, so the
+  # locked request always meets it however slow the host is.
+  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_HOLD="$hold" \
     run_stage "$home" "$root" start --locked 0 --harvest-pid $$
-  while ! grep -Fq 'detect_only=1' "$log" 2>/dev/null && [ "$waited" -lt 50 ]; do
+  deadline=$((SECONDS + 60))
+  while ! grep -Fq 'detect_only=1' "$log" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
   assert_grep 'network=only detect_only=1' "$log" \
     "the probe-only worker was not in flight before the locked request"
@@ -495,6 +548,8 @@ EOF
     run_stage "$home" "$root" start --locked 1 --harvest-pid $$
   run_stage "$home" "$root" wait 30 >/dev/null \
     || fail "the locked request never published"
+  [ ! -e "$hold.passed" ] || fail "the probe-only sweep finished before the locked request superseded it"
+  : > "$hold"
   assert_grep 'network=only detect_only=0' "$log" \
     "the in-flight probe-only worker suppressed the locked sweeps"
   assert_grep $'check\tinactive-reconcile-diagnostic:invalid-secondmate-home\t' "$home/state/.wake-queue" \
@@ -505,18 +560,23 @@ EOF
 # Two session opens in quick succession must not run the same mutating sweeps
 # concurrently against each other.
 test_start_is_single_flight() {
-  local rec home root log runs
+  local rec home root log runs hold
   rec=$(new_world single-flight)
   IFS='|' read -r home root log <<EOF
 $rec
 EOF
+  hold="$TMP_ROOT/single-flight.hold"
   printf '%s\n' $$ > "$home/state/.lock"
 
-  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=6 \
+  # The first worker's sweep stays in flight until the case releases it, so the
+  # second start always meets a running worker however slow the host is.
+  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_HOLD="$hold" \
     run_stage "$home" "$root" start --locked 1 --harvest-pid $$
   await_worker_record "$home"
-  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=6 \
+  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_HOLD="$hold" \
     run_stage "$home" "$root" start --locked 1 --harvest-pid $$
+  [ ! -e "$hold.passed" ] || fail "the first worker finished before the second start could meet it"
+  : > "$hold"
   run_stage "$home" "$root" wait 40 >/dev/null || fail "the worker never published"
 
   runs=$(grep -c 'network=only' "$log" || true)
@@ -543,9 +603,14 @@ lock_pid=
 EOF
   printf 'old result\n' > "$home/state/.startup-network.report"
 
-  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=5 \
+  # The new worker's sweep stays in flight until the case releases it, so the
+  # harvest below always sees a running generation however slow the host is.
+  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_HOLD="$TMP_ROOT/generation-reservation.hold" \
     run_stage "$home" "$root" start --locked 0 --harvest-pid $$
   report=$(run_stage "$home" "$root" harvest --pid $$)
+  [ ! -e "$TMP_ROOT/generation-reservation.hold.passed" ] \
+    || fail "the new generation finished before the harvest could observe it in flight"
+  : > "$TMP_ROOT/generation-reservation.hold"
   assert_contains "$report" "IN PROGRESS" \
     "harvest exposed the previous generation after a new start returned: $report"
   assert_not_contains "$report" "old result" \
@@ -577,28 +642,32 @@ EOF
 }
 
 test_lock_takeover_stays_read_only_while_a_sweep_holds_the_lease() {
-  local rec home root log next_owner new_owner out rc started elapsed waited=0
+  local rec home root log hold next_owner new_owner out rc deadline
   rec=$(new_world sweep-lease)
   IFS='|' read -r home root log <<EOF
 $rec
 EOF
+  hold="$TMP_ROOT/sweep-lease.hold"
   printf '%s\n' $$ > "$home/state/.lock"
-  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=6 \
+  # The sweep stays mid-run, holding its lease, until the case releases it, so
+  # the takeover below always meets a mutating sweep however slow the host is.
+  FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_HOLD="$hold" \
     run_stage "$home" "$root" start --locked 1 --harvest-pid $$
-  while [ ! -s "$log" ] && [ "$waited" -lt 50 ]; do
+  deadline=$((SECONDS + 60))
+  while [ ! -s "$log" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    waited=$((waited + 1))
   done
-  [ -s "$log" ] || fail "the mutating sweep never started"
+  [ -s "$log" ] || { : > "$hold"; fail "the mutating sweep never started"; }
 
   next_owner=$(/bin/ps -o ppid= -p $$ | tr -d ' ')
-  started=$(date +%s)
   rc=0
   out=$(PATH="$root/bin:$PATH" FM_FAKE_HARNESS_PID="$next_owner" \
     FM_HOME="$home" FM_ROOT_OVERRIDE="$root" "$root/bin/fm-lock.sh" 2>&1) || rc=$?
-  elapsed=$(( $(date +%s) - started ))
+  # Returning while the sweep is still held proves the takeover did not wait
+  # behind it; a takeover that waited could only return once the sweep moved on.
+  [ ! -e "$hold.passed" ] || fail "lock takeover blocked behind deferred network work"
+  : > "$hold"
   [ "$rc" -ne 0 ] || fail "lock takeover succeeded while the prior sweep was mutating"
-  [ "$elapsed" -lt 4 ] || fail "lock takeover blocked ${elapsed}s behind deferred network work"
   assert_contains "$out" "operate read-only" \
     "a lease-blocked takeover did not fail closed to read-only: $out"
   [ "$(cat "$home/state/.lock")" = "$$" ] \
@@ -694,31 +763,73 @@ EOF
   pass "fm-startup-network: timings are durable and printed only on demand"
 }
 
+# make_event_driven_timeout <bindir>: a timeout(1) stand-in whose deadline is an
+# EVENT, for the one case that must kill a sweep only AFTER the sweep has recorded
+# something. The real bound is a wall clock that starts before the stage's own
+# start-up chain (a shell, the inactive-outcome scan, the sweep's shell) has run,
+# so any fixed value races that chain's latency and loses on a loaded host.
+# This one fires when FM_FAKE_DEADLINE_EVENT appears, and otherwise only at the
+# bound it was given, so a sweep that never reaches the event still ends. It keeps
+# what the stage needs from a deadline: the command runs in its own process group,
+# the whole group is terminated, and the exit status is 124. It arms only if the
+# event is still absent when it starts, so a bounded call made after the event
+# (the stage's lock helpers) keeps its ordinary clock.
+make_event_driven_timeout() {
+  cat > "$1/timeout" <<'SH'
+#!/usr/bin/env bash
+[ "${1:-}" != -k ] || shift 2
+seconds=$1
+shift
+armed=0
+[ -e "${FM_FAKE_DEADLINE_EVENT:?}" ] || armed=1
+set -m
+"$@" &
+child=$!
+limit=$((SECONDS + seconds))
+while kill -0 "$child" 2>/dev/null; do
+  if { [ "$armed" -eq 1 ] && [ -e "$FM_FAKE_DEADLINE_EVENT" ]; } || [ "$SECONDS" -ge "$limit" ]; then
+    { kill -TERM -- "-$child"; sleep 0.2; kill -KILL -- "-$child"; wait "$child"; } 2>/dev/null
+    exit 124
+  fi
+  sleep 0.05
+done
+wait "$child"
+SH
+  chmod +x "$1/timeout"
+}
+
 # A run that hit the bound is exactly the run worth attributing, so whatever the
 # killed sweeps managed to record must survive rather than being discarded with
-# them.
+# them. The deadline is driven by the sweep's own "I have recorded" signal, never
+# by a clock: the stage's bound starts counting before its start-up chain has even
+# reached the sweep, so a short wall-clock bound would test host speed, not whether
+# the stage publishes what a killed sweep left behind.
 test_a_bounded_run_still_publishes_the_timings_it_managed_to_record() {
-  local rec home root log report_out
+  local rec home root log event report_out
   rec=$(new_world timings-partial)
   IFS='|' read -r home root log <<EOF
 $rec
 EOF
   printf '%s\n' $$ > "$home/state/.lock"
+  make_event_driven_timeout "$root/bin"
+  event="$home/sweep-recorded"
 
-  # The bound has to be long enough for the fake sweep to START and record its
-  # timing before the kill even on a loaded host; a 1s bound made this case fail
-  # whenever the machine was busy, so it proved load rather than the contract.
-  FM_STARTUP_NETWORK_TIMEOUT=4 FM_SESSION_START_TIMEOUT=6 \
-    FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=30 \
+  FM_STARTUP_NETWORK_TIMEOUT=60 FM_SESSION_START_TIMEOUT=2 \
+    FM_FAKE_SWEEP_RECORDED="$event" FM_FAKE_DEADLINE_EVENT="$event" \
+    FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_SLEEP=120 \
     FM_FAKE_TIMING_PHASE=secondmate-liveness FM_FAKE_TIMING_DETAIL='mate-a@host-one' \
     run_stage "$home" "$root" run --locked 1
 
+  assert_present "$event" \
+    "the sweep never recorded, so the deadline came from the hang guard and not from the sweep"
   [ "$(sed -n 's/^state=//p' "$home/state/.startup-network.status")" = timeout ] \
     || fail "the bounded run did not record itself as timed out"
   report_out=$(run_stage "$home" "$root" report)
-  assert_contains "$report_out" "hit the 4s bound" "the bound stopped being reported"
+  assert_contains "$report_out" "hit the 60s bound" "the bound stopped being reported"
   assert_contains "$report_out" "secondmate-liveness mate-a@host-one" \
     "a timed-out run discarded the partial timings its sweeps had already recorded"
+  assert_contains "$report_out" "network-checks" \
+    "a timed-out run did not record its own bounded total"
   pass "fm-startup-network: a timed-out run still publishes the partial timings it recorded"
 }
 
