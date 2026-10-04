@@ -1,0 +1,15 @@
+# fm-herdr-lab.sh provision whose server never reports running in time, then teardown (Sun Oct  4 01:55:00 PDT 2026); stand-in herdr from tests/fm-herdr-lab.test.sh (real Herdr lifecycle is out of bounds for this task)
+## base 6c74d7f
+/private/tmp/fm-herdr-01M4144D/fm-herdr-lab-base.sh: line 156:   736 Terminated: 15          fm_herdr_lab_raw "$name" server > /dev/null 2>&1
+fm-herdr-lab: lab session 'fm-lab-base-99344' did not report running within 60 seconds
+[base] provision rc=1 after 138 s
+[base] teardown rc=0; lab state after teardown: absent
+[base] stand-in server pid 744 alive after teardown: YES
+[base] lab state 2 s after releasing the server: running
+## this change
+/private/tmp/fm-herdr-01M4144D/fm-herdr-lab-new.sh: line 156:  1252 Terminated: 15          HERDR_SESSION="$name" herdr server --session "$name" > /dev/null 2>&1
+fm-herdr-lab: lab session 'fm-lab-new-99345' did not report running within 60 seconds
+[new] provision rc=1 after 140 s
+[new] teardown rc=0; lab state after teardown: absent
+[new] stand-in server pid 1252 alive after teardown: no
+[new] lab state 2 s after releasing the server: absent

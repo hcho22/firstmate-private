@@ -1,0 +1,4 @@
+# NM crash recovery: fixture start seen -> 125 observed = 3.43s (fixture writes its side effect 3s after start)
+# NM orphan pid 26928 gone when 125 was observed
+ok - Linux supervision recovers crashes and stops orphaned commands
+FM_TEST_END 2026-10-03T21:44:43Z tests/.nmtmp-remote-job.test.sh exit=0 duration_ms=120181 gate_skip=false

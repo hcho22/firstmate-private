@@ -1,0 +1,18 @@
+# Live drive at 096f00a (Sun Oct  4 01:50:50 PDT 2026)
+registered source live-inherited (config-ref file:/private/tmp/fm-ext-live-01M4144D/new/signal.txt)
+starting runner with descriptors 3, 4, 5 open: fm-procevent.sh start live-inherited 3</dev/null 4</dev/null 5</dev/null
+runner claimed the source; writing the signal file
+runner exit: 0
+--- runner output ---
+not-autohandled: live-inherited (left for the handler; still unacknowledged)
+retired: live-inherited (adapter classified the captured result terminal)
+captured: ./live-inherited.1.result
+--- captured result ---
+/private/tmp/fm-ext-live-01M4144D/new/home/state/procevent-inbox/live-inherited.1.result
+evidence lines matching: 1
+--- terminal-check-failed markers ---
+(none)
+--- fm-procevent.sh list ---
+no sources registered
+RESULT: source retired by its terminal result
+drive exit: 0

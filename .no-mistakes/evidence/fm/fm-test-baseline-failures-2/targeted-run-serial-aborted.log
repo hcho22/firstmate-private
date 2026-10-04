@@ -1,0 +1,15 @@
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-10-04T08:47:05Z tests/fm-herdr-lab.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - fm-herdr-lab: names fail closed and require the lab prefix
+ok - fm-herdr-lab: provisioning, scoped calls, guarded teardown, and fleet tripwire are deterministic
+ok - fm-herdr-lab: missing tripwire refuses teardown before any Herdr call
+ok - fm-herdr-lab: changed default fleet state is a hard failure
+ok - fm-herdr-lab: an owned stopped lab can re-provision safely
+ok - fm-herdr-lab: failed deletion retains ownership until absence is confirmed
+ok - fm-herdr-lab: timed-out provisioning stops its server before teardown
+FM_TEST_END 2026-10-04T08:48:23Z tests/fm-herdr-lab.test.sh exit=0 duration_ms=78028 gate_skip=false
+FM_TEST_BEGIN 2026-10-04T08:48:24Z tests/fm-wake-queue.test.sh family=watcher-wake-lock expected_gate_skip=none
+bin/fm-test-run.sh: line 2061: 72476 Terminated: 15          ( trap - EXIT HUP INT TERM; set +e; export TMPDIR="$work/tmp"; export TMP="$work/tmp"; cd "$ROOT" || exit 1; begin_ms=$(now_ms); set +e; run_script_bounded "$script" "$work/output" 0 "w$worker_n"; rc=$?; set -e; end_ms=$(now_ms); duration=$((end_ms - begin_ms)); if [ "$duration" -lt 0 ]; then
+    duration=0;
+fi; printf '%s\n' "$duration" > "$work/duration_ms"; printf '%s\n' "$rc" > "$work/exit"; exit 0 )

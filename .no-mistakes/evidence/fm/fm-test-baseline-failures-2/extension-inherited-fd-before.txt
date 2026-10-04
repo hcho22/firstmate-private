@@ -1,0 +1,18 @@
+== BEFORE (HEAD bcb2aa3): code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/livefd.0hmG2r/head
+$ fm-extension.mjs bind <file-signal example> --adapter file-signal --trust-same-user-code --consent artifact-references
+bound: org.firstmate.example.file-signal@1.0.0
+$ fm-procevent.sh register-extension file-signal demo-build --config-ref file:<signal>
+registered: demo-build (file-signal from org.firstmate.example.file-signal@1.0.0)
+$ fm-procevent.sh start demo-build 3</dev/null   # runner inherits fd 3 from its launcher
+$ echo "build 42 completed successfully" > <signal>
+(runner exit 0)
+  runner: not-autohandled: demo-build (left for the handler; still unacknowledged)
+  runner: terminal-check-failed: demo-build (the adapter failed to answer; the registration stays armed)
+  runner: captured: ./demo-build.1.result
+$ fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING  FAILED-TERMINAL-CHECKS
+demo-build                   file-signal  none       1        1
+$ ls state/procevent/   # a retired source leaves no demo-build.source
+demo-build.source
+$ cat state/procevent-inbox/*.terminal-check-failed
+{"code":"path-unsafe","extension_id":"org.firstmate.example.file-signal","operation":"result.terminal","schema":"firstmate.process-event-extension-error.v1"}

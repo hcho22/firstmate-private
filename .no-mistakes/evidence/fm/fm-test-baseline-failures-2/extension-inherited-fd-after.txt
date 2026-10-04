@@ -1,0 +1,17 @@
+== AFTER (this fix): code root /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4144D12TC8SBE2V5NTJGF9B
+$ fm-extension.mjs bind <file-signal example> --adapter file-signal --trust-same-user-code --consent artifact-references
+bound: org.firstmate.example.file-signal@1.0.0
+$ fm-procevent.sh register-extension file-signal demo-build --config-ref file:<signal>
+registered: demo-build (file-signal from org.firstmate.example.file-signal@1.0.0)
+$ fm-procevent.sh start demo-build 3</dev/null   # runner inherits fd 3 from its launcher
+$ echo "build 42 completed successfully" > <signal>
+(runner exit 0)
+  runner: not-autohandled: demo-build (left for the handler; still unacknowledged)
+  runner: retired: demo-build (adapter classified the captured result terminal)
+  runner: captured: ./demo-build.1.result
+$ fm-procevent.sh list
+no sources registered
+$ ls state/procevent/   # a retired source leaves no demo-build.source
+  (no registered sources)
+$ cat state/procevent-inbox/*.terminal-check-failed
+  (none)

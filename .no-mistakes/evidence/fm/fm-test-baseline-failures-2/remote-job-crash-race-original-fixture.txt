@@ -1,0 +1,4 @@
+# Instrumented copy of tests/fm-remote-job.test.sh (unchanged fixture: fm-shutdown-job.sh writes its side effect 3 s after start), run via bin/fm-test-run.sh on this host:
+# NM crash recovery: fixture start seen -> 125 observed = 4.19s (fixture writes its side effect 3s after start)
+not ok - an orphaned command mutated after worker crash recovery
+FM_TEST_END 2026-10-03T21:42:25Z tests/.nmtmp-remote-job.test.sh exit=1 duration_ms=117000 gate_skip=false

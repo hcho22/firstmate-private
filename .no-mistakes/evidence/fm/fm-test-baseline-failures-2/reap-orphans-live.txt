@@ -1,0 +1,21 @@
+# Live reap-orphans drive (Sun Oct  4 01:48:46 PDT 2026); fixture workers each lead their own process group
+pruned-root worker pid=76615 pgid=76615 command: /bin/bash /private/tmp/fm-reap-live-01M4144D/pruned/bin/fm-remote-job-worker.sh --serve
+live-root worker pid=76616 pgid=76616 command: /bin/bash /private/tmp/fm-reap-live-01M4144D/live/bin/fm-remote-job-worker.sh --serve
+processes visible to this account: 2751
+--- base 6c74d7f version, dry-run, scoped to /private/tmp/fm-reap-live-01M4144D
+would reap abandoned remote job worker 76615 (pruned code root /private/tmp/fm-reap-live-01M4144D/pruned)
+rc=0
+base elapsed: 47.81 s
+--- this change, dry-run, scoped to /private/tmp/fm-reap-live-01M4144D
+would reap abandoned remote job worker 76615 (pruned code root /private/tmp/fm-reap-live-01M4144D/pruned)
+rc=0
+elapsed: 2.75 s
+--- this change, real sweep, scoped to /private/tmp/fm-reap-live-01M4144D
+reaped abandoned remote job worker 76615 (pruned code root /private/tmp/fm-reap-live-01M4144D/pruned)
+rc=0
+elapsed: 4.43 s
+pruned-root worker 76615 is gone
+live-root worker 76616 still running (expected)
+--- this change, host-wide dry-run (signals nothing)
+candidate lines: 0
+host-wide elapsed: 3.74 s

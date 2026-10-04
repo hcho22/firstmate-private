@@ -1,0 +1,4 @@
+# fm_backend_cmux_surface_exists when cmux list-panes fails and prints nothing (Sun Oct  4 01:53:02 PDT 2026)
+jq first on PATH: /Users/hcho/opt/anaconda3/bin/jq (jq-1.6)
+base 6c74d7f: absent surface reads as present
+this change: absent surface reads as absent

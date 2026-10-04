@@ -1,0 +1,42 @@
+# Targeted validation summary (worktree head b1dd4c8; host load average 355-1000 on 20 CPUs from unrelated iOS simulator/Xcode work)
+
+## Targeted scripts via bin/fm-test-run.sh
+FM_TEST_END 2026-10-04T09:34:57Z tests/fm-teardown.test.sh exit=0 duration_ms=2427188 gate_skip=false
+FM_TEST_END 2026-10-04T09:22:45Z tests/fm-remote-job.test.sh exit=0 duration_ms=261899 gate_skip=false
+FM_TEST_END 2026-10-04T08:55:59Z tests/fm-herdr-lab.test.sh exit=0 duration_ms=86355 gate_skip=false
+FM_TEST_END 2026-10-04T09:07:23Z tests/fm-wake-queue.test.sh exit=0 duration_ms=682943 gate_skip=false
+FM_TEST_END 2026-10-04T09:08:15Z tests/fm-remote-job-orphan-reap.test.sh exit=0 duration_ms=50958 gate_skip=false
+FM_TEST_END 2026-10-04T09:10:42Z tests/fm-remote-job.test.sh exit=1 duration_ms=198149 gate_skip=false
+FM_TEST_END 2026-10-04T09:14:03Z tests/fm-extension-binding.test.sh exit=0 duration_ms=200515 gate_skip=false
+FM_TEST_END 2026-10-04T09:16:37Z tests/fm-backend-cmux.test.sh exit=0 duration_ms=154206 gate_skip=false
+FM_TEST_END 2026-10-04T09:20:11Z tests/fm-backend-zellij.test.sh exit=0 duration_ms=213701 gate_skip=false
+
+fm-remote-job failed once at load ~900 ('the worker accepted a symlinked argv record': its 5 s queue window expired before a freshly started worker validated argv, 124 instead of 126); fixed in b1dd4c8 and passed on rerun.
+
+## Configured command (bin/fm-test-run.sh --changed --exclude-family real-herdr-gated), started at 096f00a, still running at report time
+scripts finished: 23
+of 174 selected
+FM_TEST_END 2026-10-04T08:59:39Z tests/fm-brief.test.sh exit=0 duration_ms=62782 gate_skip=false
+FM_TEST_END 2026-10-04T09:09:20Z tests/fm-backend-herdr.test.sh exit=0 duration_ms=644090 gate_skip=false
+FM_TEST_END 2026-10-04T09:11:04Z tests/fm-captain-hold-lifecycle.test.sh exit=0 duration_ms=747438 gate_skip=false
+FM_TEST_END 2026-10-04T09:11:09Z tests/fm-arm-pretool-check.test.sh exit=0 duration_ms=753092 gate_skip=false
+FM_TEST_END 2026-10-04T09:12:18Z tests/fm-composer-ghost.test.sh exit=0 duration_ms=73519 gate_skip=false
+FM_TEST_END 2026-10-04T09:12:33Z tests/fm-composer-lib.test.sh exit=0 duration_ms=82923 gate_skip=false
+FM_TEST_END 2026-10-04T09:12:42Z tests/fm-ensure-agents-md.test.sh exit=0 duration_ms=8277 gate_skip=false
+FM_TEST_END 2026-10-04T09:13:52Z tests/fm-captain-hold-records.test.sh exit=0 duration_ms=852055 gate_skip=false
+FM_TEST_END 2026-10-04T09:14:11Z tests/fm-grok-harness.test.sh exit=0 duration_ms=88119 gate_skip=false
+FM_TEST_END 2026-10-04T09:15:41Z tests/fm-herdr-lab.test.sh exit=0 duration_ms=107756 gate_skip=false
+FM_TEST_END 2026-10-04T09:15:43Z tests/fm-pi-primary-types.test.sh exit=0 duration_ms=1755 gate_skip=true
+FM_TEST_END 2026-10-04T09:16:40Z tests/fm-cd-pretool-check.test.sh exit=0 duration_ms=438794 gate_skip=false
+FM_TEST_END 2026-10-04T09:17:19Z tests/fm-review-diff.test.sh exit=0 duration_ms=38276 gate_skip=false
+FM_TEST_END 2026-10-04T09:17:55Z tests/fm-lint.test.sh exit=0 duration_ms=223178 gate_skip=false
+FM_TEST_END 2026-10-04T09:18:17Z tests/fm-crew-state.test.sh exit=0 duration_ms=357259 gate_skip=false
+FM_TEST_END 2026-10-04T09:18:38Z tests/fm-send-settle.test.sh exit=0 duration_ms=41541 gate_skip=false
+FM_TEST_END 2026-10-04T09:18:42Z tests/fm-send-popup-settle.test.sh exit=0 duration_ms=82628 gate_skip=false
+FM_TEST_END 2026-10-04T09:18:48Z tests/fm-supervision-instructions.test.sh exit=0 duration_ms=5392 gate_skip=false
+FM_TEST_END 2026-10-04T09:18:57Z tests/fm-spawn-batch.test.sh exit=0 duration_ms=17977 gate_skip=false
+FM_TEST_END 2026-10-04T09:19:02Z tests/fm-send-strict.test.sh exit=0 duration_ms=43903 gate_skip=false
+FM_TEST_END 2026-10-04T09:19:04Z tests/fm-transition-lib.test.sh exit=0 duration_ms=1689 gate_skip=false
+FM_TEST_END 2026-10-04T09:19:39Z tests/fm-tmux-submit-busy.test.sh exit=0 duration_ms=41926 gate_skip=false
+FM_TEST_END 2026-10-04T09:30:18Z tests/fm-x-mode.test.sh exit=0 duration_ms=673138 gate_skip=false
+Stopped by the Test agent at 23 of 174 scripts (all 23 passed) because the remaining run needs several hours at this load.

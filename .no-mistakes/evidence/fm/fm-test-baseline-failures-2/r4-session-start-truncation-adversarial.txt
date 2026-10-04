@@ -1,0 +1,77 @@
+# Session-start truncation case (test_runtime_bound_truncates_loudly_and_exits_zero) run alone against four trees (round 4).
+# head = e7d7154 as is. lockslow = e7d7154 with 'sleep 4' injected right after 'stage lock' in bin/fm-session-start.sh (a slow lock stage, the round-3 load condition).
+# prefix-old = the test as it was at cc276e1~1 (no stage-gated watchdog sleep) with the same 'sleep 4' injected; run once concurrently with the others and once alone (prefix-old-2).
+# nobootstrap = e7d7154 with the 'stage bootstrap' line removed, a regression where session start never records leaving the lock stage.
+
+===== head
+ok - the pure-Bash watchdog bounds session start, kills its hung grandchild, and emits the truncation contract
+# fm-session-start.test.sh: all assertions passed
+exit=0 elapsed=48s
+
+===== lockslow
+ok - the pure-Bash watchdog bounds session start, kills its hung grandchild, and emits the truncation contract
+# fm-session-start.test.sh: all assertions passed
+exit=0 elapsed=55s
+
+===== prefix-old
+not ok - the truncated digest lost the output it had already produced (missing: 'SESSION START - /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.W7Oxfo/runtime-bound/home')
+--- output ---
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  STARTUP TRUNCATED - SESSION START HIT ITS 3s RUNTIME BOUND
+●  It stopped during the "unknown" stage, so everything above is COMPLETE
+●  only up to that point.
+●  RECONCILE these stages before acting on anything they would have shown:
+●    (unknown - the digest may be incomplete anywhere)
+●  Rerun bin/fm-session-start.sh now to finish taking the helm. If it truncates
+●  again, raise FM_SESSION_START_TIMEOUT and report the slow stage - a stage that
+●  cannot finish inside the bound is a fleet problem, not a reporting detail.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+exit=1 elapsed=6s
+
+===== prefix-old-2
+not ok - the truncated digest lost a stage that had completed (missing: 'LOCK')
+--- output ---
+
+================================================================================
+SESSION START - /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.27B57a/runtime-bound/home
+================================================================================
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  STARTUP TRUNCATED - SESSION START HIT ITS 3s RUNTIME BOUND
+●  It stopped during the "lock" stage, so everything above is COMPLETE
+●  only up to that point.
+●  RECONCILE these stages before acting on anything they would have shown:
+●    lock bootstrap wake-queue supervision-instructions read-once fleet-state network-checks context next-step
+●  Rerun bin/fm-session-start.sh now to finish taking the helm. If it truncates
+●  again, raise FM_SESSION_START_TIMEOUT and report the slow stage - a stage that
+●  cannot finish inside the bound is a fleet problem, not a reporting detail.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+exit=1 elapsed=5s
+
+===== nobootstrap
+not ok - the truncation banner did not name the incomplete stage (missing: 'stopped during the "bootstrap" stage')
+--- output ---
+
+================================================================================
+SESSION START - /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.k2HfLQ/runtime-bound/home
+================================================================================
+
+LOCK
+--------------------------------------------------------------------------------
+lock acquired: harness pid 80708
+
+BOOTSTRAP
+--------------------------------------------------------------------------------
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  STARTUP TRUNCATED - SESSION START HIT ITS 3s RUNTIME BOUND
+●  It stopped during the "lock" stage, so everything above is COMPLETE
+●  only up to that point.
+●  RECONCILE these stages before acting on anything they would have shown:
+●    lock bootstrap wake-queue supervision-instructions read-once fleet-state network-checks context next-step
+●  Rerun bin/fm-session-start.sh now to finish taking the helm. If it truncates
+●  again, raise FM_SESSION_START_TIMEOUT and report the slow stage - a stage that
+●  cannot finish inside the bound is a fleet problem, not a reporting detail.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+exit=1 elapsed=129s

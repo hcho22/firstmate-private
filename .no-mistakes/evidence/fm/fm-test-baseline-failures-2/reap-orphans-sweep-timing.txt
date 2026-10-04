@@ -1,0 +1,7 @@
+# fm-remote-job-reap-orphans.sh --dry-run: the orphan sweep every fm-teardown.sh run performs (bin/fm-teardown.sh:2808).
+# Alternating samples on this host: 20 CPUs, 2489 processes for this account, 6 live remote job workers.
+# 'ps' is the bare process scan both versions start with; nothing was reapable in any sample (no output, exit 0).
+sample 1: ps  0.86 s | AFTER (this fix)   1.88 s exit=0 | BEFORE (HEAD bcb2aa3)  30.08 s exit=0 | loadavg 924.74
+sample 2: ps  0.73 s | AFTER (this fix)   1.68 s exit=0 | BEFORE (HEAD bcb2aa3)  29.09 s exit=0 | loadavg 757.36
+sample 3: ps  0.98 s | AFTER (this fix)   2.01 s exit=0 | BEFORE (HEAD bcb2aa3)  31.32 s exit=0 | loadavg 661.79
+sample 4: ps  0.76 s | AFTER (this fix)   1.93 s exit=0 | BEFORE (HEAD bcb2aa3)  28.88 s exit=0 | loadavg 442.82

@@ -1,0 +1,5 @@
+provision with a server that needs 50s to start: rc=1 after 34s
+teardown rc=0 after 35s; lab state now: absent
+server processes still alive after teardown:
+36405     1 bash herdr server --session fm-lab-orphan-35947
+lab state 56s after the timed-out provision began (well after teardown): running

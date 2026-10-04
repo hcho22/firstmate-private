@@ -1,0 +1,34 @@
+# Configured command: bin/fm-test-run.sh --changed --exclude-family real-herdr-gated (target 39dde98), this macOS host, load avg ~32 on 20 CPUs
+FM_TEST_SUMMARY total=174 failed=5 skipped_gate=28 duration_ms=15266602
+FM_TEST_SUMMARY total=174 failed=5 skipped_gate=28 duration_ms=15266602
+
+## Failing scripts (first not-ok line)
+FM_TEST_END 2026-10-03T17:26:32Z tests/fm-herdr-lab.test.sh exit=1 duration_ms=56343 gate_skip=false
+FM_TEST_END 2026-10-03T17:44:37Z tests/fm-wake-queue.test.sh exit=1 duration_ms=46937 gate_skip=false
+FM_TEST_END 2026-10-03T19:13:41Z tests/fm-remote-job.test.sh exit=1 duration_ms=130625 gate_skip=false
+FM_TEST_END 2026-10-03T20:07:50Z tests/fm-extension-binding.test.sh exit=1 duration_ms=24498 gate_skip=false
+FM_TEST_END 2026-10-03T21:16:28Z tests/fm-backend-cmux.test.sh exit=1 duration_ms=43738 gate_skip=false
+not ok - an aged foreign row did not wake the parent checkpoint: checkpoint: no actionable wake within 3s; err=; meta=window=firstmate:fm-mate
+not ok - an isolated extension conformance section failed
+not ok - an orphaned command mutated after worker crash recovery
+not ok - example terminal result did not retire its source
+not ok - send_text_submit should report send-failed when the target is absent, got 'unknown'
+not ok - timed-out provision must fail: expected exit 1, got 0
+
+## The 16 scripts named in the intent
+fm-watch-arm                             exit=0 duration_ms=378531
+fm-wake-queue                            exit=1 duration_ms=46937
+fm-pi-watch-extension                    exit=0 duration_ms=146531
+fm-remote-secondmate-trace-context       exit=0 duration_ms=496600
+fm-remote-secondmate-lifecycle-e2e       exit=0 duration_ms=2039831
+fm-on                                    exit=0 duration_ms=121167
+fm-pending-reply                         exit=0 duration_ms=202896
+fm-session-start                         exit=0 duration_ms=1000011
+fm-teardown                              exit=0 duration_ms=2687118
+fm-public-followup                       exit=0 duration_ms=1338644
+fm-extension-binding                     exit=1 duration_ms=24498
+fm-backend-cmux                          exit=1 duration_ms=43738
+fm-spawn-worktree-settle                 exit=0 duration_ms=21379
+fm-bearings-snapshot                     exit=0 duration_ms=1378615
+fm-pr-check-security                     exit=0 duration_ms=1271930
+fm-backlog-atomicity                     exit=0 duration_ms=422905

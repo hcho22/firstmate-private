@@ -1,0 +1,35 @@
+# Configured command: bin/fm-test-run.sh --changed --exclude-family real-herdr-gated (target bcb2aa3), this macOS host
+FM_TEST_SUMMARY total=174 failed=2 skipped_gate=28 duration_ms=18816428
+
+## fm-teardown.test.sh: every case passed until the backstop terminated it
+FM_TEST_BEGIN 2026-10-03T23:14:01Z tests/fm-teardown.test.sh family=pr-forge expected_gate_skip=none
+FM_TEST_END 2026-10-04T00:14:05Z tests/fm-teardown.test.sh exit=124 duration_ms=3604150 gate_skip=false
+ok - an exec change preserves birth identity and the process is reaped
+ok - a process spawned during grace is reaped on a later pass
+ok - persistent leaked processes refuse teardown after bounded retries
+not ok - tests/fm-teardown.test.sh exceeded the per-script backstop of 3600s and was terminated
+FM_TEST_END 2026-10-04T00:14:05Z tests/fm-teardown.test.sh exit=124 duration_ms=3604150 gate_skip=false
+
+## fm-extension-binding.test.sh
+FM_TEST_BEGIN 2026-10-04T01:35:08Z tests/fm-extension-binding.test.sh family=standalone expected_gate_skip=none
+ok - unknown extension conformance section selectors fail before setup
+section coordinator: section coordinator-fail failed (exit 91)
+section coordinator: section coordinator-fail failed (exit 91)
+section coordinator: 2s deadline reached with unfinished sections: coordinator-stubborn
+tests/fm-extension-binding.test.sh: line 438: 98482 Killed: 9               FM_EXTENSION_BINDING_SECTION_CHILD=1 FM_EXTENSION_BINDING_SEGMENT="$section" bash "$0"
+ok - the section coordinator propagates ordered failures and bounded cleanup
+not-autohandled: flow-source (left for the handler; still unacknowledged)
+terminal-check-failed: flow-source (the adapter failed to answer; the registration stays armed)
+not ok - example terminal result did not retire its source
+--- runner output ---
+not-autohandled: example-file (left for the handler; still unacknowledged)
+terminal-check-failed: example-file (the adapter failed to answer; the registration stays armed)
+captured: ./example-file.1.result
+--- procevent list ---
+SOURCE                       ADAPTER      OWNER      PENDING  FAILED-TERMINAL-CHECKS
+example-file                 file-signal  none       1        1
+--- failed terminal checks ---
+{"code":"path-unsafe","extension_id":"org.firstmate.example.file-signal","operation":"result.terminal","schema":"firstmate.process-event-extension-error.v1"}
+section coordinator: section example failed (exit 1)
+not ok - an isolated extension conformance section failed
+FM_TEST_END 2026-10-04T01:35:34Z tests/fm-extension-binding.test.sh exit=1 duration_ms=25386 gate_skip=false

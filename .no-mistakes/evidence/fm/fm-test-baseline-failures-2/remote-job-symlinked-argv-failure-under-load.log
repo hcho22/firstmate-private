@@ -1,0 +1,35 @@
+FM_TEST_BEGIN 2026-10-04T09:07:23Z tests/fm-remote-job.test.sh family=secondmate expected_gate_skip=none
+FM_TEST_BEGIN 2026-10-04T09:07:23Z tests/fm-remote-job-orphan-reap.test.sh family=secondmate expected_gate_skip=none
+ok - the Linux start path puts the whole worker tree in its own process group
+ok - removing the state root and killing the recorded worker pid leaves the tree running at ppid 1
+ok - a worker whose code root still exists is never reaped
+ok - a worker stops its whole tree once its code root is pruned
+ok - a dry run reports the abandoned worker and signals nothing
+ok - the reaper stops an abandoned worker's whole tree
+ok - the reaper is idempotent
+ok - a scoped sweep leaves an out-of-scope worker alone and an unscoped sweep still reaches it
+ok - an invalid sweep scope refuses the whole sweep instead of widening it
+ok - a scoped sweep reaps an abandoned worker inside its scope, however the scope is spelled
+FM_TEST_END 2026-10-04T09:08:15Z tests/fm-remote-job-orphan-reap.test.sh exit=0 duration_ms=50958 gate_skip=false
+ok - default queue and execution bounds independently cover long polls
+ok - operator PATH excludes a symlinked local bin
+ok - operator PATH honors nvm defaults with a deterministic fallback
+ok - operator PATH resolves the authorized Nix profile bin link
+ok - operator PATH orders discovered tool installs deterministically
+ok - the worker preserves bounded argv and stdin in an empty environment
+ok - active jobs keep the worker ready for concurrent requests
+ok - ensure replaces a live worker after its code changes
+ok - worker identity binds the canonical configured code root
+ok - stale ownership is reclaimed without signaling a reused pid
+ok - the worker enforces the job timeout and publishes its result
+ok - the worker expires queued jobs before they can mutate
+ok - queued jobs receive a fresh bounded execution window
+ok - a queued short command preempts a running long poll instead of waiting its window
+ok - a poll re-armed after preemption reads the same cursor with nothing lost
+ok - sibling polls never preempt each other into a re-arm churn loop
+ok - worker shutdown terminates the active command tree before replacement
+ok - Linux supervision recovers crashes and stops orphaned commands
+ok - pre-execution validation obeys the job timeout
+ok - the worker drains bounded output without changing command results
+not ok - the worker accepted a symlinked argv record
+FM_TEST_END 2026-10-04T09:10:42Z tests/fm-remote-job.test.sh exit=1 duration_ms=198149 gate_skip=false

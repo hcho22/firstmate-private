@@ -1,0 +1,60 @@
+# Orphan-reap adversarial runs (round 4). psrev = a ps shim that reverses the account-wide 'ps -u <uid> -o pid=,command=' scan, the order ps produces once host pids wrap and a worker's serving child sorts ahead of its supervisor.
+# new = tests/fm-remote-job-orphan-reap.test.sh at e7d7154; old = the same file at c85efa8~1 (pre-fix assertion).
+# reap-silent = reaper mutant that stops the tree but prints no 'reaped' line; reap-nokill = reaper mutant that prints 'reaped' without stopping anything.
+
+===== new-psrev
+ok - the Linux start path puts the whole worker tree in its own process group
+ok - removing the state root and killing the recorded worker pid leaves the tree running at ppid 1
+ok - a worker whose code root still exists is never reaped
+ok - a worker stops its whole tree once its code root is pruned
+ok - a dry run reports the abandoned worker and signals nothing
+ok - the reaper stops an abandoned worker's whole tree
+ok - the reaper is idempotent
+ok - a scoped sweep leaves an out-of-scope worker alone and an unscoped sweep still reaches it
+ok - an invalid sweep scope refuses the whole sweep instead of widening it
+ok - a scoped sweep reaps an abandoned worker inside its scope, however the scope is spelled
+exit=0 elapsed=20s
+
+===== old-psrev
+ok - the Linux start path puts the whole worker tree in its own process group
+ok - removing the state root and killing the recorded worker pid leaves the tree running at ppid 1
+ok - a worker whose code root still exists is never reaped
+ok - a worker stops its whole tree once its code root is pruned
+ok - a dry run reports the abandoned worker and signals nothing
+not ok - the reaper did not report stopping the abandoned worker (missing: '35265')
+--- output ---
+reaped abandoned remote job worker 36581 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/tmp-old-psrev/fm-remote-job-orphan-reap.gdOdd9/case2/remote-root)
+exit=1 elapsed=14s
+
+===== new-silent
+ok - the Linux start path puts the whole worker tree in its own process group
+ok - removing the state root and killing the recorded worker pid leaves the tree running at ppid 1
+ok - a worker whose code root still exists is never reaped
+ok - a worker stops its whole tree once its code root is pruned
+ok - a dry run reports the abandoned worker and signals nothing
+not ok - the reaper did not report stopping the abandoned worker (missing: worker 35263 or its serving child 35970)
+--- output ---
+exit=1 elapsed=13s
+
+===== new-nokill
+ok - the Linux start path puts the whole worker tree in its own process group
+ok - removing the state root and killing the recorded worker pid leaves the tree running at ppid 1
+ok - a worker whose code root still exists is never reaped
+ok - a worker stops its whole tree once its code root is pruned
+ok - a dry run reports the abandoned worker and signals nothing
+not ok - the abandoned worker survived the reaper
+tests/lib.sh: line 99: 34207 Killed: 9               "$root/bin/fm-remote-job-worker.sh" > /dev/null 2>&1
+exit=1 elapsed=32s
+
+===== old-normal
+ok - the Linux start path puts the whole worker tree in its own process group
+ok - removing the state root and killing the recorded worker pid leaves the tree running at ppid 1
+ok - a worker whose code root still exists is never reaped
+ok - a worker stops its whole tree once its code root is pruned
+ok - a dry run reports the abandoned worker and signals nothing
+ok - the reaper stops an abandoned worker's whole tree
+ok - the reaper is idempotent
+ok - a scoped sweep leaves an out-of-scope worker alone and an unscoped sweep still reaches it
+ok - an invalid sweep scope refuses the whole sweep instead of widening it
+ok - a scoped sweep reaps an abandoned worker inside its scope, however the scope is spelled
+exit=0 elapsed=18s

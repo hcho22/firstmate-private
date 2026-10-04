@@ -1,0 +1,5 @@
+run 1: stall wake durable in queue at 3.13s; checkpoint returned at 4.12s -> check: secondmate wake-loop stalled: mate=mate row=7 age=12s
+run 2: stall wake durable in queue at 2.74s; checkpoint returned at 3.84s -> check: secondmate wake-loop stalled: mate=mate row=7 age=12s
+run 3: stall wake durable in queue at 3.29s; checkpoint returned at 4.36s -> check: secondmate wake-loop stalled: mate=mate row=7 age=12s
+run 4: stall wake durable in queue at 3.21s; checkpoint returned at 4.24s -> check: secondmate wake-loop stalled: mate=mate row=7 age=12s
+run 5: stall wake durable in queue at 2.96s; checkpoint returned at 4.33s -> check: secondmate wake-loop stalled: mate=mate row=7 age=12s

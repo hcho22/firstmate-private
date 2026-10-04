@@ -1,0 +1,18 @@
+# Same live drive on pre-fix code bcb2aa3 (capture handoff before descriptor parking) (Sun Oct  4 01:51:35 PDT 2026)
+registered source live-inherited (config-ref file:/private/tmp/fm-ext-live-01M4144D/old/signal.txt)
+starting runner with descriptors 3, 4, 5 open: fm-procevent.sh start live-inherited 3</dev/null 4</dev/null 5</dev/null
+runner claimed the source; writing the signal file
+runner exit: 0
+--- runner output ---
+not-autohandled: live-inherited (left for the handler; still unacknowledged)
+captured: ./live-inherited.1.result
+--- captured result ---
+/private/tmp/fm-ext-live-01M4144D/old/home/state/procevent-inbox/live-inherited.1.result
+evidence lines matching: 1
+--- terminal-check-failed markers ---
+(none)
+--- fm-procevent.sh list ---
+SOURCE                       ADAPTER      OWNER      PENDING  FAILED-TERMINAL-CHECKS
+live-inherited               file-signal  none       1        0
+RESULT: source NOT retired (terminal check did not see a terminal result)
+drive exit: 2

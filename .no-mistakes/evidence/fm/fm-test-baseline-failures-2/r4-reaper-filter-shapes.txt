@@ -1,0 +1,34 @@
+# Reaper early-filter shape check (round 4): stand-in workers started under four pruned code roots (plain path, a path with a space, launched as '/bin/bash <script>', and a '--lane' child that is not a worker), each supervisor spawning its '--serve' child. All dry runs; nothing was signalled. HEAD = e7d7154 bin/fm-remote-job-reap-orphans.sh (with the 096f00a early filter); base = 6c74d7f.
+--- ps view of the stand-ins (pid, command):
+47175 /bin/bash /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/plain/bin/fm-remote-job-worker.sh
+47176 /bin/bash /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/with space/bin/fm-remote-job-worker.sh
+47177 /bin/bash /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/viabash/bin/fm-remote-job-worker.sh
+47178 /bin/bash /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/lane/bin/fm-remote-job-worker.sh --lane job1
+47188 /bin/bash /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/viabash/bin/fm-remote-job-worker.sh --serve
+47638 /bin/bash /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/plain/bin/fm-remote-job-worker.sh --serve
+48039 /bin/bash /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/with space/bin/fm-remote-job-worker.sh --serve
+--- HEAD reaper --dry-run scoped to the shapes dir:
+would reap abandoned remote job worker 47175 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/plain)
+would reap abandoned remote job worker 47176 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/with space)
+would reap abandoned remote job worker 47177 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/viabash)
+would reap abandoned remote job worker 47188 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/viabash)
+would reap abandoned remote job worker 47638 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/plain)
+would reap abandoned remote job worker 48039 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/with space)
+--- HEAD reaper --dry-run unscoped, lines under the shapes dir:
+would reap abandoned remote job worker 47175 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/plain)
+would reap abandoned remote job worker 47176 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/with space)
+would reap abandoned remote job worker 47177 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/viabash)
+would reap abandoned remote job worker 47188 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/viabash)
+would reap abandoned remote job worker 47638 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/plain)
+would reap abandoned remote job worker 48039 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/with space)
+--- base 6c74d7f reaper --dry-run (host-wide by design), lines under the shapes dir:
+would reap abandoned remote job worker 47175 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/plain)
+would reap abandoned remote job worker 47176 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/with space)
+would reap abandoned remote job worker 47177 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/viabash)
+would reap abandoned remote job worker 47188 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/viabash)
+would reap abandoned remote job worker 47638 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/plain)
+would reap abandoned remote job worker 48039 (pruned code root /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-r4-adv/shapes/with space)
+--- diff HEAD (unscoped) vs base:
+IDENTICAL
+--- diff HEAD (scoped) vs base:
+IDENTICAL
