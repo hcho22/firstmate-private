@@ -2042,6 +2042,28 @@ sleep 600
 SH
 }
 
+# make_stage_gated_sleep <fakebin>: the pure-Bash watchdog's deadline sleep is
+# the only `sleep <FM_TEST_GATED_SLEEP_SECONDS>` in the world. Hold it until
+# session start records a stage past "lock" in its stage file under
+# FM_TEST_GATED_SLEEP_STAGE_DIR, so the bound fires inside the hung bootstrap
+# stage however long a loaded host takes to finish the lock stage. Every other
+# sleep runs as is. The 120 s deadline is only a hang guard for a session start
+# that never leaves the lock stage; the banner assertion then names that stage.
+make_stage_gated_sleep() {
+  local fakebin=$1
+  fm_shared_stub "$fakebin" "sleep" <<'SH'
+#!/usr/bin/env bash
+if [ "${1:-}" = "${FM_TEST_GATED_SLEEP_SECONDS:-}" ]; then
+  deadline=$((SECONDS + 120))
+  until grep -qvx lock "$FM_TEST_GATED_SLEEP_STAGE_DIR"/fm-session-start-stage.* 2>/dev/null; do
+    [ "$SECONDS" -lt "$deadline" ] || break
+    /bin/sleep 0.1
+  done
+fi
+exec /bin/sleep "$@"
+SH
+}
+
 make_term_escalating_timeout() {
   local fakebin=$1
   fm_shared_stub "$fakebin" "timeout" <<'SH'
@@ -2072,7 +2094,7 @@ SH
 }
 
 test_runtime_bound_truncates_loudly_and_exits_zero() {
-  local rec root home fakebin out status=0 stray mechanism
+  local rec root home fakebin out status=0 stray mechanism stage_dir
   rec=$(new_world runtime-bound)
   IFS='|' read -r root home fakebin <<EOF
 $rec
@@ -2080,12 +2102,17 @@ EOF
   make_fake_toolchain "$fakebin"
   make_fake_ps_claude "$fakebin"
   make_hanging_tool "$fakebin" git
+  make_stage_gated_sleep "$fakebin"
+  # A TMPDIR of its own keeps this run's stage file the only one the gate reads.
+  stage_dir="${home%/home}/session-tmp"
+  mkdir -p "$stage_dir"
 
   mechanism=$(FM_TIMEOUT_MECHANISM_OVERRIDE=bash bash -c '. "$1"; fm_timeout_mechanism' \
     _ "$ROOT/bin/fm-timeout-lib.sh")
   [ "$mechanism" = bash ] || fail "the forced pure-Bash timeout fixture selected '$mechanism'"
 
-  out=$(FM_TIMEOUT_MECHANISM_OVERRIDE=bash FM_SESSION_START_TIMEOUT=3 FM_STARTUP_NETWORK_TIMEOUT=2 \
+  out=$(TMPDIR="$stage_dir" FM_TEST_GATED_SLEEP_SECONDS=3 FM_TEST_GATED_SLEEP_STAGE_DIR="$stage_dir" \
+    FM_TIMEOUT_MECHANISM_OVERRIDE=bash FM_SESSION_START_TIMEOUT=3 FM_STARTUP_NETWORK_TIMEOUT=2 \
     run_session_start "$home" "$root" "$fakebin:$BASE_PATH") || status=$?
 
   expect_code 0 "$status" "a truncated session start must still exit 0 so the session can open"
