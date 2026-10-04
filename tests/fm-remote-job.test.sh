@@ -223,6 +223,21 @@ worker_pid_replaced() { # <old pid>: another worker has published its pid
   current=$(cat "$STATE_ROOT/worker.pid" 2>/dev/null || true)
   [ -n "$current" ] && [ "$current" != "$1" ]
 }
+job_state_text() { fm_remote_job_read_state "$1" 2>/dev/null || printf 'unreadable\n'; } # <job-dir>
+# Stage a job whose result must come from the path its case drives, never from
+# its own queue or execution deadline. Both are wall-clock windows from staging
+# and claim, so a loaded host that claims the job late, or reaches the case's
+# path late, reads a 124 instead. Under fm-shutdown-job.sh that path is a TERM
+# shutdown, a crash reclaim, or a failed shutdown, and the job's lane keeps
+# enforcing its deadline until a TERM shutdown stops it, or outlives a KILLed
+# serving worker until the restarted one reclaims the record. Both windows are
+# hang guards a passing run never waits on; a job that never finishes still
+# ends at the execution guard.
+stage_guarded_job() { # <command> [args...]
+  local FM_REMOTE_JOB_QUEUE_TIMEOUT=600
+  local FM_REMOTE_JOB_TIMEOUT=$((EVENT_WAIT_SECONDS * 2))
+  fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" "$@" < /dev/null > /dev/null
+}
 
 HOME="$ACCOUNT_HOME" PATH="$RUNTIME_BIN:/usr/bin:/bin:/usr/sbin:/sbin" FM_FAKE_PERL_LOG="$FAKE_PERL_LOG" \
   FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$STATE_ROOT" \
@@ -469,15 +484,15 @@ fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
 fm_remote_job_reap "$ACCOUNT_HOME" "$FIRST_JOB_ID" || fail "the first sibling poll could not be reaped"
 fm_remote_job_reap "$ACCOUNT_HOME" "$JOB_ID" || fail "the queued sibling poll could not be reaped"
 FM_REMOTE_JOB_QUEUE_TIMEOUT=5
+FM_REMOTE_JOB_TIMEOUT=5
 pass "sibling polls never preempt each other into a re-arm churn loop"
 
 STARTED="$TMP_ROOT/shutdown-started"
 SHUTDOWN_SIDE_EFFECT="$TMP_ROOT/shutdown-side-effect"
 SHUTDOWN_RELEASE="$TMP_ROOT/shutdown-release"
-FM_REMOTE_JOB_TIMEOUT=5
-fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
-  fm-shutdown-job.sh "$STARTED" "$SHUTDOWN_SIDE_EFFECT" "$SHUTDOWN_RELEASE" < /dev/null > /dev/null
+stage_guarded_job fm-shutdown-job.sh "$STARTED" "$SHUTDOWN_SIDE_EFFECT" "$SHUTDOWN_RELEASE" || fail "$FM_REMOTE_JOB_ERROR"
 JOB_ID=$FM_REMOTE_JOB_ID
+JOB_DIR="$STATE_ROOT/jobs/$JOB_ID"
 wait_until test -s "$STARTED" || fail "the shutdown fixture did not begin executing"
 SHUTDOWN_COMMAND_PID=$(cat "$STARTED")
 WORKER_PID=$(cat "$STATE_ROOT/worker.pid")
@@ -487,8 +502,11 @@ HOME="$ACCOUNT_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux FM_REMOTE_JOB_TIMEOUT=1 \
   "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" >> "$TMP_ROOT/worker.out" 2>> "$TMP_ROOT/worker.err" &
 wait_until test -f "$STATE_ROOT/worker.ready" || fail "the replacement worker did not become ready"
+wait_until job_in_state "$JOB_DIR" 'done' \
+  || fail "the replacement worker did not publish a result for the interrupted job (state $(job_state_text "$JOB_DIR"))"
 fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
-[ "$FM_REMOTE_JOB_EXIT" -eq 125 ] || fail "the interrupted job did not publish an unknown-completion result"
+[ "$FM_REMOTE_JOB_EXIT" -eq 125 ] \
+  || fail "the interrupted job did not publish an unknown-completion result (exit $FM_REMOTE_JOB_EXIT, expected 125; stderr: $(head -n 1 "$FM_REMOTE_JOB_STDERR"))"
 wait_until process_gone "$SHUTDOWN_COMMAND_PID" \
   || fail "worker shutdown left the active command $SHUTDOWN_COMMAND_PID running"
 : > "$SHUTDOWN_RELEASE"
@@ -499,24 +517,26 @@ pass "worker shutdown terminates the active command tree before replacement"
 CRASH_STARTED="$TMP_ROOT/crash-started"
 CRASH_SIDE_EFFECT="$TMP_ROOT/crash-side-effect"
 CRASH_RELEASE="$TMP_ROOT/crash-release"
-FM_REMOTE_JOB_TIMEOUT=5
-fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
-  fm-shutdown-job.sh "$CRASH_STARTED" "$CRASH_SIDE_EFFECT" "$CRASH_RELEASE" < /dev/null > /dev/null
+stage_guarded_job fm-shutdown-job.sh "$CRASH_STARTED" "$CRASH_SIDE_EFFECT" "$CRASH_RELEASE" || fail "$FM_REMOTE_JOB_ERROR"
 JOB_ID=$FM_REMOTE_JOB_ID
+JOB_DIR="$STATE_ROOT/jobs/$JOB_ID"
 wait_until test -s "$CRASH_STARTED" || fail "the crash fixture did not begin executing"
 CRASH_COMMAND_PID=$(cat "$CRASH_STARTED")
 CRASHED_WORKER_PID=$(cat "$STATE_ROOT/worker.pid")
 kill -KILL "$CRASHED_WORKER_PID"
 wait_until worker_pid_replaced "$CRASHED_WORKER_PID" \
   || fail "the Linux supervisor did not restart a crashed worker"
+wait_until job_in_state "$JOB_DIR" 'done' \
+  || fail "worker crash recovery did not publish a result for the orphaned job (state $(job_state_text "$JOB_DIR"))"
 fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
-[ "$FM_REMOTE_JOB_EXIT" -eq 125 ] || fail "worker crash recovery did not publish unknown completion"
+[ "$FM_REMOTE_JOB_EXIT" -eq 125 ] \
+  || fail "worker crash recovery did not publish unknown completion (exit $FM_REMOTE_JOB_EXIT, expected 125; stderr: $(head -n 1 "$FM_REMOTE_JOB_STDERR"))"
 wait_until process_gone "$CRASH_COMMAND_PID" \
   || fail "worker crash recovery left the orphaned command $CRASH_COMMAND_PID running"
 : > "$CRASH_RELEASE"
 assert_absent "$CRASH_SIDE_EFFECT" "an orphaned command mutated after worker crash recovery"
 fm_remote_job_reap "$ACCOUNT_HOME" "$JOB_ID" || fail "the crash-recovered job could not be reaped"
-fm_remote_job_probe "$ACCOUNT_HOME" || fail "the restarted worker did not remain ready"
+wait_until fm_remote_job_probe "$ACCOUNT_HOME" || fail "the restarted worker did not remain ready"
 pass "Linux supervision recovers crashes and stops orphaned commands"
 
 mkdir -p "$ACCOUNT_HOME/.local/bin"
@@ -585,10 +605,13 @@ fm_remote_job_reap "$ACCOUNT_HOME" "$JOB_ID" || fail "the pre-execution timeout 
 rm -f -- "$ACCOUNT_HOME/.local/bin/git"
 pass "pre-execution validation obeys the job timeout"
 
-fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" fm-output-job.sh < /dev/null > /dev/null
+# A worker that stopped draining output would block the job until its execution
+# guard (124), so the guard keeps that regression failing.
+stage_guarded_job fm-output-job.sh || fail "$FM_REMOTE_JOB_ERROR"
 JOB_ID=$FM_REMOTE_JOB_ID
 fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
-[ "$FM_REMOTE_JOB_EXIT" -eq 23 ] || fail "bounded output changed the command exit status"
+[ "$FM_REMOTE_JOB_EXIT" -eq 23 ] \
+  || fail "bounded output changed the command exit status (exit $FM_REMOTE_JOB_EXIT, expected 23)"
 OUTPUT_BYTES=$(LC_ALL=C wc -c < "$FM_REMOTE_JOB_STDOUT" | tr -d ' ')
 [ "$OUTPUT_BYTES" -le "$FM_REMOTE_JOB_MAX_BYTES" ] || fail "the worker retained output beyond its byte bound"
 ERROR_BYTES=$(LC_ALL=C wc -c < "$FM_REMOTE_JOB_STDERR" | tr -d ' ')
@@ -623,9 +646,7 @@ pass "the worker refuses symlinked job fields before command execution"
 QUARANTINE_STARTED="$TMP_ROOT/quarantine-started"
 QUARANTINE_SIDE_EFFECT="$TMP_ROOT/quarantine-side-effect"
 QUARANTINE_RELEASE="$TMP_ROOT/quarantine-release"
-FM_REMOTE_JOB_TIMEOUT=5
-fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
-  fm-shutdown-job.sh "$QUARANTINE_STARTED" "$QUARANTINE_SIDE_EFFECT" "$QUARANTINE_RELEASE" < /dev/null > /dev/null
+stage_guarded_job fm-shutdown-job.sh "$QUARANTINE_STARTED" "$QUARANTINE_SIDE_EFFECT" "$QUARANTINE_RELEASE" || fail "$FM_REMOTE_JOB_ERROR"
 JOB_ID=$FM_REMOTE_JOB_ID
 JOB_DIR="$STATE_ROOT/jobs/$JOB_ID"
 wait_until test -s "$QUARANTINE_STARTED" || fail "the quarantine fixture did not begin executing"
