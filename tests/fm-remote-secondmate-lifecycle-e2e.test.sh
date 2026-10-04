@@ -274,6 +274,17 @@ publish_healthy_watcher_identity() { # <state> <home> <watch-script>
   touch "$state/.last-watcher-beat"
 }
 
+# fm-send.sh bounds each remote transport attempt by FM_SEND_REMOTE_BUDGET (30 s
+# by default) and reports a bound hit as unconfirmed delivery, so a caller such
+# as fm-config-push.sh then exits non-zero with "config-reread: send failed;
+# retry retained". Every remote send here crosses the fixture's ssh, entrypoint,
+# job worker, and herdr stub, and on a host at load average 600-800 one healthy
+# send took 25-28 s, so the production bound turned a slow but successful
+# delivery into a spurious failure. These cases assert what a send delivers, not
+# how fast the host answers, so remote_env raises the bound to the hang guard:
+# fm_run_timed returns the moment the transport finishes, a passing run never
+# waits on it, and a hung transport still fails. The bound itself is exercised
+# against a deliberately hung lane in tests/fm-send-remote-delivery.test.sh.
 remote_env() {
   FM_HOME="$PARENT" \
   FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
@@ -295,6 +306,7 @@ remote_env() {
   FM_FAKE_LAUNCH_ENTERED="$TMP_ROOT/launch.entered" \
   FM_FAKE_LAUNCH_RELEASE="$TMP_ROOT/launch.release" \
   FM_SEND_SETTLE=0 FM_SEND_SLEEP=0 FM_REMOTE_REPLY_WAIT_SECONDS=10 \
+  FM_SEND_REMOTE_BUDGET=$FM_TEST_EVENT_HANG_GUARD_SECONDS \
   "$@"
 }
 
