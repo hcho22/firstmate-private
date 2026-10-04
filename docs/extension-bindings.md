@@ -197,7 +197,7 @@ For `result.terminal` and `result.silent`, the live core runner passes the host 
 Public lifecycle entry, environment, paths, and caller-supplied descriptors cannot create that handoff or authorize capture; runner claim release and dead-owner reconciliation remove its pending or consumed reservation state from the claim's recorded, revalidated state root.
 A source failure becomes a small host-produced `firstmate.process-event-extension-error.v1` result, so missing packages, invalid responses, crashes, nonzero exits, and timeouts become actionable evidence rather than silent fallback.
 Unknown or malformed terminal and silent responses take the safe false path.
-A `result.terminal` or `result.silent` step that the host itself fails, such as a handshake timeout, prints the same one-line error evidence on stdout and exits 70, distinct from the verdict exits 0 and 1.
+A `result.terminal` or `result.silent` step that the host itself fails at any point, such as a handshake timeout or a refused capture handoff, prints the same one-line error evidence on stdout and exits 70, distinct from the verdict exits 0 and 1.
 The safe false path still applies, so the registration stays armed.
 For `result.terminal` the runner also records the evidence beside the captured result as `<source-id>.<sequence>.terminal-check-failed` at mode `0600`, once per generation, and `fm-procevent.sh list` counts those records per source in its `FAILED-TERMINAL-CHECKS` column.
 

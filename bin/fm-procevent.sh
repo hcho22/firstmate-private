@@ -77,7 +77,8 @@
 # extension-bind
 #            Serialize tracked binding publication against extension resolution,
 #            registration publication, and retirement in this home.
-# list       Show registered sources, owners, and pending captured results.
+# list       Show registered sources, owners, pending captured results, and
+#            recorded failed terminal checks.
 #
 # Terminal knowledge is adapter-owned. This runner never inspects a result and
 # never names an adapter-specific status: built-ins keep the existing
