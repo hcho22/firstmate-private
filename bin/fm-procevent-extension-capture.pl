@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Cwd qw(getcwd);
-use Fcntl qw(O_CREAT O_EXCL O_NOFOLLOW O_RDONLY O_RDWR);
+use Fcntl qw(F_DUPFD O_CREAT O_EXCL O_NOFOLLOW O_RDONLY O_RDWR);
 use JSON::PP qw(encode_json);
 use POSIX qw(dup2);
 
@@ -60,7 +60,6 @@ if (@ARGV && $ARGV[0] eq 'handoff') {
   chdir($reservation) or die "cannot enter reservation root\n";
   my @reservation_stat = lstat('.');
   die "unsafe reservation root\n" unless @reservation_stat && -d _ && !-l _ && $reservation_stat[4] == $< && ($reservation_stat[2] & 07777) == 0700;
-  dup2(fileno($reservation), 7) >= 0 or die "cannot reserve capability descriptor\n";
   my $capability_name = ".extension-capture-capability-$claim_token.$reservation_token";
   sysopen(my $capability, $capability_name, O_CREAT | O_EXCL | O_NOFOLLOW | O_RDWR, 0600) or die "cannot create capability\n";
   my $record = encode_json({
@@ -79,11 +78,23 @@ if (@ARGV && $ARGV[0] eq 'handoff') {
   }
   seek($capability, 0, 0) or die "cannot rewind capability\n";
   unlink($capability_name) or die "cannot unlink capability\n";
-  dup2(fileno($claim), 6) >= 0 or die "cannot install claim descriptor\n";
-  dup2(fileno($capability), 7) >= 0 or die "cannot install capability descriptor\n";
-  dup2(fileno($inbox), 8) >= 0 or die "cannot install inbox descriptor\n";
-  dup2(fileno($result), 9) >= 0 or die "cannot install result descriptor\n";
   chdir($inbox) or die "cannot restore inbox\n";
+  # Park every source at descriptor 10 or above before installing 6 through 9.
+  # A descriptor this process inherited pushes the handles opened above to
+  # higher numbers, so a source can sit inside 6..9 and be overwritten by an
+  # earlier install. A parked source never collides with a target, and each
+  # install is then a dup2 onto a different descriptor, which clears
+  # close-on-exec for the host.
+  my @install;
+  for my $source ([$claim, 6, 'claim'], [$capability, 7, 'capability'], [$inbox, 8, 'inbox'], [$result, 9, 'result']) {
+    my $parked = fcntl($source->[0], F_DUPFD, 10);
+    defined $parked or die "cannot park $source->[2] descriptor\n";
+    push(@install, [0 + $parked, $source->[1], $source->[2]]);
+  }
+  for my $source (@install) {
+    defined(dup2($source->[0], $source->[1])) or die "cannot install $source->[2] descriptor\n";
+    POSIX::close($source->[0]);
+  }
   delete @ENV{grep { /^FM_PROCEVENT_INTERNAL_CAPTURE_/ } keys %ENV};
   exec {$host} $host, @command;
   die "cannot execute host\n";

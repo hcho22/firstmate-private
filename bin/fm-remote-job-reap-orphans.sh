@@ -139,6 +139,14 @@ reap_orphans() {
   while read -r pid command; do
     case "$pid" in ''|*[!0-9]*) continue ;; esac
     [ -n "$command" ] || continue
+    # Only a line that can be a worker invocation pays for the subshell below.
+    # An account runs thousands of processes, and one subshell per line cost
+    # about 24 s per sweep (2,250 processes) on a loaded macOS host - once per
+    # fm-teardown.sh run.
+    case "$command" in
+      *"$REAP_SUFFIX" | *"$REAP_SUFFIX --serve") ;;
+      *) continue ;;
+    esac
     root=$(reap_worker_root "$command") || continue
     reap_root_in_scope "$root" || continue
     fm_remote_job_root_is_live "$root" && continue

@@ -340,23 +340,28 @@ fi
 
 # Every positive wait in this suite is a hang guard measured by time, never a
 # fixed iteration count: a starved host only stretches the wait, and only a
-# genuine hang reaches the guard.  The guard sits below the section
-# coordinator's 90 second budget so a hung lane reports its own failure.
-EXTENSION_WAIT_SECONDS=60
+# genuine hang reaches the guard.  The guard sits well below the section
+# coordinator's EXTENSION_SECTION_HANG_GUARD_SECS so a hung lane reports its own
+# failure. A multi-step case, the inner result.silent crash recovery, outran a
+# 60 s guard at load average 900 on a 20-CPU macOS host.
+EXTENSION_WAIT_SECONDS=180
 
 # The host's own startup bounds (5 s by default, docs/extension-bindings.md) are
 # a speed expectation the sections below do not test, and a starved host can
-# exceed them while a package merely starts. Widen them to the same hang guard so
+# exceed them while a package merely starts. Widen them to a 60 s hang guard so
 # only a genuine hang fails; the startup-bounds section runs the handshake default.
+# They stay below EXTENSION_WAIT_SECONDS because the cleanup wait is also how long
+# a TERM-ignoring fixture lingers before its KILL on a passing path.
 # The overrides reach only the hosts this suite starts locally. The remote-lifecycle
 # lane's host runs under the remote job worker, which starts every job with a fixed
 # environment (bin/fm-remote-job-worker.sh), so that lane keeps the 5 s defaults:
 # a residual recorded by the remote-extension-bounds decision, which made no
 # product change to carry the overrides across the worker.
-FM_EXTENSION_HANDSHAKE_TIMEOUT_MS=$((EXTENSION_WAIT_SECONDS * 1000))
-FM_EXTENSION_LAUNCH_READY_WAIT_MS=$((EXTENSION_WAIT_SECONDS * 1000))
-FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS=$((EXTENSION_WAIT_SECONDS * 1000))
-FM_EXTENSION_CLEANUP_WAIT_MS=$((EXTENSION_WAIT_SECONDS * 1000))
+EXTENSION_HOST_BOUND_SECONDS=60
+FM_EXTENSION_HANDSHAKE_TIMEOUT_MS=$((EXTENSION_HOST_BOUND_SECONDS * 1000))
+FM_EXTENSION_LAUNCH_READY_WAIT_MS=$((EXTENSION_HOST_BOUND_SECONDS * 1000))
+FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS=$((EXTENSION_HOST_BOUND_SECONDS * 1000))
+FM_EXTENSION_CLEANUP_WAIT_MS=$((EXTENSION_HOST_BOUND_SECONDS * 1000))
 export FM_EXTENSION_HANDSHAKE_TIMEOUT_MS FM_EXTENSION_LAUNCH_READY_WAIT_MS \
   FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS FM_EXTENSION_CLEANUP_WAIT_MS
 
@@ -2226,6 +2231,32 @@ assert_absent "$H_EXAMPLE/state/procevent/example-symlinked.source" \
   "the symlinked-ancestor home did not retire its terminal source"
 FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" retire example-symlinked --if-owner "$symlinked_token" >/dev/null
 pass "a home reached through a symlinked ancestor captures and retires external evidence normally"
+
+# A runner can start with descriptors already open below the capture range
+# (whatever launched it left 3 to 5 open). Its terminal check must still receive
+# the pinned claim, capability, inbox, and result descriptors intact.
+SIGNAL_FILE_INHERITED="$TMP_ROOT/example-inherited-result.txt"
+inherited_registration=$(FM_HOME="$H_EXAMPLE" "$PROCEVENT" register-extension file-signal example-inherited \
+  --config-ref "file:$SIGNAL_FILE_INHERITED")
+inherited_token=$(printf '%s\n' "$inherited_registration" | sed -n 's/^owner-token: //p')
+FM_HOME="$H_EXAMPLE" "$PROCEVENT" start example-inherited 3</dev/null 4</dev/null 5</dev/null \
+  > "$TMP_ROOT/example-inherited-start.out" 2>&1 &
+inherited_start=$!
+wait_until test -f "$FM_PROCEVENT_CLAIM_ROOT/example-inherited.claim" \
+  || fail "a runner with inherited descriptors never started its external source"
+printf 'build 44 completed successfully\n' > "$SIGNAL_FILE_INHERITED"
+wait "$inherited_start" \
+  || fail "a runner with inherited descriptors failed its external source"
+inherited_result=$(first_result "$H_EXAMPLE" example-inherited) \
+  || fail "a runner with inherited descriptors captured no external result"
+assert_grep 'build 44 completed successfully' "$inherited_result" \
+  "a runner with inherited descriptors did not preserve external evidence"
+assert_not_contains "$(cat "$TMP_ROOT/example-inherited-start.out")" "terminal-check-failed" \
+  "a runner with inherited descriptors failed its terminal check: $(cat "$TMP_ROOT/example-inherited-start.out")"
+assert_absent "$H_EXAMPLE/state/procevent/example-inherited.source" \
+  "a runner with inherited descriptors did not retire its terminal source"
+FM_HOME="$H_EXAMPLE" "$PROCEVENT" retire example-inherited --if-owner "$inherited_token" >/dev/null
+pass "a runner started with descriptors open below the capture range still retires its terminal source"
 
 P_HANDSHAKE_ORPHAN="$PACKAGES/handshake-orphan"
 P_HANDSHAKE_RECOVER="$PACKAGES/handshake-recover"
