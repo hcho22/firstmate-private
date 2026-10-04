@@ -601,14 +601,22 @@ WORKER_PID=$(cat "$STATE_ROOT/worker.pid")
 fm_remote_job_stop_worker_tree "$WORKER_PID" \
   || fail "the worker tree did not stop before the staged-record tamper"
 assert_absent "$STATE_ROOT/worker.pid" "the worker did not clear its pid before the staged-record tamper"
+# The worker checks the queue deadline before it validates argv, and this job
+# waits for a freshly started worker. Its queue window is a hang guard, so a
+# starved host that is slow to start the worker cannot expire the job (124)
+# before the symlink refusal (126) is reached.
+SAVED_QUEUE_TIMEOUT=$FM_REMOTE_JOB_QUEUE_TIMEOUT
+FM_REMOTE_JOB_QUEUE_TIMEOUT=600
 fm_remote_job_stage "$ACCOUNT_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" fm-touch-job.sh "$SIDE_EFFECT" < /dev/null > /dev/null
+FM_REMOTE_JOB_QUEUE_TIMEOUT=$SAVED_QUEUE_TIMEOUT
 JOB_ID=$FM_REMOTE_JOB_ID
 JOB_DIR="$STATE_ROOT/jobs/$JOB_ID"
 rm -f -- "$JOB_DIR/argv"
 ln -s "$TMP_ROOT/not-an-argv" "$JOB_DIR/argv"
 fm_remote_job_ensure_worker "$REMOTE_ROOT" "$ACCOUNT_HOME" || fail "$FM_REMOTE_JOB_ERROR"
 fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
-[ "$FM_REMOTE_JOB_EXIT" -eq 126 ] || fail "the worker accepted a symlinked argv record"
+[ "$FM_REMOTE_JOB_EXIT" -eq 126 ] \
+  || fail "the worker accepted a symlinked argv record (exit $FM_REMOTE_JOB_EXIT, expected 126)"
 assert_absent "$SIDE_EFFECT" "the worker executed a job after its argv changed to a symlink"
 pass "the worker refuses symlinked job fields before command execution"
 
