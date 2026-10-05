@@ -1,0 +1,21 @@
+/tmp/fmrt-base.ZSw7vS/bin/fm-supervision-instructions.sh: line 107: /tmp/fmrt-base.ZSw7vS/docs/supervision-protocols/unknown.md: No such file or directory
+not ok - the relaunch started the tmux server every later window inherits with FM_CREW_STATE_META_OVERRIDE: CLAUDECODE=1
+FM_BACKEND=tmux
+FM_BOOTSTRAP_PARALLEL_DIR=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-bootstrap-par.uwiLcn
+FM_CREW_STATE_META_OVERRIDE=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.W8YWN1/secondmate-relaunch-server-env/stale/alpha.meta
+FM_CREW_STATE_STATUS_OVERRIDE=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.W8YWN1/secondmate-relaunch-server-env/stale/alpha.status
+FM_FAKE_HARNESS_PID=97122
+FM_FAKE_SECOND_MATE_HOME=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.W8YWN1/secondmate-relaunch-server-env/secondmate-fmtest-sm-W8YWN1
+FM_FAKE_SECOND_MATE_ID=fmtest-sm-W8YWN1
+FM_FAKE_TMUX_LOG=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.W8YWN1/secondmate-relaunch-server-env/tmux.log
+FM_FAKE_TMUX_MODE=no-server
+FM_FAKE_TMUX_SPAWNED=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.W8YWN1/secondmate-relaunch-server-env/tmux.spawned
+FM_GATE_REFUSE_BYPASS=1
+FM_HOME=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.W8YWN1/secondmate-relaunch-server-env/home
+FM_HOME_SUMMARY_IF_IDLE=0
+FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+FM_REMOTE_JOB_REAP_SCOPE=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/
+FM_ROOT_OVERRIDE=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.W8YWN1/secondmate-relaunch-server-env/root
+FM_STATE_OVERRIDE=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.W8YWN1/secondmate-relaunch-server-env/home/state
+FM_WEDGE_ALARM_EXEC=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-wedge-rec.suKr1h/rec
+RELAUNCH_ORDINARY_SENTINEL=kept

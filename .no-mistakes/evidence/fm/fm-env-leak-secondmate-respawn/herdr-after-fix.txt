@@ -1,0 +1,26 @@
+== product: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BRNARCVGWAD2D76BQE4P0
+== herdr herdr 0.7.5, isolated session fm-lab-live-env-9038
+server_ensure exit=0
+== server status
+{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-live-env-9038/herdr.sock","session":"fm-lab-live-env-9038","restart_needed":false}
+== workspace created by a clean client, root pane: w1:p1
+== pane environment handed on by the real Herdr server
+  absent  FM_SESSION_START_STAGE_FILE
+  absent  FM_CREW_STATE_META_OVERRIDE
+  absent  FM_CREW_STATE_STATUS_OVERRIDE
+  absent  FM_HOME_SUMMARY_IF_IDLE
+  absent  FM_HOME_SUMMARY_WORKER_BEST_EFFORT
+  absent  FM_TASKS_AXI_COMPATIBLE
+  absent  FM_BOOTSTRAP_NETWORK
+  absent  FM_BOOTSTRAP_NETWORK_LOCK_PID
+  absent  FM_BOOTSTRAP_DETECT_ONLY
+  absent  FM_BOOTSTRAP_LOCKED
+  absent  FM_BOOTSTRAP_VERBOSE_FACTS
+  absent  FM_BOOTSTRAP_PARALLEL_DIR
+  absent  FM_SPAWN_NO_GUARD
+  absent  FM_TIMING_LOG
+  absent  FM_TIMING_EPOCH_MS
+  absent  FM_HOME
+  absent  FM_STATE_OVERRIDE
+  absent  CLAUDECODE
+  PRESENT HERDR_LIVE_SENTINEL=kept

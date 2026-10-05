@@ -1,0 +1,94 @@
+== tmux server before session start (fresh)
+error connecting to /private/tmp/tmux-501/fm-live-relaunch-fresh-20541 (No such file or directory)
+(no tmux server running)
+session start exit=0
+== deferred network stage report
+completed off the startup path in 11s: GitHub authentication, dead-secondmate relaunch, secondmate convergence, pending handoff delivery, project clone refresh with its drift reporting, and inactive terminal-outcome reconciliation.
+BOOTSTRAP_INFO: secondmate fmtest-sm-y7ZiBH relaunched after recorded endpoint confidently missing (backend=tmux)
+SECONDMATE_SYNC: secondmate fmtest-sm-y7ZiBH: skipped: not a git repo
+These ran AFTER the sections above were composed, so re-read any record a line here names.
+TIMINGS - where the deferred network checks spent their time (ms):
+  phase       gh-auth                                    start=+2000    elapsed=0
+  phase       fleet-sync                                 start=+2000    elapsed=0
+  secondmate  liveness fmtest-sm-y7ZiBH                  start=+2000    elapsed=7000
+  phase       secondmate-liveness                        start=+2000    elapsed=8000
+  phase       secondmate-sync                            start=+10000   elapsed=1000
+  phase       handoff-delivery                           start=+11000   elapsed=0
+  stage       network-checks probe_sweeps                start=+0       elapsed=11000
+  slowest: stage network-checks probe_sweeps 11000ms, phase secondmate-liveness 8000ms, secondmate liveness fmtest-sm-y7ZiBH 7000ms
+== tmux windows after relaunch
+firstmate:bash pid=25580 cmd=bash
+firstmate:fm-fmtest-sm-y7ZiBH pid=25634 cmd=bash
+== tmux calls made by the product
+display-message -p -t firstmate:fm-fmtest-sm-y7ZiBH #{pane_id}
+list-windows -t firstmate -F #{window_name}
+list-windows -t firstmate -F #{window_name}
+has-session -t firstmate
+new-session -d -s firstmate
+display-message -p -t firstmate:fm-fmtest-sm-y7ZiBH #{pane_id}
+list-windows -t firstmate -F #{window_name}
+new-window -dP -F #{window_id} -t firstmate: -n fm-fmtest-sm-y7ZiBH -c /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.y7ZiBH/live-fresh/secondmate-fmtest-sm-y7ZiBH
+set-window-option -t @1 automatic-rename off
+set-window-option -t @1 allow-rename off
+display-message -p -t firstmate:fm-fmtest-sm-y7ZiBH #{pane_id}
+list-windows -t firstmate -F #{window_name}
+display-message -p -t firstmate:fm-fmtest-sm-y7ZiBH #{pane_tty}
+display-message -p -t firstmate:fm-fmtest-sm-y7ZiBH #{pane_tty}
+display-message -p -t firstmate:fm-fmtest-sm-y7ZiBH #{pane_tty}
+display-message -p -t firstmate:fm-fmtest-sm-y7ZiBH #{pane_id}
+display-message -p -t firstmate:fm-fmtest-sm-y7ZiBH #{pane_tty}
+display-message -p -t firstmate:fm-fmtest-sm-y7ZiBH #{pane_current_command}
+send-keys -t firstmate:fm-fmtest-sm-y7ZiBH export GOTMPDIR=/tmp/fm-fmtest-sm-y7ZiBH/gotmp Enter
+send-keys -t firstmate:fm-fmtest-sm-y7ZiBH -l env -u FM_SESSION_START_STAGE_FILE -u FM_CREW_STATE_META_OVERRIDE -u FM_CREW_STATE_STATUS_OVERRIDE -u FM_HOME_SUMMARY_IF_IDLE -u FM_HOME_SUMMARY_WORKER_BEST_EFFORT -u FM_TASKS_AXI_COMPATIBLE -u FM_BOOTSTRAP_NETWORK -u FM_BOOTSTRAP_NETWORK_LOCK_PID -u FM_BOOTSTRAP_DETECT_ONLY -u FM_BOOTSTRAP_LOCKED -u FM_BOOTSTRAP_VERBOSE_FACTS -u FM_BOOTSTRAP_PARALLEL_DIR -u FM_SPAWN_NO_GUARD -u FM_TIMING_LOG -u FM_TIMING_EPOCH_MS FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_PUBLIC_FOLLOWUP_PRIMARY_HOME='/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.y7ZiBH/live-fresh/home' FM_HOME='/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.y7ZiBH/live-fresh/secondmate-fmtest-sm-y7ZiBH' FM_TRACE_CONTEXT=off FM_SUPERVISION_MODEL=persistent env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI FM_PI_HARNESS=pi '/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.y7ZiBH/live-fresh/fakebin/pi' -e '/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.y7ZiBH/live-fresh/secondmate-fmtest-sm-y7ZiBH/.pi/extensions/fm-primary-turnend-guard.ts' -e '/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.y7ZiBH/live-fresh/secondmate-fmtest-sm-y7ZiBH/.pi/extensions/fm-primary-pi-watch.ts' "$('/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.y7ZiBH/live-fresh/root/bin/fm-operational-input.sh' encode launch-brief < '/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.y7ZiBH/live-fresh/secondmate-fmtest-sm-y7ZiBH/data/charter.md')"
+display-message -p -t firstmate:fm-fmtest-sm-y7ZiBH #{pane_id}
+send-keys -t firstmate:fm-fmtest-sm-y7ZiBH Enter
+== secondmate pane capture
+RNESS=pi '/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-sesenv -u
+FM_SESSION_START_STAGE_FILE -u FM_n/pi'
+env: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-sesenv -u FM_SE
+SSION_START_STAGE_FILE -u FM_n/pi: No such file or directory
+(base) Chos-iMac-9711:secondmate-fmtest-sm-y7ZiBH hcho$
+== real tmux server global environment: internal settings / launcher identity present?
+  absent  FM_SESSION_START_STAGE_FILE
+  absent  FM_CREW_STATE_META_OVERRIDE
+  absent  FM_CREW_STATE_STATUS_OVERRIDE
+  absent  FM_HOME_SUMMARY_IF_IDLE
+  absent  FM_HOME_SUMMARY_WORKER_BEST_EFFORT
+  absent  FM_TASKS_AXI_COMPATIBLE
+  absent  FM_BOOTSTRAP_NETWORK
+  absent  FM_BOOTSTRAP_NETWORK_LOCK_PID
+  absent  FM_BOOTSTRAP_LOCKED
+  absent  FM_BOOTSTRAP_VERBOSE_FACTS
+  absent  FM_BOOTSTRAP_PARALLEL_DIR
+  absent  FM_SPAWN_NO_GUARD
+  absent  FM_TIMING_LOG
+  absent  FM_TIMING_EPOCH_MS
+  absent  FM_HOME
+  absent  FM_STATE_OVERRIDE
+  absent  FM_ROOT_OVERRIDE
+  absent  CLAUDECODE
+  PRESENT RELAUNCH_ORDINARY_SENTINEL=kept
+  PRESENT FM_BACKEND=tmux
+== relaunched secondmate process environment: internal settings / launcher identity present?
+  absent  FM_SESSION_START_STAGE_FILE
+  absent  FM_CREW_STATE_META_OVERRIDE
+  absent  FM_CREW_STATE_STATUS_OVERRIDE
+  absent  FM_HOME_SUMMARY_IF_IDLE
+  absent  FM_HOME_SUMMARY_WORKER_BEST_EFFORT
+  absent  FM_TASKS_AXI_COMPATIBLE
+  absent  FM_BOOTSTRAP_NETWORK
+  absent  FM_BOOTSTRAP_NETWORK_LOCK_PID
+  absent  FM_BOOTSTRAP_LOCKED
+  absent  FM_BOOTSTRAP_VERBOSE_FACTS
+  absent  FM_BOOTSTRAP_PARALLEL_DIR
+  absent  FM_SPAWN_NO_GUARD
+  absent  FM_TIMING_LOG
+  absent  FM_TIMING_EPOCH_MS
+  absent  FM_HOME
+  absent  FM_STATE_OVERRIDE
+  absent  FM_ROOT_OVERRIDE
+  absent  CLAUDECODE
+  absent  RELAUNCH_ORDINARY_SENTINEL
+  absent  FM_BACKEND
+  (file missing or empty: /Users/hcho/.no-mistakes/evidence/01M44BRNARCVGWAD2D76BQE4P0/after-fix-fresh-server/secondmate-process.env)
+== expected secondmate home: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-session-start-tests.y7ZiBH/live-fresh/secondmate-fmtest-sm-y7ZiBH

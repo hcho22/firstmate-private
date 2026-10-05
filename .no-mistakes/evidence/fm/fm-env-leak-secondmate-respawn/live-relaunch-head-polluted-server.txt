@@ -1,0 +1,101 @@
+=== live relaunch: HEAD (mode=polluted-server) ===
+bin: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BRNARCVGWAD2D76BQE4P0/bin
+tmux: tmux 3.6b, private socket dir: /tmp/fmlv.3AhyNa/t, pane shell: /bin/zsh
+pre-existing polluted server global env (internal names):
+  CLAUDECODE=1
+  FM_BOOTSTRAP_LOCKED=1
+  FM_BOOTSTRAP_NETWORK=only
+  FM_BOOTSTRAP_NETWORK_LOCK_PID=1
+  FM_BOOTSTRAP_PARALLEL_DIR=/tmp/fmlv.3AhyNa/stale/parallel
+  FM_BOOTSTRAP_VERBOSE_FACTS=1
+  FM_CREW_STATE_META_OVERRIDE=/tmp/fmlv.3AhyNa/stale/alpha.meta
+  FM_CREW_STATE_STATUS_OVERRIDE=/tmp/fmlv.3AhyNa/stale/alpha.status
+  FM_HOME=/tmp/wrong-home
+  FM_HOME_SUMMARY_IF_IDLE=0
+  FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  FM_SESSION_START_STAGE_FILE=/tmp/fmlv.3AhyNa/stale/stage
+  FM_SPAWN_NO_GUARD=1
+  FM_STATE_OVERRIDE=/tmp/wrong-state
+  FM_TASKS_AXI_COMPATIBLE=1
+  FM_TIMING_EPOCH_MS=1
+  FM_TIMING_LOG=/tmp/fmlv.3AhyNa/stale/timings
+
+--- session start (inherits all internal settings + CLAUDECODE=1 + RELAUNCH_ORDINARY_SENTINEL=kept) ---
+session start exit: 0
+deferred network stage report:
+  completed off the startup path in 4s: GitHub authentication, dead-secondmate relaunch, secondmate convergence, pending handoff delivery, project clone refresh with its drift reporting, and inactive terminal-outcome reconciliation.
+  BOOTSTRAP_INFO: secondmate fmlive-sm-3AhyNa relaunched after recorded endpoint confidently missing (backend=tmux)
+  SECONDMATE_SYNC: secondmate fmlive-sm-3AhyNa: skipped: not a git repo
+    secondmate  liveness fmlive-sm-3AhyNa                  start=+1000    elapsed=3000
+    phase       secondmate-liveness                        start=+0       elapsed=4000
+    phase       secondmate-sync                            start=+4000    elapsed=0
+    slowest: phase secondmate-liveness 4000ms, stage network-checks probe_sweeps 4000ms, secondmate liveness fmlive-sm-3AhyNa 3000ms
+
+--- real tmux after session start ---
+  window zsh: pane_current_command=zsh
+  window fm-fmlive-sm-3AhyNa: pane_current_command=zsh
+tmux server global environment (Firstmate-relevant names):
+  CLAUDECODE=1
+  FM_BOOTSTRAP_LOCKED=1
+  FM_BOOTSTRAP_NETWORK=only
+  FM_BOOTSTRAP_NETWORK_LOCK_PID=1
+  FM_BOOTSTRAP_PARALLEL_DIR=/tmp/fmlv.3AhyNa/stale/parallel
+  FM_BOOTSTRAP_VERBOSE_FACTS=1
+  FM_CREW_STATE_META_OVERRIDE=/tmp/fmlv.3AhyNa/stale/alpha.meta
+  FM_CREW_STATE_STATUS_OVERRIDE=/tmp/fmlv.3AhyNa/stale/alpha.status
+  FM_HOME=/tmp/wrong-home
+  FM_HOME_SUMMARY_IF_IDLE=0
+  FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  FM_SESSION_START_STAGE_FILE=/tmp/fmlv.3AhyNa/stale/stage
+  FM_SPAWN_NO_GUARD=1
+  FM_STATE_OVERRIDE=/tmp/wrong-state
+  FM_TASKS_AXI_COMPATIBLE=1
+  FM_TIMING_EPOCH_MS=1
+  FM_TIMING_LOG=/tmp/fmlv.3AhyNa/stale/timings
+secondmate window pane (typed launch command, wrapped):
+  | TE_STATUS_OVERRIDE -u FM_HOME_SUMMARY_IF_IDLE -u FM_HOME_SUMMARY_WORKER_BEST_EFFORT -u FM_TASKS_AXI_COMPATIBLE -u FM_BOOTSTRAP_NETWORK -u FM_BOOTSTRAP_NETWORK_L
+  | OCK_PID -u FM_BOOTSTRAP_DETECT_ONLY -u FM_BOOTSTRAP_LOCKED -u FM_BOOTSTRAP_VERBOSE_FACTS -u FM_BOOTSTRAP_PARALLEL_DIR -u FM_SPAWN_NO_GUARD -u FM_TIMING_LOG -u F
+  | M_TIMING_EPOCH_MS FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_PUBLIC_FOLLOWUP_PRIMARY_HOME='/tmp/fmlv.3A
+  | hyNa/home' FM_HOME='/private/tmp/fmlv.3AhyNa/secondmate-fmlive-sm-3AhyNa' FM_TRACE_CONTEXT=off FM_SUPERVISION_MODEL=persistent env -u CURSOR_AGENT -u CURSOR_INV
+  | OKED_AS -u GEMINI_CLI FM_PI_HARNESS=pi '/tmp/fmlv.3AhyNa/fakebin/pi' -e '/private/tmp/fmlv.3AhyNa/secondmate-fmlive-sm-3AhyNa/.pi/extensions/fm-primary-turnend-
+  | (base) hcho@Chos-iMac-9711 secondmate-fmlive-sm-3AhyNa % env -u FM_SESSION_START
+  | _STAGE_FILE -u FM_CREW_STATE_META_OVERRIDE -u FM_CREW_STATE_STATUS_OVERRIDE -u F
+  | M_HOME_SUMMARY_IF_IDLE -u FM_HOME_SUMMARY_WORKER_BEST_EFFORT -u FM_TASKS_AXI_COM
+  | PATIBLE -u FM_BOOTSTRAP_NETWORK -u FM_BOOTSTRAP_NETWORK_LOCK_PID -u FM_BOOTSTRAP
+  | _DETECT_ONLY -u FM_BOOTSTRAP_LOCKED -u FM_BOOTSTRAP_VERBOSE_FACTS -u FM_BOOTSTRA
+  | P_PARALLEL_DIR -u FM_SPAWN_NO_GUARD -u FM_TIMING_LOG -u FM_TIMING_EPOCH_MS FM_RO
+  | OT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFI
+  | G_OVERRIDE= FM_PUBLIC_FOLLOWUP_PRIMARY_HOME='/tmp/fmlv.3AhyNa/home' FM_HOME='/pr
+  | ivate/tmp/fmlv.3AhyNa/secondmate-fmlive-sm-3AhyNa' FM_TRACE_CONTEXT=off FM_SUPER
+  | VISION_MODEL=persistent env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI F
+  | M_PI_HARNESS=pi '/tmp/fmlv.3AhyNa/fakebin/pi' -e '/private/tmp/fmlv.3AhyNa/secon
+  | dmate-fmlive-sm-3AhyNa/.pi/extensions/fm-primary-turnend-guard.ts' -e '/private/
+  | tmp/fmlv.3AhyNa/secondmate-fmlive-sm-3AhyNa/.pi/extensions/fm-primary-pi-wenv -u
+  |  FM_SESSION_START_STAGE_FILE -u FM_CREWra
+literal text typed into panes (bytes, first 60 chars):
+  1135	env -u FM_SESSION_START_STAGE_FILE -u FM_CREW_STATE_META_OVE
+relaunched secondmate process environment (Firstmate-relevant names):
+
+PASS: the deferred stage relaunched the dead secondmate into window fm-fmlive-sm-3AhyNa
+FAIL: the typed launch command started the secondmate agent (it recorded its environment)
+FAIL: relaunched secondmate process has no FM_SESSION_START_STAGE_FILE
+FAIL: relaunched secondmate process has no FM_CREW_STATE_META_OVERRIDE
+FAIL: relaunched secondmate process has no FM_CREW_STATE_STATUS_OVERRIDE
+FAIL: relaunched secondmate process has no FM_HOME_SUMMARY_IF_IDLE
+FAIL: relaunched secondmate process has no FM_HOME_SUMMARY_WORKER_BEST_EFFORT
+FAIL: relaunched secondmate process has no FM_TASKS_AXI_COMPATIBLE
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_NETWORK
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_NETWORK_LOCK_PID
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_LOCKED
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_VERBOSE_FACTS
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_PARALLEL_DIR
+FAIL: relaunched secondmate process has no FM_SPAWN_NO_GUARD
+FAIL: relaunched secondmate process has no FM_TIMING_LOG
+FAIL: relaunched secondmate process has no FM_TIMING_EPOCH_MS
+grep: /tmp/fmlv.3AhyNa/pi.env: No such file or directory
+FAIL: relaunched secondmate runs in its own home (FM_HOME=/tmp/fmlv.3AhyNa/secondmate-fmlive-sm-3AhyNa)
+grep: /tmp/fmlv.3AhyNa/pi.env: No such file or directory
+FAIL: relaunched secondmate keeps ordinary RELAUNCH_ORDINARY_SENTINEL=kept
+PASS: secondmate meta still records harness=pi and its home
+
+RESULT (HEAD, polluted-server): 17 failed check(s)

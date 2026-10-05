@@ -1,0 +1,93 @@
+== tmux server before session start (fresh)
+error connecting to /private/tmp/tmux-501/fm-live-relaunch-fresh-28588 (No such file or directory)
+(no tmux server running)
+session start exit=0
+== deferred network stage report
+completed off the startup path in 12s: GitHub authentication, dead-secondmate relaunch, secondmate convergence, pending handoff delivery, project clone refresh with its drift reporting, and inactive terminal-outcome reconciliation.
+BOOTSTRAP_INFO: secondmate fmtest-sm-8fYSEz relaunched after recorded endpoint confidently missing (backend=tmux)
+SECONDMATE_SYNC: secondmate fmtest-sm-8fYSEz: skipped: not a git repo
+These ran AFTER the sections above were composed, so re-read any record a line here names.
+TIMINGS - where the deferred network checks spent their time (ms):
+  phase       gh-auth                                    start=+1000    elapsed=2000
+  phase       fleet-sync                                 start=+3000    elapsed=0
+  secondmate  liveness fmtest-sm-8fYSEz                  start=+3000    elapsed=7000
+  phase       secondmate-liveness                        start=+3000    elapsed=7000
+  phase       secondmate-sync                            start=+10000   elapsed=1000
+  phase       handoff-delivery                           start=+11000   elapsed=0
+  stage       network-checks probe_sweeps                start=+0       elapsed=11000
+  slowest: stage network-checks probe_sweeps 11000ms, phase secondmate-liveness 7000ms, secondmate liveness fmtest-sm-8fYSEz 7000ms
+== tmux windows after relaunch
+firstmate:bash pid=35933 cmd=bash
+firstmate:fm-fmtest-sm-8fYSEz pid=35987 cmd=sleep
+== tmux calls made by the product
+display-message -p -t firstmate:fm-fmtest-sm-8fYSEz #{pane_id}
+list-windows -t firstmate -F #{window_name}
+list-windows -t firstmate -F #{window_name}
+display-message -p -t firstmate:fm-fmtest-sm-8fYSEz #{pane_id}
+has-session -t firstmate
+new-session -d -s firstmate
+list-windows -t firstmate -F #{window_name}
+new-window -dP -F #{window_id} -t firstmate: -n fm-fmtest-sm-8fYSEz -c /private/tmp/fm-session-start-tests.8fYSEz/live-fresh/secondmate-fmtest-sm-8fYSEz
+set-window-option -t @1 automatic-rename off
+set-window-option -t @1 allow-rename off
+display-message -p -t firstmate:fm-fmtest-sm-8fYSEz #{pane_id}
+list-windows -t firstmate -F #{window_name}
+display-message -p -t firstmate:fm-fmtest-sm-8fYSEz #{pane_tty}
+display-message -p -t firstmate:fm-fmtest-sm-8fYSEz #{pane_tty}
+display-message -p -t firstmate:fm-fmtest-sm-8fYSEz #{pane_tty}
+display-message -p -t firstmate:fm-fmtest-sm-8fYSEz #{pane_id}
+display-message -p -t firstmate:fm-fmtest-sm-8fYSEz #{pane_tty}
+display-message -p -t firstmate:fm-fmtest-sm-8fYSEz #{pane_current_command}
+send-keys -t firstmate:fm-fmtest-sm-8fYSEz export GOTMPDIR=/tmp/fm-fmtest-sm-8fYSEz/gotmp Enter
+send-keys -t firstmate:fm-fmtest-sm-8fYSEz -l FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_PUBLIC_FOLLOWUP_PRIMARY_HOME='/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/home' FM_HOME='/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/secondmate-fmtest-sm-8fYSEz' FM_TRACE_CONTEXT=off FM_SUPERVISION_MODEL=persistent env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI FM_PI_HARNESS=pi '/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/fakebin/pi' -e '/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/secondmate-fmtest-sm-8fYSEz/.pi/extensions/fm-primary-turnend-guard.ts' -e '/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/secondmate-fmtest-sm-8fYSEz/.pi/extensions/fm-primary-pi-watch.ts' "$('/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/root/bin/fm-operational-input.sh' encode launch-brief < '/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/secondmate-fmtest-sm-8fYSEz/data/charter.md')"
+display-message -p -t firstmate:fm-fmtest-sm-8fYSEz #{pane_id}
+send-keys -t firstmate:fm-fmtest-sm-8fYSEz Enter
+== secondmate pane capture
+imary-pi-watch.ts' "$('/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/roo
+t/bin/fm-operational-input.sh' encode launch-brief < '/private/tmp/fm-session-st
+art-tests.8fYSEz/live-fresh/secondmate-fmtest-sm-8fYSEz/data/charter.md')"
+secondmate pi stub up, FM_HOME=/private/tmp/fm-session-start-tests.8fYSEz/live-f
+resh/secondmate-fmtest-sm-8fYSEz
+== real tmux server global environment: internal settings / launcher identity present?
+  absent  FM_SESSION_START_STAGE_FILE
+  PRESENT FM_CREW_STATE_META_OVERRIDE=/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/stale/alpha.meta
+  PRESENT FM_CREW_STATE_STATUS_OVERRIDE=/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/stale/alpha.status
+  PRESENT FM_HOME_SUMMARY_IF_IDLE=0
+  PRESENT FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  absent  FM_TASKS_AXI_COMPATIBLE
+  absent  FM_BOOTSTRAP_NETWORK
+  absent  FM_BOOTSTRAP_NETWORK_LOCK_PID
+  absent  FM_BOOTSTRAP_LOCKED
+  absent  FM_BOOTSTRAP_VERBOSE_FACTS
+  PRESENT FM_BOOTSTRAP_PARALLEL_DIR=/tmp/fm-bootstrap-par.sLAnr8
+  absent  FM_SPAWN_NO_GUARD
+  absent  FM_TIMING_LOG
+  absent  FM_TIMING_EPOCH_MS
+  PRESENT FM_HOME=/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/home
+  PRESENT FM_STATE_OVERRIDE=/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/home/state
+  PRESENT FM_ROOT_OVERRIDE=/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/root
+  PRESENT CLAUDECODE=1
+  PRESENT RELAUNCH_ORDINARY_SENTINEL=kept
+  PRESENT FM_BACKEND=tmux
+== relaunched secondmate process environment: internal settings / launcher identity present?
+  absent  FM_SESSION_START_STAGE_FILE
+  PRESENT FM_CREW_STATE_META_OVERRIDE=/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/stale/alpha.meta
+  PRESENT FM_CREW_STATE_STATUS_OVERRIDE=/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/stale/alpha.status
+  PRESENT FM_HOME_SUMMARY_IF_IDLE=0
+  PRESENT FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  absent  FM_TASKS_AXI_COMPATIBLE
+  absent  FM_BOOTSTRAP_NETWORK
+  absent  FM_BOOTSTRAP_NETWORK_LOCK_PID
+  absent  FM_BOOTSTRAP_LOCKED
+  absent  FM_BOOTSTRAP_VERBOSE_FACTS
+  PRESENT FM_BOOTSTRAP_PARALLEL_DIR=/tmp/fm-bootstrap-par.sLAnr8
+  absent  FM_SPAWN_NO_GUARD
+  absent  FM_TIMING_LOG
+  absent  FM_TIMING_EPOCH_MS
+  PRESENT FM_HOME=/private/tmp/fm-session-start-tests.8fYSEz/live-fresh/secondmate-fmtest-sm-8fYSEz
+  PRESENT FM_STATE_OVERRIDE=
+  PRESENT FM_ROOT_OVERRIDE=
+  PRESENT CLAUDECODE=1
+  PRESENT RELAUNCH_ORDINARY_SENTINEL=kept
+  PRESENT FM_BACKEND=tmux
+== expected secondmate home: /private/tmp/fm-session-start-tests.8fYSEz/live-fresh/secondmate-fmtest-sm-8fYSEz

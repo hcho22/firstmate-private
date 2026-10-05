@@ -1,0 +1,113 @@
+=== live relaunch: BASE-7605a4a (mode=no-server) ===
+bin: /tmp/fmbase.b6mPYI/bin
+tmux: tmux 3.6b, private socket dir: /tmp/fmlv.gijJBI/t
+no tmux server running before session start
+
+--- session start (inherits all internal settings + CLAUDECODE=1 + RELAUNCH_ORDINARY_SENTINEL=kept) ---
+session start exit: 0
+deferred network stage report:
+  completed off the startup path in 4s: GitHub authentication, dead-secondmate relaunch, secondmate convergence, pending handoff delivery, project clone refresh with its drift reporting, and inactive terminal-outcome reconciliation.
+  BOOTSTRAP_INFO: secondmate fmlive-sm-gijJBI relaunched after recorded endpoint confidently missing (backend=tmux)
+  SECONDMATE_SYNC: secondmate fmlive-sm-gijJBI: skipped: not a git repo
+    secondmate  liveness fmlive-sm-gijJBI                  start=+1000    elapsed=3000
+    phase       secondmate-liveness                        start=+1000    elapsed=3000
+    phase       secondmate-sync                            start=+4000    elapsed=0
+    slowest: stage network-checks probe_sweeps 4000ms, phase secondmate-liveness 3000ms, secondmate liveness fmlive-sm-gijJBI 3000ms
+
+--- real tmux after session start ---
+  window zsh: pane_current_command=zsh
+  window fm-fmlive-sm-gijJBI: pane_current_command=sleep
+tmux server global environment (Firstmate-relevant names):
+  CLAUDECODE=1
+  FM_BACKEND=tmux
+  FM_BOOTSTRAP_PARALLEL_DIR=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-bootstrap-par.oepPmw
+  FM_CREW_STATE_META_OVERRIDE=/tmp/fmlv.gijJBI/stale/alpha.meta
+  FM_CREW_STATE_STATUS_OVERRIDE=/tmp/fmlv.gijJBI/stale/alpha.status
+  FM_HOME=/tmp/fmlv.gijJBI/home
+  FM_HOME_SUMMARY_IF_IDLE=0
+  FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  FM_ROOT_OVERRIDE=/tmp/fmlv.gijJBI/root
+  FM_STATE_OVERRIDE=/tmp/fmlv.gijJBI/home/state
+  RELAUNCH_ORDINARY_SENTINEL=kept
+secondmate window pane (typed launch command, wrapped):
+  | tch.ts' "$('/tmp/fmlv.gijJBI/root/bin/fm-operational-input.sh' encode launch-brief < '/private/tmp/fmlv.gijJBI/secondmate-fmlive-sm-gijJBI/data/charter.md')"
+  | (base) hcho@Chos-iMac-9711 secondmate-fmlive-sm-gijJBI % export GOTMPDIR=/tmp/fm
+  | -fmlive-sm-gijJBI/gotmp
+  | FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_PUBLIC_FOLLOWUP_PRIMARY_HOME='/tmp/fmlv.gijJBI/home' FM_HOME
+  | ='/private/tmp/fmlv.gijJBI/secondmate-fmlive-sm-gijJBI' FM_TRACE_CONTEXT=off FM_SUPERVISION_MODEL=persistent env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_
+  | CLI FM_PI_HARNESS=pi '/tmp/fmlv.gijJBI/fakebin/pi' -e '/private/tmp/fmlv.gijJBI/secondmate-fmlive-sm-gijJBI/.pi/extensions/fm-primary-turnend-guard.ts' -e '/pri
+  | vate/tmp/fmlv.gijJBI/secondmate-fmlive-sm-gijJBI/.pi/extensions/fm-primary-pi-watch.ts' "$('/tmp/fmlv.gijJBI/root/bin/fm-operational-input.sh' encode launch-bri
+  | ef < '/private/tmp/fmlv.gijJBI/secondmate-fmlive-sm-gijJBI/data/charter.md')"
+  | (base) hcho@Chos-iMac-9711 secondmate-fmlive-sm-gijJBI % FM_ROOT_OVERRIDE= FM_ST
+  | ATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_PUB
+  | LIC_FOLLOWUP_PRIMARY_HOME='/tmp/fmlv.gijJBI/home' FM_HOME='/private/tmp/fmlv.gij
+  | JBI/secondmate-fmlive-sm-gijJBI' FM_TRACE_CONTEXT=off FM_SUPERVISION_MODEL=persi
+  | stent env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI FM_PI_HARNESS=pi '/
+  | tmp/fmlv.gijJBI/fakebin/pi' -e '/private/tmp/fmlv.gijJBI/secondmate-fmlive-sm-gi
+  | jJBI/.pi/extensions/fm-primary-turnend-guard.ts' -e '/private/tmp/fmlv.gijJBI/se
+  | condmate-fmlive-sm-gijJBI/.pi/extensions/fm-primary-pi-watch.ts' "$('/tmp/fmlv.g
+  | ijJBI/root/bin/fm-operational-input.sh' encode launch-brief < '/private/tmp/fmlv
+  | .gijJBI/secondmate-fmlive-sm-gijJBI/data/charter.md')"
+literal text typed into panes (bytes, first 60 chars):
+  717	FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PR
+relaunched secondmate process environment (Firstmate-relevant names):
+  CLAUDECODE=1
+  FM_BACKEND=tmux
+  FM_BOOTSTRAP_PARALLEL_DIR=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-bootstrap-par.oepPmw
+  FM_CONFIG_OVERRIDE=
+  FM_CREW_STATE_META_OVERRIDE=/tmp/fmlv.gijJBI/stale/alpha.meta
+  FM_CREW_STATE_STATUS_OVERRIDE=/tmp/fmlv.gijJBI/stale/alpha.status
+  FM_DATA_OVERRIDE=
+  FM_HOME=/private/tmp/fmlv.gijJBI/secondmate-fmlive-sm-gijJBI
+  FM_HOME_SUMMARY_IF_IDLE=0
+  FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  FM_PI_HARNESS=pi
+  FM_PROJECTS_OVERRIDE=
+  FM_PUBLIC_FOLLOWUP_PRIMARY_HOME=/tmp/fmlv.gijJBI/home
+  FM_ROOT_OVERRIDE=
+  FM_STATE_OVERRIDE=
+  FM_SUPERVISION_MODEL=persistent
+  FM_TRACE_CONTEXT=off
+  RELAUNCH_ORDINARY_SENTINEL=kept
+
+PASS: the deferred stage relaunched the dead secondmate into window fm-fmlive-sm-gijJBI
+PASS: the typed launch command started the secondmate agent (it recorded its environment)
+PASS: server global env has no FM_SESSION_START_STAGE_FILE
+FAIL: server global env has no FM_CREW_STATE_META_OVERRIDE
+FAIL: server global env has no FM_CREW_STATE_STATUS_OVERRIDE
+FAIL: server global env has no FM_HOME_SUMMARY_IF_IDLE
+FAIL: server global env has no FM_HOME_SUMMARY_WORKER_BEST_EFFORT
+PASS: server global env has no FM_TASKS_AXI_COMPATIBLE
+PASS: server global env has no FM_BOOTSTRAP_NETWORK
+PASS: server global env has no FM_BOOTSTRAP_NETWORK_LOCK_PID
+PASS: server global env has no FM_BOOTSTRAP_LOCKED
+PASS: server global env has no FM_BOOTSTRAP_VERBOSE_FACTS
+FAIL: server global env has no FM_BOOTSTRAP_PARALLEL_DIR
+PASS: server global env has no FM_SPAWN_NO_GUARD
+PASS: server global env has no FM_TIMING_LOG
+PASS: server global env has no FM_TIMING_EPOCH_MS
+FAIL: server global env has no FM_HOME
+FAIL: server global env has no FM_ROOT_OVERRIDE
+FAIL: server global env has no FM_STATE_OVERRIDE
+FAIL: server global env has no CLAUDECODE
+PASS: server global env keeps ordinary RELAUNCH_ORDINARY_SENTINEL=kept
+PASS: server global env keeps explicit FM_BACKEND=tmux
+PASS: relaunched secondmate process has no FM_SESSION_START_STAGE_FILE
+FAIL: relaunched secondmate process has no FM_CREW_STATE_META_OVERRIDE
+FAIL: relaunched secondmate process has no FM_CREW_STATE_STATUS_OVERRIDE
+FAIL: relaunched secondmate process has no FM_HOME_SUMMARY_IF_IDLE
+FAIL: relaunched secondmate process has no FM_HOME_SUMMARY_WORKER_BEST_EFFORT
+PASS: relaunched secondmate process has no FM_TASKS_AXI_COMPATIBLE
+PASS: relaunched secondmate process has no FM_BOOTSTRAP_NETWORK
+PASS: relaunched secondmate process has no FM_BOOTSTRAP_NETWORK_LOCK_PID
+PASS: relaunched secondmate process has no FM_BOOTSTRAP_LOCKED
+PASS: relaunched secondmate process has no FM_BOOTSTRAP_VERBOSE_FACTS
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_PARALLEL_DIR
+PASS: relaunched secondmate process has no FM_SPAWN_NO_GUARD
+PASS: relaunched secondmate process has no FM_TIMING_LOG
+PASS: relaunched secondmate process has no FM_TIMING_EPOCH_MS
+PASS: relaunched secondmate runs in its own home (FM_HOME=/tmp/fmlv.gijJBI/secondmate-fmlive-sm-gijJBI)
+PASS: relaunched secondmate keeps ordinary RELAUNCH_ORDINARY_SENTINEL=kept
+PASS: secondmate meta still records harness=pi and its home
+
+RESULT (BASE-7605a4a, no-server): 14 failed check(s)

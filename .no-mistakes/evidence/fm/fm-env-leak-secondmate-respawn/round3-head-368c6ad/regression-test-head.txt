@@ -1,0 +1,2 @@
+ok - a deferred secondmate relaunch starts its backend server without startup's internal variables and types a launch its pane can take
+# fm-session-start.test.sh: all assertions passed

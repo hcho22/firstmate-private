@@ -1,0 +1,13 @@
+ok - fm-lint-waits flags a counted short wait with its line and budget
+ok - fm-lint-waits accepts clock deadlines, counts of 60 s or more, and variable bounds
+ok - fm-lint-waits accepts a window that names its reason and rejects a bare marker
+ok - fm-lint-waits finds counted waits with multi-line conditions and on one line
+ok - fm-lint-waits flags counted for loops that leave early, and not paced ones
+ok - fm-lint-waits flags until counters, body guards and /bin/sleep, and not a reset run
+ok - fm-lint-waits reads escaped here-document stubs and literal default bounds, not caller-set ones
+ok - fm-lint-waits counts only the sleeps at the loop's own level
+ok - fm-lint-waits does not take a deadline set inside the loop as a clock bound
+ok - fm-lint-waits reads comments as comments, not code
+ok - the repository's tests have no counted short waits
+ok - bin/fm-lint.sh's default path fails on a counted short wait
+rc=0

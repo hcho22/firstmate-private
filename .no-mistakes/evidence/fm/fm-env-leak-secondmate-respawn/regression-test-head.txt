@@ -1,0 +1,3 @@
+/tmp/fmrt-head.mqPl1s/bin/fm-supervision-instructions.sh: line 107: /tmp/fmrt-head.mqPl1s/docs/supervision-protocols/unknown.md: No such file or directory
+ok - a deferred secondmate relaunch starts its backend server and the secondmate itself without startup's internal variables
+# fm-session-start.test.sh: all assertions passed

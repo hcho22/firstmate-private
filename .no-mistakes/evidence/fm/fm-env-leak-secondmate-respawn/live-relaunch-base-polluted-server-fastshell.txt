@@ -1,0 +1,113 @@
+=== live relaunch: BASE-7605a4a (mode=polluted-server) ===
+bin: /tmp/fmbase.b6mPYI/bin
+tmux: tmux 3.6b, private socket dir: /tmp/fmlv.Y9iCd1/t, pane shell: /bin/sh
+pre-existing polluted server global env (internal names):
+  CLAUDECODE=1
+  FM_BOOTSTRAP_LOCKED=1
+  FM_BOOTSTRAP_NETWORK=only
+  FM_BOOTSTRAP_NETWORK_LOCK_PID=1
+  FM_BOOTSTRAP_PARALLEL_DIR=/tmp/fmlv.Y9iCd1/stale/parallel
+  FM_BOOTSTRAP_VERBOSE_FACTS=1
+  FM_CREW_STATE_META_OVERRIDE=/tmp/fmlv.Y9iCd1/stale/alpha.meta
+  FM_CREW_STATE_STATUS_OVERRIDE=/tmp/fmlv.Y9iCd1/stale/alpha.status
+  FM_HOME=/tmp/wrong-home
+  FM_HOME_SUMMARY_IF_IDLE=0
+  FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  FM_SESSION_START_STAGE_FILE=/tmp/fmlv.Y9iCd1/stale/stage
+  FM_SPAWN_NO_GUARD=1
+  FM_STATE_OVERRIDE=/tmp/wrong-state
+  FM_TASKS_AXI_COMPATIBLE=1
+  FM_TIMING_EPOCH_MS=1
+  FM_TIMING_LOG=/tmp/fmlv.Y9iCd1/stale/timings
+
+--- session start (inherits all internal settings + CLAUDECODE=1 + RELAUNCH_ORDINARY_SENTINEL=kept) ---
+session start exit: 0
+deferred network stage report:
+  completed off the startup path in 5s: GitHub authentication, dead-secondmate relaunch, secondmate convergence, pending handoff delivery, project clone refresh with its drift reporting, and inactive terminal-outcome reconciliation.
+  BOOTSTRAP_INFO: secondmate fmlive-sm-Y9iCd1 relaunched after recorded endpoint confidently missing (backend=tmux)
+  SECONDMATE_SYNC: secondmate fmlive-sm-Y9iCd1: skipped: not a git repo
+    secondmate  liveness fmlive-sm-Y9iCd1                  start=+0       elapsed=3000
+    phase       secondmate-liveness                        start=+0       elapsed=3000
+    phase       secondmate-sync                            start=+3000    elapsed=1000
+    slowest: stage network-checks probe_sweeps 4000ms, phase secondmate-liveness 3000ms, secondmate liveness fmlive-sm-Y9iCd1 3000ms
+
+--- real tmux after session start ---
+  window bash: pane_current_command=bash
+  window fm-fmlive-sm-Y9iCd1: pane_current_command=sleep
+tmux server global environment (Firstmate-relevant names):
+  CLAUDECODE=1
+  FM_BOOTSTRAP_LOCKED=1
+  FM_BOOTSTRAP_NETWORK=only
+  FM_BOOTSTRAP_NETWORK_LOCK_PID=1
+  FM_BOOTSTRAP_PARALLEL_DIR=/tmp/fmlv.Y9iCd1/stale/parallel
+  FM_BOOTSTRAP_VERBOSE_FACTS=1
+  FM_CREW_STATE_META_OVERRIDE=/tmp/fmlv.Y9iCd1/stale/alpha.meta
+  FM_CREW_STATE_STATUS_OVERRIDE=/tmp/fmlv.Y9iCd1/stale/alpha.status
+  FM_HOME=/tmp/wrong-home
+  FM_HOME_SUMMARY_IF_IDLE=0
+  FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  FM_SESSION_START_STAGE_FILE=/tmp/fmlv.Y9iCd1/stale/stage
+  FM_SPAWN_NO_GUARD=1
+  FM_STATE_OVERRIDE=/tmp/wrong-state
+  FM_TASKS_AXI_COMPATIBLE=1
+  FM_TIMING_EPOCH_MS=1
+  FM_TIMING_LOG=/tmp/fmlv.Y9iCd1/stale/timings
+  RELAUNCH_ORDINARY_SENTINEL=kept
+secondmate window pane (typed launch command, wrapped):
+  | Chos-iMac-9711:secondmate-fmlive-sm-Y9iCd1 hcho$ export GOTMPDIR=/tmp/fm-fmlive-sm-Y9iCd1/gotmp
+  | Chos-iMac-9711:secondmate-fmlive-sm-Y9iCd1 hcho$ FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_PUBLIC_FOLL
+  | OWUP_PRIMARY_HOME='/tmp/fmlv.Y9iCd1/home' FM_HOME='/private/tmp/fmlv.Y9iCd1/secondmate-fmlive-sm-Y9iCd1' FM_TRACE_CONTEXT=off FM_SUPERVISION_MODEL=persistent en
+  | v -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI FM_PI_HARNESS=pi '/tmp/fmlv.Y9iCd1/fakebin/pi' -e '/private/tmp/fmlv.Y9iCd1/secondmate-fmlive-sm-Y9iCd1/.pi
+  | /extensions/fm-primary-turnend-guard.ts' -e '/private/tmp/fmlv.Y9iCd1/secondmate-fmlive-sm-Y9iCd1/.pi/extensions/fm-primary-pi-watch.ts' "$('/tmp/fmlv.Y9iCd1/ro
+  | ot/bin/fm-operational-input.sh' encode launch-brief < '/private/tmp/fmlv.Y9iCd1/secondmate-fmlive-sm-Y9iCd1/data/charter.md')"
+literal text typed into panes (bytes, first 60 chars):
+  717	FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PR
+relaunched secondmate process environment (Firstmate-relevant names):
+  CLAUDECODE=1
+  FM_BOOTSTRAP_LOCKED=1
+  FM_BOOTSTRAP_NETWORK=only
+  FM_BOOTSTRAP_NETWORK_LOCK_PID=1
+  FM_BOOTSTRAP_PARALLEL_DIR=/tmp/fmlv.Y9iCd1/stale/parallel
+  FM_BOOTSTRAP_VERBOSE_FACTS=1
+  FM_CONFIG_OVERRIDE=
+  FM_CREW_STATE_META_OVERRIDE=/tmp/fmlv.Y9iCd1/stale/alpha.meta
+  FM_CREW_STATE_STATUS_OVERRIDE=/tmp/fmlv.Y9iCd1/stale/alpha.status
+  FM_DATA_OVERRIDE=
+  FM_HOME=/private/tmp/fmlv.Y9iCd1/secondmate-fmlive-sm-Y9iCd1
+  FM_HOME_SUMMARY_IF_IDLE=0
+  FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  FM_PI_HARNESS=pi
+  FM_PROJECTS_OVERRIDE=
+  FM_PUBLIC_FOLLOWUP_PRIMARY_HOME=/tmp/fmlv.Y9iCd1/home
+  FM_ROOT_OVERRIDE=
+  FM_SESSION_START_STAGE_FILE=/tmp/fmlv.Y9iCd1/stale/stage
+  FM_SPAWN_NO_GUARD=1
+  FM_STATE_OVERRIDE=
+  FM_SUPERVISION_MODEL=persistent
+  FM_TASKS_AXI_COMPATIBLE=1
+  FM_TIMING_EPOCH_MS=1
+  FM_TIMING_LOG=/tmp/fmlv.Y9iCd1/stale/timings
+  FM_TRACE_CONTEXT=off
+  RELAUNCH_ORDINARY_SENTINEL=kept
+
+PASS: the deferred stage relaunched the dead secondmate into window fm-fmlive-sm-Y9iCd1
+PASS: the typed launch command started the secondmate agent (it recorded its environment)
+FAIL: relaunched secondmate process has no FM_SESSION_START_STAGE_FILE
+FAIL: relaunched secondmate process has no FM_CREW_STATE_META_OVERRIDE
+FAIL: relaunched secondmate process has no FM_CREW_STATE_STATUS_OVERRIDE
+FAIL: relaunched secondmate process has no FM_HOME_SUMMARY_IF_IDLE
+FAIL: relaunched secondmate process has no FM_HOME_SUMMARY_WORKER_BEST_EFFORT
+FAIL: relaunched secondmate process has no FM_TASKS_AXI_COMPATIBLE
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_NETWORK
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_NETWORK_LOCK_PID
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_LOCKED
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_VERBOSE_FACTS
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_PARALLEL_DIR
+FAIL: relaunched secondmate process has no FM_SPAWN_NO_GUARD
+FAIL: relaunched secondmate process has no FM_TIMING_LOG
+FAIL: relaunched secondmate process has no FM_TIMING_EPOCH_MS
+PASS: relaunched secondmate runs in its own home (FM_HOME=/tmp/fmlv.Y9iCd1/secondmate-fmlive-sm-Y9iCd1)
+PASS: relaunched secondmate keeps ordinary RELAUNCH_ORDINARY_SENTINEL=kept
+PASS: secondmate meta still records harness=pi and its home
+
+RESULT (BASE-7605a4a, polluted-server): 14 failed check(s)

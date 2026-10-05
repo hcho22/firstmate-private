@@ -1,0 +1,4 @@
+slow bash: typed  894 bytes 0.3 s after window creation: intact
+slow bash: typed 1008 bytes 0.3 s after window creation: intact
+slow bash: typed 1018 bytes 0.3 s after window creation: intact
+slow bash: typed 1129 bytes 0.3 s after window creation: BROKEN

@@ -1,0 +1,6 @@
+### committed test, registry read slowed to >2s
+not ok - registry record bound was not enforced or disclosed: {
+### fixed test, registry read slowed to >2s
+ok - registry unavailability and bounded truncation remain explicit
+### fixed test, normal speed
+ok - registry unavailability and bounded truncation remain explicit

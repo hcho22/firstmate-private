@@ -1,0 +1,91 @@
+=== live relaunch: HEAD (mode=no-server) ===
+bin: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BRNARCVGWAD2D76BQE4P0/bin
+tmux: tmux 3.6b, private socket dir: /tmp/fmlv.MI1lXL/t
+no tmux server running before session start
+
+--- session start (inherits all internal settings + CLAUDECODE=1 + RELAUNCH_ORDINARY_SENTINEL=kept) ---
+session start exit: 0
+deferred network stage report:
+  completed off the startup path in 5s: GitHub authentication, dead-secondmate relaunch, secondmate convergence, pending handoff delivery, project clone refresh with its drift reporting, and inactive terminal-outcome reconciliation.
+  BOOTSTRAP_INFO: secondmate fmlive-sm-MI1lXL relaunched after recorded endpoint confidently missing (backend=tmux)
+  SECONDMATE_SYNC: secondmate fmlive-sm-MI1lXL: skipped: not a git repo
+    secondmate  liveness fmlive-sm-MI1lXL                  start=+1000    elapsed=4000
+    phase       secondmate-liveness                        start=+1000    elapsed=4000
+    phase       secondmate-sync                            start=+5000    elapsed=0
+    slowest: stage network-checks probe_sweeps 5000ms, phase secondmate-liveness 4000ms, secondmate liveness fmlive-sm-MI1lXL 4000ms
+
+--- real tmux after session start ---
+  window zsh: pane_current_command=zsh
+  window fm-fmlive-sm-MI1lXL: pane_current_command=zsh
+tmux server global environment (Firstmate-relevant names):
+  FM_BACKEND=tmux
+  RELAUNCH_ORDINARY_SENTINEL=kept
+secondmate window pane (typed launch command, wrapped):
+  | SE_FACTS -u FM_BOOTSTRAP_PARALLEL_DIR -u FM_SPAWN_NO_GUARD -u FM_TIMING_LOG -u FM_TIMING_EPOCH_MS FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJ
+  | ECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_PUBLIC_FOLLOWUP_PRIMARY_HOME='/tmp/fmlv.MI1lXL/home' FM_HOME='/private/tmp/fmlv.MI1lXL/secondmate-fmlive-sm-MI1lXL' FM_TRA
+  | CE_CONTEXT=off FM_SUPERVISION_MODEL=persistent env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI FM_PI_HARNESS=pi '/tmp/fmlv.MI1lXL/fakebin/pi' -e '/privat
+  | e/tmp/fmlv.MI1lXL/secondmate-fmlive-sm-MI1lXL/.pi/extensions/fm-primary-turnend-
+  | (base) hcho@Chos-iMac-9711 secondmate-fmlive-sm-MI1lXL % env -u FM_SESSION_START
+  | _STAGE_FILE -u FM_CREW_STATE_META_OVERRIDE -u FM_CREW_STATE_STATUS_OVERRIDE -u F
+  | M_HOME_SUMMARY_IF_IDLE -u FM_HOME_SUMMARY_WORKER_BEST_EFFORT -u FM_TASKS_AXI_COM
+  | PATIBLE -u FM_BOOTSTRAP_NETWORK -u FM_BOOTSTRAP_NETWORK_LOCK_PID -u FM_BOOTSTRAP
+  | _DETECT_ONLY -u FM_BOOTSTRAP_LOCKED -u FM_BOOTSTRAP_VERBOSE_FACTS -u FM_BOOTSTRA
+  | P_PARALLEL_DIR -u FM_SPAWN_NO_GUARD -u FM_TIMING_LOG -u FM_TIMING_EPOCH_MS FM_RO
+  | OT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFI
+  | G_OVERRIDE= FM_PUBLIC_FOLLOWUP_PRIMARY_HOME='/tmp/fmlv.MI1lXL/home' FM_HOME='/pr
+  | ivate/tmp/fmlv.MI1lXL/secondmate-fmlive-sm-MI1lXL' FM_TRACE_CONTEXT=off FM_SUPER
+  | VISION_MODEL=persistent env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI F
+  | M_PI_HARNESS=pi '/tmp/fmlv.MI1lXL/fakebin/pi' -e '/private/tmp/fmlv.MI1lXL/secon
+  | dmate-fmlive-sm-MI1lXL/.pi/extensions/fm-primary-turnend-guard.ts' -e '/private/
+  | tmp/fmlv.MI1lXL/secondmate-fmlive-sm-MI1lXL/.pi/extensions/fm-primary-pi-wenv -u
+  |  FM_SESSION_START_STAGE_FILE -u FM_CREWrational-input.sh' encode launch-brief < 
+  | '/private/tmp/fmlv.MI1lXL/secondmate-fmlive-sm-MI1lXL/data/charter.md')"
+  | zsh: parse error near `)'
+  | (base) hcho@Chos-iMac-9711 secondmate-fmlive-sm-MI1lXL % 
+literal text typed into panes (bytes, first 60 chars):
+  1135	env -u FM_SESSION_START_STAGE_FILE -u FM_CREW_STATE_META_OVE
+relaunched secondmate process environment (Firstmate-relevant names):
+
+PASS: the deferred stage relaunched the dead secondmate into window fm-fmlive-sm-MI1lXL
+FAIL: the typed launch command started the secondmate agent (it recorded its environment)
+PASS: server global env has no FM_SESSION_START_STAGE_FILE
+PASS: server global env has no FM_CREW_STATE_META_OVERRIDE
+PASS: server global env has no FM_CREW_STATE_STATUS_OVERRIDE
+PASS: server global env has no FM_HOME_SUMMARY_IF_IDLE
+PASS: server global env has no FM_HOME_SUMMARY_WORKER_BEST_EFFORT
+PASS: server global env has no FM_TASKS_AXI_COMPATIBLE
+PASS: server global env has no FM_BOOTSTRAP_NETWORK
+PASS: server global env has no FM_BOOTSTRAP_NETWORK_LOCK_PID
+PASS: server global env has no FM_BOOTSTRAP_LOCKED
+PASS: server global env has no FM_BOOTSTRAP_VERBOSE_FACTS
+PASS: server global env has no FM_BOOTSTRAP_PARALLEL_DIR
+PASS: server global env has no FM_SPAWN_NO_GUARD
+PASS: server global env has no FM_TIMING_LOG
+PASS: server global env has no FM_TIMING_EPOCH_MS
+PASS: server global env has no FM_HOME
+PASS: server global env has no FM_ROOT_OVERRIDE
+PASS: server global env has no FM_STATE_OVERRIDE
+PASS: server global env has no CLAUDECODE
+PASS: server global env keeps ordinary RELAUNCH_ORDINARY_SENTINEL=kept
+PASS: server global env keeps explicit FM_BACKEND=tmux
+FAIL: relaunched secondmate process has no FM_SESSION_START_STAGE_FILE
+FAIL: relaunched secondmate process has no FM_CREW_STATE_META_OVERRIDE
+FAIL: relaunched secondmate process has no FM_CREW_STATE_STATUS_OVERRIDE
+FAIL: relaunched secondmate process has no FM_HOME_SUMMARY_IF_IDLE
+FAIL: relaunched secondmate process has no FM_HOME_SUMMARY_WORKER_BEST_EFFORT
+FAIL: relaunched secondmate process has no FM_TASKS_AXI_COMPATIBLE
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_NETWORK
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_NETWORK_LOCK_PID
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_LOCKED
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_VERBOSE_FACTS
+FAIL: relaunched secondmate process has no FM_BOOTSTRAP_PARALLEL_DIR
+FAIL: relaunched secondmate process has no FM_SPAWN_NO_GUARD
+FAIL: relaunched secondmate process has no FM_TIMING_LOG
+FAIL: relaunched secondmate process has no FM_TIMING_EPOCH_MS
+grep: /tmp/fmlv.MI1lXL/pi.env: No such file or directory
+FAIL: relaunched secondmate runs in its own home (FM_HOME=/tmp/fmlv.MI1lXL/secondmate-fmlive-sm-MI1lXL)
+grep: /tmp/fmlv.MI1lXL/pi.env: No such file or directory
+FAIL: relaunched secondmate keeps ordinary RELAUNCH_ORDINARY_SENTINEL=kept
+PASS: secondmate meta still records harness=pi and its home
+
+RESULT (HEAD, no-server): 17 failed check(s)

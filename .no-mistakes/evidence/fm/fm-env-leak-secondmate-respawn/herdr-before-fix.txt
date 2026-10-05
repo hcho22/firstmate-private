@@ -1,0 +1,26 @@
+== product: /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-base-product.xVPOkZ
+== herdr herdr 0.7.5, isolated session fm-lab-live-env-12276
+server_ensure exit=0
+== server status
+{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-live-env-12276/herdr.sock","session":"fm-lab-live-env-12276","restart_needed":false}
+== workspace created by a clean client, root pane: w1:p1
+== pane environment handed on by the real Herdr server
+  PRESENT FM_SESSION_START_STAGE_FILE=/tmp/stale-stage
+  PRESENT FM_CREW_STATE_META_OVERRIDE=/tmp/stale.meta
+  PRESENT FM_CREW_STATE_STATUS_OVERRIDE=/tmp/stale.status
+  PRESENT FM_HOME_SUMMARY_IF_IDLE=0
+  PRESENT FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  PRESENT FM_TASKS_AXI_COMPATIBLE=1
+  PRESENT FM_BOOTSTRAP_NETWORK=only
+  PRESENT FM_BOOTSTRAP_NETWORK_LOCK_PID=1
+  PRESENT FM_BOOTSTRAP_DETECT_ONLY=1
+  PRESENT FM_BOOTSTRAP_LOCKED=1
+  PRESENT FM_BOOTSTRAP_VERBOSE_FACTS=1
+  PRESENT FM_BOOTSTRAP_PARALLEL_DIR=/tmp/stale-par
+  PRESENT FM_SPAWN_NO_GUARD=1
+  PRESENT FM_TIMING_LOG=/tmp/stale-timings
+  PRESENT FM_TIMING_EPOCH_MS=1
+  absent  FM_HOME
+  absent  FM_STATE_OVERRIDE
+  absent  CLAUDECODE
+  PRESENT HERDR_LIVE_SENTINEL=kept

@@ -1,0 +1,128 @@
+=== live relaunch: HEAD 368c6ad, captain login zsh (mode=polluted-server) ===
+bin: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BRNARCVGWAD2D76BQE4P0/bin
+tmux: tmux 3.6b, private socket dir: /tmp/fmlv.RXlNoN/t, pane shell: /bin/zsh
+pre-existing server started by an older Firstmate from a polluted environment; global env:
+  CLAUDECODE=1
+  FM_BOOTSTRAP_LOCKED=1
+  FM_BOOTSTRAP_NETWORK=only
+  FM_BOOTSTRAP_NETWORK_LOCK_PID=1
+  FM_BOOTSTRAP_PARALLEL_DIR=/tmp/fmlv.RXlNoN/stale/parallel
+  FM_BOOTSTRAP_VERBOSE_FACTS=1
+  FM_CREW_STATE_META_OVERRIDE=/tmp/fmlv.RXlNoN/stale/alpha.meta
+  FM_CREW_STATE_STATUS_OVERRIDE=/tmp/fmlv.RXlNoN/stale/alpha.status
+  FM_HOME=/tmp/wrong-home
+  FM_HOME_SUMMARY_IF_IDLE=0
+  FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  FM_SESSION_START_STAGE_FILE=/tmp/fmlv.RXlNoN/stale/stage
+  FM_SPAWN_NO_GUARD=1
+  FM_STATE_OVERRIDE=/tmp/wrong-state
+  FM_TASKS_AXI_COMPATIBLE=1
+  FM_TIMING_EPOCH_MS=1
+  FM_TIMING_LOG=/tmp/fmlv.RXlNoN/stale/timings
+  RELAUNCH_ORDINARY_SENTINEL=kept
+
+--- session start (inherits all internal settings + CLAUDECODE=1 + RELAUNCH_ORDINARY_SENTINEL=kept) ---
+session start exit: 0
+deferred network stage report:
+  completed off the startup path in 6s: GitHub authentication, dead-secondmate relaunch, secondmate convergence, pending handoff delivery, project clone refresh with its drift reporting, and inactive terminal-outcome reconciliation.
+  BOOTSTRAP_INFO: secondmate fmlive-sm-RXlNoN relaunched after recorded endpoint confidently missing (backend=tmux)
+  SECONDMATE_SYNC: secondmate fmlive-sm-RXlNoN: skipped: not a git repo
+    secondmate  liveness fmlive-sm-RXlNoN                  start=+1000    elapsed=4000
+    phase       secondmate-liveness                        start=+1000    elapsed=4000
+    phase       secondmate-sync                            start=+5000    elapsed=0
+    slowest: stage network-checks probe_sweeps 5000ms, phase secondmate-liveness 4000ms, secondmate liveness fmlive-sm-RXlNoN 4000ms
+
+--- real tmux after session start ---
+  window zsh: pane_current_command=zsh
+  window fm-fmlive-sm-RXlNoN: pane_current_command=sleep
+tmux server global environment (Firstmate-relevant names):
+  CLAUDECODE=1
+  FM_BOOTSTRAP_LOCKED=1
+  FM_BOOTSTRAP_NETWORK=only
+  FM_BOOTSTRAP_NETWORK_LOCK_PID=1
+  FM_BOOTSTRAP_PARALLEL_DIR=/tmp/fmlv.RXlNoN/stale/parallel
+  FM_BOOTSTRAP_VERBOSE_FACTS=1
+  FM_CREW_STATE_META_OVERRIDE=/tmp/fmlv.RXlNoN/stale/alpha.meta
+  FM_CREW_STATE_STATUS_OVERRIDE=/tmp/fmlv.RXlNoN/stale/alpha.status
+  FM_HOME=/tmp/wrong-home
+  FM_HOME_SUMMARY_IF_IDLE=0
+  FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  FM_SESSION_START_STAGE_FILE=/tmp/fmlv.RXlNoN/stale/stage
+  FM_SPAWN_NO_GUARD=1
+  FM_STATE_OVERRIDE=/tmp/wrong-state
+  FM_TASKS_AXI_COMPATIBLE=1
+  FM_TIMING_EPOCH_MS=1
+  FM_TIMING_LOG=/tmp/fmlv.RXlNoN/stale/timings
+  RELAUNCH_ORDINARY_SENTINEL=kept
+secondmate window pane (what the captain would see):
+  | tch.ts' "$('/tmp/fmlv.RXlNoN/root/bin/fm-operational-input.sh' encode launch-brief < '/private/tmp/fmlv.RXlNoN/secondmate-fmlive-sm-RXlNoN/data/charter.md')"
+  | (base) hcho@Chos-iMac-9711 secondmate-fmlive-sm-RXlNoN % export GOTMPDIR=/tmp/fm
+  | -fmlive-sm-RXlNoN/gotmp
+  | FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_PUBLIC_FOLLOWUP_PRIMARY_HOME='/tmp/fmlv.RXlNoN/home' FM_HOME
+  | ='/private/tmp/fmlv.RXlNoN/secondmate-fmlive-sm-RXlNoN' FM_TRACE_CONTEXT=off FM_SUPERVISION_MODEL=persistent env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_
+  | CLI FM_PI_HARNESS=pi '/tmp/fmlv.RXlNoN/fakebin/pi' -e '/private/tmp/fmlv.RXlNoN/secondmate-fmlive-sm-RXlNoN/.pi/extensions/fm-primary-turnend-guard.ts' -e '/pri
+  | vate/tmp/fmlv.RXlNoN/secondmate-fmlive-sm-RXlNoN/.pi/extensions/fm-primary-pi-watch.ts' "$('/tmp/fmlv.RXlNoN/root/bin/fm-operational-input.sh' encode launch-bri
+  | ef < '/private/tmp/fmlv.RXlNoN/secondmate-fmlive-sm-RXlNoN/data/charter.md')"
+  | (base) hcho@Chos-iMac-9711 secondmate-fmlive-sm-RXlNoN % FM_ROOT_OVERRIDE= FM_ST
+  | ATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_PUB
+  | LIC_FOLLOWUP_PRIMARY_HOME='/tmp/fmlv.RXlNoN/home' FM_HOME='/private/tmp/fmlv.RXl
+  | NoN/secondmate-fmlive-sm-RXlNoN' FM_TRACE_CONTEXT=off FM_SUPERVISION_MODEL=persi
+  | stent env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI FM_PI_HARNESS=pi '/
+  | tmp/fmlv.RXlNoN/fakebin/pi' -e '/private/tmp/fmlv.RXlNoN/secondmate-fmlive-sm-RX
+  | lNoN/.pi/extensions/fm-primary-turnend-guard.ts' -e '/private/tmp/fmlv.RXlNoN/se
+  | condmate-fmlive-sm-RXlNoN/.pi/extensions/fm-primary-pi-watch.ts' "$('/tmp/fmlv.R
+  | XlNoN/root/bin/fm-operational-input.sh' encode launch-brief < '/private/tmp/fmlv
+  | .RXlNoN/secondmate-fmlive-sm-RXlNoN/data/charter.md')"
+literal text typed into the secondmate pane (bytes, first 70 chars):
+  717	FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVE
+relaunched secondmate process environment (Firstmate-relevant names):
+  CLAUDECODE=1
+  FM_BOOTSTRAP_LOCKED=1
+  FM_BOOTSTRAP_NETWORK=only
+  FM_BOOTSTRAP_NETWORK_LOCK_PID=1
+  FM_BOOTSTRAP_PARALLEL_DIR=/tmp/fmlv.RXlNoN/stale/parallel
+  FM_BOOTSTRAP_VERBOSE_FACTS=1
+  FM_CONFIG_OVERRIDE=
+  FM_CREW_STATE_META_OVERRIDE=/tmp/fmlv.RXlNoN/stale/alpha.meta
+  FM_CREW_STATE_STATUS_OVERRIDE=/tmp/fmlv.RXlNoN/stale/alpha.status
+  FM_DATA_OVERRIDE=
+  FM_HOME=/private/tmp/fmlv.RXlNoN/secondmate-fmlive-sm-RXlNoN
+  FM_HOME_SUMMARY_IF_IDLE=0
+  FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  FM_PI_HARNESS=pi
+  FM_PROJECTS_OVERRIDE=
+  FM_PUBLIC_FOLLOWUP_PRIMARY_HOME=/tmp/fmlv.RXlNoN/home
+  FM_ROOT_OVERRIDE=
+  FM_SESSION_START_STAGE_FILE=/tmp/fmlv.RXlNoN/stale/stage
+  FM_SPAWN_NO_GUARD=1
+  FM_STATE_OVERRIDE=
+  FM_SUPERVISION_MODEL=persistent
+  FM_TASKS_AXI_COMPATIBLE=1
+  FM_TIMING_EPOCH_MS=1
+  FM_TIMING_LOG=/tmp/fmlv.RXlNoN/stale/timings
+  FM_TRACE_CONTEXT=off
+  RELAUNCH_ORDINARY_SENTINEL=kept
+
+PASS: the deferred stage relaunched the dead secondmate into window fm-fmlive-sm-RXlNoN
+PASS: every line typed into the pane stays under the ~1 KB pty typeahead limit (max 717 bytes)
+PASS: the typed launch command started the secondmate agent (it recorded its environment)
+PASS: relaunched secondmate runs in its own home (FM_HOME=/tmp/fmlv.RXlNoN/secondmate-fmlive-sm-RXlNoN)
+PASS: secondmate meta still records harness=pi and its home
+observed (documented limitation, not checked): internal names the relaunched secondmate got from the pre-existing polluted server:
+  FM_SESSION_START_STAGE_FILE=/tmp/fmlv.RXlNoN/stale/stage
+  FM_CREW_STATE_META_OVERRIDE=/tmp/fmlv.RXlNoN/stale/alpha.meta
+  FM_CREW_STATE_STATUS_OVERRIDE=/tmp/fmlv.RXlNoN/stale/alpha.status
+  FM_HOME_SUMMARY_IF_IDLE=0
+  FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1
+  FM_TASKS_AXI_COMPATIBLE=1
+  FM_BOOTSTRAP_NETWORK=only
+  FM_BOOTSTRAP_NETWORK_LOCK_PID=1
+  FM_BOOTSTRAP_LOCKED=1
+  FM_BOOTSTRAP_VERBOSE_FACTS=1
+  FM_BOOTSTRAP_PARALLEL_DIR=/tmp/fmlv.RXlNoN/stale/parallel
+  FM_SPAWN_NO_GUARD=1
+  FM_TIMING_LOG=/tmp/fmlv.RXlNoN/stale/timings
+  FM_TIMING_EPOCH_MS=1
+  CLAUDECODE=1
+
+RESULT (HEAD 368c6ad, captain login zsh, polluted-server): 0 failed check(s)

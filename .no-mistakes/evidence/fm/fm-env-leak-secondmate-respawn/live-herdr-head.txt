@@ -1,0 +1,19 @@
+=== live herdr server env: HEAD (herdr 0.7.5, lab session fm-lab-envlive-64225) ===
+server started by fm_backend_herdr_server_ensure from the polluted environment
+pane w1:p2 environment (Firstmate-relevant names):
+  FM_GATE_REFUSE_BYPASS=1
+  HERDR_LIVE_SENTINEL=kept
+PASS: pane has no FM_HOME
+PASS: pane has no FM_STATE_OVERRIDE
+PASS: pane has no CLAUDECODE
+PASS: pane has no FM_SESSION_START_STAGE_FILE
+PASS: pane has no FM_CREW_STATE_META_OVERRIDE
+PASS: pane has no FM_CREW_STATE_STATUS_OVERRIDE
+PASS: pane has no FM_HOME_SUMMARY_IF_IDLE
+PASS: pane has no FM_TASKS_AXI_COMPATIBLE
+PASS: pane has no FM_BOOTSTRAP_NETWORK
+PASS: pane has no FM_BOOTSTRAP_PARALLEL_DIR
+PASS: pane has no FM_SPAWN_NO_GUARD
+PASS: pane has no FM_TIMING_LOG
+PASS: pane keeps ordinary HERDR_LIVE_SENTINEL=kept
+RESULT (HEAD): 0 failed check(s)

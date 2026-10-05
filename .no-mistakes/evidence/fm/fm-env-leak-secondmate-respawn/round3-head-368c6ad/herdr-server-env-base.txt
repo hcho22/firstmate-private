@@ -1,0 +1,28 @@
+=== live herdr server env: BASE 7605a4a (herdr 0.7.5, lab session fm-lab-envlive-98874) ===
+server started by fm_backend_herdr_server_ensure from the polluted environment
+pane w1:p2 environment (Firstmate-relevant names):
+  FM_BOOTSTRAP_NETWORK=only
+  FM_BOOTSTRAP_PARALLEL_DIR=/tmp/stale-par
+  FM_CREW_STATE_META_OVERRIDE=/tmp/stale.meta
+  FM_CREW_STATE_STATUS_OVERRIDE=/tmp/stale.status
+  FM_GATE_REFUSE_BYPASS=1
+  FM_HOME_SUMMARY_IF_IDLE=0
+  FM_SESSION_START_STAGE_FILE=/tmp/stale-stage
+  FM_SPAWN_NO_GUARD=1
+  FM_TASKS_AXI_COMPATIBLE=1
+  FM_TIMING_LOG=/tmp/stale-timings
+  HERDR_LIVE_SENTINEL=kept
+PASS: pane has no FM_HOME
+PASS: pane has no FM_STATE_OVERRIDE
+PASS: pane has no CLAUDECODE
+FAIL: pane inherited FM_SESSION_START_STAGE_FILE from the server
+FAIL: pane inherited FM_CREW_STATE_META_OVERRIDE from the server
+FAIL: pane inherited FM_CREW_STATE_STATUS_OVERRIDE from the server
+FAIL: pane inherited FM_HOME_SUMMARY_IF_IDLE from the server
+FAIL: pane inherited FM_TASKS_AXI_COMPATIBLE from the server
+FAIL: pane inherited FM_BOOTSTRAP_NETWORK from the server
+FAIL: pane inherited FM_BOOTSTRAP_PARALLEL_DIR from the server
+FAIL: pane inherited FM_SPAWN_NO_GUARD from the server
+FAIL: pane inherited FM_TIMING_LOG from the server
+PASS: pane keeps ordinary HERDR_LIVE_SENTINEL=kept
+RESULT (BASE 7605a4a): 9 failed check(s)

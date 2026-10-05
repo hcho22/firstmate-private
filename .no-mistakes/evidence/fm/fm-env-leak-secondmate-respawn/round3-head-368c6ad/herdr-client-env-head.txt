@@ -1,0 +1,18 @@
+=== live herdr client env: HEAD 368c6ad (herdr 0.7.5, lab session fm-lab-envcli-6072) ===
+server started cleanly (ordinary HERDR_LIVE_SENTINEL=kept only)
+pane w1:p2 created and driven by a client carrying: CLAUDECODE FM_SESSION_START_STAGE_FILE FM_CREW_STATE_META_OVERRIDE FM_CREW_STATE_STATUS_OVERRIDE FM_HOME_SUMMARY_IF_IDLE FM_TASKS_AXI_COMPATIBLE FM_BOOTSTRAP_NETWORK FM_BOOTSTRAP_PARALLEL_DIR FM_SPAWN_NO_GUARD FM_TIMING_LOG
+pane environment (Firstmate-relevant names):
+  FM_GATE_REFUSE_BYPASS=1
+  HERDR_LIVE_SENTINEL=kept
+PASS: pane has no CLAUDECODE
+PASS: pane has no FM_SESSION_START_STAGE_FILE
+PASS: pane has no FM_CREW_STATE_META_OVERRIDE
+PASS: pane has no FM_CREW_STATE_STATUS_OVERRIDE
+PASS: pane has no FM_HOME_SUMMARY_IF_IDLE
+PASS: pane has no FM_TASKS_AXI_COMPATIBLE
+PASS: pane has no FM_BOOTSTRAP_NETWORK
+PASS: pane has no FM_BOOTSTRAP_PARALLEL_DIR
+PASS: pane has no FM_SPAWN_NO_GUARD
+PASS: pane has no FM_TIMING_LOG
+PASS: pane keeps the server's ordinary HERDR_LIVE_SENTINEL=kept
+RESULT (HEAD 368c6ad): 0 failed check(s)

@@ -1,0 +1,8 @@
+typed  894 bytes, 0.3 s after window creation: intact
+typed  994 bytes, 0.3 s after window creation: intact
+typed 1014 bytes, 0.3 s after window creation: intact
+typed 1024 bytes, 0.3 s after window creation: BROKEN
+typed 1129 bytes, 0.3 s after window creation: BROKEN
+typed 1394 bytes, 0.3 s after window creation: BROKEN
+typed 1129 bytes, 5   s after window creation: intact
+typed 1394 bytes, 5   s after window creation: intact

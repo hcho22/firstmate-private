@@ -1,0 +1,98 @@
+=== live relaunch: HEAD 368c6ad, captain login zsh (mode=clean-server) ===
+bin: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BRNARCVGWAD2D76BQE4P0/bin
+tmux: tmux 3.6b, private socket dir: /tmp/fmlv.jG2I2d/t, pane shell: /bin/zsh
+pre-existing server started from a clean environment; global env:
+  RELAUNCH_ORDINARY_SENTINEL=kept
+
+--- session start (inherits all internal settings + CLAUDECODE=1 + RELAUNCH_ORDINARY_SENTINEL=kept) ---
+session start exit: 0
+deferred network stage report:
+  completed off the startup path in 6s: GitHub authentication, dead-secondmate relaunch, secondmate convergence, pending handoff delivery, project clone refresh with its drift reporting, and inactive terminal-outcome reconciliation.
+  BOOTSTRAP_INFO: secondmate fmlive-sm-jG2I2d relaunched after recorded endpoint confidently missing (backend=tmux)
+  SECONDMATE_SYNC: secondmate fmlive-sm-jG2I2d: skipped: not a git repo
+    secondmate  liveness fmlive-sm-jG2I2d                  start=+1000    elapsed=4000
+    phase       secondmate-liveness                        start=+1000    elapsed=4000
+    phase       secondmate-sync                            start=+5000    elapsed=0
+    slowest: stage network-checks probe_sweeps 5000ms, phase secondmate-liveness 4000ms, secondmate liveness fmlive-sm-jG2I2d 4000ms
+
+--- real tmux after session start ---
+  window zsh: pane_current_command=zsh
+  window fm-fmlive-sm-jG2I2d: pane_current_command=sleep
+tmux server global environment (Firstmate-relevant names):
+  RELAUNCH_ORDINARY_SENTINEL=kept
+secondmate window pane (what the captain would see):
+  | tch.ts' "$('/tmp/fmlv.jG2I2d/root/bin/fm-operational-input.sh' encode launch-brief < '/private/tmp/fmlv.jG2I2d/secondmate-fmlive-sm-jG2I2d/data/charter.md')"
+  | (base) hcho@Chos-iMac-9711 secondmate-fmlive-sm-jG2I2d % export GOTMPDIR=/tmp/fm
+  | -fmlive-sm-jG2I2d/gotmp
+  | FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_PUBLIC_FOLLOWUP_PRIMARY_HOME='/tmp/fmlv.jG2I2d/home' FM_HOME
+  | ='/private/tmp/fmlv.jG2I2d/secondmate-fmlive-sm-jG2I2d' FM_TRACE_CONTEXT=off FM_SUPERVISION_MODEL=persistent env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_
+  | CLI FM_PI_HARNESS=pi '/tmp/fmlv.jG2I2d/fakebin/pi' -e '/private/tmp/fmlv.jG2I2d/secondmate-fmlive-sm-jG2I2d/.pi/extensions/fm-primary-turnend-guard.ts' -e '/pri
+  | vate/tmp/fmlv.jG2I2d/secondmate-fmlive-sm-jG2I2d/.pi/extensions/fm-primary-pi-watch.ts' "$('/tmp/fmlv.jG2I2d/root/bin/fm-operational-input.sh' encode launch-bri
+  | ef < '/private/tmp/fmlv.jG2I2d/secondmate-fmlive-sm-jG2I2d/data/charter.md')"
+  | (base) hcho@Chos-iMac-9711 secondmate-fmlive-sm-jG2I2d % FM_ROOT_OVERRIDE= FM_ST
+  | ATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_PUB
+  | LIC_FOLLOWUP_PRIMARY_HOME='/tmp/fmlv.jG2I2d/home' FM_HOME='/private/tmp/fmlv.jG2
+  | I2d/secondmate-fmlive-sm-jG2I2d' FM_TRACE_CONTEXT=off FM_SUPERVISION_MODEL=persi
+  | stent env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI FM_PI_HARNESS=pi '/
+  | tmp/fmlv.jG2I2d/fakebin/pi' -e '/private/tmp/fmlv.jG2I2d/secondmate-fmlive-sm-jG
+  | 2I2d/.pi/extensions/fm-primary-turnend-guard.ts' -e '/private/tmp/fmlv.jG2I2d/se
+  | condmate-fmlive-sm-jG2I2d/.pi/extensions/fm-primary-pi-watch.ts' "$('/tmp/fmlv.j
+  | G2I2d/root/bin/fm-operational-input.sh' encode launch-brief < '/private/tmp/fmlv
+  | .jG2I2d/secondmate-fmlive-sm-jG2I2d/data/charter.md')"
+literal text typed into the secondmate pane (bytes, first 70 chars):
+  717	FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVE
+relaunched secondmate process environment (Firstmate-relevant names):
+  FM_CONFIG_OVERRIDE=
+  FM_DATA_OVERRIDE=
+  FM_HOME=/private/tmp/fmlv.jG2I2d/secondmate-fmlive-sm-jG2I2d
+  FM_PI_HARNESS=pi
+  FM_PROJECTS_OVERRIDE=
+  FM_PUBLIC_FOLLOWUP_PRIMARY_HOME=/tmp/fmlv.jG2I2d/home
+  FM_ROOT_OVERRIDE=
+  FM_STATE_OVERRIDE=
+  FM_SUPERVISION_MODEL=persistent
+  FM_TRACE_CONTEXT=off
+  RELAUNCH_ORDINARY_SENTINEL=kept
+
+PASS: the deferred stage relaunched the dead secondmate into window fm-fmlive-sm-jG2I2d
+PASS: every line typed into the pane stays under the ~1 KB pty typeahead limit (max 717 bytes)
+PASS: the typed launch command started the secondmate agent (it recorded its environment)
+PASS: server global env has no FM_SESSION_START_STAGE_FILE
+PASS: server global env has no FM_CREW_STATE_META_OVERRIDE
+PASS: server global env has no FM_CREW_STATE_STATUS_OVERRIDE
+PASS: server global env has no FM_HOME_SUMMARY_IF_IDLE
+PASS: server global env has no FM_HOME_SUMMARY_WORKER_BEST_EFFORT
+PASS: server global env has no FM_TASKS_AXI_COMPATIBLE
+PASS: server global env has no FM_BOOTSTRAP_NETWORK
+PASS: server global env has no FM_BOOTSTRAP_NETWORK_LOCK_PID
+PASS: server global env has no FM_BOOTSTRAP_LOCKED
+PASS: server global env has no FM_BOOTSTRAP_VERBOSE_FACTS
+PASS: server global env has no FM_BOOTSTRAP_PARALLEL_DIR
+PASS: server global env has no FM_SPAWN_NO_GUARD
+PASS: server global env has no FM_TIMING_LOG
+PASS: server global env has no FM_TIMING_EPOCH_MS
+PASS: server global env has no FM_HOME
+PASS: server global env has no FM_ROOT_OVERRIDE
+PASS: server global env has no FM_STATE_OVERRIDE
+PASS: server global env has no CLAUDECODE
+PASS: server global env keeps ordinary RELAUNCH_ORDINARY_SENTINEL=kept
+PASS: relaunched secondmate process has no FM_SESSION_START_STAGE_FILE
+PASS: relaunched secondmate process has no FM_CREW_STATE_META_OVERRIDE
+PASS: relaunched secondmate process has no FM_CREW_STATE_STATUS_OVERRIDE
+PASS: relaunched secondmate process has no FM_HOME_SUMMARY_IF_IDLE
+PASS: relaunched secondmate process has no FM_HOME_SUMMARY_WORKER_BEST_EFFORT
+PASS: relaunched secondmate process has no FM_TASKS_AXI_COMPATIBLE
+PASS: relaunched secondmate process has no FM_BOOTSTRAP_NETWORK
+PASS: relaunched secondmate process has no FM_BOOTSTRAP_NETWORK_LOCK_PID
+PASS: relaunched secondmate process has no FM_BOOTSTRAP_LOCKED
+PASS: relaunched secondmate process has no FM_BOOTSTRAP_VERBOSE_FACTS
+PASS: relaunched secondmate process has no FM_BOOTSTRAP_PARALLEL_DIR
+PASS: relaunched secondmate process has no FM_SPAWN_NO_GUARD
+PASS: relaunched secondmate process has no FM_TIMING_LOG
+PASS: relaunched secondmate process has no FM_TIMING_EPOCH_MS
+PASS: relaunched secondmate process has no CLAUDECODE
+PASS: relaunched secondmate keeps ordinary RELAUNCH_ORDINARY_SENTINEL=kept
+PASS: relaunched secondmate runs in its own home (FM_HOME=/tmp/fmlv.jG2I2d/secondmate-fmlive-sm-jG2I2d)
+PASS: secondmate meta still records harness=pi and its home
+
+RESULT (HEAD 368c6ad, captain login zsh, clean-server): 0 failed check(s)
