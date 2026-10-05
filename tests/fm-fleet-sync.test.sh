@@ -35,17 +35,16 @@ set -u
 fm_git_identity fmtest fmtest@example.invalid
 
 TMP_ROOT=$(fm_test_tmproot fm-fleet-sync-tests)
-HOME_N=0
 
 # --- fixtures ---------------------------------------------------------------
 
 # new_home: fresh isolated FM_HOME with an empty projects/ dir. Each test gets its
-# own so the whole-fleet form never sees another test's clones.
+# own so the whole-fleet form never sees another test's clones. Callers capture
+# it in a command substitution, so the name comes from mktemp rather than from a
+# counter that subshell could never advance.
 new_home() {
-  HOME_N=$((HOME_N + 1))
-  local h="$TMP_ROOT/home-$HOME_N"
-  mkdir -p "$h/projects"
-  printf '%s\n' "$h"
+  local h
+  h=$(mktemp -d "$TMP_ROOT/home.XXXXXX") && mkdir -p "$h/projects" && printf '%s\n' "$h"
 }
 
 commit_file() {
@@ -238,7 +237,7 @@ run_sync_guarded() {
 
 test_detached_clean_ancestor_recovers() {
   local home clone out before after
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   clone=$(build_pair "$home" alpha)
   advance_origin "$home" alpha C1
   before=$(head_sha "$clone")
@@ -260,7 +259,7 @@ test_detached_clean_ancestor_recovers() {
 
 test_detached_unique_commit_is_stuck_untouched() {
   local home clone out before
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   clone=$(build_pair "$home" beta)
   git -C "$clone" checkout --detach --quiet
   commit_file "$clone" extra.txt unique "local unique work"
@@ -279,7 +278,7 @@ test_detached_unique_commit_is_stuck_untouched() {
 
 test_detached_clean_ancestor_with_diverged_local_default_is_stuck_untouched() {
   local home clone out before local_main
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   clone=$(build_pair "$home" beta-local-default)
   commit_file "$clone" local.txt local "local divergent main commit"
   local_main=$(git -C "$clone" rev-parse main)
@@ -300,7 +299,7 @@ test_detached_clean_ancestor_with_diverged_local_default_is_stuck_untouched() {
 
 test_dirty_is_stuck_untouched() {
   local home clone out before
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   clone=$(build_pair "$home" gamma)
   advance_origin "$home" gamma C1
   before=$(head_sha "$clone")
@@ -318,7 +317,7 @@ test_dirty_is_stuck_untouched() {
 
 test_non_default_branch_is_stuck_untouched() {
   local home clone out
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   clone=$(build_pair "$home" delta)
   git -C "$clone" checkout -q -b feature
   advance_origin "$home" delta C1
@@ -334,7 +333,7 @@ test_non_default_branch_is_stuck_untouched() {
 
 test_diverged_is_stuck_untouched() {
   local home clone out before
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   clone=$(build_pair "$home" epsilon)
   # Local main gains its own commit; origin advances down a different line.
   commit_file "$clone" local.txt local "local divergent commit"
@@ -352,7 +351,7 @@ test_diverged_is_stuck_untouched() {
 
 test_on_default_clean_behind_fast_forwards() {
   local home clone out
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   clone=$(build_pair "$home" zeta)
   advance_origin "$home" zeta C1
 
@@ -367,7 +366,7 @@ test_on_default_clean_behind_fast_forwards() {
 
 test_already_current_unchanged() {
   local home clone out before
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   clone=$(build_pair "$home" eta)
   before=$(head_sha "$clone")
 
@@ -382,7 +381,7 @@ test_already_current_unchanged() {
 
 test_no_origin_skipped() {
   local home clone out
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   clone="$home/projects/theta"
   git init -q "$clone"
   git -C "$clone" symbolic-ref HEAD refs/heads/main
@@ -397,7 +396,7 @@ test_no_origin_skipped() {
 
 test_local_only_skipped() {
   local home clone out
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   clone=$(build_pair "$home" iota)
   advance_origin "$home" iota C1
   mkdir -p "$home/data"
@@ -412,7 +411,7 @@ test_local_only_skipped() {
 
 test_single_project_by_bare_name_resolves() {
   local home out
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   build_pair "$home" kappa >/dev/null
   advance_origin "$home" kappa C1
 
@@ -424,7 +423,7 @@ test_single_project_by_bare_name_resolves() {
 
 test_single_project_by_bare_name_ignores_cwd_shadow() {
   local home cwd out
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   build_pair "$home" mu >/dev/null
   advance_origin "$home" mu C1
   cwd="$home/shadow"
@@ -439,7 +438,7 @@ test_single_project_by_bare_name_ignores_cwd_shadow() {
 
 test_single_project_by_projects_relative_name_resolves() {
   local home out
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   build_pair "$home" lambda >/dev/null
   advance_origin "$home" lambda C1
 
@@ -451,7 +450,7 @@ test_single_project_by_projects_relative_name_resolves() {
 
 test_single_project_by_projects_relative_name_ignores_cwd_shadow() {
   local home cwd out
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   build_pair "$home" nu >/dev/null
   advance_origin "$home" nu C1
   cwd="$home/shadow"
@@ -466,7 +465,7 @@ test_single_project_by_projects_relative_name_ignores_cwd_shadow() {
 
 test_single_project_unresolvable_name_still_skips() {
   local home out
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
 
   out=$(run_sync "$home" "does-not-exist")
 
@@ -476,7 +475,7 @@ test_single_project_unresolvable_name_still_skips() {
 
 test_whole_fleet_form() {
   local home behind current out
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   behind=$(build_pair "$home" fleet-behind)
   advance_origin "$home" fleet-behind C1
   current=$(build_pair "$home" fleet-current)
@@ -492,7 +491,7 @@ test_whole_fleet_form() {
 
 test_bootstrap_relays_recovered_and_stuck() {
   local home stuck rec out
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   # A clone we will leave STUCK (dirty), and one that self-heals (detached-clean-ancestor).
   stuck=$(build_pair "$home" stuck-clone)
   advance_origin "$home" stuck-clone C1
@@ -514,7 +513,7 @@ test_bootstrap_relays_recovered_and_stuck() {
 
 test_orphaned_stale_packed_refs_lock_recovers() {
   local home fakebin clone out err
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   fakebin="$home/fb-lockstale"; rm -rf "$fakebin"; mkdir -p "$fakebin"
   clone=$(build_packed_prunable "$home" lockstale)
   plant_packed_refs_lock "$clone"
@@ -543,7 +542,7 @@ test_orphaned_stale_packed_refs_lock_recovers() {
 
 test_live_packed_refs_lock_is_never_removed() {
   local home fakebin clone out err before
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   fakebin="$home/fb-locklive"; rm -rf "$fakebin"; mkdir -p "$fakebin"
   clone=$(build_packed_prunable "$home" locklive)
   plant_packed_refs_lock "$clone"
@@ -569,7 +568,7 @@ test_live_packed_refs_lock_is_never_removed() {
 
 test_live_git_cwd_in_clone_dir_blocks_removal() {
   local home fakebin clone out err before
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   fakebin="$home/fb-lockcwd"; rm -rf "$fakebin"; mkdir -p "$fakebin"
   clone=$(build_packed_prunable "$home" lockcwd)
   plant_packed_refs_lock "$clone"
@@ -597,7 +596,7 @@ test_live_git_cwd_in_clone_dir_blocks_removal() {
 
 test_transient_packed_refs_lock_self_clears() {
   local home fakebin clone out err counter
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   fakebin="$home/fb-locktrans"; rm -rf "$fakebin"; mkdir -p "$fakebin"
   clone=$(build_packed_prunable "$home" locktrans)
   plant_packed_refs_lock "$clone"
@@ -659,7 +658,7 @@ test_non_clone_dir_named_directly_never_syncs_the_enclosing_repo() {
 
 test_symlinked_clone_still_syncs() {
   local home clone out
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   clone=$(build_pair "$home" sigma)
   advance_origin "$home" sigma C1
   # A symlinked clone dir is a real clone root; the guard compares resolved paths,
@@ -675,7 +674,7 @@ test_symlinked_clone_still_syncs() {
 
 test_non_signature_fetch_failure_is_not_retried() {
   local home fakebin clone out err
-  home=$(new_home)
+  home=$(new_home) || fail "could not create a fleet-sync home"
   fakebin="$home/fb-locknonsig"; rm -rf "$fakebin"; mkdir -p "$fakebin"
   clone=$(build_pair "$home" locknonsig)
   advance_origin "$home" locknonsig C1
@@ -694,28 +693,33 @@ test_non_signature_fetch_failure_is_not_retried() {
   pass "a non-packed-refs.lock fetch failure keeps today's behavior (no retry)"
 }
 
-test_detached_clean_ancestor_recovers
-test_detached_unique_commit_is_stuck_untouched
-test_detached_clean_ancestor_with_diverged_local_default_is_stuck_untouched
-test_dirty_is_stuck_untouched
-test_non_default_branch_is_stuck_untouched
-test_diverged_is_stuck_untouched
-test_on_default_clean_behind_fast_forwards
-test_already_current_unchanged
-test_no_origin_skipped
-test_local_only_skipped
-test_single_project_by_bare_name_resolves
-test_single_project_by_bare_name_ignores_cwd_shadow
-test_single_project_by_projects_relative_name_resolves
-test_single_project_by_projects_relative_name_ignores_cwd_shadow
-test_single_project_unresolvable_name_still_skips
-test_whole_fleet_form
-test_bootstrap_relays_recovered_and_stuck
-test_orphaned_stale_packed_refs_lock_recovers
-test_live_packed_refs_lock_is_never_removed
-test_live_git_cwd_in_clone_dir_blocks_removal
-test_transient_packed_refs_lock_self_clears
-test_non_signature_fetch_failure_is_not_retried
-test_non_clone_dir_never_syncs_the_enclosing_repo
-test_non_clone_dir_named_directly_never_syncs_the_enclosing_repo
-test_symlinked_clone_still_syncs
+# Every case builds its own home and origins under $TMP_ROOT, so the cases share
+# nothing and run in the concurrent lanes tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_detached_clean_ancestor_recovers \
+  test_detached_unique_commit_is_stuck_untouched \
+  test_detached_clean_ancestor_with_diverged_local_default_is_stuck_untouched \
+  test_dirty_is_stuck_untouched \
+  test_non_default_branch_is_stuck_untouched \
+  test_diverged_is_stuck_untouched \
+  test_on_default_clean_behind_fast_forwards \
+  test_already_current_unchanged \
+  test_no_origin_skipped \
+  test_local_only_skipped \
+  test_single_project_by_bare_name_resolves \
+  test_single_project_by_bare_name_ignores_cwd_shadow \
+  test_single_project_by_projects_relative_name_resolves \
+  test_single_project_by_projects_relative_name_ignores_cwd_shadow \
+  test_single_project_unresolvable_name_still_skips \
+  test_whole_fleet_form \
+  test_bootstrap_relays_recovered_and_stuck \
+  test_orphaned_stale_packed_refs_lock_recovers \
+  test_live_packed_refs_lock_is_never_removed \
+  test_live_git_cwd_in_clone_dir_blocks_removal \
+  test_transient_packed_refs_lock_self_clears \
+  test_non_signature_fetch_failure_is_not_retried \
+  test_non_clone_dir_never_syncs_the_enclosing_repo \
+  test_non_clone_dir_named_directly_never_syncs_the_enclosing_repo \
+  test_symlinked_clone_still_syncs

@@ -1166,31 +1166,36 @@ ROWS
   pass "bootstrap validates crew-dispatch.json and reports malformed or unverified configs"
 }
 
-test_bootstrap_reporting
-test_no_mistakes_min_version
-test_gh_axi_min_version
-test_lavish_axi_min_version
-test_tasks_axi_min_version
-test_quota_axi_min_version
-test_git_is_required_with_supported_install_instruction
-test_orca_backend_gates_orca_tool_only_when_selected
-test_session_provider_backends_do_not_require_tmux
-test_session_provider_backends_gate_own_cli_not_tmux
-test_herdr_install_requires_manual_action
-test_cmux_bundled_cli_satisfies_dependency
-test_unknown_backend_reports_invalid_configuration
-test_json_backends_require_jq_not_tmux
-test_treehouse_lease_check_follows_resolved_backend
-test_fleet_sync_timeout_scales_with_origin_backed_project_count
-test_fleet_sync_timeout_floor_preserves_small_fleets
-test_fleet_sync_timeout_explicit_override_wins
-test_fleet_sync_timeout_empty_override_uses_default
-test_fleet_sync_timeout_is_computed_before_launch
-test_routine_bootstrap_confirmations_are_silent
-test_routine_bootstrap_contract_runs_under_system_bash
-test_network_phase_partitions_the_run
-test_network_sweeps_recheck_lock_ownership
-test_network_phases_record_per_step_elapsed_times
-test_tasks_axi_verdict_handoff_is_consumed_once
-test_crew_dispatch_active_rules_are_verbose_bootstrap_info
-test_crew_dispatch_validation
+# Every case builds its own home and fakebin under $TMP_ROOT/<name>, so the cases
+# share nothing and run in the concurrent lanes tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_bootstrap_reporting \
+  test_no_mistakes_min_version \
+  test_gh_axi_min_version \
+  test_lavish_axi_min_version \
+  test_tasks_axi_min_version \
+  test_quota_axi_min_version \
+  test_git_is_required_with_supported_install_instruction \
+  test_orca_backend_gates_orca_tool_only_when_selected \
+  test_session_provider_backends_do_not_require_tmux \
+  test_session_provider_backends_gate_own_cli_not_tmux \
+  test_herdr_install_requires_manual_action \
+  test_cmux_bundled_cli_satisfies_dependency \
+  test_unknown_backend_reports_invalid_configuration \
+  test_json_backends_require_jq_not_tmux \
+  test_treehouse_lease_check_follows_resolved_backend \
+  test_fleet_sync_timeout_scales_with_origin_backed_project_count \
+  test_fleet_sync_timeout_floor_preserves_small_fleets \
+  test_fleet_sync_timeout_explicit_override_wins \
+  test_fleet_sync_timeout_empty_override_uses_default \
+  test_fleet_sync_timeout_is_computed_before_launch \
+  test_routine_bootstrap_confirmations_are_silent \
+  test_routine_bootstrap_contract_runs_under_system_bash \
+  test_network_phase_partitions_the_run \
+  test_network_sweeps_recheck_lock_ownership \
+  test_network_phases_record_per_step_elapsed_times \
+  test_tasks_axi_verdict_handoff_is_consumed_once \
+  test_crew_dispatch_active_rules_are_verbose_bootstrap_info \
+  test_crew_dispatch_validation

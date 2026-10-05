@@ -53,12 +53,17 @@ append_wake() {
   ' _ "$lib" "$kind" "$key" "$payload"
 }
 
+# make_case <name>: a case directory with a state/ and a fakebin holding the
+# fake tmux below and the fake fm-crew-state.sh. Both stubs are shared read-only
+# links (fm_shared_stub in tests/lib.sh), so a suite's hundreds of cases do not
+# each pay a host's first-run assessment of a new executable; a case that needs
+# different behavior removes the link and writes its own file.
 make_case() {
   local name=$1 dir fakebin
   dir="$TMP_ROOT/$name"
   fakebin="$dir/fakebin"
   mkdir -p "$dir/state" "$fakebin"
-  cat > "$fakebin/tmux" <<'SH'
+  fm_shared_stub "$fakebin" tmux <<'SH'
 #!/usr/bin/env bash
 set -u
 if [ "${1:-}" = "list-windows" ]; then
@@ -99,7 +104,6 @@ if [ "${1:-}" = "display-message" ]; then
 fi
 exit 1
 SH
-  chmod +x "$fakebin/tmux"
   make_fake_crew_state "$fakebin" >/dev/null
   printf '%s\n' "$dir"
 }
@@ -115,7 +119,7 @@ SH
 # safe default so a test that forgets to set one surfaces rather than absorbs.
 make_fake_crew_state() {  # <fakebin>
   local fakebin=$1
-  cat > "$fakebin/fm-crew-state.sh" <<'SH'
+  fm_shared_stub "$fakebin" fm-crew-state.sh <<'SH'
 #!/usr/bin/env bash
 set -u
 id=${1:-}
@@ -125,7 +129,6 @@ val=${!var:-${FM_FAKE_CREW_STATE:-}}
 printf '%s\n' "${val:-state: unknown · source: none · fake default}"
 exit 0
 SH
-  chmod +x "$fakebin/fm-crew-state.sh"
   printf '%s\n' "$fakebin/fm-crew-state.sh"
 }
 

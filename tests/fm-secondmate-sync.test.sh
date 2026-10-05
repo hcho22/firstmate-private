@@ -135,7 +135,8 @@ seed_marked_home() {
 # home contract).
 FF_OUT=""
 run_ff() {
-  local dir=$1 base=$2 outfile="$TMP_ROOT/ff.out"
+  local dir=$1 base=$2 outfile
+  outfile=$(mktemp "$TMP_ROOT/ff.out.XXXXXX") || fail "could not create the fast-forward output file"
   ff_target "$dir" "secondmate sm" "$base" yes yes >"$outfile" 2>&1
   FF_OUT=$(cat "$outfile")
 }
@@ -1342,37 +1343,42 @@ test_remote_launch_does_not_retarget_host_copy() {
   pass "R9 a remote launch leaves the home on the parent's commit while an ordinary spawn follows its own checkout"
 }
 
-test_ff_updated
-test_ff_current
-test_ff_dirty
-test_scratchpad2_does_not_dirty_home
-test_ff_diverged
-test_ff_inflight_feature_branch
-test_no_fetch_in_local_path
-test_sweep_nudge_requires_instruction_change
-test_bootstrap_sweep_nudges_only_instruction_change
-test_bootstrap_nudge_send_uses_state_override
-test_bootstrap_nudge_retry_rejects_malformed_marker_id
-test_bootstrap_nudge_failure_records_retry_marker
-test_bootstrap_nudge_retry_is_idempotent
-test_bootstrap_nudge_retry_refuses_changed_home
-test_nudge_retry_uses_fresh_herdr_endpoint_after_respawn
-test_bootstrap_sweep_surfaces_skipped_home
-test_spawn_fast_forwards_before_launch
-test_spawn_warns_when_sync_skipped_before_launch
-test_seed_marker_clean_when_gitignored
-test_seed_marker_converges_existing_home
-test_seed_marker_does_not_mask_real_dirt
-test_remote_sync_targets_primary_not_host_copy
-test_remote_sync_reports_the_changed_instruction_surface
-test_remote_sync_imports_from_host_copy
-test_remote_sync_imports_from_origin
-test_remote_sync_uses_present_objects
-test_remote_sync_skips_unimportable_target
-test_remote_sync_skips_dirty_diverged_and_feature_branch
-test_remote_sync_without_target_follows_host_copy
-test_bootstrap_syncs_remote_home_to_primary_commit
-test_bootstrap_reports_outdated_host_actionably
-test_remote_launch_does_not_retarget_host_copy
+# Every case builds its own world under $TMP_ROOT/<name>, so the cases share
+# nothing and run in the concurrent lanes tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_ff_updated \
+  test_ff_current \
+  test_ff_dirty \
+  test_scratchpad2_does_not_dirty_home \
+  test_ff_diverged \
+  test_ff_inflight_feature_branch \
+  test_no_fetch_in_local_path \
+  test_sweep_nudge_requires_instruction_change \
+  test_bootstrap_sweep_nudges_only_instruction_change \
+  test_bootstrap_nudge_send_uses_state_override \
+  test_bootstrap_nudge_retry_rejects_malformed_marker_id \
+  test_bootstrap_nudge_failure_records_retry_marker \
+  test_bootstrap_nudge_retry_is_idempotent \
+  test_bootstrap_nudge_retry_refuses_changed_home \
+  test_nudge_retry_uses_fresh_herdr_endpoint_after_respawn \
+  test_bootstrap_sweep_surfaces_skipped_home \
+  test_spawn_fast_forwards_before_launch \
+  test_spawn_warns_when_sync_skipped_before_launch \
+  test_seed_marker_clean_when_gitignored \
+  test_seed_marker_converges_existing_home \
+  test_seed_marker_does_not_mask_real_dirt \
+  test_remote_sync_targets_primary_not_host_copy \
+  test_remote_sync_reports_the_changed_instruction_surface \
+  test_remote_sync_imports_from_host_copy \
+  test_remote_sync_imports_from_origin \
+  test_remote_sync_uses_present_objects \
+  test_remote_sync_skips_unimportable_target \
+  test_remote_sync_skips_dirty_diverged_and_feature_branch \
+  test_remote_sync_without_target_follows_host_copy \
+  test_bootstrap_syncs_remote_home_to_primary_commit \
+  test_bootstrap_reports_outdated_host_actionably \
+  test_remote_launch_does_not_retarget_host_copy || exit
 
 echo "# all fm-secondmate-sync tests passed"

@@ -585,17 +585,23 @@ test_secondmate_carrier_and_snapshot_share_one_decision() {
   pass "secondmate carrier and FM_TRACE_CONTEXT snapshot always agree, both derived from one frozen decision (file-decided path)"
 }
 
-test_enabled_records_and_injects_identical_carrier_before_launch
-test_disabled_writes_and_injects_neither
-test_failed_delivery_omits_metadata_and_still_launches
-test_unsafe_delivery_refuses_to_append_launch
-test_failed_metadata_append_unsets_carrier_and_still_launches
-test_duplicate_secondmate_spawn_does_not_converge_trace_context
-test_relaunch_reuses_recorded_carrier
-test_session_start_freezes_env_override_and_ignores_later_edits
-test_secondmate_env_on_file_absent_keeps_nested_worker_enabled
-test_secondmate_env_off_file_present_keeps_nested_worker_disabled
-test_two_routed_tasks_through_one_secondmate_root_distinct_traces
-test_secondmate_carrier_and_snapshot_share_one_decision
+# Every case builds its own homes, projects, and worktrees under $TMP_ROOT/<name>
+# and spawns its own task ids, so the cases share nothing and run in the
+# concurrent lanes tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_enabled_records_and_injects_identical_carrier_before_launch \
+  test_disabled_writes_and_injects_neither \
+  test_failed_delivery_omits_metadata_and_still_launches \
+  test_unsafe_delivery_refuses_to_append_launch \
+  test_failed_metadata_append_unsets_carrier_and_still_launches \
+  test_duplicate_secondmate_spawn_does_not_converge_trace_context \
+  test_relaunch_reuses_recorded_carrier \
+  test_session_start_freezes_env_override_and_ignores_later_edits \
+  test_secondmate_env_on_file_absent_keeps_nested_worker_enabled \
+  test_secondmate_env_off_file_present_keeps_nested_worker_disabled \
+  test_two_routed_tasks_through_one_secondmate_root_distinct_traces \
+  test_secondmate_carrier_and_snapshot_share_one_decision || exit
 
 echo "# all fm-trace-context-spawn tests passed"

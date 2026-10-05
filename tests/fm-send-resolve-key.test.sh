@@ -717,23 +717,28 @@ test_remote_reserved_pending_reply_key_closes_locally() {
   pass "fm-send --resolve-key: a remote secondmate reserved-key close is the same local ledger append"
 }
 
-test_answer_send_closes_open_decision
-test_answer_close_is_self_announced
-test_colon_first_key_position_is_answerable
-test_answer_starts_work_never_orphans
-test_routine_steer_never_closes
-test_not_open_key_refuses_before_send
-test_failed_ring_still_closes_at_enqueue
-test_failed_enqueue_does_not_close
-test_multiple_keys_close_together
-test_local_secondmate_answer_marked_and_closed
-test_remote_secondmate_answer_closes_locally
-test_remote_reply_corr_tag_does_not_block_resolve_key
-test_remote_transport_failure_does_not_close
-test_flag_misuse_refuses
-test_reserved_pending_reply_key_closes_through_resolve_key
-test_unrelated_writer_cannot_close_or_hijack_reserved_key
-test_unclosable_reserved_key_refuses_before_send
-test_long_decision_key_refuses_before_send
-test_failed_close_recovery_command_is_shell_safe
-test_remote_reserved_pending_reply_key_closes_locally
+# Every case builds its own home and fakebin under $TMP_ROOT/<name>, so the cases
+# share nothing and run in the concurrent lanes tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_answer_send_closes_open_decision \
+  test_answer_close_is_self_announced \
+  test_colon_first_key_position_is_answerable \
+  test_answer_starts_work_never_orphans \
+  test_routine_steer_never_closes \
+  test_not_open_key_refuses_before_send \
+  test_failed_ring_still_closes_at_enqueue \
+  test_failed_enqueue_does_not_close \
+  test_multiple_keys_close_together \
+  test_local_secondmate_answer_marked_and_closed \
+  test_remote_secondmate_answer_closes_locally \
+  test_remote_reply_corr_tag_does_not_block_resolve_key \
+  test_remote_transport_failure_does_not_close \
+  test_flag_misuse_refuses \
+  test_reserved_pending_reply_key_closes_through_resolve_key \
+  test_unrelated_writer_cannot_close_or_hijack_reserved_key \
+  test_unclosable_reserved_key_refuses_before_send \
+  test_long_decision_key_refuses_before_send \
+  test_failed_close_recovery_command_is_shell_safe \
+  test_remote_reserved_pending_reply_key_closes_locally

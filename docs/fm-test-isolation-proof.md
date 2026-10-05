@@ -135,6 +135,8 @@ Both `bin/fm-test-run.sh` and the current proof harness therefore order concurre
 
 Re-run on 2026-10-03 for the captain-hold split (36 candidates by then): both halves passed concurrently; see "2026-10-03: the captain-hold suite split in two" above for the result and its two gate-skip refusals.
 
+Re-run on 2026-10-05 with `tests/fm-case-lanes.test.sh` in the family and in-file case lanes active; see "In-file case lanes" below.
+
 This family is what a change to `bin/fm-test-run.sh` itself selects, so it decides that selection's wall clock.
 Before admission, 14 of its scripts fell to the serial tail and the 33-script selection measured 327.3s against a 300s budget: the concurrent group was 19 scripts totalling 273.4s while the tail alone was 215.7s, dominated by `fm-calm-pi-extension` (77.5s), `fm-vendor-auth-probe` (51.0s), and `fm-muse-harness` (39.7s).
 Admitting the family moves that tail into the bounded concurrent group.
@@ -225,6 +227,41 @@ Its current live-backend result is recorded under [workspace-removal focus safet
 One member needs a current Pi to pass at all.
 `tests/fm-pi-branch-extension.test.sh` compares firstmate's supervision-branch extension against the stock renderers of the installed `@earendil-works/pi-coding-agent`, and the proof host's global install was stale at 0.81.1 while the published release was 0.84.4.
 On the stale package the case fails serially as well as concurrently, so it is a prerequisite rather than a concurrency result; both runs above pinned the current package with `FM_PI_PACKAGE_DIR`, and on a host whose global install is current the plain command reproduces them.
+
+## In-file case lanes
+
+A file whose cases share nothing runs them in concurrent lanes inside its one worker (`tests/case-lanes-helpers.sh`, by default the smaller of 4 and the host's CPU count).
+A family's proven `--jobs` bound therefore counts workers, and each proof below was run with every adopting file's lanes active, so `--jobs 4` with those lanes is the proven condition: up to about 16 cases of one family at once.
+Raising either the bound or the default lane count needs a new proof here; a family whose proof fails under lanes keeps its bound and has its lanes reduced or counted against that bound instead.
+
+### 2026-10-05: every admitted pool re-proven under lanes
+
+- Commit: the branch head that introduced the lanes (`perf(tests): run slow suites' independent cases in concurrent lanes` plus its review fixes).
+- Host: macOS, stock `/bin/bash` 3.2.57, 20 cores, with the runner's selected runtimes (python 3.11.15, node 26.4.0) first on `PATH`; ambient firstmate and multiplexer session variables unset.
+- Command, twice per pool, one run after another: `bin/fm-test-isolation-proof.sh --pool <pool> --jobs 4`, for each admitted family plus the portable pool, which holds the laned `tests/fm-pr-merge.test.sh` and `tests/fm-test-run.test.sh`.
+- Load average (1-minute, sampled every 30 s) included another crew's builds during the secondmate and session-bootstrap runs.
+
+| Pool | Run | Summary | Load mean / max |
+|---|---:|---|---|
+| `watcher-wake-lock` | 1 | `FM_ISOLATION_SUMMARY total=18 failed=0 concurrency=4 duration_ms=334491` | 11.3 / 16.4 |
+| `watcher-wake-lock` | 2 | `FM_ISOLATION_SUMMARY total=18 failed=0 concurrency=4 duration_ms=329555` | 12.9 / 19.5 |
+| `pure-contract-unit` | 1 | `FM_ISOLATION_SUMMARY total=38 failed=2 concurrency=4 duration_ms=264472` | 9.2 / 12.6 |
+| `pure-contract-unit` | 2 | `FM_ISOLATION_SUMMARY total=38 failed=2 concurrency=4 duration_ms=273890` | 11.0 / 15.2 |
+| `pr-forge` | 1 | `FM_ISOLATION_SUMMARY total=6 failed=0 concurrency=4 duration_ms=197333` | 20.3 / 24.6 |
+| `pr-forge` | 2 | `FM_ISOLATION_SUMMARY total=6 failed=0 concurrency=4 duration_ms=208858` | 18.6 / 21.9 |
+| `secondmate` | 1 | `FM_ISOLATION_SUMMARY total=21 failed=0 concurrency=4 duration_ms=1120426` | 72.7 / 293.1 |
+| `secondmate` | 2 | `FM_ISOLATION_SUMMARY total=21 failed=0 concurrency=4 duration_ms=967376` | 29.9 / 66.5 |
+| `session-bootstrap` | 1 | `FM_ISOLATION_SUMMARY total=11 failed=0 concurrency=4 duration_ms=322536` | 198.2 / 441.7 |
+| `session-bootstrap` | 2 | `FM_ISOLATION_SUMMARY total=11 failed=0 concurrency=4 duration_ms=262708` | 98.8 / 193.5 |
+| `standalone` | 1 | `FM_ISOLATION_SUMMARY total=28 failed=1 concurrency=4 duration_ms=393680` | 17.6 / 24.1 |
+| `standalone` | 2 | `FM_ISOLATION_SUMMARY total=28 failed=1 concurrency=4 duration_ms=511527` | 28.4 / 38.4 |
+| portable | 1 | `FM_ISOLATION_SUMMARY total=25 failed=1 concurrency=4 duration_ms=654539` | 29.5 / 34.9 |
+| portable | 2 | `FM_ISOLATION_SUMMARY total=25 failed=1 concurrency=4 duration_ms=428650` | 16.0 / 23.2 |
+
+Every laned file passed in every run.
+Each failure was the harness refusing a gate-skipped candidate that this host cannot run, none of them laned: `tests/fm-pi-primary-types.test.sh` (no `tsc`; pure-contract-unit and portable), `tests/fm-calm-pi-extension.test.sh` (pure-contract-unit), and `tests/fm-pi-branch-extension.test.sh` (standalone), the last two for want of an installed `@earendil-works/pi-coding-agent`.
+Their isolation evidence remains the earlier proofs recorded here.
+No bound or lane count changed.
 
 ## Production runner effect of the 2026-09-03 admissions
 

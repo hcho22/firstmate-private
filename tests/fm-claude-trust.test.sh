@@ -440,23 +440,28 @@ test_claude_spawn_pretrusts_its_worktree_and_reaches_the_brief() {
   pass "fm-spawn.sh: a claude spawn pre-trusts its worktree and launches with the brief"
 }
 
-test_fresh_worktree_is_trusted
-test_registration_is_idempotent
-test_primary_checkout_is_refused
-test_cdpath_cannot_defeat_the_primary_checkout_refusal
-test_git_env_overrides_cannot_defeat_the_primary_checkout_refusal
-test_home_directory_is_refused_even_when_it_is_a_worktree
-test_config_directory_is_refused
-test_relative_config_dir_is_refused
-test_non_git_directory_is_refused
-test_missing_directory_is_refused
-test_foreign_project_worktree_is_refused
-test_worktree_subdirectory_is_refused
-test_unrelated_store_content_is_preserved
-test_symlinked_store_to_a_foreign_owned_target_is_refused
-test_symlinked_store_to_an_owned_target_is_accepted
-test_corrupt_store_fails_closed
-test_missing_node_is_refused
-test_scope_refusal_stays_fail_closed_without_node
-test_claude_spawn_pretrusts_its_worktree_and_reaches_the_brief
-test_refused_spawn_leaves_no_task_state
+# Every case builds its own fakes and homes under $TMP_ROOT/<name>, so the cases
+# share nothing and run in the concurrent lanes tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_fresh_worktree_is_trusted \
+  test_registration_is_idempotent \
+  test_primary_checkout_is_refused \
+  test_cdpath_cannot_defeat_the_primary_checkout_refusal \
+  test_git_env_overrides_cannot_defeat_the_primary_checkout_refusal \
+  test_home_directory_is_refused_even_when_it_is_a_worktree \
+  test_config_directory_is_refused \
+  test_relative_config_dir_is_refused \
+  test_non_git_directory_is_refused \
+  test_missing_directory_is_refused \
+  test_foreign_project_worktree_is_refused \
+  test_worktree_subdirectory_is_refused \
+  test_unrelated_store_content_is_preserved \
+  test_symlinked_store_to_a_foreign_owned_target_is_refused \
+  test_symlinked_store_to_an_owned_target_is_accepted \
+  test_corrupt_store_fails_closed \
+  test_missing_node_is_refused \
+  test_scope_refusal_stays_fail_closed_without_node \
+  test_claude_spawn_pretrusts_its_worktree_and_reaches_the_brief \
+  test_refused_spawn_leaves_no_task_state

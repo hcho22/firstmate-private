@@ -116,6 +116,7 @@ Some of those loops are also catching a transient rather than waiting for a sett
 Discover tests by listing `tests/*.test.sh`: each is a self-contained bash script named `<subject>.test.sh`, and its header comment describes what it covers, so pass one to `bin/fm-test-run.sh` to focus on a subject with canonical timing output.
 Shared test helpers live in `tests/lib.sh` (reporters, temp roots, git fixtures), `tests/fixtures.sh` (fake toolchain and spawn-world builders), `tests/wake-helpers.sh`, and `tests/secondmate-helpers.sh`.
 Source those instead of copying a fake toolchain into a new suite.
+A test file whose cases share nothing runs them in concurrent lanes through `tests/case-lanes-helpers.sh`, whose header owns that contract; `FM_TEST_CASE_LANES=1` reruns such a file serially when isolating a failure.
 A fixture may shorten a production timeout to keep a failure path prompt, but never below what the real work inside that window costs on a loaded machine: a fork, an exec, a lock acquisition, a beacon publication, or a first-poll check.
 Where a case's assertion is not about the timeout itself, give that window headroom over the measured loaded cost.
 A test's own wait for an event is only a hang guard, so bound it by the clock at the suite's 60-second standard (`deadline=$((SECONDS + 60))`, then `[ "$SECONDS" -lt "$deadline" ]` in the loop condition) and assert on the event after the loop.
