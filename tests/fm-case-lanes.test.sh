@@ -123,15 +123,20 @@ fm_test_run_cases case_c"
 }
 
 test_the_files_own_exit_trap_still_runs() {
-  local dir="$TMP_ROOT/trap" out rc=0
+  local dir="$TMP_ROOT/trap" out rc=0 left
+  # The file's own EXIT cleanup ends in fm_test_cleanup, as an adopting file's
+  # does, so the lane directory the helper made in the file's TMPDIR is reaped.
   write_suite "$dir" "
-trap 'echo file-cleanup-ran > \"$dir/cleanup\"' EXIT
+trap 'echo file-cleanup-ran > \"$dir/cleanup\"; fm_test_cleanup' EXIT
 case_one() { pass \"one\"; }
 case_two() { pass \"two\"; }
 fm_test_run_cases case_one case_two"
-  out=$(FM_TEST_CASE_LANES=2 "$dir/suite.test.sh" 2>&1) || rc=$?
+  mkdir -p "$dir/tmp"
+  out=$(TMPDIR="$dir/tmp" FM_TEST_CASE_LANES=2 "$dir/suite.test.sh" 2>&1) || rc=$?
   expect_code 0 "$rc" "a passing laned file with its own cleanup must exit 0: $out"
   assert_present "$dir/cleanup" "the file's own EXIT cleanup did not run after laned cases"
+  left=$(ls -A "$dir/tmp")
+  [ -z "$left" ] || fail "a laned file left temp state behind after its own cleanup ran: $left"
   pass "a file's own EXIT cleanup still runs after its laned cases"
 }
 
