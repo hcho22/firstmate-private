@@ -39,6 +39,10 @@
 # what the case's own globals name. With one lane it runs after each case
 # returns; a failing case there ends the file, whose own cleanup takes over.
 #
+# A family's proven concurrency bound in bin/fm-test-run.sh was proven with
+# these lanes active; docs/fm-test-isolation-proof.md ("In-file case lanes")
+# owns how lanes count against that bound.
+#
 # FM_TEST_CASE_LANES sets the lane count; the default is 4, or the host's CPU
 # count when that is smaller. 1 runs every case in this shell, in order, with no
 # lane machinery at all, which is also the way to rerun a file serially when
