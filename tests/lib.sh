@@ -42,11 +42,14 @@ export FM_GATE_REFUSE_BYPASS=1
 # rule; tests/fm-remote-job-orphan-reap.test.sh covers both scoped and host-wide.
 export FM_REMOTE_JOB_REAP_SCOPE="${TMPDIR:-/tmp}"
 
-# Startup passes these to its own children and withdraws them once read. A shell
-# that inherited them from a pane started before that was true would otherwise
-# point every fm-crew-state.sh read here at one task's long-gone snapshot.
-unset FM_CREW_STATE_META_OVERRIDE FM_CREW_STATE_STATUS_OVERRIDE \
-  FM_HOME_SUMMARY_IF_IDLE FM_HOME_SUMMARY_WORKER_BEST_EFFORT FM_SESSION_START_STAGE_FILE
+# Firstmate hands its internal settings to one child at a time and withdraws
+# them once read. A shell that inherited them from a pane of a server started
+# before that was true would otherwise point every fm-crew-state.sh read here at
+# one task's long-gone snapshot, run bootstrap's network half alone, or skip the
+# spawn guard, so drop the same set a backend server never inherits.
+# shellcheck source=bin/fm-server-env-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/../bin/fm-server-env-lib.sh"
+fm_internal_env_withdraw
 
 # Resolve the repo root from this library's own location. Consumed by sourcing
 # test files, not by this library, so it reads as "unused" here.

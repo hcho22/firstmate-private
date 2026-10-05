@@ -991,6 +991,11 @@ EOF
 
 test_registry_unavailability_and_bounds_are_explicit() {
   local home fakebin json canonical id mate boundary
+  # These cases assert what an unreadable or bounded registry read discloses, not
+  # how fast a loaded host answers it: under a busy suite the 2 s default read
+  # bound turned a readable registry into "read timed out". Raise it to a hang
+  # guard here; the default bound itself is not what these cases exercise.
+  local -x FM_SNAPSHOT_REGISTRY_TIMEOUT=180
   home=$(make_home registry-unavailable)
   mate="$TMP_ROOT/registry-hidden"
   make_valid_secondmate_home hidden "$mate"

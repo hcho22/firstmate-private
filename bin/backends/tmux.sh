@@ -26,6 +26,8 @@
 . "$FM_BACKEND_LIB_DIR/fm-cursor-lib.sh"
 # shellcheck source=bin/fm-gemini-lib.sh
 . "$FM_BACKEND_LIB_DIR/fm-gemini-lib.sh"
+# shellcheck source=bin/fm-server-env-lib.sh
+. "$FM_BACKEND_LIB_DIR/fm-server-env-lib.sh"
 
 # fm_backend_tmux_resolve_bare_selector: the live-window-listing fallback for a
 # selector that is neither an explicit target nor a task selector routed
@@ -60,15 +62,20 @@ fm_backend_tmux_send_text_submit() {  # <target> <text> <retries> <enter-sleep> 
   fm_tmux_submit_core "$@"
 }
 
-# fm_backend_tmux_container_ensure: reuse the current tmux session when
-# firstmate itself runs inside tmux, else ensure a dedicated detached
-# "firstmate" session exists. Mirrors fm-spawn.sh's container-ensure block;
-# prints the resolved session name.
+# fm_backend_tmux_container_ensure: the spawn-time container-ensure fm-spawn.sh
+# calls. Reuse the current tmux session when firstmate itself runs inside tmux,
+# else ensure a dedicated detached "firstmate" session exists; prints the
+# resolved session name. When no tmux server is running, that
+# new-session starts one, whose global environment every later window inherits,
+# so it runs from fm_server_env_scrub's environment (bin/fm-server-env-lib.sh).
+# Against a running server, new-session copies only tmux's update-environment
+# names from its caller, none of which the scrub touches.
 fm_backend_tmux_container_ensure() {
   if [ -n "${TMUX:-}" ]; then
     tmux display-message -p '#S'
   else
-    tmux has-session -t firstmate 2>/dev/null || tmux new-session -d -s firstmate
+    tmux has-session -t firstmate 2>/dev/null \
+      || ( fm_server_env_scrub; exec tmux new-session -d -s firstmate )
     printf 'firstmate'
   fi
 }

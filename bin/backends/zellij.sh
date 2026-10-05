@@ -124,6 +124,10 @@ FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 # shellcheck source=bin/fm-composer-lib.sh
 . "$FM_BACKEND_ZELLIJ_ROOT/bin/fm-composer-lib.sh"
 
+# What a long-lived server must not inherit (fm_backend_zellij_server_ensure).
+# shellcheck source=bin/fm-server-env-lib.sh
+. "$FM_BACKEND_ZELLIJ_ROOT/bin/fm-server-env-lib.sh"
+
 # Verified minimum: report.md recommends "likely Zellij 0.44 or newer" for
 # returned pane/tab IDs and dump-screen --pane-id; empirically verified
 # against the installed 0.44.0 (docs/zellij-backend.md).
@@ -232,11 +236,13 @@ fm_backend_zellij_session_exists() {  # <session>
 # actually attach without a TTY, so it exits after creating); running it again
 # against an EXISTING session prints "Session already exists" and exits 1 -
 # harmless here because existence is checked first and the launch is
-# backgrounded, its exit status never inspected.
+# backgrounded, its exit status never inspected. The new session's server hands
+# its startup environment to every later pane, so it starts from
+# fm_server_env_scrub's environment (bin/fm-server-env-lib.sh).
 fm_backend_zellij_server_ensure() {  # <session>
   local session=$1 i
   fm_backend_zellij_session_exists "$session" && return 0
-  ( nohup zellij attach -b "$session" </dev/null >/dev/null 2>&1 & ) || return 1
+  ( fm_server_env_scrub; nohup zellij attach -b "$session" </dev/null >/dev/null 2>&1 & ) || return 1
   for i in $(seq 1 20); do
     fm_backend_zellij_session_exists "$session" && return 0
     sleep 0.5

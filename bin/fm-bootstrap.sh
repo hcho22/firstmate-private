@@ -197,9 +197,11 @@ network_phase() { [ "$FM_BOOTSTRAP_NETWORK_PHASE" != skip ]; }
 # The FM_BOOTSTRAP_* settings are this run's own input, read from this shell
 # below. Stop exporting them so no child - a secondmate relaunch or backend probe
 # can start a long-lived server that hands its startup environment to every
-# later pane - carries them into sessions that never asked for them.
+# later pane - carries them into sessions that never asked for them. The
+# parallel-run directory is assigned below rather than read, but an inherited
+# export would make that assignment exported too.
 export -n FM_BOOTSTRAP_NETWORK FM_BOOTSTRAP_NETWORK_LOCK_PID FM_BOOTSTRAP_DETECT_ONLY \
-  FM_BOOTSTRAP_LOCKED FM_BOOTSTRAP_VERBOSE_FACTS
+  FM_BOOTSTRAP_LOCKED FM_BOOTSTRAP_VERBOSE_FACTS FM_BOOTSTRAP_PARALLEL_DIR
 
 network_mutation_authorized() {
   local expected=${FM_BOOTSTRAP_NETWORK_LOCK_PID:-} current
