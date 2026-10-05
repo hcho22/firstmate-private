@@ -62,10 +62,10 @@ fm_backend_tmux_send_text_submit() {  # <target> <text> <retries> <enter-sleep> 
   fm_tmux_submit_core "$@"
 }
 
-# fm_backend_tmux_container_ensure: reuse the current tmux session when
-# firstmate itself runs inside tmux, else ensure a dedicated detached
-# "firstmate" session exists. Mirrors fm-spawn.sh's container-ensure block;
-# prints the resolved session name. When no tmux server is running, that
+# fm_backend_tmux_container_ensure: the spawn-time container-ensure fm-spawn.sh
+# calls. Reuse the current tmux session when firstmate itself runs inside tmux,
+# else ensure a dedicated detached "firstmate" session exists; prints the
+# resolved session name. When no tmux server is running, that
 # new-session starts one, whose global environment every later window inherits,
 # so it runs from fm_server_env_scrub's environment (bin/fm-server-env-lib.sh).
 # Against a running server, new-session copies only tmux's update-environment
