@@ -44,17 +44,35 @@ EOF
 # The remote-route cases drive the real remote job worker, which outlives the
 # command that staged its job. Stop it before the shared fixture cleanup runs,
 # and keep that cleanup (tests/lib.sh owns it) rather than replacing the trap.
-pf_test_cleanup() {
-  local pid_file="${REMOTE_FIXTURE_JOBS:-$TMP_ROOT/remote-jobs}/worker.pid" pid
+# pf_case_teardown: stop what one case started - its lock holder and the remote
+# job worker serving its own job state root. It runs when each laned case exits
+# (FM_TEST_CASE_TEARDOWN) and, for the file's own shell, from pf_test_cleanup.
+pf_case_teardown() {
   if [ -n "$PF_TEST_LOCK_HOLDER" ]; then
     kill "$PF_TEST_LOCK_HOLDER" 2>/dev/null || true
     wait "$PF_TEST_LOCK_HOLDER" 2>/dev/null || true
     PF_TEST_LOCK_HOLDER=
   fi
-  if [ -f "$pid_file" ]; then
-    pid=$(cat "$pid_file" 2>/dev/null) || pid=
-    [ -z "$pid" ] || kill "$pid" 2>/dev/null || true
-  fi
+  [ -z "${REMOTE_FIXTURE_JOBS:-}" ] || pf_stop_remote_worker "$REMOTE_FIXTURE_JOBS"
+  REMOTE_FIXTURE_JOBS=
+}
+
+pf_stop_remote_worker() {  # <job-state-root>
+  local pid
+  [ -f "$1/worker.pid" ] || return 0
+  pid=$(cat "$1/worker.pid" 2>/dev/null) || pid=
+  [ -z "$pid" ] || kill "$pid" 2>/dev/null || true
+}
+FM_TEST_CASE_TEARDOWN=pf_case_teardown
+
+# The file's own cleanup also stops the worker of every case's job state root,
+# so a case cut off by an interrupted run leaves nothing running.
+pf_test_cleanup() {
+  local jobs
+  pf_case_teardown
+  for jobs in "$TMP_ROOT"/remote-jobs.*; do
+    [ ! -d "$jobs" ] || pf_stop_remote_worker "$jobs"
+  done
   fm_test_cleanup
 }
 trap pf_test_cleanup EXIT
@@ -2337,19 +2355,18 @@ REMOTE_FIXTURE_ROOT=
 REMOTE_FIXTURE_SSH=
 REMOTE_FIXTURE_JOBS=
 
-# remote_fixture_prepare: build the shared remote checkout and fake ssh once.
-# The remote root is a real git repo holding the real bin/, because both fm-on.sh
-# and the entrypoint refuse anything that is not a genuine tracked executable.
-remote_fixture_prepare() {
+# remote_fixture_build: build the shared remote checkout and fake ssh once,
+# before the cases start, so every case reads the same read-only fixture. The
+# remote root is a real git repo holding the real bin/, because both fm-on.sh and
+# the entrypoint refuse anything that is not a genuine tracked executable.
+remote_fixture_build() {
   local fakebin
   [ -z "$REMOTE_FIXTURE_ROOT" ] || return 0
   # TMPDIR on macOS carries a trailing slash, and the route validation rejects an
-  # empty path component, so physicalize both fixture paths before registering.
+  # empty path component, so physicalize the fixture paths before registering.
   REMOTE_FIXTURE_ROOT="$TMP_ROOT/remote-root"
   mkdir -p "$REMOTE_FIXTURE_ROOT/bin/backends"
   REMOTE_FIXTURE_ROOT=$(cd "$REMOTE_FIXTURE_ROOT" && pwd -P)
-  mkdir -p "$TMP_ROOT/remote-jobs"
-  REMOTE_FIXTURE_JOBS=$(cd "$TMP_ROOT/remote-jobs" && pwd -P)
   cp "$ROOT"/bin/fm-*.sh "$REMOTE_FIXTURE_ROOT/bin/"
   cp "$ROOT"/bin/backends/*.sh "$REMOTE_FIXTURE_ROOT/bin/backends/"
   chmod +x "$REMOTE_FIXTURE_ROOT/bin"/*.sh
@@ -2382,6 +2399,16 @@ esac
 SH
   chmod +x "$fakebin/fake-ssh"
   REMOTE_FIXTURE_SSH="$fakebin/fake-ssh"
+}
+
+# remote_fixture_prepare: give this case its own remote job state root, so its
+# remote job worker and job records are its own, on the shared checkout.
+remote_fixture_prepare() {
+  remote_fixture_build
+  [ -z "$REMOTE_FIXTURE_JOBS" ] || return 0
+  REMOTE_FIXTURE_JOBS=$(mktemp -d "$TMP_ROOT/remote-jobs.XXXXXX") \
+    || fail "could not create this case's remote job state root"
+  REMOTE_FIXTURE_JOBS=$(cd "$REMOTE_FIXTURE_JOBS" && pwd -P)
 }
 
 # make_remote_route <home> <secondmate-id>: register a REMOTE secondmate route in
@@ -3103,76 +3130,84 @@ if [ -n "${FM_TEST_ONLY:-}" ]; then
   exit 0
 fi
 
-test_outcome_text_is_bounded_without_corrupting_characters
-test_restart_e2e_delivers_exactly_once
-test_duplicate_event_and_replay_are_noops
-test_invalid_events_are_refused_and_quarantined
-test_relay_failure_holds_without_false_completion
-test_dry_run_does_not_close_commitment
-test_late_receipt_closes_the_exact_attempt_without_reposting
-test_typed_terminal_clear_only_removes_legacy_link
-test_interrupted_delivery_refuses_to_repost
-test_outward_delivery_stays_with_the_owning_home
-test_delivery_requires_registration_before_posting
-test_secondmate_teardown_requires_parent_binding
-test_local_secondmate_seed_publishes_parent_before_identity
-test_secondmate_teardown_resolves_parent_from_durable_record_when_env_lost
-test_secondmate_teardown_durable_record_missing_parent_registration_still_refuses
-test_secondmate_teardown_durable_record_with_unknown_field_succeeds
-test_secondmate_teardown_rejects_conflicting_live_and_durable_parent_bindings
-test_secondmate_teardown_rejects_unsafe_durable_parent_records
-test_secondmate_teardown_rejects_nul_bearing_durable_parent_record
-test_relay_disabled_unmarked_teardown_skips_public_path
-test_relay_disabled_parent_allows_marked_child_teardown
-test_secondmate_parent_binding_matches_literal_id
-test_traversal_registration_is_refused_before_delivery
-test_pending_rejects_malformed_listing
-test_private_context_survives_inbox_cleanup
-test_cleanup_refuses_while_a_public_reply_is_owed
-test_relay_disabled_home_pays_nothing
-test_relay_enabled_empty_state_makes_no_calls
-test_exhausted_binding_is_not_retried
-test_relay_poll_stays_inert_and_surfaces_once
-test_session_start_surfaces_only_when_owed
-test_typed_records_exclude_raw_public_material
-test_dropped_baton_now_surfaces_open_loop
-test_control_registered_followon_is_guarded
-test_rechain_delivers_second_post_on_same_thread
-test_rechain_resumes_after_partial_add
-test_rechain_claims_delivered_source_once
-test_failed_rechain_retirement_keeps_source_claimed
-test_first_register_succeeds_with_empty_lock_list_under_bash32
-test_registration_replay_preserves_delivery_and_retirement
-test_redelivery_does_not_report_retired_loop_open
-test_retire_after_secondmate_home_removal
-test_retire_refuses_unbound_existing_secondmate
-test_retire_refuses_reassigned_secondmate_home
-test_rechain_refuses_unclaimed_existing_destination
-test_pending_skips_concurrent_retirement
-test_retire_reason_closes_the_open_loop
-test_retention_creates_no_false_teardown_refusal
-test_expiry_escalation_uses_now_override
-test_brief_fails_without_typed_deliverable_keys
-test_prechange_registration_is_open_and_unrechainable
-test_x_request_teardown_warns_when_final_unposted
-test_secondmate_promotion_uses_teardown_parent_resolution
-test_remote_secondmate_loop_delivers_and_retires
-test_delivered_remote_registration_skips_offline_route
-test_remote_retire_force_semantics_unchanged
-test_remote_retire_refuses_reassigned_route
-test_remote_retire_refuses_unreadable_state
-test_remote_retire_refuses_nonwritable_state
-test_remote_retire_accepts_nonwritable_absence
-test_remote_retire_refuses_unacquirable_lock_without_hanging
-test_remote_unconfirmed_clear_is_unknown_completion
-test_remote_work_home_emit_reaches_owning_home
-test_remote_collection_transport_failure_is_loud
-test_remote_collection_refuses_unreadable_outbox
-test_invalid_registration_fails_remote_collection
-test_unsafe_registration_entry_fails_remote_collection
-test_remote_route_loss_fails_brief_and_collection
-test_empty_remote_collection_is_healthy
-test_remote_brief_rejects_traversal_route_paths
-test_local_work_home_emit_path_is_unchanged
-test_remote_collection_is_idempotent
-test_stage_in_refuses_ambiguous_or_unusable_homes
+# Every case builds its own home under $TMP_ROOT/<name>, and a remote case its own
+# remote job state root (remote_fixture_prepare), so the cases share nothing but
+# the read-only remote checkout built here, and run in the concurrent lanes
+# tests/case-lanes-helpers.sh owns.
+remote_fixture_build
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_outcome_text_is_bounded_without_corrupting_characters \
+  test_restart_e2e_delivers_exactly_once \
+  test_duplicate_event_and_replay_are_noops \
+  test_invalid_events_are_refused_and_quarantined \
+  test_relay_failure_holds_without_false_completion \
+  test_dry_run_does_not_close_commitment \
+  test_late_receipt_closes_the_exact_attempt_without_reposting \
+  test_typed_terminal_clear_only_removes_legacy_link \
+  test_interrupted_delivery_refuses_to_repost \
+  test_outward_delivery_stays_with_the_owning_home \
+  test_delivery_requires_registration_before_posting \
+  test_secondmate_teardown_requires_parent_binding \
+  test_local_secondmate_seed_publishes_parent_before_identity \
+  test_secondmate_teardown_resolves_parent_from_durable_record_when_env_lost \
+  test_secondmate_teardown_durable_record_missing_parent_registration_still_refuses \
+  test_secondmate_teardown_durable_record_with_unknown_field_succeeds \
+  test_secondmate_teardown_rejects_conflicting_live_and_durable_parent_bindings \
+  test_secondmate_teardown_rejects_unsafe_durable_parent_records \
+  test_secondmate_teardown_rejects_nul_bearing_durable_parent_record \
+  test_relay_disabled_unmarked_teardown_skips_public_path \
+  test_relay_disabled_parent_allows_marked_child_teardown \
+  test_secondmate_parent_binding_matches_literal_id \
+  test_traversal_registration_is_refused_before_delivery \
+  test_pending_rejects_malformed_listing \
+  test_private_context_survives_inbox_cleanup \
+  test_cleanup_refuses_while_a_public_reply_is_owed \
+  test_relay_disabled_home_pays_nothing \
+  test_relay_enabled_empty_state_makes_no_calls \
+  test_exhausted_binding_is_not_retried \
+  test_relay_poll_stays_inert_and_surfaces_once \
+  test_session_start_surfaces_only_when_owed \
+  test_typed_records_exclude_raw_public_material \
+  test_dropped_baton_now_surfaces_open_loop \
+  test_control_registered_followon_is_guarded \
+  test_rechain_delivers_second_post_on_same_thread \
+  test_rechain_resumes_after_partial_add \
+  test_rechain_claims_delivered_source_once \
+  test_failed_rechain_retirement_keeps_source_claimed \
+  test_first_register_succeeds_with_empty_lock_list_under_bash32 \
+  test_registration_replay_preserves_delivery_and_retirement \
+  test_redelivery_does_not_report_retired_loop_open \
+  test_retire_after_secondmate_home_removal \
+  test_retire_refuses_unbound_existing_secondmate \
+  test_retire_refuses_reassigned_secondmate_home \
+  test_rechain_refuses_unclaimed_existing_destination \
+  test_pending_skips_concurrent_retirement \
+  test_retire_reason_closes_the_open_loop \
+  test_retention_creates_no_false_teardown_refusal \
+  test_expiry_escalation_uses_now_override \
+  test_brief_fails_without_typed_deliverable_keys \
+  test_prechange_registration_is_open_and_unrechainable \
+  test_x_request_teardown_warns_when_final_unposted \
+  test_secondmate_promotion_uses_teardown_parent_resolution \
+  test_remote_secondmate_loop_delivers_and_retires \
+  test_delivered_remote_registration_skips_offline_route \
+  test_remote_retire_force_semantics_unchanged \
+  test_remote_retire_refuses_reassigned_route \
+  test_remote_retire_refuses_unreadable_state \
+  test_remote_retire_refuses_nonwritable_state \
+  test_remote_retire_accepts_nonwritable_absence \
+  test_remote_retire_refuses_unacquirable_lock_without_hanging \
+  test_remote_unconfirmed_clear_is_unknown_completion \
+  test_remote_work_home_emit_reaches_owning_home \
+  test_remote_collection_transport_failure_is_loud \
+  test_remote_collection_refuses_unreadable_outbox \
+  test_invalid_registration_fails_remote_collection \
+  test_unsafe_registration_entry_fails_remote_collection \
+  test_remote_route_loss_fails_brief_and_collection \
+  test_empty_remote_collection_is_healthy \
+  test_remote_brief_rejects_traversal_route_paths \
+  test_local_work_home_emit_path_is_unchanged \
+  test_remote_collection_is_idempotent \
+  test_stage_in_refuses_ambiguous_or_unusable_homes

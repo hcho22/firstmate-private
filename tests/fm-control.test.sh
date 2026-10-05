@@ -33,7 +33,6 @@ SEND="$ROOT/bin/fm-send.sh"
 TMP_ROOT=$(fm_test_tmproot fm-control)
 mkdir -p "$TMP_ROOT"
 TMP_ROOT=$(cd "$TMP_ROOT" && pwd)
-trap 'rm -rf "$TMP_ROOT"' EXIT
 
 VERIFIED_HARNESSES="claude codex opencode pi pi-signed grok kimi cursor muse"
 
@@ -873,38 +872,44 @@ test_fm_send_still_marks_the_same_secondmate_task() {
   pass "fm-control's arrival leaves fm-send's from-firstmate marking untouched"
 }
 
-test_exit_types_each_harness_verified_command
-test_interrupt_sends_each_harness_verified_key
-test_opencode_interrupts_twice_and_others_once
-test_unverified_harness_is_refused
-test_harness_family_resolution
-test_prefixed_recorded_harness_reaches_each_control_verb
-test_backend_key_capability_matrix
-test_harness_kind_capability
-test_orca_refuses_an_escape_harness_interrupt
-test_unverified_state_backends_refuse_stop_verbs
-test_state_verified_backends_are_exactly_tmux_and_herdr
-test_window_label_is_refused_with_the_exact_id
-test_explicit_endpoint_is_refused
-test_unknown_task_is_refused
-test_record_bound_to_another_task_is_refused
-test_remote_secondmate_is_refused_by_placement
-test_interrupt_and_exit_lock_before_task_state_resolution
-test_verb_allowlist_is_closed
-test_resume_is_refused_with_its_reason
-test_relaunch_only_flags_are_rejected_on_other_verbs
-test_already_stopped_exit_is_idempotent
-test_missing_endpoint_refuses
-test_interrupt_refuses_when_no_agent_runs
-test_ambiguous_endpoint_refuses
-test_busy_agent_is_interrupted_before_the_exit_command
-test_idle_agent_is_not_interrupted
-test_interrupt_without_acknowledgement_preserves_busy_state
-test_muse_interrupt_confirms_adapter_acknowledgement
-test_interrupt_revalidates_agent_after_acknowledgement_wait
-test_exit_accepts_agent_stopped_by_busy_interrupt
-test_agent_that_does_not_stop_fails_closed
-test_grok_interrupt_without_acknowledgement_reports_unconfirmed
-test_grok_idle_footer_does_not_confirm_cancellation
-test_secondmate_control_command_carries_no_marker
-test_fm_send_still_marks_the_same_secondmate_task
+# Every case builds its own home and fake multiplexer under $TMP_ROOT/<name>, so
+# the cases share nothing and run in the concurrent lanes
+# tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_exit_types_each_harness_verified_command \
+  test_interrupt_sends_each_harness_verified_key \
+  test_opencode_interrupts_twice_and_others_once \
+  test_unverified_harness_is_refused \
+  test_harness_family_resolution \
+  test_prefixed_recorded_harness_reaches_each_control_verb \
+  test_backend_key_capability_matrix \
+  test_harness_kind_capability \
+  test_orca_refuses_an_escape_harness_interrupt \
+  test_unverified_state_backends_refuse_stop_verbs \
+  test_state_verified_backends_are_exactly_tmux_and_herdr \
+  test_window_label_is_refused_with_the_exact_id \
+  test_explicit_endpoint_is_refused \
+  test_unknown_task_is_refused \
+  test_record_bound_to_another_task_is_refused \
+  test_remote_secondmate_is_refused_by_placement \
+  test_interrupt_and_exit_lock_before_task_state_resolution \
+  test_verb_allowlist_is_closed \
+  test_resume_is_refused_with_its_reason \
+  test_relaunch_only_flags_are_rejected_on_other_verbs \
+  test_already_stopped_exit_is_idempotent \
+  test_missing_endpoint_refuses \
+  test_interrupt_refuses_when_no_agent_runs \
+  test_ambiguous_endpoint_refuses \
+  test_busy_agent_is_interrupted_before_the_exit_command \
+  test_idle_agent_is_not_interrupted \
+  test_interrupt_without_acknowledgement_preserves_busy_state \
+  test_muse_interrupt_confirms_adapter_acknowledgement \
+  test_interrupt_revalidates_agent_after_acknowledgement_wait \
+  test_exit_accepts_agent_stopped_by_busy_interrupt \
+  test_agent_that_does_not_stop_fails_closed \
+  test_grok_interrupt_without_acknowledgement_reports_unconfirmed \
+  test_grok_idle_footer_does_not_confirm_cancellation \
+  test_secondmate_control_command_carries_no_marker \
+  test_fm_send_still_marks_the_same_secondmate_task

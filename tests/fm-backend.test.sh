@@ -42,8 +42,11 @@ TMP_ROOT=$(fm_test_tmproot fm-backend-tests)
 # is pinned EMPTY beside the throwaway HOME: an inherited one would beat that
 # HOME and reach the developer's real store, while empty falls through to it
 # and adds no launch prefix, since fm-spawn only prefixes a non-empty value.
-SPAWN_HOME="$TMP_ROOT/user-home"
-mkdir -p "$SPAWN_HOME"
+# Every spawn gets its own throwaway HOME, so concurrent cases never write one
+# store at the same time.
+fresh_spawn_home() {
+  mktemp -d "$TMP_ROOT/user-home.XXXXXX" || fail "could not create a throwaway HOME"
+}
 
 write_spawn_brief() {  # <file> <id>
   cat > "$1" <<EOF
@@ -815,7 +818,7 @@ run_spawn_case() {  # <bin-root> <fakebin> <log> <state> <data> <config> <proj> 
   local bin=$1 fb=$2 log=$3 state=$4 data=$5 config=$6 proj=$7; shift 7
   [ "${1:-}" = -- ] && shift
   : > "$log"
-  env PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$bin" HOME="$SPAWN_HOME" CLAUDE_CONFIG_DIR='' \
+  env PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$bin" HOME="$(fresh_spawn_home)" CLAUDE_CONFIG_DIR='' \
     FM_STATE_OVERRIDE="$state" FM_DATA_OVERRIDE="$data" FM_CONFIG_OVERRIDE="$config" \
     FM_PROJECTS_OVERRIDE="$TMP_ROOT/unused-projects" \
     FM_SPAWN_NO_GUARD=1 TMUX="fake,1,0" FM_TMUX_LOG="$log" \
@@ -1069,7 +1072,7 @@ test_spawn_default_backend_writes_no_meta_field() {
   state="$TMP_ROOT/nobackend-state"; config="$TMP_ROOT/nobackend-config"
   mkdir -p "$state" "$config"
 
-  out=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$ROOT" HOME="$SPAWN_HOME" CLAUDE_CONFIG_DIR='' \
+  out=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$ROOT" HOME="$(fresh_spawn_home)" CLAUDE_CONFIG_DIR='' \
     FM_STATE_OVERRIDE="$state" FM_DATA_OVERRIDE="$data" FM_CONFIG_OVERRIDE="$config" \
     FM_PROJECTS_OVERRIDE="$TMP_ROOT/unused-projects" FM_SPAWN_NO_GUARD=1 TMUX="fake,1,0" \
     FM_TMUX_LOG="$TMP_ROOT/nobackend.log" \
@@ -1093,7 +1096,7 @@ test_spawn_explicit_backend_flag_beats_autodetect_herdr_env() {
 
   # HERDR_ENV=1 is present (as if firstmate itself were running under herdr),
   # but an explicit --backend tmux flag must still win outright.
-  out=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$ROOT" HOME="$SPAWN_HOME" CLAUDE_CONFIG_DIR='' \
+  out=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$ROOT" HOME="$(fresh_spawn_home)" CLAUDE_CONFIG_DIR='' \
     FM_STATE_OVERRIDE="$state" FM_DATA_OVERRIDE="$data" FM_CONFIG_OVERRIDE="$config" \
     FM_PROJECTS_OVERRIDE="$TMP_ROOT/unused-projects" FM_SPAWN_NO_GUARD=1 TMUX="fake,1,0" HERDR_ENV=1 \
     FM_TMUX_LOG="$TMP_ROOT/explicit-backend.log" \
@@ -1120,7 +1123,7 @@ test_spawn_autodetect_nesting_resolves_tmux_silently() {
   # (tmux nested inside a herdr pane) - the full fm-spawn.sh pipeline, not just
   # fm_backend_name, must resolve this to tmux and stay completely silent about
   # it (today's default path, byte-identical).
-  out=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$ROOT" HOME="$SPAWN_HOME" CLAUDE_CONFIG_DIR='' \
+  out=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$ROOT" HOME="$(fresh_spawn_home)" CLAUDE_CONFIG_DIR='' \
     FM_STATE_OVERRIDE="$state" FM_DATA_OVERRIDE="$data" FM_CONFIG_OVERRIDE="$config" \
     FM_PROJECTS_OVERRIDE="$TMP_ROOT/unused-projects" FM_SPAWN_NO_GUARD=1 TMUX="fake,1,0" HERDR_ENV=1 \
     FM_TMUX_LOG="$TMP_ROOT/nest.log" \
@@ -1135,30 +1138,37 @@ test_spawn_autodetect_nesting_resolves_tmux_silently() {
   pass "fm-spawn.sh: auto-detect resolves nested tmux-in-herdr to tmux and stays silent end to end"
 }
 
-test_backend_name_precedence
-test_backend_detect_precedence
-test_backend_detect_cmux_fallback_bundle_id
-test_backend_detect_cmux_fallback_requires_darwin
-test_backend_detect_cmux_fallback_tmux_nested_false_positive
-test_backend_detect_cmux_fallback_ancestry_pid_match
-test_backend_detect_cmux_fallback_ancestry_comm_match
-test_backend_detect_cmux_fallback_ancestry_stops_at_launchd
-test_backend_name_cmux_fallback_notice
-test_backend_name_autodetect_notice
-test_backend_name_explicit_beats_detection
-test_backend_validate_refuses_unknown
-test_backend_source_shell_portable
-test_backend_validate_spawn_accepts_orca
-test_meta_get_and_backend_of_meta
-test_resolve_selector_three_forms
-test_backend_of_selector_matches_explicit_target_meta
-test_send_tmux_contract
-test_peek_conformance_old_vs_new
-test_spawn_symlinked_project_prefix_avoids_false_refusal
-test_teardown_conformance_old_vs_new
-test_spawn_refuses_unknown_backend_flag
-test_spawn_refuses_codex_app_backend_flag
-test_spawn_refuses_unknown_fm_backend_env
-test_spawn_default_backend_writes_no_meta_field
-test_spawn_explicit_backend_flag_beats_autodetect_herdr_env
-test_spawn_autodetect_nesting_resolves_tmux_silently
+# Every case builds its own state, worktree, and fakebin under $TMP_ROOT/<name>,
+# and every spawn gets its own throwaway HOME, so the cases share nothing but
+# read-only fixtures and run in the concurrent lanes tests/case-lanes-helpers.sh
+# owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_backend_name_precedence \
+  test_backend_detect_precedence \
+  test_backend_detect_cmux_fallback_bundle_id \
+  test_backend_detect_cmux_fallback_requires_darwin \
+  test_backend_detect_cmux_fallback_tmux_nested_false_positive \
+  test_backend_detect_cmux_fallback_ancestry_pid_match \
+  test_backend_detect_cmux_fallback_ancestry_comm_match \
+  test_backend_detect_cmux_fallback_ancestry_stops_at_launchd \
+  test_backend_name_cmux_fallback_notice \
+  test_backend_name_autodetect_notice \
+  test_backend_name_explicit_beats_detection \
+  test_backend_validate_refuses_unknown \
+  test_backend_source_shell_portable \
+  test_backend_validate_spawn_accepts_orca \
+  test_meta_get_and_backend_of_meta \
+  test_resolve_selector_three_forms \
+  test_backend_of_selector_matches_explicit_target_meta \
+  test_send_tmux_contract \
+  test_peek_conformance_old_vs_new \
+  test_spawn_symlinked_project_prefix_avoids_false_refusal \
+  test_teardown_conformance_old_vs_new \
+  test_spawn_refuses_unknown_backend_flag \
+  test_spawn_refuses_codex_app_backend_flag \
+  test_spawn_refuses_unknown_fm_backend_env \
+  test_spawn_default_backend_writes_no_meta_field \
+  test_spawn_explicit_backend_flag_beats_autodetect_herdr_env \
+  test_spawn_autodetect_nesting_resolves_tmux_silently

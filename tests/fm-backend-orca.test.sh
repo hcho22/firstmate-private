@@ -7,13 +7,6 @@ set -u
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 TMP_ROOT=$(fm_test_tmproot fm-backend-orca-tests)
-# A claude spawn writes workspace trust into the launching user's own store,
-# and the script resolves it as ${CLAUDE_CONFIG_DIR:-${HOME:-}}, so the value
-# is pinned EMPTY beside the throwaway HOME: an inherited one would beat that
-# HOME and reach the developer's real store, while empty falls through to it
-# and adds no launch prefix, since fm-spawn only prefixes a non-empty value.
-SPAWN_HOME="$TMP_ROOT/user-home"
-mkdir -p "$SPAWN_HOME"
 
 write_spawn_brief() {  # <data-dir> <id>
   local data=$1 id=$2
@@ -58,11 +51,19 @@ SH
   printf '%s\n' "$fb"
 }
 
-orca_case() {  # <name> -> sets CASE_DIR LOG RESP FB
+# orca_case <name>: sets CASE_DIR LOG RESP FB SPAWN_HOME for one case.
+# A claude spawn writes workspace trust into the launching user's own store,
+# and the script resolves it as ${CLAUDE_CONFIG_DIR:-${HOME:-}}, so the value
+# is pinned EMPTY beside the case's throwaway HOME (SPAWN_HOME): an inherited one
+# would beat that HOME and reach the developer's real store, while empty falls
+# through to it and adds no launch prefix, since fm-spawn only prefixes a
+# non-empty value.
+orca_case() {
   CASE_DIR="$TMP_ROOT/$1"
-  mkdir -p "$CASE_DIR/responses"
+  mkdir -p "$CASE_DIR/responses" "$CASE_DIR/user-home"
   LOG="$CASE_DIR/log"
   RESP="$CASE_DIR/responses"
+  SPAWN_HOME="$CASE_DIR/user-home"
   : > "$LOG"
   FB=$(make_orca_fakebin "$CASE_DIR")
 }
@@ -1323,54 +1324,60 @@ test_dispatcher_sources_orca_and_routes_primitives() {
   pass "fm-backend dispatcher: accepts orca and routes capture through bin/backends/orca.sh"
 }
 
-test_capture_reads_terminal_tail_json
-test_capture_falls_back_to_text_fields
-test_capture_fails_on_orca_error_json
-test_runtime_check_accepts_ready_orca_status
-test_runtime_check_refuses_unready_orca_status
-test_send_text_submit_verifies_empty_composer_after_enter
-test_send_text_submit_borderless_claude_confirms
-test_composer_state_stale_banner_never_wins
-test_send_text_submit_retries_when_composer_stays_pending
-test_composer_state_popup_placeholder_fill_is_pending
-test_composer_state_bare_shell_prompt_is_unknown
-test_send_text_submit_popup_autocomplete_requires_second_enter
-test_send_literal_constructs_non_enter_send
-test_send_text_submit_reports_send_failed
-test_send_helpers_reject_orca_error_json
-test_send_key_enter_and_interrupt
-test_send_key_refuses_unknown_key
-test_send_key_refuses_escape_until_supported
-test_kill_is_best_effort_close
-test_remove_worktree_refuses_empty_id
-test_remove_worktree_rejects_orca_error_json
-test_worktree_path_resolves_id
-test_dispatcher_sources_orca_and_routes_primitives
-test_json_get_ignores_undocumented_terminal_id_shapes
-test_worktree_and_terminal_helpers_parse_json
-test_worktree_create_removes_worktree_when_path_missing
-test_spawn_preserves_orca_metadata_when_pathless_worktree_cleanup_fails
-test_spawn_writes_orca_metadata_and_launches_harness
-test_spawn_refuses_orca_secondmate_before_home_mutation
-test_spawn_refuses_orca_when_runtime_not_ready
-test_spawn_refuses_orca_nonisolated_worktree
-test_spawn_removes_orca_worktree_when_terminal_create_fails
-test_spawn_preserves_orca_metadata_when_abort_cleanup_fails
-test_spawn_releases_orca_resources_when_metadata_write_fails
-test_peek_send_and_crew_state_route_through_orca_meta
-test_peek_and_crew_state_fail_closed_on_orca_error_json
-test_target_exists_rejects_orca_error_json
-test_scout_teardown_removes_orca_worktree_via_helper
-test_scout_teardown_refuses_orca_id_path_mismatch
-test_teardown_removes_orca_worktree_when_path_missing
-test_teardown_preserves_metadata_when_orca_remove_error_json
-test_scout_teardown_refuses_orca_missing_report_when_path_missing
-test_ship_teardown_refuses_orca_missing_worktree_path
-test_ship_teardown_removes_orca_worktree_when_id_path_matches
-test_ship_teardown_refuses_orca_unresolvable_worktree_id
-test_ship_teardown_refuses_orca_id_path_mismatch
-test_teardown_refuses_orca_missing_worktree_id
-test_teardown_refuses_orca_worktree_without_terminal_handle
-test_secondmate_force_teardown_removes_orca_child_via_orca
-test_secondmate_force_teardown_refuses_orca_child_id_path_mismatch
-test_secondmate_force_teardown_refuses_partial_orca_child
+# Every case builds its own fake Orca, home, and throwaway HOME under
+# $TMP_ROOT/<name> (orca_case), so the cases share nothing and run in the
+# concurrent lanes tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_capture_reads_terminal_tail_json \
+  test_capture_falls_back_to_text_fields \
+  test_capture_fails_on_orca_error_json \
+  test_runtime_check_accepts_ready_orca_status \
+  test_runtime_check_refuses_unready_orca_status \
+  test_send_text_submit_verifies_empty_composer_after_enter \
+  test_send_text_submit_borderless_claude_confirms \
+  test_composer_state_stale_banner_never_wins \
+  test_send_text_submit_retries_when_composer_stays_pending \
+  test_composer_state_popup_placeholder_fill_is_pending \
+  test_composer_state_bare_shell_prompt_is_unknown \
+  test_send_text_submit_popup_autocomplete_requires_second_enter \
+  test_send_literal_constructs_non_enter_send \
+  test_send_text_submit_reports_send_failed \
+  test_send_helpers_reject_orca_error_json \
+  test_send_key_enter_and_interrupt \
+  test_send_key_refuses_unknown_key \
+  test_send_key_refuses_escape_until_supported \
+  test_kill_is_best_effort_close \
+  test_remove_worktree_refuses_empty_id \
+  test_remove_worktree_rejects_orca_error_json \
+  test_worktree_path_resolves_id \
+  test_dispatcher_sources_orca_and_routes_primitives \
+  test_json_get_ignores_undocumented_terminal_id_shapes \
+  test_worktree_and_terminal_helpers_parse_json \
+  test_worktree_create_removes_worktree_when_path_missing \
+  test_spawn_preserves_orca_metadata_when_pathless_worktree_cleanup_fails \
+  test_spawn_writes_orca_metadata_and_launches_harness \
+  test_spawn_refuses_orca_secondmate_before_home_mutation \
+  test_spawn_refuses_orca_when_runtime_not_ready \
+  test_spawn_refuses_orca_nonisolated_worktree \
+  test_spawn_removes_orca_worktree_when_terminal_create_fails \
+  test_spawn_preserves_orca_metadata_when_abort_cleanup_fails \
+  test_spawn_releases_orca_resources_when_metadata_write_fails \
+  test_peek_send_and_crew_state_route_through_orca_meta \
+  test_peek_and_crew_state_fail_closed_on_orca_error_json \
+  test_target_exists_rejects_orca_error_json \
+  test_scout_teardown_removes_orca_worktree_via_helper \
+  test_scout_teardown_refuses_orca_id_path_mismatch \
+  test_teardown_removes_orca_worktree_when_path_missing \
+  test_teardown_preserves_metadata_when_orca_remove_error_json \
+  test_scout_teardown_refuses_orca_missing_report_when_path_missing \
+  test_ship_teardown_refuses_orca_missing_worktree_path \
+  test_ship_teardown_removes_orca_worktree_when_id_path_matches \
+  test_ship_teardown_refuses_orca_unresolvable_worktree_id \
+  test_ship_teardown_refuses_orca_id_path_mismatch \
+  test_teardown_refuses_orca_missing_worktree_id \
+  test_teardown_refuses_orca_worktree_without_terminal_handle \
+  test_secondmate_force_teardown_removes_orca_child_via_orca \
+  test_secondmate_force_teardown_refuses_orca_child_id_path_mismatch \
+  test_secondmate_force_teardown_refuses_partial_orca_child

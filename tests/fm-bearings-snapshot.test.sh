@@ -224,6 +224,12 @@ write_remote_home_summary() {  # <remote-home> <generated-epoch>
   }' > "$home/state/home-summary.json"
 }
 
+# remote_ledger_home <parent-home> <n>: where ledger home <n> of <parent-home>'s
+# fleet lives, beside the parent so concurrent cases never share one.
+remote_ledger_home() {
+  printf '%s.remote-ledger-home-%s\n' "$1" "$2"
+}
+
 make_remote_ledger_fleet() {  # <parent-home> <count>
   local parent=$1 count=$2 i id remote_home
   mkdir -p "$parent/data" "$parent/state" "$parent/config" "$parent/projects"
@@ -232,7 +238,7 @@ make_remote_ledger_fleet() {  # <parent-home> <count>
   i=1
   while [ "$i" -le "$count" ]; do
     id="ledger-$i"
-    remote_home="$TMP_ROOT/remote-ledger-home-$i"
+    remote_home=$(remote_ledger_home "$parent" "$i")
     mkdir -p "$remote_home/state"
     remote_home=$(cd "$remote_home" && pwd -P)
     printf -- '- %s - ledger fixture (host: host-%s; root: /remote/root; home: %s; scope: fixture; projects: sample; added 2026-09-01)\n' \
@@ -337,21 +343,22 @@ run_remote_ledger_bearings() {  # <parent-home> <fakebin> <epoch> [<budget-secon
     FM_BEARINGS_NOW=2026-09-01T22:00:00Z "$BEARINGS" --json
 }
 
-# set_remote_ledger_slow <count> [<marker>] marks homes 1..<count> slow with the
-# given marker line (default: wedge, see make_remote_ledger_ssh);
-# clear_remote_ledger_slow <count> removes the marker again.
+# set_remote_ledger_slow <parent-home> <count> [<marker>] marks the parent's
+# homes 1..<count> slow with the given marker line (default: wedge, see
+# make_remote_ledger_ssh); clear_remote_ledger_slow <parent-home> <count> removes
+# the marker again.
 set_remote_ledger_slow() {
-  local count=$1 marker=${2:-wedge} i=1
+  local parent=$1 count=$2 marker=${3:-wedge} i=1
   while [ "$i" -le "$count" ]; do
-    printf '%s\n' "$marker" > "$TMP_ROOT/remote-ledger-home-$i/state/slow-ledger-read"
+    printf '%s\n' "$marker" > "$(remote_ledger_home "$parent" "$i")/state/slow-ledger-read"
     i=$((i + 1))
   done
 }
 
 clear_remote_ledger_slow() {
-  local count=$1 i=1
+  local parent=$1 count=$2 i=1
   while [ "$i" -le "$count" ]; do
-    rm -f "$TMP_ROOT/remote-ledger-home-$i/state/slow-ledger-read"
+    rm -f "$(remote_ledger_home "$parent" "$i")/state/slow-ledger-read"
     i=$((i + 1))
   done
 }
@@ -2547,9 +2554,9 @@ test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
       and all(.secondmates[]; .freshness == "fresh" and .age_seconds == 100)
   ' >/dev/null || fail "healthy remote ledgers did not project their generated-epoch ages: $json"
 
-  duplicate_base="$TMP_ROOT/remote-ledger-home-1/state/home-summary.single"
-  cp "$TMP_ROOT/remote-ledger-home-1/state/home-summary.json" "$duplicate_base"
-  cat "$duplicate_base" "$duplicate_base" > "$TMP_ROOT/remote-ledger-home-1/state/home-summary.json"
+  duplicate_base="$(remote_ledger_home "$parent" 1)/state/home-summary.single"
+  cp "$(remote_ledger_home "$parent" 1)/state/home-summary.json" "$duplicate_base"
+  cat "$duplicate_base" "$duplicate_base" > "$(remote_ledger_home "$parent" 1)/state/home-summary.json"
   : > "$parent/ledger-calls.log"
   json=$(run_remote_ledger_bearings "$parent" "$fakebin" 1100)
   printf '%s' "$json" | jq -e '
@@ -2558,9 +2565,9 @@ test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
   ' >/dev/null || fail "a multi-document live ledger bypassed the valid cache: $json"
   [ "$(wc -l < "$parent/ledger-calls.log" | tr -d ' ')" -eq 5 ] \
     || fail "rejecting a multi-document live ledger added remote reads"
-  mv "$duplicate_base" "$TMP_ROOT/remote-ledger-home-1/state/home-summary.json"
+  mv "$duplicate_base" "$(remote_ledger_home "$parent" 1)/state/home-summary.json"
 
-  : > "$TMP_ROOT/remote-ledger-home-1/state/unbounded-ledger-read"
+  : > "$(remote_ledger_home "$parent" 1)/state/unbounded-ledger-read"
   : > "$parent/ledger-calls.log"
   json=$(run_remote_ledger_bearings "$parent" "$fakebin" 1100)
   printf '%s' "$json" | jq -e '
@@ -2569,7 +2576,7 @@ test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
   ' >/dev/null || fail "an unbounded primary ledger stream consumed the shared collector budget: $json"
   [ "$(wc -l < "$parent/ledger-calls.log" | tr -d ' ')" -eq 5 ] \
     || fail "bounding one faulty primary ledger added remote reads"
-  rm -f "$TMP_ROOT/remote-ledger-home-1/state/unbounded-ledger-read"
+  rm -f "$(remote_ledger_home "$parent" 1)/state/unbounded-ledger-read"
 
   # Five reads that each stay in flight until all five have started. Reads that
   # overlap release one another; reads the collector ran one after another could
@@ -2577,7 +2584,7 @@ test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
   # alone. Every read logging `overlapped` therefore proves all five were in
   # flight at once, which is the property a shared budget depends on and which no
   # amount of host load can change. Each read then fails, so the cache answers.
-  set_remote_ledger_slow 5 "rendezvous 5"
+  set_remote_ledger_slow "$parent" 5 "rendezvous 5"
   : > "$parent/ledger-calls.log"
   : > "$parent/ledger-events.log"
   json=$(run_remote_ledger_bearings "$parent" "$fakebin" 2000)
@@ -2597,7 +2604,7 @@ test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
   # from cache, and every process the collector started is gone once the snapshot
   # returns. The assertions hold however many reads the host let start before
   # the deadline; the overlap above is what proves they all can.
-  set_remote_ledger_slow 5 wedge
+  set_remote_ledger_slow "$parent" 5 wedge
   : > "$parent/ledger-calls.log"
   : > "$parent/ledger-pids.log"
   : > "$parent/ledger-events.log"
@@ -2613,7 +2620,7 @@ test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
 
   i=1
   while [ "$i" -le 5 ]; do
-    remote_home="$TMP_ROOT/remote-ledger-home-$i"
+    remote_home=$(remote_ledger_home "$parent" "$i")
     remote_home=$(cd "$remote_home" && pwd -P)
     write_remote_home_summary "$remote_home" 1990
     i=$((i + 1))
@@ -2623,8 +2630,8 @@ test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
   # while it is still in flight (`peers-done`); reads run in series with it first
   # would instead wait out the hang guard (`guard-expired`) with the four peers
   # never started, leaving them cached rather than fresh.
-  clear_remote_ledger_slow 5
-  set_remote_ledger_slow 1 "after-peers 4"
+  clear_remote_ledger_slow "$parent" 5
+  set_remote_ledger_slow "$parent" 1 "after-peers 4"
   : > "$parent/ledger-calls.log"
   : > "$parent/ledger-pids.log"
   : > "$parent/ledger-events.log"
@@ -2646,7 +2653,7 @@ test_a_remote_home_without_any_ledger_is_explicitly_unreadable_without_remote_co
   local parent fakebin remote_home json
   parent=$(make_home remote-ledger-missing)
   make_remote_ledger_fleet "$parent" 1
-  remote_home="$TMP_ROOT/remote-ledger-home-1"
+  remote_home=$(remote_ledger_home "$parent" 1)
   rm -f "$remote_home/state/home-summary.json" "$remote_home/state/slow-ledger-read"
   fakebin=$(make_remote_ledger_ssh "$parent/remote-ssh")
   : > "$parent/ledger-calls.log"
@@ -2667,52 +2674,58 @@ test_a_remote_home_without_any_ledger_is_explicitly_unreadable_without_remote_co
   pass "a missing remote ledger stays explicitly unreadable without remote summary computation"
 }
 
-test_task_teardown_during_metadata_capture_does_not_abort_snapshot
-test_current_state_uses_captured_status_observation
-test_relaunched_task_does_not_inherit_reused_endpoint_state
-test_large_local_snapshot_overlaps_local_reads_without_projection_drift
-test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache
-test_a_remote_home_without_any_ledger_is_explicitly_unreadable_without_remote_compute
-test_domain_alpha_stale_parent_event_does_not_become_current_work
-test_gnu_stat_uses_file_formats_without_bsd_fallback_pollution
-test_parent_activity_evidence_is_bounded_and_disclosed
-test_active_child_overrides_old_parent_event
-test_structured_child_decision_reaches_captains_call
-test_bad_secondmate_homes_never_revive_parent_work
-test_oversized_secondmate_summary_stays_strict_unknown
-test_secondmate_and_child_bounds_are_disclosed
-test_parent_decision_is_untrusted_contradiction_only
-test_parent_evidence_reconciles_by_verb_and_key
-test_nonprogressing_child_states_are_explicit
-test_registry_unavailability_and_bounds_are_explicit
-test_current_landed_baseline_is_repeatable_and_prior_report_independent
-test_default_is_bounded_and_local_only
-test_toon_json_parity
-test_landed_includes_secondmate_home_merges
-test_landed_default_balances_dominant_and_sparse_homes
-test_landed_default_refills_capacity_after_sparse_homes_exhaust
-test_landed_default_uses_deterministic_home_order_when_homes_exceed_cap
-test_landed_default_preserves_internal_order_for_ties
-test_landed_default_handles_no_landed_items
-test_all_landed_keeps_complete_global_order
-test_landed_bounded_and_disclosed
-test_live_blocker_is_not_charted_queue_work
-test_captains_call_anti_leak
-test_main_orphan_in_flight_is_disclosed_not_invented
-test_main_unstructured_current_is_disclosed_with_structured_sibling
-test_main_orphan_counterfactual_meta_clears_inventory_warning
-test_active_children_project_independent_of_home_captain_hold
-test_mixed_secondmate_roles_partial_state_and_captain_readiness
-test_main_captain_readiness_matches_secondmate_projection
-test_completed_scout_report_not_pending
-test_open_decision_surfaces_end_to_end
-test_report_pointers_surface
-test_superseded_queued_item_dropped_by_default
-test_include_prs_is_the_only_fetch_path
-test_partial_github_failure_degrades
-test_perl_fallback_bounds_github_call
-test_section_caps_and_expansion_flags
-test_collapsed_captain_call_deferral_and_landed
-test_pr_repository_cap_and_expansion
-test_per_repository_pr_cap_is_disclosed
-test_projection_and_toon_fail_closed
+# Every case builds its own home under $TMP_ROOT/<name>, with any remote ledger
+# homes beside it, and reads the shared fixture root only, so the cases share
+# nothing and run in the concurrent lanes tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_task_teardown_during_metadata_capture_does_not_abort_snapshot \
+  test_current_state_uses_captured_status_observation \
+  test_relaunched_task_does_not_inherit_reused_endpoint_state \
+  test_large_local_snapshot_overlaps_local_reads_without_projection_drift \
+  test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache \
+  test_a_remote_home_without_any_ledger_is_explicitly_unreadable_without_remote_compute \
+  test_domain_alpha_stale_parent_event_does_not_become_current_work \
+  test_gnu_stat_uses_file_formats_without_bsd_fallback_pollution \
+  test_parent_activity_evidence_is_bounded_and_disclosed \
+  test_active_child_overrides_old_parent_event \
+  test_structured_child_decision_reaches_captains_call \
+  test_bad_secondmate_homes_never_revive_parent_work \
+  test_oversized_secondmate_summary_stays_strict_unknown \
+  test_secondmate_and_child_bounds_are_disclosed \
+  test_parent_decision_is_untrusted_contradiction_only \
+  test_parent_evidence_reconciles_by_verb_and_key \
+  test_nonprogressing_child_states_are_explicit \
+  test_registry_unavailability_and_bounds_are_explicit \
+  test_current_landed_baseline_is_repeatable_and_prior_report_independent \
+  test_default_is_bounded_and_local_only \
+  test_toon_json_parity \
+  test_landed_includes_secondmate_home_merges \
+  test_landed_default_balances_dominant_and_sparse_homes \
+  test_landed_default_refills_capacity_after_sparse_homes_exhaust \
+  test_landed_default_uses_deterministic_home_order_when_homes_exceed_cap \
+  test_landed_default_preserves_internal_order_for_ties \
+  test_landed_default_handles_no_landed_items \
+  test_all_landed_keeps_complete_global_order \
+  test_landed_bounded_and_disclosed \
+  test_live_blocker_is_not_charted_queue_work \
+  test_captains_call_anti_leak \
+  test_main_orphan_in_flight_is_disclosed_not_invented \
+  test_main_unstructured_current_is_disclosed_with_structured_sibling \
+  test_main_orphan_counterfactual_meta_clears_inventory_warning \
+  test_active_children_project_independent_of_home_captain_hold \
+  test_mixed_secondmate_roles_partial_state_and_captain_readiness \
+  test_main_captain_readiness_matches_secondmate_projection \
+  test_completed_scout_report_not_pending \
+  test_open_decision_surfaces_end_to_end \
+  test_report_pointers_surface \
+  test_superseded_queued_item_dropped_by_default \
+  test_include_prs_is_the_only_fetch_path \
+  test_partial_github_failure_degrades \
+  test_perl_fallback_bounds_github_call \
+  test_section_caps_and_expansion_flags \
+  test_collapsed_captain_call_deferral_and_landed \
+  test_pr_repository_cap_and_expansion \
+  test_per_repository_pr_cap_is_disclosed \
+  test_projection_and_toon_fail_closed

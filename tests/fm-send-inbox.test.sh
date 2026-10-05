@@ -338,15 +338,20 @@ test_unwritable_inbox_fails_loudly() {
   pass "fm-send inbox: an unwritable record is a loud local failure that leaves no false expectation"
 }
 
-test_text_steer_rides_inbox
-test_multiline_steer_is_legal
-test_resend_enqueues_new_sequence
-test_pending_composer_skips_ring_advisorily
-test_failed_ring_is_still_sent
-test_harness_invocations_stay_typed
-test_explicit_target_stays_typed
-test_key_path_never_touches_inbox
-test_secondmate_marker_and_enqueue_delivery
-test_post_enqueue_bookkeeping_failure_is_not_retryable
-test_meta_lock_contention_fails_bounded
-test_unwritable_inbox_fails_loudly
+# Every case builds its own home and fakebin under $TMP_ROOT/<name>, so the cases
+# share nothing and run in the concurrent lanes tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_text_steer_rides_inbox \
+  test_multiline_steer_is_legal \
+  test_resend_enqueues_new_sequence \
+  test_pending_composer_skips_ring_advisorily \
+  test_failed_ring_is_still_sent \
+  test_harness_invocations_stay_typed \
+  test_explicit_target_stays_typed \
+  test_key_path_never_touches_inbox \
+  test_secondmate_marker_and_enqueue_delivery \
+  test_post_enqueue_bookkeeping_failure_is_not_retryable \
+  test_meta_lock_contention_fails_bounded \
+  test_unwritable_inbox_fails_loudly

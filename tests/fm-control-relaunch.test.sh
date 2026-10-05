@@ -35,16 +35,6 @@ X_LINK="$ROOT/bin/fm-x-link.sh"
 TMP_ROOT=$(fm_test_tmproot fm-control-relaunch)
 mkdir -p "$TMP_ROOT"
 TMP_ROOT=$(cd "$TMP_ROOT" && pwd)
-TASK_TMPS=()
-
-relaunch_cleanup() {
-  local d
-  for d in "${TASK_TMPS[@]:-}"; do
-    [ -n "$d" ] && rm -rf "$d"
-  done
-  rm -rf "$TMP_ROOT"
-}
-trap relaunch_cleanup EXIT
 
 # The same lifecycle-modelling tmux stub as tests/fm-control.test.sh: the
 # harness's exit command stops the agent, and a launch-brief literal starts the
@@ -165,7 +155,7 @@ EOF
   } > "$home/state/$id.meta"
   printf '%s\n' "fm-$id" > "$dir/fake/windows"
   printf '%s' "$wt" > "$dir/fake/cwd"
-  TASK_TMPS+=("/tmp/fm-$id")
+  fm_test_register_cleanup "/tmp/fm-$id"
 }
 
 run_control() {  # <case-dir> <args...>
@@ -1005,11 +995,11 @@ test_launch_failure_keeps_the_prior_record_and_reports_it() {
 
 test_prepublication_failure_keeps_concurrent_durable_metadata() {
   local dir control_pid link_out rc
-  dir=$(new_case rollback-race rl30)
-  add_ship_task "$dir" rl30 claude
+  dir=$(new_case rollback-race rl42)
+  add_ship_task "$dir" rl42 claude
   printf '%s' "$dir/proj" > "$dir/fake/cwd"
   FM_FAKE_CWD_RACE_READY="$dir/cwd-race-ready" \
-    run_control "$dir" rl30 relaunch --harness codex --note "preserve concurrent metadata" \
+    run_control "$dir" rl42 relaunch --harness codex --note "preserve concurrent metadata" \
       > "$dir/control.out" &
   control_pid=$!
   wait_for_event "$dir/cwd-race-ready" "$control_pid" || {
@@ -1018,16 +1008,16 @@ test_prepublication_failure_keeps_concurrent_durable_metadata() {
     fail "relaunch did not reach its pre-publication endpoint check"$'\n'"$(cat "$dir/control.out")"
   }
   link_out=$(env PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" \
-    "$X_LINK" rl30 request-30 --carry-count 2 --carry-ts 1700000000 \
+    "$X_LINK" rl42 request-30 --carry-count 2 --carry-ts 1700000000 \
       --carry-platform x --carry-max 280 2>&1); rc=$?
   expect_code 0 "$rc" "concurrent durable metadata publication should succeed"$'\n'"$link_out"
   wait "$control_pid"; rc=$?
   expect_code 1 "$rc" "the staged pre-publication launch failure should fail closed"
-  [ "$(meta_field "$dir" rl30 x_request)" = request-30 ] \
+  [ "$(meta_field "$dir" rl42 x_request)" = request-30 ] \
     || fail "rollback erased the concurrent X request"
-  [ "$(meta_field "$dir" rl30 x_followups)" = 2 ] \
+  [ "$(meta_field "$dir" rl42 x_followups)" = 2 ] \
     || fail "rollback erased the concurrent follow-up count"
-  [ "$(journal_field "$dir" rl30 rollback)" = prior-record-kept ] \
+  [ "$(journal_field "$dir" rl42 rollback)" = prior-record-kept ] \
     || fail "pre-publication rollback should leave the live record untouched"
   pass "fm-control relaunch: unpublished rollback keeps concurrent durable metadata"
 }
@@ -1092,23 +1082,23 @@ test_complete_journal_failure_rolls_back_from_durable_phase() {
 
 test_prepublication_abort_retires_replacement_wiring_and_busy_state() {
   local dir out rc real_mv meta
-  dir=$(new_case prepublishcleanup rl28)
-  add_ship_task "$dir" rl28 claude
-  meta="$dir/home/state/rl28.meta"
+  dir=$(new_case prepublishcleanup rl43)
+  add_ship_task "$dir" rl43 claude
+  meta="$dir/home/state/rl43.meta"
   real_mv=$(command -v mv)
   make_mv_failure_stub "$dir"
   out=$(FM_REAL_MV="$real_mv" FM_FAKE_META_PUBLISH_MV_FAIL="$meta" \
-    run_control "$dir" rl28 relaunch --note "clean partial replacement state"); rc=$?
+    run_control "$dir" rl43 relaunch --note "clean partial replacement state"); rc=$?
   expect_code 1 "$rc" "a failed metadata publication should fail closed"$'\n'"$out"
-  [ "$(meta_field "$dir" rl28 harness)" = claude ] \
+  [ "$(meta_field "$dir" rl43 harness)" = claude ] \
     || fail "a failed publication should retain the prior durable record"
   [ ! -e "$dir/wt/.claude/settings.local.json" ] \
     || fail "an aborted replacement should remove its harness wiring"
-  [ ! -e "$dir/home/state/rl28.busy-gen" ] \
+  [ ! -e "$dir/home/state/rl43.busy-gen" ] \
     || fail "an aborted replacement should retire its busy generation"
-  [ ! -e "$dir/home/state/rl28.busy-state" ] \
+  [ ! -e "$dir/home/state/rl43.busy-state" ] \
     || fail "an aborted replacement should remove its seeded busy record"
-  [ "$(journal_field "$dir" rl28 rollback)" = prior-record-kept ] \
+  [ "$(journal_field "$dir" rl43 rollback)" = prior-record-kept ] \
     || fail "the journal should record the unpublished replacement rollback"
   pass "fm-spawn relaunch: prepublication abort removes replacement state"
 }
@@ -1243,9 +1233,9 @@ SH
 
 test_concurrent_relaunch_is_refused() {
   local dir out rc lock holder
-  dir=$(new_case lock rl19)
-  add_ship_task "$dir" rl19 claude
-  lock="$dir/home/state/.control-rl19.lock"
+  dir=$(new_case lock rl44)
+  add_ship_task "$dir" rl44 claude
+  lock="$dir/home/state/.control-rl44.lock"
   # A live holder of this task's control lock, taken through the same lock
   # library fm-control uses.
   (
@@ -1257,7 +1247,7 @@ test_concurrent_relaunch_is_refused() {
   ) &
   holder=$!
   wait_for_event "$lock" "$holder" || { kill "$holder" 2>/dev/null; fail "could not stage a held control lock"; }
-  out=$(run_control "$dir" rl19 relaunch --note "concurrent"); rc=$?
+  out=$(run_control "$dir" rl44 relaunch --note "concurrent"); rc=$?
   kill "$holder" 2>/dev/null || true
   wait "$holder" 2>/dev/null || true
   expect_code 1 "$rc" "a second concurrent control action should refuse"
@@ -1296,9 +1286,9 @@ test_direct_spawn_relaunch_participates_in_the_lifecycle_lock() {
 # shellcheck disable=SC2031
 test_promotion_participates_in_the_lifecycle_lock_before_metadata_resolution() {
   local dir out rc lock holder
-  dir=$(new_case promotelock rl29)
-  add_ship_task "$dir" rl29 claude
-  lock="$dir/home/state/.control-rl29.lock"
+  dir=$(new_case promotelock rl45)
+  add_ship_task "$dir" rl45 claude
+  lock="$dir/home/state/.control-rl45.lock"
   (
     . "$ROOT/bin/fm-wake-lib.sh"
     fm_lock_try_acquire "$lock" || exit 1
@@ -1307,13 +1297,13 @@ test_promotion_participates_in_the_lifecycle_lock_before_metadata_resolution() {
   ) &
   holder=$!
   wait_for_event "$lock" "$holder" || { kill "$holder" 2>/dev/null; fail "could not stage the promotion lifecycle lock"; }
-  out=$(FM_HOME="$dir/home" "$PROMOTE" rl29 --mode direct-PR --yolo on 2>&1); rc=$?
+  out=$(FM_HOME="$dir/home" "$PROMOTE" rl45 --mode direct-PR --yolo on 2>&1); rc=$?
   kill "$holder" 2>/dev/null || true
   wait "$holder" 2>/dev/null || true
   expect_code 1 "$rc" "promotion should refuse a concurrent lifecycle action"
   assert_contains "$out" "another lifecycle action is already running" \
     "promotion should lock before interpreting the task metadata"
-  [ "$(meta_field "$dir" rl29 kind)" = ship ] \
+  [ "$(meta_field "$dir" rl45 kind)" = ship ] \
     || fail "a contended promotion must leave task metadata unchanged"
   pass "fm-promote: promotion participates in lifecycle serialization"
 }
@@ -1488,54 +1478,60 @@ test_relaunch_moves_a_drifted_item_back_in_flight() {
   pass "relaunch heals an item that drifted out of In flight while the task stayed live"
 }
 
-test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint
-test_relaunch_preserves_durable_task_metadata
-test_relaunch_serializes_concurrent_durable_metadata_publication
-test_disabled_relaunch_clears_prior_trace_context
-test_relaunch_appends_the_progress_note_to_the_instructions
-test_relaunch_requires_a_note_for_a_ship_task
-test_harness_switch_moves_the_record_and_clears_prior_wiring
-test_harness_switch_does_not_carry_the_old_profile_axes
-test_harness_switch_resolves_a_prefixed_recorded_harness
-test_prefixed_recorded_harness_requires_explicit_replacement
-test_same_harness_relaunch_keeps_the_profile_axes
-test_explicit_model_wins_over_the_recorded_one
-test_relaunch_onto_an_unverified_harness_is_refused
-test_prior_harness_turnend_registry_entry_is_cleared
-test_wiring_removal_failure_refuses_before_replacement_arm
-test_turnend_auth_paths_are_owned_by_the_control_adapter
-test_secondmate_relaunch_picks_up_the_configured_harness_pin
-test_secondmate_relaunch_ignores_invalid_configured_effort_before_stop
-test_secondmate_relaunch_onto_a_crewmate_only_adapter_refuses_before_stop
-test_explicit_secondmate_harness_ignores_configured_profile_axes
-test_ship_relaunch_ignores_the_crew_harness_config
-test_spawn_relaunch_without_a_harness_reuses_the_recorded_one
-test_prefixed_prior_harness_wiring_is_still_retired
-test_muse_session_binding_is_retired_on_a_harness_switch
-test_cursor_session_binding_is_retired_on_a_harness_switch
-test_missing_worktree_refuses_before_stopping_anything
-test_missing_instructions_refuse_before_stopping_anything
-test_checkpoint_refusal_leaves_the_record_byte_identical
-test_checkpoint_refuses_uninspectable_head_and_status
-test_launch_failure_keeps_the_prior_record_and_reports_it
-test_prepublication_failure_keeps_concurrent_durable_metadata
-test_post_publication_launch_failure_keeps_the_new_record
-test_stop_transport_failure_reconciles_a_dead_agent
-test_complete_journal_failure_rolls_back_from_durable_phase
-test_prepublication_abort_retires_replacement_wiring_and_busy_state
-test_journal_records_the_checkpoint_it_proved
-test_secondmate_relaunch_checkpoints_child_work_and_spares_the_charter
-test_secondmate_relaunch_refuses_an_unmarked_home
-test_secondmate_checkpoint_refuses_unreadable_child_state
-test_concurrent_relaunch_is_refused
-test_direct_spawn_relaunch_participates_in_the_lifecycle_lock
-test_promotion_participates_in_the_lifecycle_lock_before_metadata_resolution
-test_spawn_relaunch_refuses_a_live_agent
-test_spawn_relaunch_refuses_a_symlinked_task_record_before_inspection
-test_spawn_relaunch_keeps_its_early_meta_lock_continuous
-test_spawn_relaunch_refuses_a_pending_authoritative_close
-test_spawn_relaunch_refuses_contradicting_flags
-test_spawn_relaunch_refuses_an_unrecorded_task
-test_spawn_relaunch_refuses_a_pane_outside_the_worktree
-test_relaunch_reverifies_an_already_in_flight_item_instead_of_rewriting_it
-test_relaunch_moves_a_drifted_item_back_in_flight
+# Every case builds its own home, worktree, and fake multiplexer under
+# $TMP_ROOT/<name> and uses its own task id, so the cases share nothing and run
+# in the concurrent lanes tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint \
+  test_relaunch_preserves_durable_task_metadata \
+  test_relaunch_serializes_concurrent_durable_metadata_publication \
+  test_disabled_relaunch_clears_prior_trace_context \
+  test_relaunch_appends_the_progress_note_to_the_instructions \
+  test_relaunch_requires_a_note_for_a_ship_task \
+  test_harness_switch_moves_the_record_and_clears_prior_wiring \
+  test_harness_switch_does_not_carry_the_old_profile_axes \
+  test_harness_switch_resolves_a_prefixed_recorded_harness \
+  test_prefixed_recorded_harness_requires_explicit_replacement \
+  test_same_harness_relaunch_keeps_the_profile_axes \
+  test_explicit_model_wins_over_the_recorded_one \
+  test_relaunch_onto_an_unverified_harness_is_refused \
+  test_prior_harness_turnend_registry_entry_is_cleared \
+  test_wiring_removal_failure_refuses_before_replacement_arm \
+  test_turnend_auth_paths_are_owned_by_the_control_adapter \
+  test_secondmate_relaunch_picks_up_the_configured_harness_pin \
+  test_secondmate_relaunch_ignores_invalid_configured_effort_before_stop \
+  test_secondmate_relaunch_onto_a_crewmate_only_adapter_refuses_before_stop \
+  test_explicit_secondmate_harness_ignores_configured_profile_axes \
+  test_ship_relaunch_ignores_the_crew_harness_config \
+  test_spawn_relaunch_without_a_harness_reuses_the_recorded_one \
+  test_prefixed_prior_harness_wiring_is_still_retired \
+  test_muse_session_binding_is_retired_on_a_harness_switch \
+  test_cursor_session_binding_is_retired_on_a_harness_switch \
+  test_missing_worktree_refuses_before_stopping_anything \
+  test_missing_instructions_refuse_before_stopping_anything \
+  test_checkpoint_refusal_leaves_the_record_byte_identical \
+  test_checkpoint_refuses_uninspectable_head_and_status \
+  test_launch_failure_keeps_the_prior_record_and_reports_it \
+  test_prepublication_failure_keeps_concurrent_durable_metadata \
+  test_post_publication_launch_failure_keeps_the_new_record \
+  test_stop_transport_failure_reconciles_a_dead_agent \
+  test_complete_journal_failure_rolls_back_from_durable_phase \
+  test_prepublication_abort_retires_replacement_wiring_and_busy_state \
+  test_journal_records_the_checkpoint_it_proved \
+  test_secondmate_relaunch_checkpoints_child_work_and_spares_the_charter \
+  test_secondmate_relaunch_refuses_an_unmarked_home \
+  test_secondmate_checkpoint_refuses_unreadable_child_state \
+  test_concurrent_relaunch_is_refused \
+  test_direct_spawn_relaunch_participates_in_the_lifecycle_lock \
+  test_promotion_participates_in_the_lifecycle_lock_before_metadata_resolution \
+  test_spawn_relaunch_refuses_a_live_agent \
+  test_spawn_relaunch_refuses_a_symlinked_task_record_before_inspection \
+  test_spawn_relaunch_keeps_its_early_meta_lock_continuous \
+  test_spawn_relaunch_refuses_a_pending_authoritative_close \
+  test_spawn_relaunch_refuses_contradicting_flags \
+  test_spawn_relaunch_refuses_an_unrecorded_task \
+  test_spawn_relaunch_refuses_a_pane_outside_the_worktree \
+  test_relaunch_reverifies_an_already_in_flight_item_instead_of_rewriting_it \
+  test_relaunch_moves_a_drifted_item_back_in_flight

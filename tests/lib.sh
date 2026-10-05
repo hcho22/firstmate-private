@@ -10,9 +10,10 @@
 # git identity and fixture builders, state/<id>.meta writers, and the common
 # string/exit-code/file assertions. Shared fake-toolchain and spawn-world
 # builders live in tests/fixtures.sh; wake-queue mocks in wake-helpers.sh;
-# secondmate-lifecycle mocks in secondmate-helpers.sh. Suite-specific fakes
-# that encode a single test's terminal or lifecycle assumptions still belong
-# with the tests that own them.
+# secondmate-lifecycle mocks in secondmate-helpers.sh; and the concurrent lanes
+# that run a file's independent cases in case-lanes-helpers.sh. Suite-specific
+# fakes that encode a single test's terminal or lifecycle assumptions still
+# belong with the tests that own them.
 #
 # ROOT is exported as the firstmate repo root (this file lives in tests/), so a
 # sourcing test can use "$ROOT/bin/..." without recomputing it.
@@ -110,6 +111,15 @@ fm_test_cleanup() {
     done < "$FM_TEST_CLEANUP_REGISTRY"
     rm -f "$FM_TEST_CLEANUP_REGISTRY"
   fi
+}
+
+# fm_test_register_cleanup <path>: remove <path> at the same EXIT/INT/TERM
+# cleanup, through the same registry, so a path a subshell or a laned case
+# (tests/case-lanes-helpers.sh) creates outside its temp root is still reaped.
+# FM_TEST_CLEANUP_DIRS is shell state and never reaches the file's shell from
+# there.
+fm_test_register_cleanup() {
+  printf '%s\n' "$1" >> "$FM_TEST_CLEANUP_REGISTRY"
 }
 
 fm_test_tmproot() {

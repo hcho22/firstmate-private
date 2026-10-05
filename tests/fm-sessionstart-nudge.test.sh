@@ -1020,26 +1020,31 @@ test_run_reports_a_failed_session_start_as_digest_text() {
   pass "run wrapper: a session start that cannot take the lock still opens the session and says so"
 }
 
-test_genuine_primary_nudges
-test_gate_env_is_silent
-test_gate_common_dir_is_silent
-test_unmarked_linked_worktree_is_silent
-test_linked_secondmate_primary_nudges
-test_missing_state_is_silent
-test_owned_lock_is_silent
-test_opencode_plugin_delivers_exact_nudge_once
-test_run_startup_runs_the_full_digest
-test_run_clear_and_compact_reemit
-test_run_rebuild_forwards_source_to_drifted_instruction_refresh
-test_run_compact_without_completion_refreshes_before_finishing_startup
-test_run_clear_without_completion_finishes_startup
-test_run_clear_rejects_previous_owner_completion
-test_run_resume_delegates_to_the_nudge
-test_run_reads_source_from_the_hook_payload
-test_run_unknown_source_takes_the_helm
-test_run_gate_and_scope_are_silent
-test_run_reports_a_failed_session_start_as_digest_text
-test_pi_startup_classifies_cli_continuations
-test_pi_sessionstart_generation_prerequisite
-test_pi_reload_releases_sessionstart_exit_listener
-test_pi_large_sessionstart_digest_is_delivered_loudly
+# Every case builds its own primary checkout under $TMP_ROOT/<name>, so the cases
+# share nothing and run in the concurrent lanes tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_genuine_primary_nudges \
+  test_gate_env_is_silent \
+  test_gate_common_dir_is_silent \
+  test_unmarked_linked_worktree_is_silent \
+  test_linked_secondmate_primary_nudges \
+  test_missing_state_is_silent \
+  test_owned_lock_is_silent \
+  test_opencode_plugin_delivers_exact_nudge_once \
+  test_run_startup_runs_the_full_digest \
+  test_run_clear_and_compact_reemit \
+  test_run_rebuild_forwards_source_to_drifted_instruction_refresh \
+  test_run_compact_without_completion_refreshes_before_finishing_startup \
+  test_run_clear_without_completion_finishes_startup \
+  test_run_clear_rejects_previous_owner_completion \
+  test_run_resume_delegates_to_the_nudge \
+  test_run_reads_source_from_the_hook_payload \
+  test_run_unknown_source_takes_the_helm \
+  test_run_gate_and_scope_are_silent \
+  test_run_reports_a_failed_session_start_as_digest_text \
+  test_pi_startup_classifies_cli_continuations \
+  test_pi_sessionstart_generation_prerequisite \
+  test_pi_reload_releases_sessionstart_exit_listener \
+  test_pi_large_sessionstart_digest_is_delivered_loudly

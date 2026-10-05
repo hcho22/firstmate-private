@@ -2162,91 +2162,97 @@ parked_watch_round() {  # <state> <fakebin> <out> <capture> <window> <exit|absor
 # The contract pinned here: the FIRST sight still surfaces, further sights inside
 # PAUSE_RESURFACE_SECS are absorbed, and the window's end still re-surfaces once,
 # so a forgotten wait cannot rot invisibly.
-test_live_declared_wait_churn_honors_the_resurface_throttle() {
-  local spec name status_line dir state fakebin out capture_file statusf window key
+# One declared-wait form per case, so the two forms run as separate cases.
+assert_live_declared_wait_churn_honors_the_resurface_throttle() {  # <name> <status-line>
+  local name=$1 status_line=$2 dir state fakebin out capture_file statusf window key
   local sig round wakes bare text throttle replacement
-  for spec in \
-    'paused-pipeline-churn|paused: waiting on the validation run to finish' \
-    'captain-held-churn|captain-held [key=route]: awaiting the captain on the routing call'
-  do
-    name=${spec%%|*}; status_line=${spec#*|}
-    dir=$(make_case "$name"); state="$dir/state"; fakebin="$dir/fakebin"
-    out="$dir/watch.out"; capture_file="$dir/pane.txt"; statusf="$state/parked.status"
-    window="test:fm-parked"
-    printf 'window=%s\nkind=ship\nharness=grok\nbackend=tmux\n' "$window" > "$state/parked.meta"
-    printf '%s\n' "$status_line" > "$statusf"
-    sig=$(seen_sig "$statusf"); printf '%s' "$sig" > "$state/.seen-parked_status"
-    key=$(printf '%s' "$window" | tr ':/.' '___')
-    throttle="$state/.paused-resurfaced-$key"
+  dir=$(make_case "$name"); state="$dir/state"; fakebin="$dir/fakebin"
+  out="$dir/watch.out"; capture_file="$dir/pane.txt"; statusf="$state/parked.status"
+  window="test:fm-parked"
+  printf 'window=%s\nkind=ship\nharness=grok\nbackend=tmux\n' "$window" > "$state/parked.meta"
+  printf '%s\n' "$status_line" > "$statusf"
+  sig=$(seen_sig "$statusf"); printf '%s' "$sig" > "$state/.seen-parked_status"
+  key=$(printf '%s' "$window" | tr ':/.' '___')
+  throttle="$state/.paused-resurfaced-$key"
 
-    # First sight of a parked-but-live worker must still surface: the state is
-    # inconclusive and firstmate has to look at it.
-    text='parked, elapsed 1s'
-    printf '%s' "$text" > "$capture_file"
-    printf '%s' "$(hash_text "$text")" > "$state/.hash-$key"
-    printf '1\n' > "$state/.count-$key"
-    parked_watch_round "$state" "$fakebin" "$out" "$capture_file" "$window" exit \
-      || fail "[$name] first sight of a parked live worker did not surface"
-    ack_stopped_cycle "$state" || fail "[$name] could not acknowledge the first surface"
-    [ -e "$throttle" ] || fail "[$name] the first surface recorded no re-surface throttle"
+  # First sight of a parked-but-live worker must still surface: the state is
+  # inconclusive and firstmate has to look at it.
+  text='parked, elapsed 1s'
+  printf '%s' "$text" > "$capture_file"
+  printf '%s' "$(hash_text "$text")" > "$state/.hash-$key"
+  printf '1\n' > "$state/.count-$key"
+  parked_watch_round "$state" "$fakebin" "$out" "$capture_file" "$window" exit \
+    || fail "[$name] first sight of a parked live worker did not surface"
+  ack_stopped_cycle "$state" || fail "[$name] could not acknowledge the first surface"
+  [ -e "$throttle" ] || fail "[$name] the first surface recorded no re-surface throttle"
 
-    # The pane now churns while the SAME declared wait stands, each round fully
-    # handled as a real supervision turn would. Every one of these used to alarm.
-    round=2
-    while [ "$round" -le 4 ]; do
-      printf 'parked, elapsed %ss' "$round" > "$capture_file"
-      parked_watch_round "$state" "$fakebin" "$out" "$capture_file" "$window" absorb \
-        || fail "[$name] watcher exited during churn round $round instead of supervising through it"
-      wakes=$(awk -F '\t' -v w="$window" '$3 == "stale" && $4 == w { n++ } END { print n + 0 }' \
-        "$state/.wake-queue" 2>/dev/null || echo 0)
-      [ "$wakes" -eq 0 ] \
-        || fail "[$name] pane churn re-alarmed a parked worker $wakes time(s) inside the re-surface window"
-      [ -e "$throttle" ] || fail "[$name] pane churn cleared the re-surface throttle"
-      round=$((round + 1))
-    done
-
-    # A direct wait-to-wait transition starts a NEW declaration even though the
-    # same window remains parked. Its first sight must not inherit the previous
-    # declaration's throttle, or an unrelated replacement wait can stay silent
-    # for nearly the whole old cadence window.
-    case "$name" in
-      paused-pipeline-churn) replacement='paused: waiting on the replacement validation run' ;;
-      captain-held-churn) replacement='captain-held [key=release]: awaiting the captain on the release call' ;;
-    esac
-    printf '%s\n' "$replacement" >> "$statusf"
-    sig=$(seen_sig "$statusf"); printf '%s' "$sig" > "$state/.seen-parked_status"
-    printf 'replacement wait, elapsed 1s' > "$capture_file"
-    parked_watch_round "$state" "$fakebin" "$out" "$capture_file" "$window" exit \
-      || fail "[$name] a replacement declared wait inherited the previous wait's re-surface throttle"
-    wakes=$(awk -F '\t' -v w="$window" '$3 == "stale" && $4 == w { n++ } END { print n + 0 }' \
-      "$state/.wake-queue" 2>/dev/null || echo 0)
-    bare=$(awk -F '\t' -v w="$window" '$3 == "stale" && $4 == w && $5 == "stale: " w { n++ } END { print n + 0 }' \
-      "$state/.wake-queue" 2>/dev/null || echo 0)
-    [ "$wakes" -eq 1 ] || fail "[$name] replacement declared wait produced $wakes first wakes instead of one"
-    [ "$bare" -eq 1 ] || fail "[$name] replacement declared wait changed the wake identity: $(cat "$state/.wake-queue")"
-    ack_stopped_cycle "$state" || fail "[$name] could not acknowledge the replacement wait's first surface"
-
-    printf 'replacement wait, elapsed 2s' > "$capture_file"
+  # The pane now churns while the SAME declared wait stands, each round fully
+  # handled as a real supervision turn would. Every one of these used to alarm.
+  round=2
+  while [ "$round" -le 4 ]; do
+    printf 'parked, elapsed %ss' "$round" > "$capture_file"
     parked_watch_round "$state" "$fakebin" "$out" "$capture_file" "$window" absorb \
-      || fail "[$name] replacement wait re-alarmed inside its own re-surface window"
+      || fail "[$name] watcher exited during churn round $round instead of supervising through it"
     wakes=$(awk -F '\t' -v w="$window" '$3 == "stale" && $4 == w { n++ } END { print n + 0 }' \
       "$state/.wake-queue" 2>/dev/null || echo 0)
-    [ "$wakes" -eq 0 ] || fail "[$name] replacement wait re-alarmed $wakes time(s) inside its own re-surface window"
-
-    # End of the window: the wait must re-surface exactly once, on the same plain
-    # identity as before, so absorbing churn never becomes silence.
-    set_mtime "$(( $(date +%s) - 2000 ))" "$throttle"
-    printf 'parked, elapsed 5s' > "$capture_file"
-    parked_watch_round "$state" "$fakebin" "$out" "$capture_file" "$window" exit \
-      || fail "[$name] a parked worker did not re-surface once its re-surface window elapsed"
-    wakes=$(awk -F '\t' -v w="$window" '$3 == "stale" && $4 == w { n++ } END { print n + 0 }' \
-      "$state/.wake-queue" 2>/dev/null || echo 0)
-    bare=$(awk -F '\t' -v w="$window" '$3 == "stale" && $4 == w && $5 == "stale: " w { n++ } END { print n + 0 }' \
-      "$state/.wake-queue" 2>/dev/null || echo 0)
-    [ "$wakes" -eq 1 ] || fail "[$name] elapsed re-surface window produced $wakes wakes instead of one"
-    [ "$bare" -eq 1 ] || fail "[$name] elapsed re-surface changed the wake identity: $(cat "$state/.wake-queue")"
+    [ "$wakes" -eq 0 ] \
+      || fail "[$name] pane churn re-alarmed a parked worker $wakes time(s) inside the re-surface window"
+    [ -e "$throttle" ] || fail "[$name] pane churn cleared the re-surface throttle"
+    round=$((round + 1))
   done
-  pass "a parked live worker surfaces once, absorbs pane churn for the whole re-surface window, then re-surfaces when it elapses"
+
+  # A direct wait-to-wait transition starts a NEW declaration even though the
+  # same window remains parked. Its first sight must not inherit the previous
+  # declaration's throttle, or an unrelated replacement wait can stay silent
+  # for nearly the whole old cadence window.
+  case "$name" in
+    paused-pipeline-churn) replacement='paused: waiting on the replacement validation run' ;;
+    captain-held-churn) replacement='captain-held [key=release]: awaiting the captain on the release call' ;;
+  esac
+  printf '%s\n' "$replacement" >> "$statusf"
+  sig=$(seen_sig "$statusf"); printf '%s' "$sig" > "$state/.seen-parked_status"
+  printf 'replacement wait, elapsed 1s' > "$capture_file"
+  parked_watch_round "$state" "$fakebin" "$out" "$capture_file" "$window" exit \
+    || fail "[$name] a replacement declared wait inherited the previous wait's re-surface throttle"
+  wakes=$(awk -F '\t' -v w="$window" '$3 == "stale" && $4 == w { n++ } END { print n + 0 }' \
+    "$state/.wake-queue" 2>/dev/null || echo 0)
+  bare=$(awk -F '\t' -v w="$window" '$3 == "stale" && $4 == w && $5 == "stale: " w { n++ } END { print n + 0 }' \
+    "$state/.wake-queue" 2>/dev/null || echo 0)
+  [ "$wakes" -eq 1 ] || fail "[$name] replacement declared wait produced $wakes first wakes instead of one"
+  [ "$bare" -eq 1 ] || fail "[$name] replacement declared wait changed the wake identity: $(cat "$state/.wake-queue")"
+  ack_stopped_cycle "$state" || fail "[$name] could not acknowledge the replacement wait's first surface"
+
+  printf 'replacement wait, elapsed 2s' > "$capture_file"
+  parked_watch_round "$state" "$fakebin" "$out" "$capture_file" "$window" absorb \
+    || fail "[$name] replacement wait re-alarmed inside its own re-surface window"
+  wakes=$(awk -F '\t' -v w="$window" '$3 == "stale" && $4 == w { n++ } END { print n + 0 }' \
+    "$state/.wake-queue" 2>/dev/null || echo 0)
+  [ "$wakes" -eq 0 ] || fail "[$name] replacement wait re-alarmed $wakes time(s) inside its own re-surface window"
+
+  # End of the window: the wait must re-surface exactly once, on the same plain
+  # identity as before, so absorbing churn never becomes silence.
+  set_mtime "$(( $(date +%s) - 2000 ))" "$throttle"
+  printf 'parked, elapsed 5s' > "$capture_file"
+  parked_watch_round "$state" "$fakebin" "$out" "$capture_file" "$window" exit \
+    || fail "[$name] a parked worker did not re-surface once its re-surface window elapsed"
+  wakes=$(awk -F '\t' -v w="$window" '$3 == "stale" && $4 == w { n++ } END { print n + 0 }' \
+    "$state/.wake-queue" 2>/dev/null || echo 0)
+  bare=$(awk -F '\t' -v w="$window" '$3 == "stale" && $4 == w && $5 == "stale: " w { n++ } END { print n + 0 }' \
+    "$state/.wake-queue" 2>/dev/null || echo 0)
+  [ "$wakes" -eq 1 ] || fail "[$name] elapsed re-surface window produced $wakes wakes instead of one"
+  [ "$bare" -eq 1 ] || fail "[$name] elapsed re-surface changed the wake identity: $(cat "$state/.wake-queue")"
+}
+
+test_live_paused_wait_churn_honors_the_resurface_throttle() {
+  assert_live_declared_wait_churn_honors_the_resurface_throttle \
+    paused-pipeline-churn 'paused: waiting on the validation run to finish'
+  pass "a worker parked on a paused: wait surfaces once, absorbs pane churn for the whole re-surface window, then re-surfaces when it elapses"
+}
+
+test_live_captain_held_wait_churn_honors_the_resurface_throttle() {
+  assert_live_declared_wait_churn_honors_the_resurface_throttle \
+    captain-held-churn 'captain-held [key=route]: awaiting the captain on the routing call'
+  pass "a worker parked on a captain hold surfaces once, absorbs pane churn for the whole re-surface window, then re-surfaces when it elapses"
 }
 
 test_secondmate_paused_resurfaces_in_normal_mode() {
@@ -3008,6 +3014,8 @@ test_afk_busy_declared_pause_ticking_pane_hands_off_once() {
   dir=$(make_case afk-busy-declared-pause-ticking); state="$dir/state"; fakebin="$dir/fakebin"
   out="$dir/watch.out"; drain_out="$dir/drain.out"; window="test:fm-afk-ticking-scout"
   statusf="$state/afk-ticking-scout.status"; ticks="$dir/ticks"
+  # make_case links a shared read-only tmux; this case writes its own instead.
+  rm -f "$fakebin/tmux"
   cat > "$fakebin/tmux" <<'SH'
 #!/usr/bin/env bash
 set -u
@@ -3990,95 +3998,102 @@ test_afk_paused_changed_pane_hands_off_plain_stale() {
   pass "AFK changed paused panes hand off plain stale identities for daemon-owned pause triage"
 }
 
-test_status_span_actionable_classifier
-test_status_span_survives_a_later_routine_append
-test_status_span_respects_decision_closure
-test_malformed_seen_signature_reads_the_whole_log
-test_stale_is_terminal_classifier
-test_classifier_primitives
-test_crew_is_provably_working_classifier
-test_status_is_paused_classifier
-test_crew_absorb_class_classifier
-test_crew_worktree_written_since_classifier
-test_empty_write_prune_widens_the_probe
-test_empty_write_prune_from_the_environment_widens_the_probe
-test_worktree_write_probe_is_wall_clock_bounded
-test_signal_crew_provably_working_classifier
-test_secondmate_status_signal_never_absorbed_classifier
-test_provably_working_signal_absorbed
-test_turn_ended_provably_working_absorbed
-test_turn_ended_not_working_surfaced
-test_turn_ended_churning_pane_absorbed
-test_turn_ended_churn_resets_prior_stale_classification
-test_turn_ended_churn_resets_wedge_state_before_stale_poll
-test_turn_ended_still_pane_surfaced
-test_turn_ended_malformed_prior_hash_surfaced
-test_turn_ended_trailing_newline_prior_hash_surfaced
-test_secondmate_turn_ended_churning_pane_surfaced
-test_turn_ended_colliding_window_key_surfaced
-test_turn_ended_duplicate_endpoint_records_surfaced
-test_turn_ended_mixed_positive_evidence_batch_absorbed
-test_turn_ended_mixed_positive_evidence_batch_default_off
-test_status_and_turn_end_batch_never_uses_churn_evidence
-test_turn_ended_churn_absorb_off_by_default
-test_turn_ended_churn_absorb_bounded
-test_turn_ended_churn_timer_write_failure_surfaced
-test_turn_ended_invalid_churn_bound_surfaced
-test_turn_ended_oversized_churn_bound_surfaced
-test_turn_ended_invalid_churn_deadline_surfaced
-test_turn_ended_surfaced_batch_opens_no_partial_deadline
-test_working_note_not_working_surfaced
-test_secondmate_status_note_surfaced_despite_busy_agent
-test_self_announced_close_does_not_rewake_but_next_note_does
-test_actionable_signal_surfaced
-test_actionable_signal_survives_a_later_routine_append
-test_release_completion_survives_a_later_routine_append
-test_routine_appends_after_a_classified_event_stay_absorbed
-test_unreadable_status_reports_once_per_file_state
-test_permission_recovery_surfaces_preserved_status
-test_terminal_stale_surfaced
-test_stale_terminal_status_overridden_by_active_run
-test_nonterminal_stale_provably_working_absorbed_then_escalated
-test_wedge_escalation_marks_demand_deep_inspection_after_threshold
-test_wedge_escalation_resets_when_pane_becomes_active
-test_busy_pane_below_turn_age_bound_is_absorbed
-test_busy_pane_stable_hash_escalates_past_turn_age_bound
-test_busy_pane_changing_hash_escalates_past_turn_age_bound
-test_busy_pane_turn_end_touch_resets_age
-test_busy_pane_repeated_escalation_reaches_demand_deep_inspection
-test_busy_pane_default_turn_age_bound_is_3600s
-test_busy_declared_pause_is_rechecked_not_wedge_escalated
-test_afk_busy_declared_pause_hands_off_plain_stale
-test_afk_busy_declared_pause_ticking_pane_hands_off_once
-test_nonterminal_stale_not_working_surfaced
-test_nonterminal_stale_paused_absorbed_then_resurfaced
-test_exited_declared_pause_is_bounded_but_live_gate_surfaces
-test_absorbed_replacement_wait_does_not_inherit_the_old_throttle
-test_live_declared_wait_churn_honors_the_resurface_throttle
-test_secondmate_paused_resurfaces_in_normal_mode
-test_secondmate_captain_held_resurfaces_in_normal_mode
-test_secondmate_nonpaused_stale_remains_suppressed
-test_secondmate_unpause_clears_pause_tracking
-test_nonterminal_stale_pause_transitions_reclassify_unchanged_hash
-test_nonterminal_paused_rechecks_authoritative_state
-test_paused_authoritative_working_preserves_wedge_timer
-test_nonterminal_stale_repairs_missing_or_corrupt_timer
-test_wedge_escalation_deferred_while_worktree_is_written
-test_write_deferral_resurfaces_on_the_bounded_cadence
-test_secondmate_home_supervision_churn_is_not_write_evidence
-test_timer_repair_drops_a_finished_write_deferral_chain
-test_terminal_first_sight_drops_a_finished_write_deferral_chain
-test_triage_log_size_cap_accepts_spaced_wc_counts
-test_procevent_captured_result_surfaces_proactively
-test_procevent_unacknowledged_result_redrains_until_handled
-test_procevent_marker_keys_are_injective
-test_procevent_surface_serializes_with_drain
-test_procevent_surface_crash_boundaries
-test_procevent_marker_failure_exits_and_replays
-test_heartbeat_no_change_absorbed
-test_heartbeat_backstop_surfaces_unsurfaced_status
-test_heartbeat_backstop_surfaces_a_masked_status
-test_beacon_stays_fresh_while_absorbing
-test_afk_signal_records_heartbeat_endpoint
-test_afk_present_reverts_watcher_to_one_shot
-test_afk_paused_changed_pane_hands_off_plain_stale
+# Every case builds its own state directory and fakebin under $TMP_ROOT/<name>
+# and drives its own watcher there, so the cases share nothing and run in the
+# concurrent lanes tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_status_span_actionable_classifier \
+  test_status_span_survives_a_later_routine_append \
+  test_status_span_respects_decision_closure \
+  test_malformed_seen_signature_reads_the_whole_log \
+  test_stale_is_terminal_classifier \
+  test_classifier_primitives \
+  test_crew_is_provably_working_classifier \
+  test_status_is_paused_classifier \
+  test_crew_absorb_class_classifier \
+  test_crew_worktree_written_since_classifier \
+  test_empty_write_prune_widens_the_probe \
+  test_empty_write_prune_from_the_environment_widens_the_probe \
+  test_worktree_write_probe_is_wall_clock_bounded \
+  test_signal_crew_provably_working_classifier \
+  test_secondmate_status_signal_never_absorbed_classifier \
+  test_provably_working_signal_absorbed \
+  test_turn_ended_provably_working_absorbed \
+  test_turn_ended_not_working_surfaced \
+  test_turn_ended_churning_pane_absorbed \
+  test_turn_ended_churn_resets_prior_stale_classification \
+  test_turn_ended_churn_resets_wedge_state_before_stale_poll \
+  test_turn_ended_still_pane_surfaced \
+  test_turn_ended_malformed_prior_hash_surfaced \
+  test_turn_ended_trailing_newline_prior_hash_surfaced \
+  test_secondmate_turn_ended_churning_pane_surfaced \
+  test_turn_ended_colliding_window_key_surfaced \
+  test_turn_ended_duplicate_endpoint_records_surfaced \
+  test_turn_ended_mixed_positive_evidence_batch_absorbed \
+  test_turn_ended_mixed_positive_evidence_batch_default_off \
+  test_status_and_turn_end_batch_never_uses_churn_evidence \
+  test_turn_ended_churn_absorb_off_by_default \
+  test_turn_ended_churn_absorb_bounded \
+  test_turn_ended_churn_timer_write_failure_surfaced \
+  test_turn_ended_invalid_churn_bound_surfaced \
+  test_turn_ended_oversized_churn_bound_surfaced \
+  test_turn_ended_invalid_churn_deadline_surfaced \
+  test_turn_ended_surfaced_batch_opens_no_partial_deadline \
+  test_working_note_not_working_surfaced \
+  test_secondmate_status_note_surfaced_despite_busy_agent \
+  test_self_announced_close_does_not_rewake_but_next_note_does \
+  test_actionable_signal_surfaced \
+  test_actionable_signal_survives_a_later_routine_append \
+  test_release_completion_survives_a_later_routine_append \
+  test_routine_appends_after_a_classified_event_stay_absorbed \
+  test_unreadable_status_reports_once_per_file_state \
+  test_permission_recovery_surfaces_preserved_status \
+  test_terminal_stale_surfaced \
+  test_stale_terminal_status_overridden_by_active_run \
+  test_nonterminal_stale_provably_working_absorbed_then_escalated \
+  test_wedge_escalation_marks_demand_deep_inspection_after_threshold \
+  test_wedge_escalation_resets_when_pane_becomes_active \
+  test_busy_pane_below_turn_age_bound_is_absorbed \
+  test_busy_pane_stable_hash_escalates_past_turn_age_bound \
+  test_busy_pane_changing_hash_escalates_past_turn_age_bound \
+  test_busy_pane_turn_end_touch_resets_age \
+  test_busy_pane_repeated_escalation_reaches_demand_deep_inspection \
+  test_busy_pane_default_turn_age_bound_is_3600s \
+  test_busy_declared_pause_is_rechecked_not_wedge_escalated \
+  test_afk_busy_declared_pause_hands_off_plain_stale \
+  test_afk_busy_declared_pause_ticking_pane_hands_off_once \
+  test_nonterminal_stale_not_working_surfaced \
+  test_nonterminal_stale_paused_absorbed_then_resurfaced \
+  test_exited_declared_pause_is_bounded_but_live_gate_surfaces \
+  test_absorbed_replacement_wait_does_not_inherit_the_old_throttle \
+  test_live_paused_wait_churn_honors_the_resurface_throttle \
+  test_live_captain_held_wait_churn_honors_the_resurface_throttle \
+  test_secondmate_paused_resurfaces_in_normal_mode \
+  test_secondmate_captain_held_resurfaces_in_normal_mode \
+  test_secondmate_nonpaused_stale_remains_suppressed \
+  test_secondmate_unpause_clears_pause_tracking \
+  test_nonterminal_stale_pause_transitions_reclassify_unchanged_hash \
+  test_nonterminal_paused_rechecks_authoritative_state \
+  test_paused_authoritative_working_preserves_wedge_timer \
+  test_nonterminal_stale_repairs_missing_or_corrupt_timer \
+  test_wedge_escalation_deferred_while_worktree_is_written \
+  test_write_deferral_resurfaces_on_the_bounded_cadence \
+  test_secondmate_home_supervision_churn_is_not_write_evidence \
+  test_timer_repair_drops_a_finished_write_deferral_chain \
+  test_terminal_first_sight_drops_a_finished_write_deferral_chain \
+  test_triage_log_size_cap_accepts_spaced_wc_counts \
+  test_procevent_captured_result_surfaces_proactively \
+  test_procevent_unacknowledged_result_redrains_until_handled \
+  test_procevent_marker_keys_are_injective \
+  test_procevent_surface_serializes_with_drain \
+  test_procevent_surface_crash_boundaries \
+  test_procevent_marker_failure_exits_and_replays \
+  test_heartbeat_no_change_absorbed \
+  test_heartbeat_backstop_surfaces_unsurfaced_status \
+  test_heartbeat_backstop_surfaces_a_masked_status \
+  test_beacon_stays_fresh_while_absorbing \
+  test_afk_signal_records_heartbeat_endpoint \
+  test_afk_present_reverts_watcher_to_one_shot \
+  test_afk_paused_changed_pane_hands_off_plain_stale

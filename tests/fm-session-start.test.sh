@@ -39,12 +39,7 @@ set -u
 SESSION_START="$ROOT/bin/fm-session-start.sh"
 BASE_PATH=${FM_TEST_BASE_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}
 TMP_ROOT=$(fm_test_tmproot fm-session-start-tests)
-SESSION_START_TEST_HARNESS_PID=$$
-SESSION_START_SECOND_MATE_ID="fmtest-sm-${TMP_ROOT##*.}"
-SESSION_START_SECOND_MATE_TMP="/tmp/fm-$SESSION_START_SECOND_MATE_ID"
-SESSION_START_HERDR_SECOND_MATE_ID="fmtest-herdr-${TMP_ROOT##*.}"
-SESSION_START_HERDR_SECOND_MATE_TMP="/tmp/fm-$SESSION_START_HERDR_SECOND_MATE_ID"
-FM_TEST_CLEANUP_DIRS+=("$TMP_ROOT" "$SESSION_START_SECOND_MATE_TMP" "$SESSION_START_HERDR_SECOND_MATE_TMP")
+FM_TEST_CLEANUP_DIRS+=("$TMP_ROOT")
 trap fm_test_cleanup EXIT
 fm_git_identity fmtest fmtest@example.invalid
 
@@ -550,7 +545,7 @@ run_pi_session_start() {  # <home> <root> <path> [fm-session-start args...]
   local home=$1 root=$2 path=$3
   shift 3
   env -u CLAUDECODE -u GROK_AGENT PI_CODING_AGENT=true FM_PI_HARNESS=pi \
-    FM_FAKE_HARNESS_PID="$SESSION_START_TEST_HARNESS_PID" \
+    FM_FAKE_HARNESS_PID="$FM_TEST_CASE_PID" \
     FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
     "$SESSION_START" "$@"
 }
@@ -559,16 +554,25 @@ run_named_harness_session_start() {  # <harness> <home> <root> <path> [fm-sessio
   local harness=$1 home=$2 root=$3 path=$4
   shift 4
   env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
-    FM_FAKE_HARNESS="$harness" FM_FAKE_HARNESS_PID="$SESSION_START_TEST_HARNESS_PID" \
+    FM_FAKE_HARNESS="$harness" FM_FAKE_HARNESS_PID="$FM_TEST_CASE_PID" \
     FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
     "$SESSION_START" "$@"
+}
+
+# session_start_secondmate_id <world-name>: the secondmate id a secondmate
+# world uses. It is unique to this run and to the world, because the real spawn
+# path keys a host-wide /tmp/fm-<id> root by it and the cases run concurrently.
+session_start_secondmate_id() {
+  printf 'fmtest-sm-%s-%s\n' "${TMP_ROOT##*.}" "$1"
 }
 
 # prepare_session_start_secondmate <name>: a throwaway main home and Pi
 # secondmate home wired to the real spawn implementation through the fixture
 # root. Echoes root|home|fakebin|mate|log|spawned.
 prepare_session_start_secondmate() {
-  local name=$1 rec root home fakebin w mate log spawned id=$SESSION_START_SECOND_MATE_ID
+  local name=$1 rec root home fakebin w mate log spawned id
+  id=$(session_start_secondmate_id "$name")
+  fm_test_register_cleanup "/tmp/fm-$id"
   rec=$(new_world "$name")
   IFS='|' read -r root home fakebin <<EOF
 $rec
@@ -607,13 +611,15 @@ run_session_start_secondmate() {
   shift 7
   TMUX='' FM_BACKEND=tmux FM_FAKE_TMUX_MODE="$mode" FM_FAKE_TMUX_LOG="$log" \
     FM_FAKE_TMUX_SPAWNED="$spawned" FM_FAKE_SECOND_MATE_HOME="$mate" \
-    FM_FAKE_SECOND_MATE_ID="$SESSION_START_SECOND_MATE_ID" \
-    FM_FAKE_HARNESS_PID=$$ \
+    FM_FAKE_SECOND_MATE_ID="${mate##*/secondmate-}" \
+    FM_FAKE_HARNESS_PID="$FM_TEST_CASE_PID" \
     run_session_start "$home" "$root" "$fakebin:$BASE_PATH" "" "$@"
 }
 
 prepare_session_start_herdr_secondmate() {
-  local name=$1 rec root home fakebin w mate log state id=$SESSION_START_HERDR_SECOND_MATE_ID
+  local name=$1 rec root home fakebin w mate log state id
+  id=$(session_start_secondmate_id "$name")
+  fm_test_register_cleanup "/tmp/fm-$id"
   rec=$(new_world "$name")
   IFS='|' read -r root home fakebin <<EOF
 $rec
@@ -653,8 +659,8 @@ EOF
 run_session_start_herdr_secondmate() {
   local root=$1 home=$2 fakebin=$3 mate=$4 log=$5 state=$6
   FM_BACKEND=herdr FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_STATE="$state" \
-    FM_FAKE_SECOND_MATE_ID="$SESSION_START_HERDR_SECOND_MATE_ID" \
-    FM_FAKE_HARNESS_PID=$$ \
+    FM_FAKE_SECOND_MATE_ID="${mate##*/secondmate-}" \
+    FM_FAKE_HARNESS_PID="$FM_TEST_CASE_PID" \
     run_session_start "$home" "$root" "$fakebin:$BASE_PATH"
 }
 
@@ -1203,8 +1209,9 @@ EOF
 # --- session-start secondmate recovery boundary -----------------------------
 
 test_session_start_relaunches_missing_pi_secondmate() {
-  local rec root home fakebin mate log spawned out first_calls second_calls
+  local rec root home fakebin mate log spawned out first_calls second_calls id
   rec=$(prepare_session_start_secondmate secondmate-missing-pi)
+  id=$(session_start_secondmate_id secondmate-missing-pi)
   IFS='|' read -r root home fakebin mate log spawned <<EOF
 $rec
 EOF
@@ -1226,8 +1233,8 @@ EOF
     "successful missing-window recovery should stay non-actionable"
   assert_contains "$(cat "$log")" "new-window" "the deferred stage did not relaunch the missing Pi secondmate"
   assert_not_contains "$(cat "$log")" "kill-window" "the deferred stage tried to kill an already-absent window"
-  assert_grep 'harness=pi' "$home/state/$SESSION_START_SECOND_MATE_ID.meta" \
-    "the real respawn path did not preserve the Pi harness: $(cat "$home/state/$SESSION_START_SECOND_MATE_ID.meta")"
+  assert_grep 'harness=pi' "$home/state/$id.meta" \
+    "the real respawn path did not preserve the Pi harness: $(cat "$home/state/$id.meta")"
 
   first_calls=$(grep -c 'new-window' "$log" || true)
   rm -f "$home/state/.lock"
@@ -1245,8 +1252,9 @@ EOF
 # authoritative, so the deferred pass reports it whether or not verbose facts are
 # on, and the report says the digest's records are now behind.
 test_deferred_relaunch_is_always_reported() {
-  local rec root home fakebin mate log spawned report
+  local rec root home fakebin mate log spawned report id
   rec=$(prepare_session_start_secondmate secondmate-relaunch-reported)
+  id=$(session_start_secondmate_id secondmate-relaunch-reported)
   IFS='|' read -r root home fakebin mate log spawned <<EOF
 $rec
 EOF
@@ -1255,7 +1263,7 @@ EOF
   wait_for_network_stage "$home" "$root" || fail "the deferred network stage never published"
 
   report=$(network_stage_report "$home" "$root")
-  assert_contains "$report" "secondmate $SESSION_START_SECOND_MATE_ID relaunched" \
+  assert_contains "$report" "secondmate $id relaunched" \
     "a relaunch performed after the digest was composed went unreported"
   assert_contains "$report" "re-read any record" \
     "the report did not tell the reader the digest's records are now behind"
@@ -1263,8 +1271,9 @@ EOF
 }
 
 test_session_start_preserves_ambiguous_pi_process() {
-  local rec root home fakebin mate log spawned out
+  local rec root home fakebin mate log spawned out id
   rec=$(prepare_session_start_secondmate secondmate-ambiguous-pi)
+  id=$(session_start_secondmate_id secondmate-ambiguous-pi)
   IFS='|' read -r root home fakebin mate log spawned <<EOF
 $rec
 EOF
@@ -1273,17 +1282,18 @@ EOF
   wait_for_network_stage "$home" "$root" || fail "the deferred network stage never published"
 
   assert_contains "$(network_stage_report "$home" "$root")" \
-    "SECONDMATE_LIVENESS: secondmate $SESSION_START_SECOND_MATE_ID: skipped: existing endpoint has ambiguous agent process (backend=tmux)" \
+    "SECONDMATE_LIVENESS: secondmate $id: skipped: existing endpoint has ambiguous agent process (backend=tmux)" \
     "session start did not distinguish an existing Pi-shaped process from a missing window"
   [ ! -s "$log" ] || fail "session start touched an ambiguous existing Pi process: $(cat "$log")"
-  assert_contains "$out" "endpoint: alive (backend=tmux window=firstmate:fm-$SESSION_START_SECOND_MATE_ID)" \
+  assert_contains "$out" "endpoint: alive (backend=tmux window=firstmate:fm-$id)" \
     "the later fleet read should still see the ambiguous endpoint"
   pass "session start: an existing ambiguous Pi process prevents duplicate recovery"
 }
 
 test_session_start_preserves_transiently_unreadable_tmux() {
-  local rec root home fakebin mate log spawned out
+  local rec root home fakebin mate log spawned out id
   rec=$(prepare_session_start_secondmate secondmate-unreadable-pi)
+  id=$(session_start_secondmate_id secondmate-unreadable-pi)
   IFS='|' read -r root home fakebin mate log spawned <<EOF
 $rec
 EOF
@@ -1292,17 +1302,18 @@ EOF
   wait_for_network_stage "$home" "$root" || fail "the deferred network stage never published"
 
   assert_contains "$(network_stage_report "$home" "$root")" \
-    "SECONDMATE_LIVENESS: secondmate $SESSION_START_SECOND_MATE_ID: skipped: endpoint probe unreadable (backend=tmux)" \
+    "SECONDMATE_LIVENESS: secondmate $id: skipped: endpoint probe unreadable (backend=tmux)" \
     "session start did not distinguish transient unreadability from absence"
   [ ! -s "$log" ] || fail "session start touched a transiently unreadable target: $(cat "$log")"
-  assert_contains "$out" "endpoint: dead (backend=tmux window=firstmate:fm-$SESSION_START_SECOND_MATE_ID)" \
+  assert_contains "$out" "endpoint: dead (backend=tmux window=firstmate:fm-$id)" \
     "the later cheap presence read should preserve the visible offline symptom"
   pass "session start: transient tmux unreadability never licenses a relaunch"
 }
 
 test_session_start_preserves_proven_bare_shell_recovery() {
-  local rec root home fakebin mate log spawned out
+  local rec root home fakebin mate log spawned out id
   rec=$(prepare_session_start_secondmate secondmate-bare-shell)
+  id=$(session_start_secondmate_id secondmate-bare-shell)
   IFS='|' read -r root home fakebin mate log spawned <<EOF
 $rec
 EOF
@@ -1312,15 +1323,16 @@ EOF
 
   out=$(network_stage_report "$home" "$root")
   assert_not_contains "$out" "SECONDMATE_LIVENESS:" "successful bare-shell recovery should stay non-actionable"
-  assert_contains "$(cat "$log")" "kill-window -t =firstmate:=fm-$SESSION_START_SECOND_MATE_ID" \
+  assert_contains "$(cat "$log")" "kill-window -t =firstmate:=fm-$id" \
     "the proven bare-shell path did not remove its existing dead endpoint"
   assert_contains "$(cat "$log")" "new-window" "the proven bare-shell path did not relaunch"
   pass "session start: the proven bare-shell recovery path remains intact"
 }
 
 test_session_start_relaunches_herdr_husk_secondmate() {
-  local rec root home fakebin mate log state out
+  local rec root home fakebin mate log state out id
   rec=$(prepare_session_start_herdr_secondmate secondmate-herdr-husk)
+  id=$(session_start_secondmate_id secondmate-herdr-husk)
   IFS='|' read -r root home fakebin mate log state <<EOF
 $rec
 EOF
@@ -1332,7 +1344,7 @@ EOF
   assert_not_contains "$out" "SECONDMATE_LIVENESS:" "successful Herdr husk recovery should stay non-actionable"
   assert_contains "$(cat "$log")" "pane close p-old" "session start did not close the confirmed Herdr husk"
   assert_contains "$(cat "$log")" "tab create" "session start did not relaunch the Herdr secondmate"
-  assert_grep 'herdr_pane_id=p-new' "$home/state/$SESSION_START_HERDR_SECOND_MATE_ID.meta" \
+  assert_grep 'herdr_pane_id=p-new' "$home/state/$id.meta" \
     "the real respawn path did not record the replacement Herdr pane"
   pass "session start: a confirmed Herdr husk is closed and relaunched"
 }
@@ -1493,9 +1505,10 @@ EOF
 # that still hands out Firstmate's internal settings, which no owner along this
 # path ever reads, so none of them withdraws it.
 test_secondmate_relaunch_keeps_startup_variables_out_of_the_server() {
-  local rec root home fakebin mate log spawned server_env leaked name stale w typed
+  local rec root home fakebin mate log spawned server_env leaked name stale w typed id
   local -a internal inherited
   rec=$(prepare_session_start_secondmate secondmate-relaunch-server-env)
+  id=$(session_start_secondmate_id secondmate-relaunch-server-env)
   IFS='|' read -r root home fakebin mate log spawned <<EOF
 $rec
 EOF
@@ -1531,11 +1544,11 @@ EOF
   # The relaunch itself is unchanged: same window, same harness, same home.
   assert_contains "$(cat "$log")" "new-window" \
     "the deferred stage did not relaunch the missing secondmate: $(network_stage_report "$home" "$root")"
-  assert_contains "$(cat "$log")" "-n fm-$SESSION_START_SECOND_MATE_ID " \
+  assert_contains "$(cat "$log")" "-n fm-$id " \
     "the relaunch changed the secondmate's window identity: $(cat "$log")"
-  assert_grep 'harness=pi' "$home/state/$SESSION_START_SECOND_MATE_ID.meta" \
+  assert_grep 'harness=pi' "$home/state/$id.meta" \
     "the relaunch changed the secondmate's harness"
-  assert_grep "home=$mate" "$home/state/$SESSION_START_SECOND_MATE_ID.meta" \
+  assert_grep "home=$mate" "$home/state/$id.meta" \
     "the relaunch changed the secondmate's home"
 
   server_env="$spawned.server.env"
@@ -1612,7 +1625,7 @@ EOF
     --task task-b --verdict captain --summary 'PR https://example.com/pr/b checks green' >/dev/null \
     || fail "could not seed the unread branch outcome"
   printf 'branch\t999999\t123\n' > "$home/state/.lease-task-dead"
-  FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_LEASE_HOLDER_PID=$$ "$ROOT/bin/fm-lease.sh" claim task-live --actor branch \
+  FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_LEASE_HOLDER_PID="$FM_TEST_CASE_PID" "$ROOT/bin/fm-lease.sh" claim task-live --actor branch \
     || fail "could not seed the live lease"
 
   out=$(run_pi_session_start "$home" "$root" "$fakebin:$BASE_PATH")
@@ -1763,7 +1776,7 @@ SH
   touch -t 202001010000 "$home/state/slow-child.meta" \
     "$home/state/slow-child.status" "$home/state/slow-child.turn-ended"
 
-  out=$(FM_BACKEND=tmux FM_FAKE_HARNESS_PID="$SESSION_START_TEST_HARNESS_PID" \
+  out=$(FM_BACKEND=tmux FM_FAKE_HARNESS_PID="$FM_TEST_CASE_PID" \
     FM_FAKE_NM_CALLS="$calls" FM_FAKE_NM_RELEASE="$release_gate" \
     FM_FAKE_NM_READ_FINISHED="$read_finished" FM_INACTIVE_RECONCILE_SECS=60 \
     FM_INACTIVE_RECONCILE_BUDGET_SECS=30 FM_INACTIVE_CREW_STATE_BIN="$crew_state" \
@@ -2355,7 +2368,7 @@ EOF
   append_wake "$home/state" signal task-r "done: queued after startup" || fail "seed wake failed"
 
   # A full startup reconciles the secondmate sweep and reports it.
-  FM_FAKE_HARNESS_PID=$$ run_session_start "$home" "$root" "$fakebin:$BASE_PATH" >/dev/null
+  FM_FAKE_HARNESS_PID="$FM_TEST_CASE_PID" run_session_start "$home" "$root" "$fakebin:$BASE_PATH" >/dev/null
   wait_for_network_stage "$home" "$root" \
     || fail "the full startup fixture's deferred network stage never published"
   network_report=$(network_stage_report "$home" "$root")
@@ -2363,7 +2376,7 @@ EOF
     "the full startup fixture did not exercise a mutating sweep"
 
   append_wake "$home/state" signal task-r "done: queued after the re-emit too" || fail "seed second wake failed"
-  reemit=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" FM_FAKE_HARNESS_PID=$$ PATH="$fakebin:$BASE_PATH" \
+  reemit=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" FM_FAKE_HARNESS_PID="$FM_TEST_CASE_PID" PATH="$fakebin:$BASE_PATH" \
     env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
     "$SESSION_START" --reemit)
 
@@ -2824,57 +2837,63 @@ EOF
   pass "session start rejects Pi loaded markers from previous sessions"
 }
 
-test_context_digest_absent_empty_present
-test_lock_refusal_read_only_path
-test_lock_write_failure_read_only_path
-test_trace_context_effective_state_is_frozen_after_lock
-test_session_lock_concurrent_single_winner
-test_output_ordering_diagnostics_lead
-test_read_once_contract_is_stated_once_before_its_subject
-test_herdr_backend_diagnostics_follow_real_session_start
-test_session_start_relaunches_missing_pi_secondmate
-test_deferred_relaunch_is_always_reported
-test_inactive_reconcile_never_blocks_the_digest
-test_unreachable_network_never_blocks_the_digest
-test_deferred_result_reaches_the_agent_when_the_digest_cannot_print_it
-test_read_only_session_declares_skipped_network_checks
-test_tasks_axi_compatibility_is_probed_once
-test_session_start_preserves_ambiguous_pi_process
-test_session_start_preserves_transiently_unreadable_tmux
-test_session_start_preserves_proven_bare_shell_recovery
-test_session_start_relaunches_herdr_husk_secondmate
-test_status_tail_bounding
-test_status_tail_line_cap
-test_orphan_status_logs_are_printed
-test_endpoint_liveness_tmux
-test_endpoint_liveness_herdr
-test_startup_internal_variables_never_reach_the_session_environment
-test_secondmate_relaunch_keeps_startup_variables_out_of_the_server
-test_composition_invokes_real_scripts
-test_branch_outcome_replay_respects_captain_barrier_and_lease_sweep
-test_non_pi_session_start_leaves_branch_state_untouched
-test_backlog_compact_tasks_axi_omits_bodies_and_keeps_metadata
-test_backlog_queued_bound_discloses_its_remainder
-test_backlog_compact_manual_backend_skips_indented_bodies
-test_backlog_compact_tasks_axi_unavailable_uses_manual_fallback
-test_fleet_digest_empty_fleet
-test_next_step_sources_x_mode_cadence
-test_next_step_afk_delegates_to_daemon
-test_supervision_block_exactly_one_and_pi_diagnostic
-test_pi_signed_primary_uses_pi_extensions_without_identity_normalization
-test_pi_diagnostic_rejects_stale_loaded_marker
-test_pi_diagnostic_accepts_prelock_loaded_marker
-test_pi_diagnostic_rejects_missing_turnend_guard_marker
-test_pi_diagnostic_rejects_previous_session_loaded_marker
-test_runtime_bound_truncates_loudly_and_exits_zero
-test_portable_timeout_escalates_term_resistant_process
-test_runtime_bound_leaves_a_healthy_digest_untouched
-test_runtime_bound_leaves_harness_ancestry_headroom
-test_reemit_skips_startup_sweeps_but_keeps_the_wake_drain
-test_agents_baseline_stays_at_true_start_and_reemits_on_every_drifted_pi_compact
-test_read_only_pi_compact_refreshes_against_its_own_session_identity
-test_codex_unreachable_reset_sources_do_not_claim_instruction_refresh
-test_agents_baseline_requires_sha256_and_successful_completion
-test_reemit_keeps_repair_ownership_with_the_lock_holder
+# Every case builds its own world under $TMP_ROOT/<name>, and a secondmate world
+# uses its own secondmate id, so the cases share nothing and run in the
+# concurrent lanes tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_context_digest_absent_empty_present \
+  test_lock_refusal_read_only_path \
+  test_lock_write_failure_read_only_path \
+  test_trace_context_effective_state_is_frozen_after_lock \
+  test_session_lock_concurrent_single_winner \
+  test_output_ordering_diagnostics_lead \
+  test_read_once_contract_is_stated_once_before_its_subject \
+  test_herdr_backend_diagnostics_follow_real_session_start \
+  test_session_start_relaunches_missing_pi_secondmate \
+  test_deferred_relaunch_is_always_reported \
+  test_inactive_reconcile_never_blocks_the_digest \
+  test_unreachable_network_never_blocks_the_digest \
+  test_deferred_result_reaches_the_agent_when_the_digest_cannot_print_it \
+  test_read_only_session_declares_skipped_network_checks \
+  test_tasks_axi_compatibility_is_probed_once \
+  test_session_start_preserves_ambiguous_pi_process \
+  test_session_start_preserves_transiently_unreadable_tmux \
+  test_session_start_preserves_proven_bare_shell_recovery \
+  test_session_start_relaunches_herdr_husk_secondmate \
+  test_status_tail_bounding \
+  test_status_tail_line_cap \
+  test_orphan_status_logs_are_printed \
+  test_endpoint_liveness_tmux \
+  test_endpoint_liveness_herdr \
+  test_startup_internal_variables_never_reach_the_session_environment \
+  test_secondmate_relaunch_keeps_startup_variables_out_of_the_server \
+  test_composition_invokes_real_scripts \
+  test_branch_outcome_replay_respects_captain_barrier_and_lease_sweep \
+  test_non_pi_session_start_leaves_branch_state_untouched \
+  test_backlog_compact_tasks_axi_omits_bodies_and_keeps_metadata \
+  test_backlog_queued_bound_discloses_its_remainder \
+  test_backlog_compact_manual_backend_skips_indented_bodies \
+  test_backlog_compact_tasks_axi_unavailable_uses_manual_fallback \
+  test_fleet_digest_empty_fleet \
+  test_next_step_sources_x_mode_cadence \
+  test_next_step_afk_delegates_to_daemon \
+  test_supervision_block_exactly_one_and_pi_diagnostic \
+  test_pi_signed_primary_uses_pi_extensions_without_identity_normalization \
+  test_pi_diagnostic_rejects_stale_loaded_marker \
+  test_pi_diagnostic_accepts_prelock_loaded_marker \
+  test_pi_diagnostic_rejects_missing_turnend_guard_marker \
+  test_pi_diagnostic_rejects_previous_session_loaded_marker \
+  test_runtime_bound_truncates_loudly_and_exits_zero \
+  test_portable_timeout_escalates_term_resistant_process \
+  test_runtime_bound_leaves_a_healthy_digest_untouched \
+  test_runtime_bound_leaves_harness_ancestry_headroom \
+  test_reemit_skips_startup_sweeps_but_keeps_the_wake_drain \
+  test_agents_baseline_stays_at_true_start_and_reemits_on_every_drifted_pi_compact \
+  test_read_only_pi_compact_refreshes_against_its_own_session_identity \
+  test_codex_unreachable_reset_sources_do_not_claim_instruction_refresh \
+  test_agents_baseline_requires_sha256_and_successful_completion \
+  test_reemit_keeps_repair_ownership_with_the_lock_holder || exit
 
 echo "# fm-session-start.test.sh: all assertions passed"

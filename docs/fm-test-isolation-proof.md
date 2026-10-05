@@ -135,6 +135,10 @@ Both `bin/fm-test-run.sh` and the current proof harness therefore order concurre
 
 Re-run on 2026-10-03 for the captain-hold split (36 candidates by then): both halves passed concurrently; see "2026-10-03: the captain-hold suite split in two" above for the result and its two gate-skip refusals.
 
+Re-run on 2026-10-05 when `tests/fm-case-lanes.test.sh` joined the family, on the commit that added it, with the runner's selected runtimes (python 3.11, node 26) first on `PATH`, at load averages of 7 to 22 on 20 cores.
+- Result: `FM_ISOLATION_SUMMARY total=38 failed=2 concurrency=4 duration_ms=257184`.
+- `tests/fm-case-lanes.test.sh` passed concurrently with the rest of the family (11355 ms), and so did every other candidate except the same two gate-skip refusals as on 2026-10-03 (no `tsc`, no installed `@earendil-works/pi-coding-agent` on this host), whose isolation evidence remains the proofs recorded here.
+
 This family is what a change to `bin/fm-test-run.sh` itself selects, so it decides that selection's wall clock.
 Before admission, 14 of its scripts fell to the serial tail and the 33-script selection measured 327.3s against a 300s budget: the concurrent group was 19 scripts totalling 273.4s while the tail alone was 215.7s, dominated by `fm-calm-pi-extension` (77.5s), `fm-vendor-auth-probe` (51.0s), and `fm-muse-harness` (39.7s).
 Admitting the family moves that tail into the bounded concurrent group.

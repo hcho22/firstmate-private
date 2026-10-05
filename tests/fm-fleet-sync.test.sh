@@ -35,15 +35,16 @@ set -u
 fm_git_identity fmtest fmtest@example.invalid
 
 TMP_ROOT=$(fm_test_tmproot fm-fleet-sync-tests)
-HOME_N=0
 
 # --- fixtures ---------------------------------------------------------------
 
 # new_home: fresh isolated FM_HOME with an empty projects/ dir. Each test gets its
-# own so the whole-fleet form never sees another test's clones.
+# own so the whole-fleet form never sees another test's clones. Callers capture
+# it in a command substitution, so the name comes from mktemp rather than from a
+# counter that subshell could never advance.
 new_home() {
-  HOME_N=$((HOME_N + 1))
-  local h="$TMP_ROOT/home-$HOME_N"
+  local h
+  h=$(mktemp -d "$TMP_ROOT/home.XXXXXX") || fail "could not create a fleet-sync home"
   mkdir -p "$h/projects"
   printf '%s\n' "$h"
 }
@@ -694,28 +695,33 @@ test_non_signature_fetch_failure_is_not_retried() {
   pass "a non-packed-refs.lock fetch failure keeps today's behavior (no retry)"
 }
 
-test_detached_clean_ancestor_recovers
-test_detached_unique_commit_is_stuck_untouched
-test_detached_clean_ancestor_with_diverged_local_default_is_stuck_untouched
-test_dirty_is_stuck_untouched
-test_non_default_branch_is_stuck_untouched
-test_diverged_is_stuck_untouched
-test_on_default_clean_behind_fast_forwards
-test_already_current_unchanged
-test_no_origin_skipped
-test_local_only_skipped
-test_single_project_by_bare_name_resolves
-test_single_project_by_bare_name_ignores_cwd_shadow
-test_single_project_by_projects_relative_name_resolves
-test_single_project_by_projects_relative_name_ignores_cwd_shadow
-test_single_project_unresolvable_name_still_skips
-test_whole_fleet_form
-test_bootstrap_relays_recovered_and_stuck
-test_orphaned_stale_packed_refs_lock_recovers
-test_live_packed_refs_lock_is_never_removed
-test_live_git_cwd_in_clone_dir_blocks_removal
-test_transient_packed_refs_lock_self_clears
-test_non_signature_fetch_failure_is_not_retried
-test_non_clone_dir_never_syncs_the_enclosing_repo
-test_non_clone_dir_named_directly_never_syncs_the_enclosing_repo
-test_symlinked_clone_still_syncs
+# Every case builds its own home and origins under $TMP_ROOT, so the cases share
+# nothing and run in the concurrent lanes tests/case-lanes-helpers.sh owns.
+# shellcheck source=tests/case-lanes-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+fm_test_run_cases \
+  test_detached_clean_ancestor_recovers \
+  test_detached_unique_commit_is_stuck_untouched \
+  test_detached_clean_ancestor_with_diverged_local_default_is_stuck_untouched \
+  test_dirty_is_stuck_untouched \
+  test_non_default_branch_is_stuck_untouched \
+  test_diverged_is_stuck_untouched \
+  test_on_default_clean_behind_fast_forwards \
+  test_already_current_unchanged \
+  test_no_origin_skipped \
+  test_local_only_skipped \
+  test_single_project_by_bare_name_resolves \
+  test_single_project_by_bare_name_ignores_cwd_shadow \
+  test_single_project_by_projects_relative_name_resolves \
+  test_single_project_by_projects_relative_name_ignores_cwd_shadow \
+  test_single_project_unresolvable_name_still_skips \
+  test_whole_fleet_form \
+  test_bootstrap_relays_recovered_and_stuck \
+  test_orphaned_stale_packed_refs_lock_recovers \
+  test_live_packed_refs_lock_is_never_removed \
+  test_live_git_cwd_in_clone_dir_blocks_removal \
+  test_transient_packed_refs_lock_self_clears \
+  test_non_signature_fetch_failure_is_not_retried \
+  test_non_clone_dir_never_syncs_the_enclosing_repo \
+  test_non_clone_dir_named_directly_never_syncs_the_enclosing_repo \
+  test_symlinked_clone_still_syncs
