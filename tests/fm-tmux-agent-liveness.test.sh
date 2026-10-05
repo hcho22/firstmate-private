@@ -27,11 +27,14 @@ SLEEP_BIN=$(command -v sleep) || { echo "skip: sleep not found"; exit 0; }
 
 REAL_TMUX=$(command -v tmux)
 SOCKET="fm-liveness-$$"
+SOCKET_PATH="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/$SOCKET"
 LAB=$(mktemp -d "${TMPDIR:-/tmp}/fm-liveness.XXXXXX")
 SESSION=liveness
 
 cleanup_all() {
   "$REAL_TMUX" -L "$SOCKET" kill-server >/dev/null 2>&1 || true
+  # kill-server can leave this run's socket file behind (tmux 3.6b does).
+  [ ! -S "$SOCKET_PATH" ] || rm -f "$SOCKET_PATH"
   [ -n "${LAB:-}" ] && rm -rf "$LAB"
 }
 trap cleanup_all EXIT

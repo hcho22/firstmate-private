@@ -72,10 +72,11 @@ cp "$ROOT/bin/fm-remote-doctor.sh" "$ROOT/bin/fm-tasks-axi-lib.sh" \
 mkdir -p "$REMOTE_ROOT/bin/backends"
 cp "$ROOT/bin/backends/herdr.sh" "$REMOTE_ROOT/bin/backends/herdr.sh"
 # A host that really has herdr and jq makes the doctor load this adapter from the
-# fixture root, and the adapter sources these two libraries at load. The fake
+# fixture root, and the adapter sources these libraries at load. The fake
 # herdr (first on the entrypoint's child PATH) keeps that load from ever reading
 # the host's real Herdr, so the transport cases do not depend on what is installed.
-cp "$ROOT/bin/fm-composer-lib.sh" "$ROOT/bin/fm-transition-lib.sh" "$REMOTE_ROOT/bin/"
+cp "$ROOT/bin/fm-composer-lib.sh" "$ROOT/bin/fm-transition-lib.sh" \
+  "$ROOT/bin/fm-server-env-lib.sh" "$REMOTE_ROOT/bin/"
 printf '#!/usr/bin/env bash\nprintf "{\\"server\\":{\\"running\\":false}}\\n"\n' > "$REMOTE_ROOT/bin/herdr"
 cat > "$REMOTE_ROOT/bin/fm-mutate.sh" <<'SH'
 #!/usr/bin/env bash

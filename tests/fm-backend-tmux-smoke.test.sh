@@ -202,8 +202,8 @@ PANE_ENV="$SHIM_DIR/pane.env"
 UNSET_ARGS=(-u TMUX)
 for name in "${SCRUBBED[@]}"; do UNSET_ARGS+=(-u "$name"); done
 env "${UNSET_ARGS[@]}" tmux new-window -d -t firstmate: "env > '$PANE_ENV'"
-for _ in $(seq 1 100); do
-  [ -s "$PANE_ENV" ] && break
+deadline=$((SECONDS + 60))
+while [ ! -s "$PANE_ENV" ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.1
 done
 [ -s "$PANE_ENV" ] || fail "real tmux: the probe window never recorded its environment"
