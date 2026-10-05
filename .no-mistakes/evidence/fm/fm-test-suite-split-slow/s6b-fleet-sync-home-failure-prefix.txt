@@ -1,0 +1,110 @@
+## pre-fix cbc2c39 (before 09d924c): same injection, same runner
+ 9:01  up 32 days, 18:15, 2 users, load averages: 9.94 10.50 20.14
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-10-05T16:01:28Z tests/fm-fleet-sync.test.sh family=session-bootstrap expected_gate_skip=none
+injected: mktemp refused /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.2VhuAZ/s0/tmp/fm-fleet-sync-tests.Ohvoxc/home.XXXXXX
+not ok - could not create a fleet-sync home
+mkdir: /remotes: Read-only file system
+fatal: cannot mkdir /work-alpha: Read-only file system
+fatal: cannot change to '/work-alpha': No such file or directory
+tests/fm-fleet-sync.test.sh: line 54: /work-alpha/file.txt: No such file or directory
+fatal: cannot change to '/work-alpha': No such file or directory
+fatal: cannot change to '/work-alpha': No such file or directory
+fatal: repository '/work-alpha' does not exist
+tests/fm-fleet-sync.test.sh: line 74: cd: /remotes/alpha.git: No such file or directory
+fatal: cannot change to '/work-alpha': No such file or directory
+fatal: cannot change to '/work-alpha': No such file or directory
+fatal: could not create leading directories of '/projects/alpha': Read-only file system
+tests/fm-fleet-sync.test.sh: line 54: /work-alpha/file.txt: No such file or directory
+fatal: cannot change to '/work-alpha': No such file or directory
+fatal: cannot change to '/work-alpha': No such file or directory
+fatal: cannot change to '/work-alpha': No such file or directory
+fatal: cannot change to '/projects/alpha': No such file or directory
+fatal: cannot change to '/projects/alpha': No such file or directory
+not ok - detached-clean-ancestor reports recovered (missing: 'alpha: recovered: re-attached main, synced')
+--- output ---
+/projects/alpha: skipped: not a directory
+injected: mktemp refused /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.2VhuAZ/s0/tmp/fm-fleet-sync-tests.Ohvoxc/home.XXXXXX
+not ok - could not create a fleet-sync home
+mkdir: /remotes: Read-only file system
+fatal: cannot mkdir /work-beta: Read-only file system
+fatal: cannot change to '/work-beta': No such file or directory
+tests/fm-fleet-sync.test.sh: line 54: /work-beta/file.txt: No such file or directory
+fatal: cannot change to '/work-beta': No such file or directory
+fatal: cannot change to '/work-beta': No such file or directory
+fatal: repository '/work-beta' does not exist
+tests/fm-fleet-sync.test.sh: line 74: cd: /remotes/beta.git: No such file or directory
+fatal: cannot change to '/work-beta': No such file or directory
+fatal: cannot change to '/work-beta': No such file or directory
+fatal: could not create leading directories of '/projects/beta': Read-only file system
+fatal: cannot change to '/projects/beta': No such file or directory
+tests/fm-fleet-sync.test.sh: line 54: /projects/beta/extra.txt: No such file or directory
+fatal: cannot change to '/projects/beta': No such file or directory
+fatal: cannot change to '/projects/beta': No such file or directory
+fatal: cannot change to '/projects/beta': No such file or directory
+tests/fm-fleet-sync.test.sh: line 54: /work-beta/file.txt: No such file or directory
+fatal: cannot change to '/work-beta': No such file or directory
+fatal: cannot change to '/work-beta': No such file or directory
+fatal: cannot change to '/work-beta': No such file or directory
+not ok - detached-with-unique-commit reports STUCK (missing: 'beta: STUCK:')
+--- output ---
+/projects/beta: skipped: not a directory
+injected: mktemp refused /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.2VhuAZ/s0/tmp/fm-fleet-sync-tests.Ohvoxc/home.XXXXXX
+not ok - could not create a fleet-sync home
+mkdir: /remotes: Read-only file system
+fatal: cannot mkdir /work-beta-local-default: Read-only file system
+fatal: cannot change to '/work-beta-local-default': No such file or directory
+tests/fm-fleet-sync.test.sh: line 54: /work-beta-local-default/file.txt: No such file or directory
+fatal: cannot change to '/work-beta-local-default': No such file or directory
+fatal: cannot change to '/work-beta-local-default': No such file or directory
+fatal: repository '/work-beta-local-default' does not exist
+tests/fm-fleet-sync.test.sh: line 74: cd: /remotes/beta-local-default.git: No such file or directory
+fatal: cannot change to '/work-beta-local-default': No such file or directory
+fatal: cannot change to '/work-beta-local-default': No such file or directory
+fatal: could not create leading directories of '/projects/beta-local-default': Read-only file system
+tests/fm-fleet-sync.test.sh: line 54: /projects/beta-local-default/local.txt: No such file or directory
+fatal: cannot change to '/projects/beta-local-default': No such file or directory
+fatal: cannot change to '/projects/beta-local-default': No such file or directory
+fatal: cannot change to '/projects/beta-local-default': No such file or directory
+fatal: cannot change to '/projects/beta-local-default': No such file or directory
+fatal: cannot change to '/projects/beta-local-default': No such file or directory
+tests/fm-fleet-sync.test.sh: line 54: /work-beta-local-default/file.txt: No such file or directory
+fatal: cannot change to '/work-beta-local-default': No such file or directory
+fatal: cannot change to '/work-beta-local-default': No such file or directory
+fatal: cannot change to '/work-beta-local-default': No such file or directory
+not ok - diverged local default reports STUCK (missing: 'beta-local-default: STUCK:')
+--- output ---
+/projects/beta-local-default: skipped: not a directory
+injected: mktemp refused /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.2VhuAZ/s0/tmp/fm-fleet-sync-tests.Ohvoxc/home.XXXXXX
+not ok - could not create a fleet-sync home
+mkdir: /remotes: Read-only file system
+fatal: cannot mkdir /work-gamma: Read-only file system
+fatal: cannot change to '/work-gamma': No such file or directory
+tests/fm-fleet-sync.test.sh: line 54: /work-gamma/file.txt: No such file or directory
+fatal: cannot change to '/work-gamma': No such file or directory
+fatal: cannot change to '/work-gamma': No such file or directory
+fatal: repository '/work-gamma' does not exist
+tests/fm-fleet-sync.test.sh: line 74: cd: /remotes/gamma.git: No such file or directory
+fatal: cannot change to '/work-gamma': No such file or directory
+fatal: cannot change to '/work-gamma': No such file or directory
+fatal: could not create leading directories of '/projects/gamma': Read-only file system
+tests/fm-fleet-sync.test.sh: line 54: /work-gamma/file.txt: No such file or directory
+fatal: cannot change to '/work-gamma': No such file or directory
+fatal: cannot change to '/work-gamma': No such file or directory
+fatal: cannot change to '/work-gamma': No such file or directory
+fatal: cannot change to '/projects/gamma': No such file or directory
+tests/fm-fleet-sync.test.sh: line 308: /projects/gamma/file.txt: No such file or directory
+not ok - dirty clone reports STUCK (missing: 'gamma: STUCK:')
+--- output ---
+/projects/gamma: skipped: not a directory
+FM_TEST_END 2026-10-05T16:01:31Z tests/fm-fleet-sync.test.sh exit=1 duration_ms=2883 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=1 skipped_gate=0 duration_ms=4856
+FM_TEST_SUMMARY_FAMILY family=session-bootstrap count=1 duration_ms=2883 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-fleet-sync.test.sh duration_ms=2883
+runner exit=1
+refused count:        4
+root entries named work-*/remotes:
+none
+clone projects/ after run:
+ls: /tmp/fmab/prefix/projects: No such file or directory

@@ -1,0 +1,69 @@
+## SIGINT to the runner's whole process group (terminal Ctrl-C) 60 s into a laned tests/fm-watch-triage.test.sh run (HEAD 09d924c)
+09:08:10 sent SIGINT to process group
+### runner output (ok lines summarized)
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-10-05T16:07:11Z tests/fm-watch-triage.test.sh family=watcher-wake-lock expected_gate_skip=none
+FM_TEST_END 2026-10-05T16:08:11Z tests/fm-watch-triage.test.sh exit=141 duration_ms=60041 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=1 skipped_gate=0 duration_ms=60753
+FM_TEST_SUMMARY_FAMILY family=watcher-wake-lock count=1 duration_ms=60041 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-watch-triage.test.sh duration_ms=60041
+cases reported ok before the stop: 49
+runner exit=1
+### orphan check
+distinct pids seen in tree:     1120
+pids from that tree still alive with the same command 3 s after the runner exited: 0
+### process tree at the moment of the signal
+10995 10895 10995 bash bin/fm-test-run.sh tests/fm-watch-triage.test.sh
+11149 10995 10995 bash tests/fm-watch-triage.test.sh
+11150 10995 10995 tee /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-test-run.4JQKrm/out.0
+11219 11149 10995 bash tests/fm-watch-triage.test.sh
+11220 11149 10995 bash tests/fm-watch-triage.test.sh
+11222 11149 10995 bash tests/fm-watch-triage.test.sh
+11225 11149 10995 bash tests/fm-watch-triage.test.sh
+84701 11219 10995 bash tests/fm-watch-triage.test.sh
+89121 11222 10995 bash tests/fm-watch-triage.test.sh
+89431 11220 10995 bash tests/fm-watch-triage.test.sh
+89456 89121 10995 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-watch.sh
+89591 84701 10995 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-wake-drain.sh
+89846 89431 10995 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-watch.sh
+89989 11225 10995 bash tests/fm-watch-triage.test.sh
+90283 89591 10995 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-wake-drain.sh
+90284 89456 10995 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-home-summary-refresh.sh --best-effort
+90334 90284 10995 perl -e my $t = shift; my $pid = fork; die "fork failed" unless defined $pid; if (!$pid) { setpgrp(0, 0); exec @ARGV } local $SIG{ALRM} = sub { kill "TERM", -$pid; select undef, undef, undef, 0.2; kill "KILL", -$pid; exit 124 }; alarm $t; waitpid $pid, 0; exit($? >> 8) 60 env FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1 FM_HOME_SUMMARY_IF_IDLE=1 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-home-summary-refresh.sh --_worker
+90345 90334 90345 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-home-summary-refresh.sh --_worker
+90484 89989 10995 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-watch.sh
+90550 90345 90345 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-fleet-snapshot.sh --secondmate-home-summary
+90869 89846 10995 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-home-summary-refresh.sh --best-effort
+90911 90869 10995 perl -e my $t = shift; my $pid = fork; die "fork failed" unless defined $pid; if (!$pid) { setpgrp(0, 0); exec @ARGV } local $SIG{ALRM} = sub { kill "TERM", -$pid; select undef, undef, undef, 0.2; kill "KILL", -$pid; exit 124 }; alarm $t; waitpid $pid, 0; exit($? >> 8) 60 env FM_HOME_SUMMARY_WORKER_BEST_EFFORT=1 FM_HOME_SUMMARY_IF_IDLE=1 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-home-summary-refresh.sh --_worker
+90925 90911 90925 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-home-summary-refresh.sh --_worker
+91122 90550 90345 (bash)
+91125 91122 90345 (bash)
+91126 91122 90345 (jq)
+91144 90925 90925 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-fleet-snapshot.sh --secondmate-home-summary
+91280 89846 10995 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-watch.sh
+91286 91280 10995 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-inactive-reconcile.sh scan
+91392 11149 10995 (sleep)
+91411 91286 10995 perl -e my $t = shift; my $pid = fork; die "fork failed" unless defined $pid; if (!$pid) { setpgrp(0, 0); exec @ARGV } local $SIG{ALRM} = sub { kill "TERM", -$pid; select undef, undef, undef, 0.2; kill "KILL", -$pid; exit 124 }; alarm $t; waitpid $pid, 0; exit($? >> 8) 11 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-inactive-reconcile.sh _scan-locked 0
+91420 91411 91420 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-inactive-reconcile.sh _scan-locked 0
+91427 91144 90925 (bash)
+91443 89989 10995 (sleep)
+91470 91427 90925 (bash)
+91475 91470 90925 (bash)
+91483 91475 90925 (perl)
+91494 90283 10995 (bash)
+91496 91483 91496 (bash)
+91500 91494 10995 (bash)
+91593 89456 10995 (bash)
+91596 91125 90345 (bash)
+91598 91593 10995 (bash)
+91599 91596 90345 (jq)
+91631 91598 10995 (bash)
+91648 91496 91496 (bash)
+91654 91648 91496 (cut)
+91658 89121 10995 (sleep)
+91659 89431 10995 (sleep)
+91661 90484 10995 bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M465WGP3A3Z5A1VMV2FWRAS9/bin/fm-home-summary-refresh.sh --best-effort
+91662 91500 10995 (rm)
+### runner temp roots left from today
+drwx------@   9 hcho  staff   288 Oct  5 09:10 /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.TMFmxO
