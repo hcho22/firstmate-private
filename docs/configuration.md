@@ -153,7 +153,7 @@ A cmux spawn additionally version-gates against the installed `cmux` binary's ve
 A backend spawn refusal from a missing dependency, version gate, or unauthenticated socket is terminal for that selected backend; firstmate surfaces it as a blocker instead of silently retrying another backend.
 A tmux, Herdr, or Zellij server hands the environment it started with to every pane it later creates, so whenever Firstmate itself starts one - a spawn or a session-start secondmate relaunch alike - it leaves out the starting process's Firstmate home and directory overrides, harness identity markers, supervision-model override, and Firstmate's internal handoff settings, while ordinary variables still pass.
 `bin/fm-server-env-lib.sh` owns that exact list.
-An already-running server is reused unchanged and keeps whatever environment it started with, so a secondmate launch also drops those internal handoff settings from its own command; restart a server an older Firstmate started to clear them from the panes it creates.
+An already-running server is reused unchanged and keeps whatever environment it started with, so restart a server an older Firstmate started to clear those values from the panes it creates.
 Orca and cmux servers are their own applications, so nothing Firstmate launches becomes their environment.
 Task meta records `backend=` only for a non-default backend; an absent `backend=` means `tmux`, preserving existing default-path meta files.
 Every new task records `endpoint_task_id=` as the cleanup binding between the metadata filename and its opaque runtime endpoint.

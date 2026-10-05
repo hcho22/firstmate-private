@@ -28,17 +28,16 @@
 # Every other variable is left alone, so ordinary environment and explicit
 # backend session routing still reach the server. An already-running server is
 # reused untouched and keeps whatever environment it started with until it next
-# starts, which is why a secondmate launch also drops the internal handoff
-# settings from its own command (fm_internal_env_unset_prefix in bin/fm-spawn.sh).
+# starts, so restarting a server an older Firstmate started is what clears it.
+# Dropping the names from each launch command instead does not fit: fm-spawn
+# types that command into a pane before its shell is ready, and on macOS typed
+# text past about 1 KB arrives corrupted.
 #
-# fm_internal_env_withdraw      unset the internal handoff settings in this
-#                               shell. tests/lib.sh uses it to keep a suite run
-#                               hermetic.
-# fm_internal_env_unset_prefix  print an `env -u ...` command prefix that drops
-#                               them from one launched command.
-# fm_server_env_scrub           unset both groups in this shell. Call it only
-#                               inside the subshell that starts the server,
-#                               because the caller itself still needs its home.
+# fm_internal_env_withdraw  unset the internal handoff settings in this shell.
+#                           tests/lib.sh uses it to keep a suite run hermetic.
+# fm_server_env_scrub       unset both groups in this shell. Call it only inside
+#                           the subshell that starts the server, because the
+#                           caller itself still needs its home.
 
 FM_INTERNAL_ENV_NAMES=(
   FM_SESSION_START_STAGE_FILE
@@ -53,14 +52,6 @@ FM_INTERNAL_ENV_NAMES=(
 
 fm_internal_env_withdraw() {
   unset "${FM_INTERNAL_ENV_NAMES[@]}"
-}
-
-fm_internal_env_unset_prefix() {
-  local name
-  printf 'env'
-  for name in "${FM_INTERNAL_ENV_NAMES[@]}"; do
-    printf ' -u %s' "$name"
-  done
 }
 
 fm_server_env_scrub() {

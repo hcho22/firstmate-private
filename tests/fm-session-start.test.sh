@@ -314,8 +314,8 @@ SH
 # mate, and no-server has no tmux server at all until `new-session` starts one,
 # recording the FM_ names, the CLAUDECODE harness marker, and the
 # RELAUNCH_ORDINARY_SENTINEL variable it was started with in
-# <spawned>.server.env. Every mode records the last literal text typed into a
-# window, which is the relaunch's launch command, in <spawned>.launch.
+# <spawned>.server.env. Every mode appends all text typed into a window to
+# <spawned>.typed, with each Enter as a newline.
 make_fake_tmux_secondmate_recovery() {
   local fakebin=$1
   fm_shared_stub "$fakebin" "tmux" <<'SH'
@@ -410,10 +410,15 @@ case "${1:-}" in
     exit 0
     ;;
   send-keys)
-    prev=
-    for arg in "$@"; do
-      [ "$prev" != -l ] || printf '%s' "$arg" > "$spawned.launch"
-      prev=$arg
+    shift
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t) shift ;;
+        -l) shift; printf '%s' "$1" >> "$spawned.typed" ;;
+        Enter) printf '\n' >> "$spawned.typed" ;;
+        *) printf '%s' "$1" >> "$spawned.typed" ;;
+      esac
+      shift
     done
     exit 0
     ;;
@@ -1486,16 +1491,16 @@ EOF
 # task through one long-gone snapshot. Startup pins its own home on the way,
 # and the session running startup may itself sit in a pane of an older server
 # that still hands out Firstmate's internal settings, which no owner along this
-# path ever reads, so none of them withdraws it. That older server also hands the
-# same settings to the relaunched secondmate's own pane.
+# path ever reads, so none of them withdraws it.
 test_secondmate_relaunch_keeps_startup_variables_out_of_the_server() {
-  local rec root home fakebin mate log spawned server_env leaked name stale pi_env
+  local rec root home fakebin mate log spawned server_env leaked name stale w typed
   local -a internal inherited
   rec=$(prepare_session_start_secondmate secondmate-relaunch-server-env)
   IFS='|' read -r root home fakebin mate log spawned <<EOF
 $rec
 EOF
-  stale="${root%/root}/stale"
+  w=${root%/root}
+  stale="$w/stale"
   mkdir -p "$stale"
   # FM_BOOTSTRAP_DETECT_ONLY is the one internal setting left out: it turns this
   # relaunch off by design, so inheriting it would prove nothing here.
@@ -1546,26 +1551,18 @@ EOF
   grep -Fqx 'FM_BACKEND=tmux' "$server_env" \
     || fail "the relaunch dropped the explicit backend selection from its tmux server: $(cat "$server_env")"
 
-  # Run the typed launch command the way a pane of that older server would: with
-  # every internal setting still in its environment. The secondmate itself must
-  # start without them and in its own home.
-  assert_present "$spawned.launch" "the relaunch never typed its launch command"
-  pi_env="${root%/root}/pi.env"
-  fm_shared_stub "$fakebin" pi <<'SH'
-#!/usr/bin/env bash
-env > "$RELAUNCH_PI_ENV"
-SH
-  env "${inherited[@]}" RELAUNCH_PI_ENV="$pi_env" PATH="$fakebin:$BASE_PATH" \
-    bash -c "$(cat "$spawned.launch")" >/dev/null 2>&1
-  assert_present "$pi_env" "the typed launch command never started the secondmate: $(cat "$spawned.launch")"
-  for name in "${internal[@]}"; do
-    ! grep -q "^$name=" "$pi_env" \
-      || fail "the relaunched secondmate inherited $name from its pane: $(grep "^$name=" "$pi_env")"
-  done
-  grep -q "^FM_HOME=.*/secondmate-$SESSION_START_SECOND_MATE_ID\$" "$pi_env" \
-    || fail "the relaunched secondmate did not start in its own home: $(grep '^FM_HOME=' "$pi_env")"
+  # fm-spawn types into the new window before that window's shell is ready to
+  # read, and macOS keeps only about 1 KB of such typeahead intact: past it, the
+  # launch arrives garbled and the secondmate never starts. Cut every fixture
+  # path to a typical home path's length so the budget tracks what fm-spawn
+  # types rather than where this suite happens to run.
+  assert_present "$spawned.typed" "the relaunch never typed its launch command"
+  typed=$(cat "$spawned.typed")
+  typed=${typed//"$w"/"/Users/captain/firstmate"}
+  [ "${#typed}" -lt 1024 ] \
+    || fail "the relaunch typed ${#typed} bytes into a pane whose shell keeps only about 1 KB before it starts: $typed"
 
-  pass "a deferred secondmate relaunch starts its backend server and the secondmate itself without startup's internal variables"
+  pass "a deferred secondmate relaunch starts its backend server without startup's internal variables and types a launch its pane can take"
 }
 
 # --- composition: real scripts run, not reimplemented ------------------------
