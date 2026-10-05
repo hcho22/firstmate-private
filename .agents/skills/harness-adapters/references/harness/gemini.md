@@ -94,6 +94,12 @@ A guarded user-level hook in `~/.gemini/settings.json` was also proven to work, 
 
 While a hook runs, the status row shows `Executing Hook: <name>` and the `(esc to cancel,` token is already gone, so that brief window reads idle; the turn itself is genuinely over by then.
 
+## Worktree boundary
+
+Never pass Gemini `-w` or `--worktree`.
+Upstream source, not yet re-verified on an installed build, shows that with `experimental.worktrees` enabled Gemini resolves the git common dir back to the repository's main checkout and creates the copy under its `.gemini/worktrees/`.
+From a task worktree that copy would land inside the primary checkout; the model cannot start one itself, and `../../../../../docs/verification/runtime-backends.md` records the review.
+
 ## Skills
 
 Gemini discovers user skills from `~/.gemini/skills/` or `~/.agents/skills/` and workspace skills from `.gemini/skills/` or `.agents/skills/`.

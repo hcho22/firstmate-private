@@ -16,6 +16,16 @@
 # which is how every linked worktree and secondmate home legitimately sits on the
 # default branch. Detached HEAD on the default is fine; a feature branch in a
 # primary checkout is the alarm.
+#
+# fm_primary_nested_worktrees detects the second tangle shape: a LINKED worktree
+# registered inside the primary checkout, such as the `.claude/worktrees/*`
+# copies Claude creates in the repository's main checkout when a worker's
+# isolated subagent runs without bin/fm-subagent-worktree.sh's placement hook.
+# Nothing legitimate lives there - task worktrees and secondmate homes are
+# leased outside it, and project clones are separate repositories - so every
+# such worktree is reported.
+
+FM_TANGLE_LIB_DIR=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 # Resolve the default branch name of the git repo at <dir>: prefer origin/HEAD,
 # then fall back to a local main/master. Echoes the name, or returns 1.
@@ -50,4 +60,17 @@ fm_primary_tangle_branch() {
   [ "$cur" = "$default" ] && return 1
   printf '%s\n' "$cur"
   return 0
+}
+
+# List every linked worktree registered inside the git checkout at <root>, one
+# `<state>\t<path>\t<branch>` line each, and return 0; for none, or when <root>
+# is not a git work tree, echo nothing and return 1. <state> distinguishes a
+# copy that holds no unique work (landed) from one that must be inspected
+# first; bin/fm-subagent-worktree.sh owns the inventory, the states, and the
+# `retire <root>` remedy.
+fm_primary_nested_worktrees() {
+  local root=$1 listing
+  listing=$("${FM_TANGLE_LIB_DIR}/fm-subagent-worktree.sh" list "$root" 2>/dev/null) || return 1
+  [ -n "$listing" ] || return 1
+  printf '%s\n' "$listing"
 }

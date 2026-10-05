@@ -49,6 +49,13 @@
 #   (w) index.lock mtime read failure                         -> lock kept, REFUSE
 #   (x) transient lock cleared after first failed return      -> retry ALLOW
 #   (y) persistent lock (never clears, not provably stale)    -> REFUSE loudly
+#
+# Also covers isolated-subagent copies registered under the task's tasktmp
+# (bin/fm-subagent-worktree.sh owns their placement and landed test):
+#   (z1) a copy holding commits found nowhere else           -> REFUSE, copy kept
+#   (z2) a clean copy with nothing of its own                -> retired, ALLOW
+#   (z3) an unlanded copy under --force                      -> discarded, branch kept
+#   (z4) copies git cannot list                              -> REFUSE, copy kept
 set -u
 
 # shellcheck source=tests/lib.sh disable=SC1091
@@ -2847,6 +2854,104 @@ test_leaked_tasktmp_process_is_reaped() {
   pass "a leaked descendant process rooted under the task's per-task tasktmp is reaped by teardown too"
 }
 
+# Plant one isolated-subagent copy under the case's tasktmp exactly as a Claude
+# worker's WorktreeCreate hook would, and record that tasktmp in the meta.
+plant_subagent_copy() {  # <case-dir> <name>; echoes the copy path
+  local case_dir=$1 name=$2
+  grep -q '^tasktmp=' "$case_dir/state/task-x1.meta" \
+    || printf '%s\n' "tasktmp=$case_dir/tasktmp" >> "$case_dir/state/task-x1.meta"
+  printf '{"name":"%s"}' "$name" \
+    | "$ROOT/bin/fm-subagent-worktree.sh" create "$case_dir/wt" "$case_dir/tasktmp" 2>/dev/null
+}
+
+test_unlanded_subagent_copy_refuses() {
+  local case_dir rc copy
+  case_dir=$(make_case subagent-unlanded)
+  write_meta "$case_dir" no-mistakes ship
+  land_shippable_commit "$case_dir"
+  copy=$(plant_subagent_copy "$case_dir" agent-u1) || fail "subagent-unlanded: could not plant a copy"
+  git -C "$copy" -c user.email=t@t -c user.name=t commit -q --allow-empty -m "subagent work"
+
+  rc=0
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 1 "$rc" "subagent-unlanded: teardown should refuse"
+  assert_grep "REFUSED: task task-x1 left isolated-subagent worktrees" "$case_dir/stderr" \
+    "subagent-unlanded: refusal did not name the isolated-subagent copies"
+  assert_grep "$copy (branch worktree-agent-u1, unlanded)" "$case_dir/stderr" \
+    "subagent-unlanded: refusal did not name the unlanded copy"
+  assert_present "$copy" "subagent-unlanded: the unlanded copy was removed"
+  assert_present "$case_dir/state/task-x1.meta" "subagent-unlanded: the task record was removed"
+  pass "a ship teardown refuses while an isolated-subagent copy holds work found nowhere else"
+}
+
+test_landed_subagent_copy_is_retired() {
+  local case_dir rc copy
+  case_dir=$(make_case subagent-landed)
+  write_meta "$case_dir" no-mistakes ship
+  land_shippable_commit "$case_dir"
+  copy=$(plant_subagent_copy "$case_dir" agent-l1) || fail "subagent-landed: could not plant a copy"
+
+  rc=0
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 0 "$rc" "subagent-landed: teardown should succeed"
+  assert_absent "$copy" "subagent-landed: the landed copy is still on disk"
+  git -C "$case_dir/project" worktree list --porcelain | grep -Fq "$copy" \
+    && fail "subagent-landed: the landed copy is still registered"
+  git -C "$case_dir/project" show-ref --verify --quiet refs/heads/worktree-agent-l1 \
+    && fail "subagent-landed: the landed copy's merged branch was kept"
+  pass "a ship teardown retires a clean isolated-subagent copy that holds nothing of its own"
+}
+
+test_subagent_inventory_failure_refuses() {
+  local case_dir rc copy real_git
+  case_dir=$(make_case subagent-inventory)
+  write_meta "$case_dir" no-mistakes ship
+  land_shippable_commit "$case_dir"
+  copy=$(plant_subagent_copy "$case_dir" agent-i1) || fail "subagent-inventory: could not plant a copy"
+  real_git=$(command -v git)
+  cat > "$case_dir/fakebin/git" <<EOF
+#!/usr/bin/env bash
+case " \$* " in
+  *" worktree list "*) echo "fatal: simulated worktree list failure" >&2; exit 128 ;;
+esac
+exec "$real_git" "\$@"
+EOF
+  chmod +x "$case_dir/fakebin/git"
+
+  rc=0
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 1 "$rc" "subagent-inventory: teardown should refuse"
+  assert_grep "REFUSED: cannot inventory the isolated-subagent worktrees of task task-x1" "$case_dir/stderr" \
+    "subagent-inventory: refusal did not name the failed inventory"
+  assert_present "$copy" "subagent-inventory: the copy was removed"
+  assert_present "$case_dir/state/task-x1.meta" "subagent-inventory: the task record was removed"
+  pass "a ship teardown refuses when it cannot inventory the isolated-subagent copies"
+}
+
+test_forced_teardown_discards_subagent_copy_keeps_branch() {
+  local case_dir rc copy tip
+  case_dir=$(make_case subagent-forced)
+  write_meta "$case_dir" no-mistakes ship
+  land_shippable_commit "$case_dir"
+  copy=$(plant_subagent_copy "$case_dir" agent-f1) || fail "subagent-forced: could not plant a copy"
+  git -C "$copy" -c user.email=t@t -c user.name=t commit -q --allow-empty -m "subagent work"
+  tip=$(git -C "$copy" rev-parse HEAD)
+
+  rc=0
+  run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 0 "$rc" "subagent-forced: a forced teardown should succeed"
+  assert_absent "$copy" "subagent-forced: the discarded copy is still on disk"
+  git -C "$case_dir/project" worktree list --porcelain | grep -Fq "$copy" \
+    && fail "subagent-forced: the discarded copy is still registered"
+  [ "$(git -C "$case_dir/project" rev-parse --verify --quiet worktree-agent-f1)" = "$tip" ] \
+    || fail "subagent-forced: a discard must keep the copy's branch so its commits stay reachable"
+  pass "a forced teardown discards isolated-subagent copies but keeps their branches"
+}
+
 test_lsof_absent_reaps_tmux_process_group() {
   local case_dir rc pid path_without_lsof
   case_dir=$(make_case lsof-absent-process-group-reap)
@@ -3236,6 +3341,10 @@ test_another_branchs_parked_run_is_never_touched
 test_own_autonomous_run_is_left_alone
 test_leaked_worktree_process_is_reaped
 test_leaked_tasktmp_process_is_reaped
+test_unlanded_subagent_copy_refuses
+test_landed_subagent_copy_is_retired
+test_subagent_inventory_failure_refuses
+test_forced_teardown_discards_subagent_copy_keeps_branch
 test_lsof_absent_reaps_tmux_process_group
 test_lsof_error_refuses_before_removal
 test_reused_pid_identity_is_not_force_killed

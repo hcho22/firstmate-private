@@ -203,6 +203,10 @@
 # and every refusal; a failed registration stops this spawn rather than launching
 # a worker that would wedge on the dialog. A --secondmate launch never runs it,
 # so a claude secondmate home keeps its own one-time trust decision.
+# A non-secondmate claude worker's .claude/settings.local.json also carries a
+# WorktreeCreate hook that places every worktree Claude isolates work into
+# under the task's per-task temp root instead of the repository's main
+# checkout; bin/fm-subagent-worktree.sh owns that placement.
 # Publishing the record and moving this home's backlog item to In flight are one
 # step, not two: bin/fm-backlog-transition-lib.sh owns that invariant, and this
 # script performs the transition under the task's own meta lock before it reports
@@ -2727,8 +2731,14 @@ if [ "$KIND" != secondmate ]; then
       j_stop=$(json_escape "touch $(shell_quote "$TURNEND"); $busy_cmd_prefix idle $busy_suffix --event stop 2>/dev/null || true")
       j_stopfail=$(json_escape "$busy_cmd_prefix idle $busy_suffix --event stop-failure 2>/dev/null || true")
       j_sessionend=$(json_escape "$busy_cmd_prefix idle $busy_suffix --event session-end 2>/dev/null || true")
+      # Worktree placement hook (bin/fm-subagent-worktree.sh): without it
+      # Claude resolves this linked worktree back to the repository's main
+      # checkout and creates every isolated subagent's worktree there. Unlike
+      # the busy hooks it must NOT tolerate failure: a failed create stops
+      # that one isolated worktree instead of falling back to the main checkout.
+      j_wtcreate=$(json_escape "$(shell_quote "$FM_ROOT/bin/fm-subagent-worktree.sh") create $(shell_quote "$WT") $(shell_quote "$TASK_TMP")")
       cat > "$WT/.claude/settings.local.json" <<EOF
-{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"$j_submit"}]}],"Stop":[{"hooks":[{"type":"command","command":"$j_stop"}]}],"StopFailure":[{"hooks":[{"type":"command","command":"$j_stopfail"}]}],"SessionEnd":[{"hooks":[{"type":"command","command":"$j_sessionend"}]}]}}
+{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"$j_submit"}]}],"Stop":[{"hooks":[{"type":"command","command":"$j_stop"}]}],"StopFailure":[{"hooks":[{"type":"command","command":"$j_stopfail"}]}],"SessionEnd":[{"hooks":[{"type":"command","command":"$j_sessionend"}]}],"WorktreeCreate":[{"hooks":[{"type":"command","command":"$j_wtcreate","timeout":600}]}]}}
 EOF
       exclude_path '.claude/settings.local.json'
       ;;
