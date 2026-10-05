@@ -45,7 +45,7 @@ TMP_ROOT=$(fm_test_tmproot fm-backend-tests)
 # Every spawn gets its own throwaway HOME, so concurrent cases never write one
 # store at the same time.
 fresh_spawn_home() {
-  mktemp -d "$TMP_ROOT/user-home.XXXXXX" || fail "could not create a throwaway HOME"
+  mktemp -d "$TMP_ROOT/user-home.XXXXXX"
 }
 
 write_spawn_brief() {  # <file> <id>
@@ -815,10 +815,11 @@ SH
 }
 
 run_spawn_case() {  # <bin-root> <fakebin> <log> <state> <data> <config> <proj> -- <spawn args...>
-  local bin=$1 fb=$2 log=$3 state=$4 data=$5 config=$6 proj=$7; shift 7
+  local bin=$1 fb=$2 log=$3 state=$4 data=$5 config=$6 proj=$7 home; shift 7
   [ "${1:-}" = -- ] && shift
   : > "$log"
-  env PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$bin" HOME="$(fresh_spawn_home)" CLAUDE_CONFIG_DIR='' \
+  home=$(fresh_spawn_home) || fail "could not create a throwaway HOME"
+  env PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$bin" HOME="$home" CLAUDE_CONFIG_DIR='' \
     FM_STATE_OVERRIDE="$state" FM_DATA_OVERRIDE="$data" FM_CONFIG_OVERRIDE="$config" \
     FM_PROJECTS_OVERRIDE="$TMP_ROOT/unused-projects" \
     FM_SPAWN_NO_GUARD=1 TMUX="fake,1,0" FM_TMUX_LOG="$log" \
@@ -1062,7 +1063,7 @@ test_spawn_refuses_unknown_fm_backend_env() {
 }
 
 test_spawn_default_backend_writes_no_meta_field() {
-  local proj wt data id state config out
+  local proj wt data id state config out home
   proj="$TMP_ROOT/nobackend-project"; wt="$TMP_ROOT/nobackend-wt"; data="$TMP_ROOT/nobackend-data"
   id="nobackendz3"
   fm_git_worktree "$proj" "$wt" "fm/$id"
@@ -1072,7 +1073,8 @@ test_spawn_default_backend_writes_no_meta_field() {
   state="$TMP_ROOT/nobackend-state"; config="$TMP_ROOT/nobackend-config"
   mkdir -p "$state" "$config"
 
-  out=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$ROOT" HOME="$(fresh_spawn_home)" CLAUDE_CONFIG_DIR='' \
+  home=$(fresh_spawn_home) || fail "could not create a throwaway HOME"
+  out=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$ROOT" HOME="$home" CLAUDE_CONFIG_DIR='' \
     FM_STATE_OVERRIDE="$state" FM_DATA_OVERRIDE="$data" FM_CONFIG_OVERRIDE="$config" \
     FM_PROJECTS_OVERRIDE="$TMP_ROOT/unused-projects" FM_SPAWN_NO_GUARD=1 TMUX="fake,1,0" \
     FM_TMUX_LOG="$TMP_ROOT/nobackend.log" \
@@ -1085,7 +1087,7 @@ test_spawn_default_backend_writes_no_meta_field() {
 }
 
 test_spawn_explicit_backend_flag_beats_autodetect_herdr_env() {
-  local proj wt data id state config out fb
+  local proj wt data id state config out fb home
   proj="$TMP_ROOT/explicit-backend-project"; wt="$TMP_ROOT/explicit-backend-wt"; data="$TMP_ROOT/explicit-backend-data"
   id="explicitbackendz4"
   fm_git_worktree "$proj" "$wt" "fm/$id"
@@ -1096,7 +1098,8 @@ test_spawn_explicit_backend_flag_beats_autodetect_herdr_env() {
 
   # HERDR_ENV=1 is present (as if firstmate itself were running under herdr),
   # but an explicit --backend tmux flag must still win outright.
-  out=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$ROOT" HOME="$(fresh_spawn_home)" CLAUDE_CONFIG_DIR='' \
+  home=$(fresh_spawn_home) || fail "could not create a throwaway HOME"
+  out=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$ROOT" HOME="$home" CLAUDE_CONFIG_DIR='' \
     FM_STATE_OVERRIDE="$state" FM_DATA_OVERRIDE="$data" FM_CONFIG_OVERRIDE="$config" \
     FM_PROJECTS_OVERRIDE="$TMP_ROOT/unused-projects" FM_SPAWN_NO_GUARD=1 TMUX="fake,1,0" HERDR_ENV=1 \
     FM_TMUX_LOG="$TMP_ROOT/explicit-backend.log" \
@@ -1109,7 +1112,7 @@ test_spawn_explicit_backend_flag_beats_autodetect_herdr_env() {
 }
 
 test_spawn_autodetect_nesting_resolves_tmux_silently() {
-  local proj wt data id state config out fb
+  local proj wt data id state config out fb home
   proj="$TMP_ROOT/nest-project"; wt="$TMP_ROOT/nest-wt"; data="$TMP_ROOT/nest-data"
   id="nestbackendz5"
   fm_git_worktree "$proj" "$wt" "fm/$id"
@@ -1123,7 +1126,8 @@ test_spawn_autodetect_nesting_resolves_tmux_silently() {
   # (tmux nested inside a herdr pane) - the full fm-spawn.sh pipeline, not just
   # fm_backend_name, must resolve this to tmux and stay completely silent about
   # it (today's default path, byte-identical).
-  out=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$ROOT" HOME="$(fresh_spawn_home)" CLAUDE_CONFIG_DIR='' \
+  home=$(fresh_spawn_home) || fail "could not create a throwaway HOME"
+  out=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$ROOT" HOME="$home" CLAUDE_CONFIG_DIR='' \
     FM_STATE_OVERRIDE="$state" FM_DATA_OVERRIDE="$data" FM_CONFIG_OVERRIDE="$config" \
     FM_PROJECTS_OVERRIDE="$TMP_ROOT/unused-projects" FM_SPAWN_NO_GUARD=1 TMUX="fake,1,0" HERDR_ENV=1 \
     FM_TMUX_LOG="$TMP_ROOT/nest.log" \
