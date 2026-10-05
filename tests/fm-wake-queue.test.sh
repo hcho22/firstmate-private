@@ -261,6 +261,7 @@ test_secondmate_foreign_queue_stall_is_one_shot_and_read_only() {
   row_after="$dir/foreign-after"
   cp "$sub/state/.wake-queue" "$row_before"
   fakebin="$dir/fakebin"
+  rm -f "$fakebin/tmux"
   cat > "$fakebin/tmux" <<'SH'
 #!/usr/bin/env bash
 case "${1:-}" in
@@ -352,6 +353,7 @@ test_secondmate_stall_marker_rejects_symlink() {
   marker="$state/.secondmate-wake-stall-mate"
   ln -s "$outside" "$marker"
   fakebin="$dir/fakebin"
+  rm -f "$fakebin/tmux"
   cat > "$fakebin/tmux" <<'SH'
 #!/usr/bin/env bash
 case "${1:-}" in

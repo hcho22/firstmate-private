@@ -98,11 +98,12 @@ fm_test_run_cases case_set case_read"
 test_a_failing_case_fails_the_file_and_stops_claims() {
   local dir="$TMP_ROOT/failing" out rc=0
   write_suite "$dir" "
-case_fail() { fail \"deliberate\"; }
-case_slow() { sleep 1; pass \"slow\"; }
+case_fail() { local i=0; while [ ! -e \"$dir/slow-started\" ]; do i=\$((i + 1)); [ \"\$i\" -lt 600 ] || fail \"case_slow never started\"; sleep 0.1; done; fail \"deliberate\"; }
+case_slow() { : > \"$dir/slow-started\"; local i=0; while ! grep -qF 'not ok - deliberate' \"$dir/out\"; do i=\$((i + 1)); [ \"\$i\" -lt 600 ] || fail \"the failure was never reported\"; sleep 0.1; done; pass \"slow\"; }
 case_late() { : > \"$dir/late-ran\"; pass \"late\"; }
 fm_test_run_cases case_fail case_slow case_late"
-  out=$(FM_TEST_CASE_LANES=2 "$dir/suite.test.sh" 2>&1) || rc=$?
+  FM_TEST_CASE_LANES=2 "$dir/suite.test.sh" > "$dir/out" 2>&1 || rc=$?
+  out=$(cat "$dir/out")
   expect_code 1 "$rc" "a failing case must fail the file with its status: $out"
   assert_contains "$out" "not ok - deliberate" "the failing case's report was lost"
   assert_contains "$out" "ok - slow" "a case already running when another failed did not finish"
@@ -176,8 +177,8 @@ test_a_stopped_file_reports_its_progress_and_stops_its_cases() {
   local dir="$TMP_ROOT/stopped" pid out i=0 rc=0
   write_suite "$dir" "
 trap 'echo file-cleanup-ran > \"$dir/cleanup\"; exit 143' TERM
-case_quick() { pass \"quick\"; }
-case_hang() { sleep 300 & echo \$! > \"$dir/sleeper.pid\"; wait; }
+case_quick() { pass \"quick\"; : > \"$dir/quick-passed\"; }
+case_hang() { local i=0; while [ ! -e \"$dir/quick-passed\" ]; do i=\$((i + 1)); [ \"\$i\" -lt 600 ] || fail \"case_quick never passed\"; sleep 0.1; done; sleep 300 & echo \$! > \"$dir/sleeper.pid\"; wait; }
 fm_test_run_cases case_quick case_hang"
   FM_TEST_CASE_LANES=2 "$dir/suite.test.sh" > "$dir/out" 2>&1 &
   pid=$!
