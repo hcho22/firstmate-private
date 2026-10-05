@@ -1,0 +1,201 @@
+Claude Code: 2.1.284 (Claude Code)   model: haiku   git: git version 2.50.1 (Apple Git-155)
+lab: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2   task scratch root: /tmp/fm-swt-ev-75897
+
+## A. Reported incident, reproduced with real Claude and NO placement hook
+claude exit: 0 / reply: finished.
+$ git -C /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary worktree list
+  /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary                                            8439a36 [main]
+  /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/crew-a                                             8439a36 [fm/task-a]
+  /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary/.claude/worktrees/agent-a91521da260d12075  8439a36 [worktree-agent-a91521da260d12075]
+  [exit 0]
+$ git -C /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary status --porcelain
+  ?? .claude/
+  [exit 0]
+CHECK PASS: unhooked isolated subagent lands inside the PRIMARY at .claude/worktrees (bug reproduced)
+CHECK PASS: the subagent really ran in that nested copy
+
+## A2. Tangle check (fm-guard banner) reports the Claude-created nested worktree
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ●  WORKTREE TANGLE - WORKTREES REGISTERED INSIDE THE PRIMARY CHECKOUT
+  ●  /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary holds linked worktrees that belong in an isolated copy:
+  ●    /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary/.claude/worktrees/agent-a91521da260d12075 (branch worktree-agent-a91521da260d12075, unlanded)
+  ●  A worker likely created them, for example through an isolated subagent.
+  ●  Remove every landed one (an unlanded one is refused and needs inspection first):
+  ●      /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHECK PASS: fm-guard banner names WORKTREES REGISTERED INSIDE THE PRIMARY CHECKOUT
+CHECK PASS: fm-guard banner lists the copy as unlanded (it holds an untracked where.txt)
+CHECK PASS: fm-guard prints the retire remedy
+
+## A3. Tangle check (fm-bootstrap TANGLE line) reports it too
+  TANGLE: worktree '/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary/.claude/worktrees/agent-a91521da260d12075' (branch 'worktree-agent-a91521da260d12075', unlanded) is registered inside the primary checkout - remove every landed one with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary (an unlanded one is refused and needs inspection first)
+CHECK PASS: bootstrap prints one TANGLE line naming the nested copy
+
+## A4. The printed remedy refuses a copy that still holds work, then removes it once it is landed
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary
+  REFUSED: worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary/.claude/worktrees/agent-a91521da260d12075 (branch worktree-agent-a91521da260d12075) is unlanded; inspect it and land or preserve its work first
+  [exit 1]
+CHECK PASS: retire refuses the unlanded nested copy (exit 1)
+CHECK PASS: the unlanded copy and its where.txt are still on disk
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh list /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary
+  landed	/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary/.claude/worktrees/agent-a91521da260d12075	worktree-agent-a91521da260d12075
+  [exit 0]
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary
+  retired: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/primary/.claude/worktrees/agent-a91521da260d12075
+  [exit 0]
+CHECK PASS: retire removes the now-landed copy (exit 0)
+CHECK PASS: the nested copy is gone from disk
+CHECK FAIL: nothing is registered inside the primary any more
+CHECK PASS: its landed worktree-* branch was deleted
+CHECK PASS: fm-guard is silent once the primary is clean
+
+## B. Real fm-spawn wiring + real Claude: the subagent's copy lands in the task scratch root
+fm-spawn exit: 0
+WorktreeCreate hook fm-spawn wrote into /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task/.claude/settings.local.json:
+  [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "'/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh' create '/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task' '/tmp/fm-swt-ev-75897'",
+          "timeout": 600
+        }
+      ]
+    }
+  ]
+task meta:
+  window=firstmate:fm-swt-ev-75897
+  endpoint_task_id=swt-ev-75897
+  worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task
+  project=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/project
+  harness=claude
+  kind=ship
+  mode=no-mistakes
+  yolo=off
+  tasktmp=/tmp/fm-swt-ev-75897
+  model=default
+  effort=default
+  busy_gen=g1791153266.5111.16899
+  spawn_gen=s1791153266.99089.13180
+[
+  {
+    "hooks": [
+      {
+        "type": "command",
+        "command": "'/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh' create '/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task' '/tmp/fm-swt-ev-75897'",
+        "timeout": 600
+      }
+    ]
+  }
+]
+CHECK PASS: fm-spawn wrote a WorktreeCreate hook for the Claude worker
+claude exit: 0 / reply: Finished.
+$ git -C /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/project worktree list
+  /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/project  86b80fd [main]
+  /private/tmp/fm-swt-ev-75897/worktrees/agent-a80880519512c48d8                           7ec23db [worktree-agent-a80880519512c48d8]
+  /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task     1cbe04c [fm/swt-ev-75897]
+  [exit 0]
+$ git -C /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/project status --porcelain --untracked-files=all
+  [exit 0]
+$ git -C /private/tmp/fm-swt-ev-75897/worktrees/agent-a80880519512c48d8 log --oneline -2
+  7ec23db subagent work
+  86b80fd initial
+  [exit 0]
+CHECK PASS: the isolated subagent's copy is registered under the task scratch root /private/tmp/fm-swt-ev-75897/worktrees
+CHECK PASS: the subagent really ran there
+CHECK PASS: the primary/main checkout has no .claude/worktrees
+CHECK PASS: the main checkout is clean
+CHECK PASS: the task worktree status does not show the copy
+CHECK PASS: fm-guard reports no tangle for the main checkout
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh list /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task /private/tmp/fm-swt-ev-75897
+  unlanded	/private/tmp/fm-swt-ev-75897/worktrees/agent-a80880519512c48d8	worktree-agent-a80880519512c48d8
+  [exit 0]
+
+## B2. Ship teardown REFUSES while the subagent's commit exists only in its copy
+$ teardown
+  REFUSED: task swt-ev-75897 left isolated-subagent worktrees holding work that has not landed:
+    /private/tmp/fm-swt-ev-75897/worktrees/agent-a80880519512c48d8 (branch worktree-agent-a80880519512c48d8, unlanded)
+  Merge that work into the task branch, preserve it, or get the captain's explicit OK to discard, then --force.
+  [exit 1]
+CHECK PASS: ship teardown refuses (exit 1)
+CHECK PASS: the copy holding the subagent's commit is still on disk
+CHECK PASS: the task record is kept
+
+## B3. After the subagent's branch is merged into the task branch, ship teardown retires the copy
+$ git -C /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task merge -q --no-edit worktree-agent-a80880519512c48d8
+  [exit 0]
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh list /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task /private/tmp/fm-swt-ev-75897
+  landed	/private/tmp/fm-swt-ev-75897/worktrees/agent-a80880519512c48d8	worktree-agent-a80880519512c48d8
+  [exit 0]
+$ teardown
+  retired: /private/tmp/fm-swt-ev-75897/worktrees/agent-a80880519512c48d8
+  /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/project: already current
+  teardown swt-ev-75897 complete (window firstmate:fm-swt-ev-75897, worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task)
+  Backlog: swt-ev-75897 just finished (this home keeps no backlog at /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/home/data/backlog.md). Update /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/home/data/backlog.md - move swt-ev-75897 to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+  [exit 0]
+CHECK PASS: ship teardown succeeds (exit 0)
+CHECK PASS: the landed copy is gone from disk
+CHECK PASS: the landed copy is deregistered
+CHECK PASS: its landed branch worktree-agent-a80880519512c48d8 was deleted
+CHECK PASS: the task scratch root was removed
+CHECK PASS: the task record was removed
+
+## C. Adversarial, live: a hook that refuses never falls back to the main checkout
+jq: error: Could not open file /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task/.claude/settings.local.json: No such file or directory
+hook command under test: 
+claude exit: 0
+claude transcript (tail):
+  finished.
+$ git -C /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/project worktree list
+  /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/project                                            86b80fd [main]
+  /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/project/.claude/worktrees/agent-a8ff15898bde2894c  86b80fd [worktree-agent-a8ff15898bde2894c]
+  /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task                                               bc79c35 (detached HEAD)
+  /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task-c                                             86b80fd [fm/task-c]
+  [exit 0]
+CHECK FAIL: no worktree was registered (count 3 -> 4)
+CHECK FAIL: nothing was created under the main checkout's .claude
+CHECK FAIL: the main checkout is still clean
+
+## D. Adversarial CLI checks of the landed test and retire (review round 5 fixes)
+D1: status.showUntrackedFiles=no must not hide a new file
+$ git -C /private/tmp/fm-swt-ev-75897-d/worktrees/agent-d1 status --porcelain
+  [exit 0]
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh list /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task /tmp/fm-swt-ev-75897-d
+  unlanded	/private/tmp/fm-swt-ev-75897-d/worktrees/agent-d1	worktree-agent-d1
+  [exit 0]
+CHECK PASS: D1 list says unlanded
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task /tmp/fm-swt-ev-75897-d
+  REFUSED: worktree /private/tmp/fm-swt-ev-75897-d/worktrees/agent-d1 (branch worktree-agent-d1) is unlanded; inspect it and land or preserve its work first
+  [exit 1]
+CHECK PASS: D1 retire refuses (exit 1)
+CHECK PASS: D1 newfile.txt is still on disk
+D2: a copy whose .git file was deleted but whose directory still holds files
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh list /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task /tmp/fm-swt-ev-75897-d
+  unlanded	/private/tmp/fm-swt-ev-75897-d/worktrees/agent-d2	worktree-agent-d2
+  [exit 0]
+CHECK PASS: D2 list says unlanded (not missing)
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task /tmp/fm-swt-ev-75897-d
+  REFUSED: worktree /private/tmp/fm-swt-ev-75897-d/worktrees/agent-d2 (branch worktree-agent-d2) is unlanded; inspect it and land or preserve its work first
+  [exit 1]
+CHECK PASS: D2 non-discard retire refuses (exit 1), file kept
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire --discard /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task /tmp/fm-swt-ev-75897-d
+  retired: /private/tmp/fm-swt-ev-75897-d/worktrees/agent-d2
+  [exit 0]
+CHECK PASS: D2 --discard retire removes it (exit 0)
+CHECK PASS: D2 copy is deregistered
+D3: the hook refuses a destination inside the main checkout or an unsafe name
+$ bash -c printf '{"name":"agent-x"}' | '/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh' create '/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task' '/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/project/.claude/scratch'
+  fm-subagent-worktree: refusing to place a worktree inside the main checkout /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/project: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/project/.claude/scratch/worktrees/agent-x
+  [exit 1]
+CHECK FAIL: D3 scratch root inside the main checkout is refused
+$ bash -c printf '{"name":"../../escape"}' | '/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh' create '/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task' '/tmp/fm-swt-ev-75897-d'
+  fm-subagent-worktree: unsupported worktree name: ../../escape
+  [exit 1]
+CHECK PASS: D3 a path-traversal name is refused
+$ bash -c printf '{"name":"agent-y"}' | '/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh' create '/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-evidence.cSmKL2/task' 'relative/scratch'
+  fm-subagent-worktree: scratch root must be an absolute path: relative/scratch
+  [exit 1]
+CHECK PASS: D3 a relative scratch root is refused
+
+== SUMMARY: 37 checks passed, 5 failed ==
+driver exit=1

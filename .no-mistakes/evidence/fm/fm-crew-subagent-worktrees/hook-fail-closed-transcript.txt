@@ -1,0 +1,39 @@
+
+$ hook in /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-failclosed.n6tt15/task/.claude/settings.local.json (scratch root deliberately inside the main checkout)
+{
+  "hooks": {
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh create /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-failclosed.n6tt15/task /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-failclosed.n6tt15/primary/.claude",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  }
+}
+
+$ claude -p (model haiku) in the task worktree
+[claude exit 0]
+--- claude reply ---
+WorktreeCreate hook failed: fm-subagent-worktree refusing to place a worktree inside the main checkout at /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-failclosed.n6tt15/primary
+--------------------
+
+$ git -C primary worktree list
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-failclosed.n6tt15/primary  5342228 [main]
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-failclosed.n6tt15/task     5342228 [fm/failclosed]
+
+$ ls -A primary
+.git
+
+$ primary/.claude/worktrees exists?
+ls: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-failclosed.n6tt15/primary/.claude/worktrees: No such file or directory
+
+$ git -C primary status --porcelain --untracked-files=all
+(end of status)
+
+$ any where.txt anywhere in the lab?
+(end of find)

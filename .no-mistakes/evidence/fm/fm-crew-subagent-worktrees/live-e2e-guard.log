@@ -1,0 +1,11 @@
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-10-04T22:31:07Z tests/fm-subagent-worktree-live-e2e.test.sh family=live-harness-optin expected_gate_skip=optin-env
+control: claude 2.1.284 (Claude Code) placed the unhooked copy at /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.xs8FLZ/s0/tmp/fm-subagent-worktree-live.meBoVr/project/.claude/worktrees/agent-af1de1a2a7d1f650f
+treatment: claude 2.1.284 (Claude Code) placed the hooked copy at /private/tmp/fm-swt-live-28177/worktrees/agent-a3a36919e8f6b93cb
+ok - claude 2.1.284 (Claude Code): the fm-spawn placement hook moves an isolated subagent's worktree out of the main checkout
+FM_TEST_END 2026-10-04T22:31:45Z tests/fm-subagent-worktree-live-e2e.test.sh exit=0 duration_ms=38286 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=39094
+FM_TEST_SUMMARY_FAMILY family=live-harness-optin count=1 duration_ms=38286 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-subagent-worktree-live-e2e.test.sh duration_ms=38286
+exit=0

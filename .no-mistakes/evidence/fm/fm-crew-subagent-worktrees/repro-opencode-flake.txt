@@ -1,0 +1,2 @@
+wait=exists exit=1 read ""
+wait=row exit=0 

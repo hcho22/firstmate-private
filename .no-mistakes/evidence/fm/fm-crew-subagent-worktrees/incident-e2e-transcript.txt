@@ -1,0 +1,131 @@
+
+==== ARM 1: unhooked Claude worker (the reported defect) -> tangle detection ====
+
+$ claude -p (model haiku) in linked task worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/task-unhooked, no WorktreeCreate hook
+[claude exit 0] reply: finished.
+
+$ git -C primary worktree list
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary                                            8297316 [main]
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary/.claude/worktrees/agent-a59fe297108f420f6  8297316 [worktree-agent-a59fe297108f420f6]
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/task-unhooked                                      8297316 [fm/unhooked]
+
+$ git -C primary status --porcelain --untracked-files=all
+?? .claude/worktrees/agent-a59fe297108f420f6/
+
+$ where did the subagent actually run? (where.txt contents)
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary/.claude/worktrees/agent-a59fe297108f420f6
+
+$ bin/fm-guard.sh with FM_ROOT=primary
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WORKTREE TANGLE - WORKTREES REGISTERED INSIDE THE PRIMARY CHECKOUT
+●  /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary holds linked worktrees that belong in an isolated copy:
+●    /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary/.claude/worktrees/agent-a59fe297108f420f6 (branch worktree-agent-a59fe297108f420f6, unlanded)
+●  A worker likely created them, for example through an isolated subagent.
+●  Remove every landed one (an unlanded one is refused and needs inspection first):
+●      /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+$ bin/fm-bootstrap.sh TANGLE lines with FM_ROOT=primary
+TANGLE: worktree '/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary/.claude/worktrees/agent-a59fe297108f420f6' (branch 'worktree-agent-a59fe297108f420f6', unlanded) is registered inside the primary checkout - remove every landed one with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary (an unlanded one is refused and needs inspection first)
+
+$ printed remedy: fm-subagent-worktree.sh retire <primary> (copy still holds where.txt)
+REFUSED: worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary/.claude/worktrees/agent-a59fe297108f420f6 (branch worktree-agent-a59fe297108f420f6) is unlanded; inspect it and land or preserve its work first
+[exit 1]
+
+$ copy still on disk?
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary/.claude/worktrees/agent-a59fe297108f420f6
+
+$ inspect + drop the scratch output, then run the remedy again
+retired: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary/.claude/worktrees/agent-a59fe297108f420f6
+[exit 0]
+
+$ git -C primary worktree list
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary        8297316 [main]
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/task-unhooked  8297316 [fm/unhooked]
+
+$ git -C primary branch --list 'worktree-*'
+(end of branch list)
+
+$ bin/fm-guard.sh after the remedy
+(no WORKTREE TANGLE banner)
+
+==== ARM 2: Claude worker spawned by real fm-spawn (the fix) -> scratch placement + teardown ====
+
+$ bin/fm-spawn.sh swt-inc-63959 /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary claude --mode no-mistakes --yolo off (fake tmux/treehouse, pane at /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/task)
+[exit 0]
+warning: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/home/data/swt-inc-63959/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned swt-inc-63959 harness=claude kind=ship mode=no-mistakes yolo=off window=firstmate:fm-swt-inc-63959 worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/task
+
+$ WorktreeCreate hook fm-spawn wrote into /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/task/.claude/settings.local.json
+[
+  {
+    "hooks": [
+      {
+        "type": "command",
+        "command": "'/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh' create '/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/task' '/tmp/fm-swt-inc-63959'",
+        "timeout": 600
+      }
+    ]
+  }
+]
+
+$ claude -p (model haiku) in the spawned task worktree
+[claude exit 0] reply: finished
+
+$ git -C primary worktree list
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary        8297316 [main]
+/private/tmp/fm-swt-inc-63959/worktrees/agent-a91dc5f9f7d7786c2                                8297316 [worktree-agent-a91dc5f9f7d7786c2]
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/task           8297316 [fm/swt-inc-63959]
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/task-unhooked  8297316 [fm/unhooked]
+
+$ git -C primary status --porcelain --untracked-files=all
+(end of status)
+
+$ primary/.claude/worktrees exists?
+ls: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary/.claude/worktrees: No such file or directory
+
+$ where did the subagent actually run? (where.txt contents)
+/private/tmp/fm-swt-inc-63959/worktrees/agent-a91dc5f9f7d7786c2
+
+$ bin/fm-guard.sh with FM_ROOT=primary
+(no WORKTREE TANGLE banner)
+
+$ bin/fm-bootstrap.sh TANGLE lines with FM_ROOT=primary
+(no TANGLE lines)
+
+$ fm-subagent-worktree.sh list <task> <task> /tmp/fm-swt-inc-63959 (teardown's inventory)
+unlanded	/private/tmp/fm-swt-inc-63959/worktrees/agent-a91dc5f9f7d7786c2	worktree-agent-a91dc5f9f7d7786c2
+
+$ bin/fm-teardown.sh swt-inc-63959 (ship) while the subagent copy still holds uncommitted where.txt
+REFUSED: task swt-inc-63959 left isolated-subagent worktrees holding work that has not landed:
+  /private/tmp/fm-swt-inc-63959/worktrees/agent-a91dc5f9f7d7786c2 (branch worktree-agent-a91dc5f9f7d7786c2, unlanded)
+Merge that work into the task branch, preserve it, or get the captain's explicit OK to discard, then --force.
+[teardown exit 1]
+
+$ copy and task record still present?
+/private/tmp/fm-swt-inc-63959/worktrees/agent-a91dc5f9f7d7786c2
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/home/state/swt-inc-63959.meta
+
+$ land the subagent's work: commit in the copy, merge into the task branch, push
+landed	/private/tmp/fm-swt-inc-63959/worktrees/agent-a91dc5f9f7d7786c2	worktree-agent-a91dc5f9f7d7786c2
+
+$ bin/fm-teardown.sh swt-inc-63959 (ship) again
+retired: /private/tmp/fm-swt-inc-63959/worktrees/agent-a91dc5f9f7d7786c2
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary: already current
+teardown swt-inc-63959 complete (window firstmate:fm-swt-inc-63959, worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/task)
+Backlog: swt-inc-63959 just finished (this home keeps no backlog at /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/home/data/backlog.md). Update /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/home/data/backlog.md - move swt-inc-63959 to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+[teardown exit 0]
+
+$ copy on disk?
+ls: /private/tmp/fm-swt-inc-63959/worktrees/agent-a91dc5f9f7d7786c2: No such file or directory
+
+$ git -C primary worktree list
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/primary        8297316 [main]
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/task           d699205 (detached HEAD)
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/task-unhooked  8297316 [fm/unhooked]
+
+$ git -C primary branch --list 'worktree-*'
+(end of branch list)
+
+$ task record?
+ls: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-incident.ZKK1Si/home/state/swt-inc-63959.meta: No such file or directory

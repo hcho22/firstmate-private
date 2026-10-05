@@ -1,0 +1,139 @@
+=== A. Hook fails closed instead of placing a copy in the main checkout ===
+
+$ hook with scratch root INSIDE the main checkout (/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/a/project/.claude)
+fm-subagent-worktree: refusing to place a worktree inside the main checkout /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/a/project: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/a/project/.claude/worktrees/agent-a
+[exit 1]
+
+$ anything created under the main checkout?
+.git
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/a/project  5e88ce0 [main]
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/a/wt       5e88ce0 [fm/task]
+
+$ hook with scratch root INSIDE the task worktree
+fm-subagent-worktree: refusing to place a worktree inside the task worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/a/wt: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/a/wt/tmp/worktrees/agent-a
+[exit 1]
+
+$ hook with a relative scratch root
+fm-subagent-worktree: scratch root must be an absolute path: rel/scratch
+[exit 1]
+
+$ hook with a path-traversal name ../escape
+fm-subagent-worktree: unsupported worktree name: ../escape
+[exit 1]
+
+$ hook with an empty payload
+fm-subagent-worktree: empty worktree hook payload
+[exit 1]
+
+$ valid hook call (what Claude sends): prints the copy path on stdout
+[exit 0] stdout=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/a/scratch/worktrees/agent-ok
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/a/project                     5e88ce0 [main]
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/a/scratch/worktrees/agent-ok  5e88ce0 [worktree-agent-ok]
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/a/wt                          5e88ce0 [fm/task]
+
+$ same name again resumes the registered copy
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/a/scratch/worktrees/agent-ok
+[exit 0]
+
+=== B. status.showUntrackedFiles=no cannot hide a copy's new file (review-r5-1) ===
+
+$ git status in the copy under the hiding config (what a naive test sees)
+[status printed nothing above]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh list /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b/scratch
+unlanded	/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b/scratch/worktrees/agent-b	worktree-agent-b
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b/scratch
+REFUSED: worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b/scratch/worktrees/agent-b (branch worktree-agent-b) is unlanded; inspect it and land or preserve its work first
+[exit 1]
+
+$ file still on disk?
+-rw-r--r--@ 1 hcho  staff  25 Oct  4 16:49 /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b/scratch/worktrees/agent-b/newfile.txt
+
+=== B2. showUntrackedFiles=no set INSIDE a populated submodule ===
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh list /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b2/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b2/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b2/scratch
+unlanded	/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b2/scratch/worktrees/agent-b2	worktree-agent-b2
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b2/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b2/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b2/scratch
+REFUSED: worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b2/scratch/worktrees/agent-b2 (branch worktree-agent-b2) is unlanded; inspect it and land or preserve its work first
+[exit 1]
+
+$ submodule file still on disk?
+-rw-r--r--@ 1 hcho  staff  2 Oct  4 16:50 /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/b2/scratch/worktrees/agent-b2/sub/untracked-in-sub.txt
+
+=== C. A copy whose .git file was deleted (review-r5-2) ===
+
+$ git porcelain marks it prunable:
+worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/scratch/worktrees/agent-c
+HEAD 693d12eb4791c551c9b0c9419d547a383076f0c9
+branch refs/heads/worktree-agent-c
+prunable gitdir file points to non-existent location
+
+worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/wt
+HEAD 693d12eb4791c551c9b0c9419d547a383076f0c9
+branch refs/heads/fm/task
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh list /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/scratch
+unlanded	/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/scratch/worktrees/agent-c	worktree-agent-c
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/scratch
+REFUSED: worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/scratch/worktrees/agent-c (branch worktree-agent-c) is unlanded; inspect it and land or preserve its work first
+[exit 1]
+
+$ copy and file still on disk after a non-discard retire?
+untracked.txt
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire --discard /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/scratch
+retired: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/scratch/worktrees/agent-c
+[exit 0]
+
+$ after --discard: on disk?
+ls: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/scratch/worktrees/agent-c: No such file or directory
+
+$ after --discard: still registered?
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/project  693d12e [main]
+/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/c/wt       693d12e [fm/task]
+
+=== D. Submodule-only commit merged into the task branch (review-r3-1) ===
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh list /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/scratch
+unlanded	/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/scratch/worktrees/agent-s	worktree-agent-s
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/scratch
+REFUSED: worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/scratch/worktrees/agent-s (branch worktree-agent-s) is unlanded; inspect it and land or preserve its work first
+[exit 1]
+
+$ after the scratch root vanishes (reboot clears /tmp), the admin dir still holds the sub commit:
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh list /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/scratch
+unlanded	/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/scratch/worktrees/agent-s	worktree-agent-s
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/scratch
+REFUSED: worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/d/scratch/worktrees/agent-s (branch worktree-agent-s) is unlanded; inspect it and land or preserve its work first
+[exit 1]
+
+=== E. Landed copy is retired and its merged branch deleted ===
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh list /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/e/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/e/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/e/scratch
+unlanded	/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/e/scratch/worktrees/agent-e	worktree-agent-e
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh list /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/e/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/e/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/e/scratch
+landed	/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/e/scratch/worktrees/agent-e	worktree-agent-e
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M44BR43SXK4JJJ6D2ES4X423/bin/fm-subagent-worktree.sh retire /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/e/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/e/wt /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/e/scratch
+retired: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/e/scratch/worktrees/agent-e
+[exit 0]
+
+$ branch worktree-agent-e still present?
+[none listed above]
+
+$ copy on disk?
+ls: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-swt-adv.KF2aIr/e/scratch/worktrees/agent-e: No such file or directory
