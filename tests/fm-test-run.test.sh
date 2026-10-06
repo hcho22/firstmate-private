@@ -1717,6 +1717,27 @@ test_killed_script_leaves_no_restarting_checkout_rooted_worker() {
   pass "a script killed while its checkout-rooted worker waits to restart leaves no worker behind"
 }
 
+# Every case above judges survivors by fm_test_remote_job_workers_under, so it
+# must report a process only when that process is itself a worker. A process
+# that merely names a worker under the directory among its arguments - as the
+# scan's own awk does in Linux ps, which shows its program text - is not one.
+test_worker_scan_ignores_processes_that_only_name_a_worker() {
+  local tmp decoy deadline found
+  tmp=$(fm_test_tmproot fm-test-run-worker-scan)
+  perl -e 'sleep 60' "$tmp/root/bin/fm-remote-job-worker.sh" --serve &
+  decoy=$!
+  deadline=$((SECONDS + 60))
+  until ps -o command= -p "$decoy" 2>/dev/null | grep -Fq "$tmp/root/bin/fm-remote-job-worker.sh"; do
+    [ "$SECONDS" -lt "$deadline" ] || { kill "$decoy"; fail "the decoy never showed its arguments in ps"; }
+    sleep 0.05
+  done
+  found=$(fm_test_remote_job_workers_under "$tmp")
+  kill "$decoy" 2>/dev/null || true
+  wait "$decoy" 2>/dev/null || true
+  [ -z "$found" ] || fail "the worker scan reported a process that only names a worker among its arguments: $found"
+  pass "the worker scan never reports a process that only names a worker among its arguments"
+}
+
 # The reaper stops only workers whose state root lies inside the script's own
 # sandbox. A worker that started before the run, as the account's own long-lived
 # worker has, is left out before its open files are read at all, and one the
@@ -2175,6 +2196,7 @@ fm_test_run_cases \
   test_killed_script_leaves_no_starting_checkout_rooted_worker \
   test_killed_script_leaves_no_restarting_checkout_rooted_worker \
   test_reap_spares_workers_outside_the_sandbox \
+  test_worker_scan_ignores_processes_that_only_name_a_worker \
   test_progress_guard_bounds_silence_not_slowness \
   test_scripts_run_without_the_callers_firstmate_state \
   test_max_wall_ms_is_a_result_not_advice \

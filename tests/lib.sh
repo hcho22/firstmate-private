@@ -167,12 +167,19 @@ fm_test_stop_remote_job_worker_tree() {
 # fm_test_remote_job_workers_under <dir>: print the pid of every live remote job
 # worker process - supervisor, serving child, or lane - whose command line names
 # a code root inside <dir>, one per line, matching both the spelling given and
-# its physical path.
+# its physical path. Only the command itself counts: its interpreter, then
+# <root>/bin/fm-remote-job-worker.sh, then the worker's own arguments. A process
+# that merely names such a path among its arguments is not a worker.
 fm_test_remote_job_workers_under() {
   local dir=${1%/} physical
   physical=$(cd "$dir" 2>/dev/null && pwd -P) || physical=$dir
-  ps -u "$(id -u)" -o pid=,command= 2>/dev/null | awk -v a="$dir/" -v b="$physical/" '
-    index($0, "/bin/fm-remote-job-worker.sh") && (index($0, a) || index($0, b)) { print $1 }'
+  ps -u "$(id -u)" -o pid=,command= 2>/dev/null | awk -v a="$dir/" -v b="$physical/" '{
+    script = $0
+    sub(/^ *[0-9]+ +[^ ]+ +/, "", script)
+    sub(/ --(serve|lane .*)$/, "", script)
+    if ((index(script, a) == 1 || index(script, b) == 1) &&
+      substr(script, length(script) - 27) == "/bin/fm-remote-job-worker.sh") print $1
+  }'
 }
 
 # fm_test_reap_orphans: best-effort sweep for fixture roots left behind by a
