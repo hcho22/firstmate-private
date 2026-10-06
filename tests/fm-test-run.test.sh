@@ -1517,7 +1517,9 @@ SH
 # serving child fail that call at least twice, so its supervisor has cleaned up
 # after the child and waits to start the next, with no worker.pid at all. git
 # is the account's own ~/.local/bin/git stub, which the worker's tool path
-# resolves first.
+# resolves first. With FIXTURE_FOREIGN set, the script also starts a second
+# worker with its code and state under that directory, outside the run, and
+# waits for it to serve.
 init_worker_leak_fixture() {
   local repo=$1 file
   mkdir -p "$repo/bin" "$repo/tests"
@@ -1567,6 +1569,15 @@ until worker_reached_phase; do
 done
 [ "$FIXTURE_PHASE" = serving ] || [ ! -e "$TMPDIR/remote-jobs/worker.pid" ] \
   || { echo "not ok - the $FIXTURE_PHASE fixture worker has published its pid"; exit 1; }
+if [ -n "$FIXTURE_FOREIGN" ]; then
+  (FM_REMOTE_JOB_STATE_ROOT="$FIXTURE_FOREIGN/during"
+    fm_remote_job_start_linux_worker "$FIXTURE_FOREIGN/root" "$FIXTURE_FOREIGN/account") \
+    || { echo "not ok - the foreign fixture worker did not start"; exit 1; }
+  until [ -s "$FIXTURE_FOREIGN/during/worker.pid" ]; do
+    [ "$SECONDS" -lt "$deadline" ] || { echo "not ok - the foreign fixture worker never published its pid"; exit 1; }
+    sleep 0.05
+  done
+fi
 echo "ok - fixture worker is $FIXTURE_PHASE"
 printf '%s\n' "$TMPDIR" >"$FIXTURE_EVENTS/started"
 [ "$FIXTURE_MODE" != killed ] || kill -KILL $$
@@ -1575,28 +1586,39 @@ SH
   chmod +x "$repo/tests/fm-worker-leak-fixture.test.sh"
 }
 
-# The nested runner a worker leak case started and has not yet waited for. A
-# case that fails or is interrupted while that runner is still going stops it
-# here, so the runner's own interrupt path reaps its script and worker instead
-# of leaving them to the fixture's hang. It runs as FM_TEST_CASE_TEARDOWN and
-# from the file's EXIT trap.
+# The nested runner a worker leak case started and has not yet waited for, and
+# the directory of the foreign workers it started outside that run. A case that
+# fails or is interrupted while the runner is still going stops it here, so the
+# runner's own interrupt path reaps its script and worker instead of leaving
+# them to the fixture's hang, and then stops the foreign workers, which no
+# reaper of that run may touch. It runs as FM_TEST_CASE_TEARDOWN and from the
+# file's EXIT trap.
 WORKER_LEAK_RUNNER=
-stop_worker_leak_runner() {
-  [ -n "$WORKER_LEAK_RUNNER" ] || return 0
-  kill -TERM -- "-$WORKER_LEAK_RUNNER" 2>/dev/null || true
-  wait "$WORKER_LEAK_RUNNER" 2>/dev/null || true
-  WORKER_LEAK_RUNNER=
+WORKER_LEAK_FOREIGN=
+stop_worker_leak_case() {
+  local state
+  if [ -n "$WORKER_LEAK_RUNNER" ]; then
+    kill -TERM -- "-$WORKER_LEAK_RUNNER" 2>/dev/null || true
+    wait "$WORKER_LEAK_RUNNER" 2>/dev/null || true
+    WORKER_LEAK_RUNNER=
+  fi
+  if [ -n "$WORKER_LEAK_FOREIGN" ]; then
+    for state in before during; do fm_test_stop_remote_job_worker "$WORKER_LEAK_FOREIGN/$state"; done
+    WORKER_LEAK_FOREIGN=
+  fi
 }
 
-# run_worker_leak_case <mode> [sandbox|checkout] [serving|starting|backoff]:
-# int sends Ctrl-C's INT to the runner's process group, term sends TERM to the
-# runner alone, killed has the script die without its cleanup (what the hang
-# guard's KILL leaves behind), and abort kills the runner's whole process group
-# outright. checkout runs the worker from the runner's checkout instead of from
-# inside the script's TMPDIR, and the phase is the worker's when the run ends
-# (see init_worker_leak_fixture).
+# run_worker_leak_case <mode> [sandbox|checkout] [serving|starting|backoff]
+# [foreign-dir]: int sends Ctrl-C's INT to the runner's process group, term
+# sends TERM to the runner alone, killed has the script die without its cleanup
+# (what the hang guard's KILL leaves behind), and abort kills the runner's whole
+# process group outright. checkout runs the worker from the runner's checkout
+# instead of from inside the script's TMPDIR, and the phase is the worker's when
+# the run ends (see init_worker_leak_fixture). A foreign-dir has the script start
+# a foreign worker there too, and puts <foreign-dir>/shim first on the runner's
+# PATH.
 run_worker_leak_case() {
-  local mode=$1 root=${2:-sandbox} phase=${3:-serving}
+  local mode=$1 root=${2:-sandbox} phase=${3:-serving} foreign=${4:-}
   local tmp repo caller events runner rc=0 deadline started survivors pid pgid
   tmp=$(fm_test_tmproot fm-test-run-worker-leak)
   repo="$tmp/repo"
@@ -1606,7 +1628,8 @@ run_worker_leak_case() {
   init_worker_leak_fixture "$repo"
   # The runner leads its own process group with INT at its default, as it would
   # in a terminal, so a group signal reaches it alone.
-  (cd "$repo" && TMPDIR="$caller" FIXTURE_EVENTS="$events" FIXTURE_MODE="$mode" FIXTURE_ROOT="$root" FIXTURE_PHASE="$phase" \
+  (cd "$repo" && PATH="${foreign:+$foreign/shim:}$PATH" TMPDIR="$caller" FIXTURE_EVENTS="$events" \
+    FIXTURE_MODE="$mode" FIXTURE_ROOT="$root" FIXTURE_PHASE="$phase" FIXTURE_FOREIGN="$foreign" \
     exec perl -e '$SIG{INT} = "DEFAULT"; setpgrp(0, 0); exec @ARGV' \
     bin/fm-test-run.sh --jobs 1 tests/fm-worker-leak-fixture.test.sh) >"$tmp/out" 2>"$tmp/err" &
   runner=$!
@@ -1692,6 +1715,66 @@ test_killed_script_leaves_no_starting_checkout_rooted_worker() {
 test_killed_script_leaves_no_restarting_checkout_rooted_worker() {
   run_worker_leak_case killed checkout backoff
   pass "a script killed while its checkout-rooted worker waits to restart leaves no worker behind"
+}
+
+# The reaper stops only workers whose state root lies inside the script's own
+# sandbox. A worker that started before the run, as the account's own long-lived
+# worker has, is left out before its open files are read at all, and one the
+# script starts with its state outside the run is read and left running. macOS
+# reads open files through lsof, so a stand-in lsof first on the runner's PATH
+# records every pid the reaper reads; Linux reads /proc instead, so only the
+# workers' survival is checked there.
+test_reap_spares_workers_outside_the_sandbox() {
+  local foreign real_lsof deadline state pid supervisor read_pids
+  foreign=$(fm_test_tmproot fm-test-run-foreign-worker)
+  mkdir -p "$foreign/root/bin" "$foreign/account" "$foreign/shim"
+  cp "$ROOT/bin/fm-remote-job-lib.sh" "$ROOT/bin/fm-remote-job-worker.sh" "$foreign/root/bin/"
+  printf 'fixture\n' >"$foreign/root/AGENTS.md"
+  real_lsof=$(command -v lsof || true)
+  cat >"$foreign/shim/lsof" <<SH
+#!/bin/sh
+printf '%s\n' "\$*" >>"$foreign/lsof.log"
+exec "$real_lsof" "\$@"
+SH
+  chmod +x "$foreign/shim/lsof"
+  WORKER_LEAK_FOREIGN=$foreign
+  FM_REMOTE_JOB_STATE_ROOT="$foreign/before" FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux \
+    bash -c '. "$1" && fm_remote_job_start_linux_worker "$2" "$3"' _ \
+    "$ROOT/bin/fm-remote-job-lib.sh" "$foreign/root" "$foreign/account" \
+    || fail "the foreign worker started before the run did not start"
+  deadline=$((SECONDS + 180))
+  until [ -s "$foreign/before/worker.pid" ]; do
+    [ "$SECONDS" -lt "$deadline" ] || fail "the foreign worker started before the run never published its pid"
+    sleep 0.05
+  done
+  # The run must start well after this worker did, by more than the one second
+  # the reaper allows for clock rounding.
+  sleep 3
+  run_worker_leak_case killed checkout serving "$foreign"
+  read_pids=$(tr -c '0-9' '\n' <"$foreign/lsof.log" 2>/dev/null || true)
+  for state in before during; do
+    pid=$(cat "$foreign/$state/worker.pid" 2>/dev/null) || pid=
+    supervisor=
+    [ -z "$pid" ] || supervisor=$(ps -o pgid= -p "$pid" | tr -d '[:space:]')
+    if [ -z "$supervisor" ] || ! kill -0 "$pid" 2>/dev/null || ! kill -0 "$supervisor" 2>/dev/null; then
+      fail "the run stopped the $state foreign worker, whose state root lies outside it"
+    fi
+    if [ "$(uname -s)" = Darwin ]; then
+      case "$state" in
+        before)
+          ! printf '%s\n' "$read_pids" | grep -Eqx "$pid|$supervisor" \
+            || fail "the reaper read the open files of a worker that started before the run: $read_pids"
+          ;;
+        during)
+          printf '%s\n' "$read_pids" | grep -qx "$pid" \
+            || fail "the stand-in lsof never saw the worker started during the run read, so it proves nothing: $read_pids"
+          ;;
+      esac
+    fi
+    fm_test_stop_remote_job_worker_tree "$pid"
+  done
+  WORKER_LEAK_FOREIGN=
+  pass "the reaper leaves workers outside the script's sandbox running, and never reads one older than the run"
 }
 
 # A script run from an agent's own pane inherits that firstmate session's
@@ -2049,8 +2132,8 @@ assert len(doc["scripts"])==3
 # Every case builds its own fixture repository under a private mktemp directory,
 # so the cases share nothing and run in the concurrent lanes
 # tests/case-lanes-helpers.sh owns.
-FM_TEST_CASE_TEARDOWN=stop_worker_leak_runner
-trap 'stop_worker_leak_runner; fm_test_cleanup' EXIT
+FM_TEST_CASE_TEARDOWN=stop_worker_leak_case
+trap 'stop_worker_leak_case; fm_test_cleanup' EXIT
 # shellcheck source=tests/case-lanes-helpers.sh
 . "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
 fm_test_run_cases \
@@ -2091,6 +2174,7 @@ fm_test_run_cases \
   test_killed_script_leaves_no_checkout_rooted_worker \
   test_killed_script_leaves_no_starting_checkout_rooted_worker \
   test_killed_script_leaves_no_restarting_checkout_rooted_worker \
+  test_reap_spares_workers_outside_the_sandbox \
   test_progress_guard_bounds_silence_not_slowness \
   test_scripts_run_without_the_callers_firstmate_state \
   test_max_wall_ms_is_a_result_not_advice \

@@ -126,17 +126,31 @@ reap_output_files() { # <pid>...
 
 # Stop every remote job worker whose state root lies inside <work-dir> (see the
 # header), through the group-aware stop its restart supervisor cannot outlive.
-# One ps scan finds the worker processes, so a host running none costs nothing
-# more, and each is read again just before it is stopped, so a worker already
-# stopped with its group, or a pid since reused, is skipped.
+# One ps scan finds the worker processes. Such a worker started after this run
+# began, so a worker process that has run longer than the run - the account's
+# own long-lived worker, say - is left out before anyone reads its open files,
+# and a host running no worker started since costs nothing more. Each is read
+# again just before it is stopped, so a worker already stopped with its group,
+# or a pid since reused, is skipped.
 reap_workers() { # <work-dir>
-  local work=$1 physical uid scan pid command path state log pids=
+  local work=$1 physical uid started scan limit pid elapsed command path state log pids=
   log=/logs/$FM_REMOTE_JOB_LABEL.log
   physical=$(CDPATH='' cd "$work" 2>/dev/null && pwd -P) || physical=$work
   uid=$(id -u 2>/dev/null) || return 0
-  scan=$(ps -u "$uid" -o pid=,command= 2>/dev/null) || return 0
-  while read -r pid command; do
+  started=$(fm_remote_job_path_mtime "$(dirname "$work")/$RUN_ROOT_MARKER") || started=0
+  # ps reports elapsed time as [[dd-]hh:]mm:ss.
+  scan=$(ps -u "$uid" -o pid=,etime=,command= 2>/dev/null | awk '{
+    t = $2; days = 0
+    if (i = index(t, "-")) { days = substr(t, 1, i - 1); t = substr(t, i + 1) }
+    n = split(t, part, ":"); seconds = 0
+    for (k = 1; k <= n; k++) seconds = seconds * 60 + part[k]
+    command = $0; sub(/^ *[^ ]+ +[^ ]+ +/, "", command)
+    print $1, days * 86400 + seconds, command
+  }') || return 0
+  limit=$(( $(date +%s) - started + 1 ))
+  while read -r pid elapsed command; do
     case "$pid" in ''|*[!0-9]*) continue ;; esac
+    [ "$elapsed" -le "$limit" ] || continue
     reap_is_worker_command "$command" && pids="$pids $pid"
   done <<EOF
 $scan
