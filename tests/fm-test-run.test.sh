@@ -1664,7 +1664,7 @@ run_worker_leak_case() {
   survivors=$(fm_test_remote_job_workers_under "$tmp")
   if [ -n "$survivors" ]; then
     for pid in $survivors; do fm_test_stop_remote_job_worker_tree "$pid"; done
-    fail "$mode: remote job worker(s) $(printf '%s' "$survivors" | tr '\n' ' ')outlived the run: $(cat "$tmp/out" "$tmp/err")"
+    fail "$mode: remote job worker(s) $(printf '%s\n' "$survivors" | tr '\n' ' ')outlived the run: $(cat "$tmp/out" "$tmp/err")"
   fi
   [ ! -e "$started" ] || fail "$mode: the script's sandbox survived the run: $started"
   [ -z "$(find "$caller" -mindepth 1 -maxdepth 1 2>/dev/null)" ] \

@@ -116,11 +116,13 @@
 # by its bound - bin/fm-test-run-reap.sh stops whatever is still running in
 # that group, stops each remote job worker whose state root was inside the
 # script's private TMPDIR (that worker isolates its own process group, so the
-# bound's group kill never reaches it), and removes that directory. A line in the script's output names anything that had to be
-# stopped. HUP, INT, or TERM to the runner stops every running script the same
-# way and then ends the run with 128 plus the signal number. A runner killed outright, or with its whole process group,
-# is cleaned up the same way by a sentinel process it leaves running in a group
-# of its own, within a second of its death plus the script's TERM grace.
+# bound's group kill never reaches it), and removes that directory. A line in
+# the script's output names anything that had to be stopped. HUP, INT, or TERM
+# to the runner stops every running script the same way and then ends the run
+# with 128 plus the signal number. A runner killed outright, or with its whole
+# process group, is cleaned up the same way by a sentinel process it leaves
+# running in a group of its own, within a second of its death plus the
+# script's TERM grace.
 #
 # Real Herdr guard (execution only, serial and concurrent alike): only the
 # real-herdr-gated and live-harness-optin families may reach the real herdr

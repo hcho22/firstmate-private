@@ -79,7 +79,7 @@ run_e2e_interrupt_case() {
   survivors=$(fm_test_remote_job_workers_under "$caller")
   if [ -n "$survivors" ]; then
     for pid in $survivors; do fm_test_stop_remote_job_worker_tree "$pid"; done
-    fail "$mode: remote job worker(s) $(printf '%s' "$survivors" | tr '\n' ' ')outlived the interrupted e2e: $(tail -20 "$tmp/err")"
+    fail "$mode: remote job worker(s) $(printf '%s\n' "$survivors" | tr '\n' ' ')outlived the interrupted e2e: $(tail -20 "$tmp/err")"
   fi
   [ -z "$(find "$caller" -mindepth 1 -maxdepth 1 2>/dev/null)" ] \
     || fail "$mode: the interrupted e2e left its sandbox behind: $(find "$caller" -maxdepth 4 | head -20)"
