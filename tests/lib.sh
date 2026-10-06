@@ -160,7 +160,7 @@ fm_test_stop_remote_job_worker() {
 # fm_test_stop_remote_job_worker_tree <pid>: the same group-aware stop for a
 # worker pid a test found some other way.
 fm_test_stop_remote_job_worker_tree() {
-  # shellcheck source=bin/fm-remote-job-lib.sh
+  # shellcheck source=/dev/null
   (. "$ROOT/bin/fm-remote-job-lib.sh" && fm_remote_job_stop_worker_tree "$1") || true
 }
 
