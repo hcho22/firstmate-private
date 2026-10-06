@@ -1506,15 +1506,22 @@ SH
 # started is alive once the run is over.
 #
 # init_worker_leak_fixture <repo>: a runner checkout whose one script starts a
-# real remote job worker with its state inside its own private TMPDIR, records
-# that TMPDIR in $FIXTURE_EVENTS/started, and then hangs, or kills itself
-# without cleaning up when FIXTURE_MODE is killed. The worker's code root is a
-# copy inside that TMPDIR too, or with FIXTURE_ROOT=checkout the runner's own
-# checkout, as tests/fm-remote-reply.test.sh runs its worker from the real one.
+# real remote job worker with its state inside its own private TMPDIR, waits
+# for the worker to reach FIXTURE_PHASE, records that TMPDIR in
+# $FIXTURE_EVENTS/started, and then hangs, or kills itself without cleaning up
+# when FIXTURE_MODE is killed. The worker's code root is a copy inside that
+# TMPDIR too, or with FIXTURE_ROOT=checkout the runner's own checkout, as
+# tests/fm-remote-reply.test.sh runs its worker from the real one. A serving
+# worker has published worker.pid. A starting one is held before it does, inside
+# the git call that computes its code identity. A backoff one has had its
+# serving child fail that call at least twice, so its supervisor has cleaned up
+# after the child and waits to start the next, with no worker.pid at all. git
+# is the account's own ~/.local/bin/git stub, which the worker's tool path
+# resolves first.
 init_worker_leak_fixture() {
   local repo=$1 file
   mkdir -p "$repo/bin" "$repo/tests"
-  for file in fm-test-run.sh fm-timeout-lib.sh fm-test-run-reap.sh fm-remote-job-reap-orphans.sh \
+  for file in fm-test-run.sh fm-timeout-lib.sh fm-test-run-reap.sh \
     fm-remote-job-lib.sh fm-remote-job-worker.sh; do
     cp "$ROOT/bin/$file" "$repo/bin/$file"
   done
@@ -1524,7 +1531,20 @@ init_worker_leak_fixture() {
 #!/usr/bin/env bash
 set -u
 repo=$(cd "$(dirname "$0")/.." && pwd -P)
-mkdir -p "$TMPDIR/account"
+mkdir -p "$TMPDIR/account/.local/bin"
+git_calls="$TMPDIR/account/.local/bin/calls"
+case "$FIXTURE_PHASE" in
+  starting) printf '#!/bin/sh\necho called >>"${0%%/*}/calls"\nexec sleep 600\n' >"$TMPDIR/account/.local/bin/git" ;;
+  backoff) printf '#!/bin/sh\necho called >>"${0%%/*}/calls"\nexit 1\n' >"$TMPDIR/account/.local/bin/git" ;;
+esac
+[ ! -e "$TMPDIR/account/.local/bin/git" ] || chmod +x "$TMPDIR/account/.local/bin/git"
+worker_reached_phase() {
+  case "$FIXTURE_PHASE" in
+    serving) [ -s "$TMPDIR/remote-jobs/worker.pid" ] ;;
+    starting) [ -s "$git_calls" ] ;;
+    backoff) [ -f "$git_calls" ] && [ "$(wc -l <"$git_calls")" -ge 2 ] ;;
+  esac
+}
 if [ "$FIXTURE_ROOT" = checkout ]; then
   root=$repo
 else
@@ -1541,11 +1561,13 @@ export FM_REMOTE_JOB_STATE_ROOT="$TMPDIR/remote-jobs" FM_REMOTE_JOB_PLATFORM_OVE
 fm_remote_job_start_linux_worker "$root" "$TMPDIR/account" \
   || { echo "not ok - fixture worker did not start: $FM_REMOTE_JOB_ERROR"; exit 1; }
 deadline=$((SECONDS + 180))
-while [ ! -s "$TMPDIR/remote-jobs/worker.pid" ]; do
-  [ "$SECONDS" -lt "$deadline" ] || { echo "not ok - fixture worker never published its pid"; exit 1; }
+until worker_reached_phase; do
+  [ "$SECONDS" -lt "$deadline" ] || { echo "not ok - fixture worker never reached $FIXTURE_PHASE"; exit 1; }
   sleep 0.05
 done
-echo "ok - fixture worker is serving"
+[ "$FIXTURE_PHASE" = serving ] || [ ! -e "$TMPDIR/remote-jobs/worker.pid" ] \
+  || { echo "not ok - the $FIXTURE_PHASE fixture worker has published its pid"; exit 1; }
+echo "ok - fixture worker is $FIXTURE_PHASE"
 printf '%s\n' "$TMPDIR" >"$FIXTURE_EVENTS/started"
 [ "$FIXTURE_MODE" != killed ] || kill -KILL $$
 sleep 600
@@ -1566,13 +1588,16 @@ stop_worker_leak_runner() {
   WORKER_LEAK_RUNNER=
 }
 
-# run_worker_leak_case <mode> [checkout]: int sends Ctrl-C's INT to the
-# runner's process group, term sends TERM to the runner alone, killed has the
-# script die without its cleanup (what the hang guard's KILL leaves behind), and
-# abort kills the runner's whole process group outright. checkout runs the
-# worker from the runner's checkout instead of from inside the script's TMPDIR.
+# run_worker_leak_case <mode> [sandbox|checkout] [serving|starting|backoff]:
+# int sends Ctrl-C's INT to the runner's process group, term sends TERM to the
+# runner alone, killed has the script die without its cleanup (what the hang
+# guard's KILL leaves behind), and abort kills the runner's whole process group
+# outright. checkout runs the worker from the runner's checkout instead of from
+# inside the script's TMPDIR, and the phase is the worker's when the run ends
+# (see init_worker_leak_fixture).
 run_worker_leak_case() {
-  local mode=$1 root=${2:-sandbox} tmp repo caller events runner rc=0 deadline started survivors pid pgid
+  local mode=$1 root=${2:-sandbox} phase=${3:-serving}
+  local tmp repo caller events runner rc=0 deadline started survivors pid pgid
   tmp=$(fm_test_tmproot fm-test-run-worker-leak)
   repo="$tmp/repo"
   caller="$tmp/caller-tmp"
@@ -1581,7 +1606,7 @@ run_worker_leak_case() {
   init_worker_leak_fixture "$repo"
   # The runner leads its own process group with INT at its default, as it would
   # in a terminal, so a group signal reaches it alone.
-  (cd "$repo" && TMPDIR="$caller" FIXTURE_EVENTS="$events" FIXTURE_MODE="$mode" FIXTURE_ROOT="$root" \
+  (cd "$repo" && TMPDIR="$caller" FIXTURE_EVENTS="$events" FIXTURE_MODE="$mode" FIXTURE_ROOT="$root" FIXTURE_PHASE="$phase" \
     exec perl -e '$SIG{INT} = "DEFAULT"; setpgrp(0, 0); exec @ARGV' \
     bin/fm-test-run.sh --jobs 1 tests/fm-worker-leak-fixture.test.sh) >"$tmp/out" 2>"$tmp/err" &
   runner=$!
@@ -1657,6 +1682,16 @@ test_aborted_run_leaves_no_remote_job_worker() {
 test_killed_script_leaves_no_checkout_rooted_worker() {
   run_worker_leak_case killed checkout
   pass "a script killed without its cleanup leaves no worker run from the checkout with its state in the sandbox"
+}
+
+test_killed_script_leaves_no_starting_checkout_rooted_worker() {
+  run_worker_leak_case killed checkout starting
+  pass "a script killed before its checkout-rooted worker published worker.pid leaves no worker behind"
+}
+
+test_killed_script_leaves_no_restarting_checkout_rooted_worker() {
+  run_worker_leak_case killed checkout backoff
+  pass "a script killed while its checkout-rooted worker waits to restart leaves no worker behind"
 }
 
 # A script run from an agent's own pane inherits that firstmate session's
@@ -2054,6 +2089,8 @@ fm_test_run_cases \
   test_killed_script_leaves_no_remote_job_worker \
   test_aborted_run_leaves_no_remote_job_worker \
   test_killed_script_leaves_no_checkout_rooted_worker \
+  test_killed_script_leaves_no_starting_checkout_rooted_worker \
+  test_killed_script_leaves_no_restarting_checkout_rooted_worker \
   test_progress_guard_bounds_silence_not_slowness \
   test_scripts_run_without_the_callers_firstmate_state \
   test_max_wall_ms_is_a_result_not_advice \

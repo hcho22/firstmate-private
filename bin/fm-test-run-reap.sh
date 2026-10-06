@@ -19,17 +19,20 @@
 #
 # --script stops the recorded group (TERM, then KILL for a member still alive
 # after FM_TEST_RUN_REAP_GRACE_SECONDS, default 10, which is the time a script's
-# own TERM trap gets to clean up), stops every remote job worker serving a state
-# root inside <work-dir>/tmp (the script's TMPDIR), removes that directory, and
-# then stops every remote job worker whose code root lay inside <work-dir>
-# through bin/fm-remote-job-reap-orphans.sh scoped to it. A worker can run from
-# the real checkout with only its state in the sandbox, so neither pass alone
-# finds every worker a script started. Nothing is chosen by a name alone: the
-# group by the id the runner recorded, a state-root worker by the pid its
-# worker.pid records once the worker.lock beside it proves that pid is still
-# the process that took ownership of that state root, and a code-root worker by
-# a code root inside this script's private directory that is now gone. No real
-# home's worker can pass either test.
+# own TERM trap gets to clean up), then stops every remote job worker whose
+# state root lies inside <work-dir>, and then removes <work-dir>/tmp (the
+# script's TMPDIR). A worker is found by what its process carries from its own
+# launch, so it is found whether it is starting, serving, or waiting to restart,
+# and whether it runs from a copy inside the sandbox or from the real checkout:
+# the start path opens the worker's standard output and error on
+# <state-root>/logs/dev.firstmate.remote-job.log before the worker runs, and
+# the supervisor hands both to each serving child it starts. A process is
+# stopped only when its command is a remote job worker (supervisor or serving
+# child) and one of those streams is that log under <work-dir>; a real home's
+# worker logs under its own state root and never matches. The worker's
+# environment names its state root too, but macOS shows no environment for a
+# /bin/bash process. Nothing is chosen by a name alone: the group by the id the
+# runner recorded, a worker by that log.
 #
 # --run does the same for every work directory under <run-root>, then removes
 # <run-root>. The runner calls it from its EXIT trap, and the sentinel the
@@ -96,69 +99,69 @@ reap_remove_tree() { # <path>
   rm -rf -- "$1" 2>/dev/null || true
 }
 
-# Echo the pid <state>/worker.pid records only when that pid is provably the
-# remote job worker serving <state>: the worker.lock beside it records the same
-# pid with the start time and command the live process has now, and that command
-# is a remote job worker. The worker writes both records for its own process
-# when it takes ownership of <state>, so a pid since reused by any other process
-# - a real home's worker included - fails the start time or the command.
-reap_state_root_worker_pid() { # <state>
-  local state=$1 lock=$1/worker.lock pid command
-  pid=$(fm_remote_job_read_single_line "$state/worker.pid" 64 2>/dev/null) || return 1
-  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
-  [ "$pid" -gt 1 ] || return 1
-  [ -d "$lock" ] && [ ! -L "$lock" ] || return 1
-  [ "$(fm_remote_job_read_single_line "$lock/pid" 64 2>/dev/null)" = "$pid" ] || return 1
-  command=$(fm_remote_job_process_command "$pid" 2>/dev/null) || return 1
-  case "$command" in
-    /*/bin/fm-remote-job-worker.sh | /*/bin/fm-remote-job-worker.sh' --serve') ;;
-    *) return 1 ;;
+reap_is_worker_command() { # <command>
+  case "$1" in
+    /*/bin/fm-remote-job-worker.sh | /*/bin/fm-remote-job-worker.sh' --serve') return 0 ;;
   esac
-  [ "$(fm_remote_job_read_single_line "$lock/command" 8192 2>/dev/null)" = "$command" ] || return 1
-  [ "$(fm_remote_job_read_single_line "$lock/start" 256 2>/dev/null)" = \
-    "$(fm_remote_job_process_start "$pid" 2>/dev/null)" ] || return 1
-  printf '%s\n' "$pid"
+  return 1
 }
 
-# Stop every remote job worker serving a state root inside <work-dir>/tmp,
-# whatever its code root, through the group-aware stop its restart supervisor
-# cannot outlive.
-reap_state_root_workers() { # <work-dir>
-  local sandbox=$1/tmp pid_file state pid
-  [ -d "$sandbox" ] && [ ! -L "$sandbox" ] || return 0
-  while IFS= read -r pid_file; do
-    state=${pid_file%/worker.pid}
-    pid=$(reap_state_root_worker_pid "$state") || continue
+# Print "<pid> <path>" for each file the given processes' standard output and
+# error are open on: from /proc where the system has it, from lsof otherwise
+# (macOS). A deleted file keeps the path it was opened by.
+reap_output_files() { # <pid>...
+  local pid fd path
+  if [ -d /proc/self/fd ]; then
+    for pid in "$@"; do
+      for fd in 1 2; do
+        path=$(readlink "/proc/$pid/fd/$fd" 2>/dev/null) || continue
+        printf '%s %s\n' "$pid" "${path% (deleted)}"
+      done
+    done
+    return 0
+  fi
+  lsof -a -p "$(IFS=,; printf '%s' "$*")" -d 1,2 -Fpn 2>/dev/null |
+    awk '/^p/ { pid = substr($0, 2) } /^n/ { print pid, substr($0, 2) }'
+}
+
+# Stop every remote job worker whose state root lies inside <work-dir> (see the
+# header), through the group-aware stop its restart supervisor cannot outlive.
+# One ps scan finds the worker processes, so a host running none costs nothing
+# more, and each is read again just before it is stopped, so a worker already
+# stopped with its group, or a pid since reused, is skipped.
+reap_workers() { # <work-dir>
+  local work=$1 physical uid scan pid command path state log pids=
+  log=/logs/$FM_REMOTE_JOB_LABEL.log
+  physical=$(CDPATH='' cd "$work" 2>/dev/null && pwd -P) || physical=$work
+  uid=$(id -u 2>/dev/null) || return 0
+  scan=$(ps -u "$uid" -o pid=,command= 2>/dev/null) || return 0
+  while read -r pid command; do
+    case "$pid" in ''|*[!0-9]*) continue ;; esac
+    reap_is_worker_command "$command" && pids="$pids $pid"
+  done <<EOF
+$scan
+EOF
+  [ -n "$pids" ] || return 0
+  # shellcheck disable=SC2086  # a list of pids, one word each
+  while read -r pid path; do
+    case "$path" in
+      "$work"/*"$log" | "$physical"/*"$log") state=${path%"$log"} ;;
+      *) continue ;;
+    esac
+    command=$(fm_remote_job_process_command "$pid" 2>/dev/null) || continue
+    reap_is_worker_command "$command" || continue
     if fm_remote_job_stop_worker_tree "$pid"; then
       printf 'reaped abandoned remote job worker %s (state root %s)\n' "$pid" "$state"
     else
       printf 'warning: abandoned remote job worker %s survived reaping (state root %s)\n' "$pid" "$state" >&2
     fi
-  done < <(find "$sandbox" -type f -name worker.pid 2>/dev/null)
-}
-
-# Stop every remote job worker whose code root was inside <work-dir>. One ps
-# scan decides whether any process names this directory at all, so a script
-# that started no worker costs no full reaper pass.
-reap_workers() { # <work-dir>
-  local work=$1 physical uid
-  physical=$(CDPATH='' cd "$work" 2>/dev/null && pwd -P) || physical=$work
-  uid=$(id -u 2>/dev/null) || return 0
-  ps -u "$uid" -o command= 2>/dev/null | awk -v a="$work/" -v b="$physical/" '
-    index($0, "fm-remote-job-worker.sh") && (index($0, a) || index($0, b)) { found = 1 }
-    END { exit !found }
-  ' || return 0
-  FM_REMOTE_JOB_REAP_SCOPE="$work" "$SCRIPT_DIR/fm-remote-job-reap-orphans.sh" || true
+  done < <(reap_output_files $pids)
 }
 
 reap_script() { # <work-dir>
   local work=$1
   reap_stop_group "$work"
-  reap_state_root_workers "$work"
-  reap_remove_tree "$work/tmp"
   reap_workers "$work"
-  # A worker that was still writing its state could keep the first removal
-  # from finishing.
   reap_remove_tree "$work/tmp"
 }
 

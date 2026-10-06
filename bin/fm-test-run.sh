@@ -114,10 +114,9 @@
 # Cleanup (execution only, serial and concurrent alike): every script runs in a
 # process group of its own, and when it ends - passing, failing, or terminated
 # by its bound - bin/fm-test-run-reap.sh stops whatever is still running in
-# that group, stops each remote job worker whose state root or code root was
-# inside the script's private TMPDIR (that worker isolates its own process
-# group, so the bound's group kill never reaches it), and removes that
-# directory. A line in the script's output names anything that had to be
+# that group, stops each remote job worker whose state root was inside the
+# script's private TMPDIR (that worker isolates its own process group, so the
+# bound's group kill never reaches it), and removes that directory. A line in the script's output names anything that had to be
 # stopped. HUP, INT, or TERM to the runner stops every running script the same
 # way and then ends the run with 128 plus the signal number. A runner killed outright, or with its whole process group,
 # is cleaned up the same way by a sentinel process it leaves running in a group
