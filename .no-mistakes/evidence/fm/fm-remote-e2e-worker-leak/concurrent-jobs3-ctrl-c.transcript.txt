@@ -1,0 +1,40 @@
+[15:08:06 +0s] mode=int script=tests/fm-remote-secondmate-lifecycle-e2e.test.sh runner-args=[--jobs 3 tests/fm-remote-reply.test.sh tests/fm-remote-doctor.test.sh] host=Darwin 25.6.0
+[15:08:06 +0s] run TMPDIR (caller) = /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fmlive.Kr70Ic/caller-tmp
+[15:08:06 +0s] foreign state roots = /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fmlive.Kr70Ic/foreign/{before,during}-state (outside the run)
+[15:08:07 +1s] foreign worker started BEFORE the run: serving pid 58574
+[15:08:07 +1s] started: bin/fm-test-run.sh --jobs 1 --jobs 3 tests/fm-remote-reply.test.sh tests/fm-remote-doctor.test.sh tests/fm-remote-secondmate-lifecycle-e2e.test.sh  (runner pid/pgid 59065)
+[15:08:22 +16s] foreign worker started DURING the run: serving pid 88200
+[15:08:26 +20s] workers tied to the run while it is live:
+    63353     1 63353 00:17 /bin/bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M49AQW5W6RW2APH2FT58PM8B/bin/fm-remote-job-worker.sh
+      stdout -> /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fmlive.Kr70Ic/caller-tmp/fm-test-run.2SJdvS/w2/tmp/fm-remote-reply.x0x8ov/remote-jobs/logs/dev.firstmate.remote-job.log
+    63508 63353 63353 00:17 /bin/bash /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M49AQW5W6RW2APH2FT58PM8B/bin/fm-remote-job-worker.sh --serve
+      stdout -> /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fmlive.Kr70Ic/caller-tmp/fm-test-run.2SJdvS/w2/tmp/fm-remote-reply.x0x8ov/remote-jobs/logs/dev.firstmate.remote-job.log
+    77250     1 77250 00:10 /bin/bash /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fmlive.Kr70Ic/caller-tmp/fm-test-run.2SJdvS/w1/tmp/fm-remote-secondmate-e2e.nNr2fW/remote-root/bin/fm-remote-job-worker.sh
+      stdout -> /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fmlive.Kr70Ic/caller-tmp/fm-test-run.2SJdvS/w1/tmp/fm-remote-secondmate-e2e.nNr2fW/remote-jobs/logs/dev.firstmate.remote-job.log
+    79749 77250 77250 00:09 /bin/bash /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fmlive.Kr70Ic/caller-tmp/fm-test-run.2SJdvS/w1/tmp/fm-remote-secondmate-e2e.nNr2fW/remote-root/bin/fm-remote-job-worker.sh --serve
+      stdout -> /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fmlive.Kr70Ic/caller-tmp/fm-test-run.2SJdvS/w1/tmp/fm-remote-secondmate-e2e.nNr2fW/remote-jobs/logs/dev.firstmate.remote-job.log
+[15:08:28 +22s] runner pgid=59065  (workers above sit in their own isolated group)
+[15:08:28 +22s] ACTION: kill -INT -59065   (Ctrl-C to the foreground group)
+[15:08:36 +30s] runner exited rc=130
+[15:08:41 +35s] 5s later (any restart supervisor would have respawned a --serve child by now):
+[15:08:43 +37s] workers tied to the run after it ended:
+    (none)
+[15:08:43 +37s] contents of run TMPDIR after the run: (empty)
+[15:08:43 +37s] any process naming the run TMPDIR: (none)
+[15:08:43 +37s] foreign before worker 58574: ALIVE (correct)
+[15:08:43 +37s] foreign during worker 88200: ALIVE (correct)
+----- runner stdout lines reporting what the reaper stopped -----
+(none)
+----- runner stdout (tail) -----
+FM_TEST_BEGIN 2026-10-06T22:08:07Z tests/fm-remote-secondmate-lifecycle-e2e.test.sh family=secondmate expected_gate_skip=none
+FM_TEST_BEGIN 2026-10-06T22:08:08Z tests/fm-remote-reply.test.sh family=secondmate expected_gate_skip=none
+FM_TEST_BEGIN 2026-10-06T22:08:08Z tests/fm-remote-doctor.test.sh family=secondmate expected_gate_skip=none
+----- runner stderr (tail) -----
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+fm-test-run: interrupted; stopping the running script(s)
+stopped the processes still running in the script's process group 60044
+stopped the processes still running in the script's process group 60079
+stopped the processes still running in the script's process group 60121
+[15:08:45 +39s] VERDICT: PASS
+[15:08:50 +44s] teardown: workers left tied to this driver's dirs: 

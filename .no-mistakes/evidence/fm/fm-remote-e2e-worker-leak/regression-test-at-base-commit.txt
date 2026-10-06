@@ -1,0 +1,10 @@
+# base commit c34b986 (before the fix) + only the new regression test added (its helpers from the new tests/lib.sh; the e2e and runner are the base versions)
+# cmd: FM_TEST_EVENT_HANG_GUARD_SECONDS=90 bash tests/fm-remote-secondmate-e2e-interrupt.test.sh
+Tue Oct  6 15:09:25 PDT 2026
+not ok - int: remote job worker(s) 38496 39142 outlived the interrupted e2e: fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+fm-test-run: ignoring ambient variables a firstmate script reads or that name a live session: FM_GATE_REFUSE_BYPASS FM_REMOTE_JOB_REAP_SCOPE
+not ok - abort: remote job worker(s) 38003 38573 outlived the interrupted e2e: fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+fm-test-run: ignoring ambient variables a firstmate script reads or that name a live session: FM_GATE_REFUSE_BYPASS FM_REMOTE_JOB_REAP_SCOPE
+exit=1

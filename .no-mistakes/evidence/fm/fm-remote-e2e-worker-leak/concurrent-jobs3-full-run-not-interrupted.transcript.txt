@@ -1,0 +1,53 @@
+# NOTE: three scripts never had a serving worker at the same moment, so this run was NOT interrupted; it ran to completion. It shows a normal concurrent (--jobs 3) run of three worker-starting tests leaves no worker or sandbox, and the foreign workers survive.
+[14:59:32 +0s] mode=int script=tests/fm-remote-secondmate-lifecycle-e2e.test.sh runner-args=[--jobs 3 tests/fm-remote-reply.test.sh tests/fm-remote-doctor.test.sh] host=Darwin 25.6.0
+[14:59:32 +0s] run TMPDIR (caller) = /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fmlive.Vf9war/caller-tmp
+[14:59:32 +0s] foreign state roots = /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fmlive.Vf9war/foreign/{before,during}-state (outside the run)
+[14:59:32 +0s] foreign worker started BEFORE the run: serving pid 37715
+[14:59:32 +0s] started: bin/fm-test-run.sh --jobs 1 --jobs 3 tests/fm-remote-reply.test.sh tests/fm-remote-doctor.test.sh tests/fm-remote-secondmate-lifecycle-e2e.test.sh  (runner pid/pgid 37809)
+[15:07:36 +484s] FAIL: run ended before a worker was serving
+[15:07:37 +485s] foreign worker started DURING the run: serving pid 51848
+[15:07:38 +486s] workers tied to the run while it is live:
+    (none)
+[15:07:38 +486s] runner pgid=  (workers above sit in their own isolated group)
+[15:07:38 +486s] ACTION: kill -INT -37809   (Ctrl-C to the foreground group)
+[15:07:38 +486s] runner exited rc=0
+[15:07:43 +491s] 5s later (any restart supervisor would have respawned a --serve child by now):
+[15:07:44 +492s] workers tied to the run after it ended:
+    (none)
+[15:07:44 +492s] contents of run TMPDIR after the run: (empty)
+[15:07:44 +492s] any process naming the run TMPDIR: (none)
+[15:07:44 +492s] foreign before worker 37715: ALIVE (correct)
+[15:07:44 +492s] foreign during worker 51848: ALIVE (correct)
+----- runner stdout lines reporting what the reaper stopped -----
+(none)
+----- runner stdout (tail) -----
+cannot retire terminal source; it remains registered: remote-reply-ios
+ok - marked send and routed reply complete through the existing parent correlation owner
+cannot retire terminal source; it remains registered: remote-reply-ios
+ok - partial remote inheritance retains reread intent through bootstrap convergence
+ok - config push and bootstrap serialize remote inheritance convergence
+cannot retire terminal source; it remains registered: remote-reply-ios
+ok - remote inherited config retains and retries a failed live reread nudge
+cannot retire terminal source; it remains registered: remote-reply-ios
+cannot retire terminal source; it remains registered: remote-reply-ios
+cannot retire terminal source; it remains registered: remote-reply-ios
+ok - fleet snapshot projects mixed local and remote structured state
+ok - remote update imports and fast-forwards the persistent home on its configured host
+ok - the remote restart verb delegates to the host-local control plane and refuses before stopping anything
+ok - startup repairs remote readiness before probing without relaunching
+ok - startup reports alive legacy backends without changing their routes
+ok - unreachable no-ledger remote state remains explicit with no local respawn or failover
+cannot retire terminal source; it remains registered: remote-reply-ios
+ok - remote retirement refuses child work, then removes only its own endpoint while a shared-session sibling survives
+ALL TESTS PASSED
+FM_TEST_END 2026-10-06T22:07:36Z tests/fm-remote-secondmate-lifecycle-e2e.test.sh exit=0 duration_ms=483070 gate_skip=false
+FM_TEST_SUMMARY total=3 failed=0 skipped_gate=0 duration_ms=483948
+FM_TEST_SUMMARY_FAMILY family=secondmate count=3 duration_ms=619488 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-remote-secondmate-lifecycle-e2e.test.sh duration_ms=483070
+FM_TEST_SLOWEST rank=2 script=tests/fm-remote-reply.test.sh duration_ms=104871
+FM_TEST_SLOWEST rank=3 script=tests/fm-remote-doctor.test.sh duration_ms=31547
+----- runner stderr (tail) -----
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+[15:07:45 +493s] VERDICT: PASS
+[15:07:48 +496s] teardown: workers left tied to this driver's dirs: 
