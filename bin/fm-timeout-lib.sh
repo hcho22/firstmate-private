@@ -27,12 +27,12 @@
 #       counts as empty. It is a hang guard for commands that report progress
 #       as they go (bin/fm-test-run.sh's automatic per-script bound): a command
 #       that keeps producing output is never stopped for being slow, one that
-#       goes silent is stopped as quickly as a flat bound would. A 0 for
-#       <idle-seconds> or <backstop-seconds> disables that bound alone, and 0
-#       for both runs the command unbounded but still in its own process group
+#       goes silent is stopped as quickly as a flat bound would. 0 for both
+#       <idle-seconds> and <backstop-seconds> runs the command unbounded but
+#       still in its own process group, returning as soon as it exits
 #       (bin/fm-test-run.sh's unbounded scripts). It needs perl; without perl it
-#       falls back to fm_run_timed with whichever bound is set, idle first, or
-#       runs the command directly when neither is.
+#       falls back to fm_run_timed <idle-seconds>, or runs the command directly
+#       when unbounded.
 #
 # A non-positive bound is not a bound: `timeout 0` and the perl fallback's
 # `alarm 0` both disable the deadline, so callers of fm_run_timed must reject 0
@@ -191,10 +191,6 @@ fm_run_progress_bounded() {  # <idle-seconds> <backstop-seconds> <watch-file> <r
       fm_run_timed "$idle" "$@"
       rc=$?
       [ "$rc" -ne 124 ] || printf 'idle\n' > "$reason" 2>/dev/null || true
-    elif [ "$backstop" -gt 0 ]; then
-      fm_run_timed "$backstop" "$@"
-      rc=$?
-      [ "$rc" -ne 124 ] || printf 'backstop\n' > "$reason" 2>/dev/null || true
     else
       (unset FM_TIMEOUT_GROUP_FILE; "$@")
       rc=$?
@@ -218,15 +214,14 @@ fm_run_progress_bounded() {  # <idle-seconds> <backstop-seconds> <watch-file> <r
     my $last = $start;
     my $size = -1;
     while (1) {
-      if (waitpid($pid, WNOHANG) == $pid) {
+      if (waitpid($pid, $idle || $backstop ? WNOHANG : 0) == $pid) {
         exit(($? & 127) ? 128 + ($? & 127) : ($? >> 8));
       }
       my @st = stat($watch);
       my $now_size = @st ? $st[7] : 0;
       my $now = time;
       if ($now_size != $size) { $size = $now_size; $last = $now; }
-      my $why = $idle > 0 && $now - $last >= $idle ? "idle"
-        : $backstop > 0 && $now - $start >= $backstop ? "backstop" : "";
+      my $why = $now - $last >= $idle ? "idle" : $now - $start >= $backstop ? "backstop" : "";
       if ($why ne "") {
         kill "TERM", -$pid;
         sleep 0.2;

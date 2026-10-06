@@ -29,6 +29,18 @@ serving_worker_under() {
   return 1
 }
 
+# The nested runner a case started and has not yet waited for. A case that fails
+# or is interrupted while that runner is still going stops it here, so the
+# runner's own interrupt path reaps the e2e and its worker instead of leaving the
+# e2e to run on. It runs as FM_TEST_CASE_TEARDOWN and from the file's EXIT trap.
+E2E_RUNNER=
+stop_e2e_runner() {
+  [ -n "$E2E_RUNNER" ] || return 0
+  kill -TERM -- "-$E2E_RUNNER" 2>/dev/null || true
+  wait "$E2E_RUNNER" 2>/dev/null || true
+  E2E_RUNNER=
+}
+
 # run_e2e_interrupt_case <int|abort>
 run_e2e_interrupt_case() {
   local mode=$1 tmp caller runner rc=0 deadline survivors pid
@@ -41,6 +53,7 @@ run_e2e_interrupt_case() {
     exec perl -e '$SIG{INT} = "DEFAULT"; setpgrp(0, 0); exec @ARGV' \
     bin/fm-test-run.sh --jobs 1 "$E2E") >"$tmp/out" 2>"$tmp/err" &
   runner=$!
+  E2E_RUNNER=$runner
   deadline=$((SECONDS + FM_TEST_EVENT_HANG_GUARD_SECONDS))
   until serving_worker_under "$caller" >/dev/null; do
     kill -0 "$runner" 2>/dev/null \
@@ -53,6 +66,7 @@ run_e2e_interrupt_case() {
     abort) kill -KILL -- "-$runner" ;;
   esac
   wait "$runner" 2>/dev/null || rc=$?
+  E2E_RUNNER=
   if [ "$mode" = abort ]; then
     # The killed run cleans nothing up itself; the sentinel it left must.
     deadline=$((SECONDS + FM_TEST_EVENT_HANG_GUARD_SECONDS))
@@ -84,6 +98,8 @@ test_killed_e2e_run_leaves_no_worker() {
 
 # Each case runs its own e2e copy under a private temp root, so the two cases
 # share nothing and run in the concurrent lanes tests/case-lanes-helpers.sh owns.
+FM_TEST_CASE_TEARDOWN=stop_e2e_runner
+trap 'stop_e2e_runner; fm_test_cleanup' EXIT
 # shellcheck source=tests/case-lanes-helpers.sh
 . "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
 fm_test_run_cases \
