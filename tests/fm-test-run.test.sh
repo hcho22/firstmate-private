@@ -1495,6 +1495,142 @@ SH
   pass "--per-script-timeout-secs turns a hung script into a bounded failure"
 }
 
+# A script that starts a remote job worker gets back a worker in a process group
+# of its own: the Linux start path isolates the worker tree on purpose. So
+# neither the per-script hang guard's group kill nor a Ctrl-C reaches it, and a
+# run that ended without the script's own cleanup left it polling its fixture
+# for as long as that fixture existed (a sandbox from an interrupted remote
+# secondmate e2e run kept its worker alive for almost two days). Each case runs
+# a fixture script that starts a real worker exactly that way and then hangs,
+# ends the run the way its name says, and requires that no worker rooted in the
+# run is alive once the run is over.
+#
+# init_worker_leak_fixture <repo>: a runner checkout whose one script starts a
+# real remote job worker from a code root inside its own private TMPDIR, records
+# that root in $FIXTURE_EVENTS/started, and then hangs, or kills itself without
+# cleaning up when FIXTURE_MODE is killed.
+init_worker_leak_fixture() {
+  local repo=$1 file
+  mkdir -p "$repo/bin" "$repo/tests"
+  for file in fm-test-run.sh fm-timeout-lib.sh fm-test-run-reap.sh fm-remote-job-reap-orphans.sh \
+    fm-remote-job-lib.sh fm-remote-job-worker.sh; do
+    cp "$ROOT/bin/$file" "$repo/bin/$file"
+  done
+  chmod +x "$repo/bin"/*.sh
+  cat >"$repo/tests/fm-worker-leak-fixture.test.sh" <<'SH'
+#!/usr/bin/env bash
+set -u
+repo=$(cd "$(dirname "$0")/.." && pwd -P)
+root="$TMPDIR/remote-root"
+mkdir -p "$root/bin" "$TMPDIR/account"
+cp "$repo/bin/fm-remote-job-lib.sh" "$repo/bin/fm-remote-job-worker.sh" "$root/bin/"
+printf 'fixture\n' >"$root/AGENTS.md"
+git -C "$root" init -q -b main
+git -C "$root" -c user.email=test@example.com -c user.name=Test add AGENTS.md bin
+git -C "$root" -c user.email=test@example.com -c user.name=Test commit -qm fixture
+export FM_REMOTE_JOB_STATE_ROOT="$TMPDIR/remote-jobs" FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux
+. "$root/bin/fm-remote-job-lib.sh"
+fm_remote_job_start_linux_worker "$root" "$TMPDIR/account" \
+  || { echo "not ok - fixture worker did not start: $FM_REMOTE_JOB_ERROR"; exit 1; }
+deadline=$((SECONDS + 180))
+while [ ! -s "$TMPDIR/remote-jobs/worker.pid" ]; do
+  [ "$SECONDS" -lt "$deadline" ] || { echo "not ok - fixture worker never published its pid"; exit 1; }
+  sleep 0.05
+done
+echo "ok - fixture worker is serving"
+printf '%s\n' "$root" >"$FIXTURE_EVENTS/started"
+[ "$FIXTURE_MODE" != killed ] || kill -KILL $$
+sleep 600
+SH
+  chmod +x "$repo/tests/fm-worker-leak-fixture.test.sh"
+}
+
+# run_worker_leak_case <mode>: int sends Ctrl-C's INT to the runner's process
+# group, term sends TERM to the runner alone, killed has the script die without
+# its cleanup (what the hang guard's KILL leaves behind), and abort kills the
+# runner's whole process group outright.
+run_worker_leak_case() {
+  local mode=$1 tmp repo caller events runner rc=0 deadline started survivors pid pgid
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-worker-leak.XXXXXX")
+  tmp=$(cd "$tmp" && pwd -P)
+  repo="$tmp/repo"
+  caller="$tmp/caller-tmp"
+  events="$tmp/events"
+  mkdir -p "$caller" "$events"
+  init_worker_leak_fixture "$repo"
+  # The runner leads its own process group with INT at its default, as it would
+  # in a terminal, so a group signal reaches it alone.
+  (cd "$repo" && TMPDIR="$caller" FIXTURE_EVENTS="$events" FIXTURE_MODE="$mode" \
+    exec perl -e '$SIG{INT} = "DEFAULT"; setpgrp(0, 0); exec @ARGV' \
+    bin/fm-test-run.sh --jobs 1 tests/fm-worker-leak-fixture.test.sh) >"$tmp/out" 2>"$tmp/err" &
+  runner=$!
+  deadline=$((SECONDS + 180))
+  while [ ! -s "$events/started" ]; do
+    kill -0 "$runner" 2>/dev/null || fail "$mode: the run ended before its worker started: $(cat "$tmp/out" "$tmp/err")"
+    [ "$SECONDS" -lt "$deadline" ] || fail "$mode: the fixture never started its worker: $(cat "$tmp/out")"
+    sleep 0.05
+  done
+  started=$(cat "$events/started")
+  pid=$(fm_test_remote_job_workers_under "$caller" | head -n 1)
+  [ -n "$pid" ] || fail "$mode: no worker process was found under the run before the interruption"
+  pgid=$(ps -o pgid= -p "$pid" | tr -d '[:space:]')
+  [ "$pgid" != "$(ps -o pgid= -p "$runner" | tr -d '[:space:]')" ] \
+    || fail "$mode: the fixture worker shares the runner's group, so this case does not reproduce the leak"
+  case "$mode" in
+    int) kill -INT -- "-$runner" ;;
+    term) kill -TERM "$runner" ;;
+    abort) kill -KILL -- "-$runner" ;;
+  esac
+  wait "$runner" 2>/dev/null || rc=$?
+  if [ "$mode" = abort ]; then
+    # Nothing in the dead run cleans up; the sentinel it left behind must.
+    deadline=$((SECONDS + 180))
+    while [ -n "$(fm_test_remote_job_workers_under "$caller")" ] || [ -d "$(dirname "$(dirname "$started")")" ]; do
+      [ "$SECONDS" -lt "$deadline" ] || break
+      sleep 0.1
+    done
+  fi
+  survivors=$(fm_test_remote_job_workers_under "$caller")
+  if [ -n "$survivors" ]; then
+    for pid in $survivors; do fm_test_stop_remote_job_worker_tree "$pid"; done
+    fail "$mode: remote job worker(s) $(printf '%s' "$survivors" | tr '\n' ' ')outlived the run: $(cat "$tmp/out" "$tmp/err")"
+  fi
+  [ ! -e "$started" ] || fail "$mode: the script's sandbox survived the run: $started"
+  [ -z "$(find "$caller" -mindepth 1 -maxdepth 1 2>/dev/null)" ] \
+    || fail "$mode: the run left its root behind: $(find "$caller" -maxdepth 3)"
+  case "$mode" in
+    int) [ "$rc" -eq 130 ] || fail "an interrupted run must exit 130, got $rc: $(cat "$tmp/err")" ;;
+    term) [ "$rc" -eq 143 ] || fail "a terminated run must exit 143, got $rc: $(cat "$tmp/err")" ;;
+    killed)
+      [ "$rc" -eq 1 ] || fail "a run whose script was killed must fail, got $rc: $(cat "$tmp/out")"
+      grep -Eq '^FM_TEST_END .* exit=137 ' "$tmp/out" || fail "the killed script was not recorded: $(cat "$tmp/out")"
+      grep -Fq 'after the script ended, reaped abandoned remote job worker' "$tmp/out" \
+        || fail "the run did not report the worker it had to stop: $(cat "$tmp/out")"
+      ;;
+  esac
+  rm -rf "$tmp"
+}
+
+test_interrupted_run_leaves_no_remote_job_worker() {
+  run_worker_leak_case int
+  pass "Ctrl-C stops the run and leaves no remote job worker or sandbox behind"
+}
+
+test_terminated_run_leaves_no_remote_job_worker() {
+  run_worker_leak_case term
+  pass "TERM stops the run and leaves no remote job worker or sandbox behind"
+}
+
+test_killed_script_leaves_no_remote_job_worker() {
+  run_worker_leak_case killed
+  pass "a script killed without its cleanup leaves no remote job worker behind once it ends"
+}
+
+test_aborted_run_leaves_no_remote_job_worker() {
+  run_worker_leak_case abort
+  pass "a run killed outright leaves no remote job worker or sandbox behind"
+}
+
 # A script run from an agent's own pane inherits that firstmate session's
 # internal variables and its live Herdr or tmux identity. The reproduced case:
 # an inherited FM_SESSION_START_STAGE_FILE made fm-session-start.sh believe it
@@ -1883,6 +2019,10 @@ fm_test_run_cases \
   test_unmapped_new_test_never_inherits_family_concurrency \
   test_concurrent_runs_are_ordered_longest_first \
   test_per_script_timeout_bounds_a_hang \
+  test_interrupted_run_leaves_no_remote_job_worker \
+  test_terminated_run_leaves_no_remote_job_worker \
+  test_killed_script_leaves_no_remote_job_worker \
+  test_aborted_run_leaves_no_remote_job_worker \
   test_progress_guard_bounds_silence_not_slowness \
   test_scripts_run_without_the_callers_firstmate_state \
   test_max_wall_ms_is_a_result_not_advice \

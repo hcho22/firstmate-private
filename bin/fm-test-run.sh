@@ -85,8 +85,6 @@
 #                   runs it slowly.
 #                   --max-wall-ms is checked
 #                   after the run and so cannot catch a hang on its own.
-#                   External interruption cleanup is outside this runner's
-#                   guarantee; configured per-script bounds remain authoritative.
 #   --max-wall-ms N fail the run when its measured invocation wall clock exceeds
 #                   N milliseconds, including an empty selection. It is
 #                   evaluated after selection and suite execution and cannot
@@ -112,6 +110,18 @@
 # test's fixtures run, which tests/lib.sh scopes to TMPDIR, never reach another
 # script's or another run's fixtures. Running a test directly with bash does not
 # go through this runner and inherits the caller's environment.
+#
+# Cleanup (execution only, serial and concurrent alike): every script runs in a
+# process group of its own, and when it ends - passing, failing, or terminated
+# by its bound - bin/fm-test-run-reap.sh stops whatever is still running in
+# that group, removes the script's private TMPDIR, and stops each remote job
+# worker whose code root was inside it (that worker isolates its own process
+# group, so the bound's group kill never reaches it). A line in the script's
+# output names anything that had to be stopped. HUP, INT, or TERM to the runner
+# stops every running script the same way and then ends the run with 128 plus
+# the signal number. A runner killed outright, or with its whole process group,
+# is cleaned up the same way by a sentinel process it leaves running in a group
+# of its own, within a second of its death plus the script's TERM grace.
 #
 # Real Herdr guard (execution only, serial and concurrent alike): only the
 # real-herdr-gated and live-harness-optin families may reach the real herdr
@@ -323,6 +333,7 @@ family_for_basename() {
     fm-remote-doctor.test.sh|fm-remote-job.test.sh|fm-remote-job-orphan-reap.test.sh|\
     fm-remote-transport-lanes.test.sh|\
     fm-remote-reply.test.sh|fm-remote-secondmate-lifecycle-e2e.test.sh|\
+    fm-remote-secondmate-e2e-interrupt.test.sh|\
     fm-remote-secondmate-trace-context.test.sh|\
     fm-secondmate-harness.test.sh|fm-secondmate-lifecycle-e2e.test.sh|\
     fm-secondmate-liveness.test.sh|fm-secondmate-reconcile.test.sh|\
@@ -695,6 +706,7 @@ tests/fm-remote-entrypoint.test.sh 132
 tests/fm-remote-job-orphan-reap.test.sh 2972
 tests/fm-remote-job.test.sh 59603
 tests/fm-remote-reply.test.sh 101690
+tests/fm-remote-secondmate-e2e-interrupt.test.sh 11767
 tests/fm-remote-secondmate-lifecycle-e2e.test.sh 209631
 tests/fm-remote-secondmate-parent-binding.test.sh 29562
 tests/fm-remote-secondmate-trace-context.test.sh 67096
@@ -1246,6 +1258,12 @@ families_for_changed_path() {
       # only proven by running them: its own contract test passing says the
       # runner's logic is right, not that the suite it drives still runs.
       printf '%s\n' pure-contract-unit
+      ;;
+    bin/fm-test-run-reap.sh)
+      # The runner's cleanup of every script it runs: its own contract test
+      # covers each way a run ends, and the interrupt e2e covers the real e2e.
+      printf '%s\n' pure-contract-unit
+      printf '%s\n' __script__:fm-remote-secondmate-e2e-interrupt.test.sh
       ;;
     bin/backends/herdr*|bin/fm-herdr-lab.sh|tests/herdr-test-safety.sh)
       printf '%s\n' real-herdr-gated
@@ -2053,25 +2071,96 @@ fi
 
 if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
   [ -r "$ROOT/bin/fm-timeout-lib.sh" ] || die "per-script timeout helper not found: bin/fm-timeout-lib.sh"
+fi
+if [ -r "$ROOT/bin/fm-timeout-lib.sh" ]; then
   # shellcheck source=bin/fm-timeout-lib.sh
   . "$ROOT/bin/fm-timeout-lib.sh"
 fi
+# Every script runs in a process group of its own whose id the runner records
+# (fm_run_progress_bounded and fm_run_timed publish it), so an interrupted run
+# can stop the whole script, and bin/fm-test-run-reap.sh removes what a script
+# left behind (see the header). A checkout without either helper runs scripts
+# directly, as the runner always did before.
+GROUP_RUNNER=0
+if declare -F fm_run_progress_bounded >/dev/null 2>&1; then
+  GROUP_RUNNER=1
+fi
+REAPER=0
+if [ -f "$ROOT/bin/fm-test-run-reap.sh" ] && [ -x "$ROOT/bin/fm-test-run-reap.sh" ]; then
+  REAPER=1
+fi
 
 RUN_TMP=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run.XXXXXX")
+: >"$RUN_TMP/.fm-test-run-root"
 RECORDS="$RUN_TMP/records.tsv"
 FAMILIES_TSV="$RUN_TMP/families.tsv"
 : >"$RECORDS"
 declare -a WORKER_PIDS=()
 declare -a WORKER_IDX=()
 declare -a WORKER_SCRIPTS=()
+ACTIVE_SCRIPT_GUARD=
+ACTIVE_SCRIPT_WORK=
+RUN_SENTINEL_PID=
+
+# The sentinel runs bin/fm-test-run-reap.sh --run for this run once the runner
+# is gone without its EXIT trap having run (SIGKILL, or a kill of the runner's
+# whole process group). It sits in a process group of its own so a group kill
+# aimed at the runner does not take it too, notices the runner's exit as its own
+# reparenting rather than by polling a pid that could be reused, and holds none
+# of the runner's output streams, so a caller reading them to the end is never
+# kept waiting on it.
+start_run_sentinel() {
+  [ "$REAPER" -eq 1 ] && command -v perl >/dev/null 2>&1 || return 0
+  perl -e 'setpgrp(0, 0); my $parent = getppid(); select(undef, undef, undef, 0.5) while getppid() == $parent; exec @ARGV or exit 127' \
+    "$ROOT/bin/fm-test-run-reap.sh" --run "$RUN_TMP" </dev/null >/dev/null 2>&1 &
+  RUN_SENTINEL_PID=$!
+}
 
 # Invoked indirectly by the EXIT trap below.
 # shellcheck disable=SC2329
 cleanup_run() {
+  if [ -n "$RUN_SENTINEL_PID" ]; then
+    kill "$RUN_SENTINEL_PID" 2>/dev/null || true
+    wait "$RUN_SENTINEL_PID" 2>/dev/null || true
+  fi
+  if [ "$REAPER" -eq 1 ]; then
+    "$ROOT/bin/fm-test-run-reap.sh" --run "$RUN_TMP" >&2 || true
+  fi
   rm -rf "$RUN_TMP"
 }
 
+# HUP, INT, and TERM stop the run rather than only the script that happens to
+# be running: every running script's group is stopped and its sandbox reaped,
+# then the EXIT trap removes the run. Each script runs as a background job the
+# runner waits for, so a signal is handled at once instead of after the script.
+# Invoked indirectly by the traps below.
+# shellcheck disable=SC2329
+runner_interrupted() { # <exit-status>
+  local slot
+  trap '' HUP INT TERM
+  log "interrupted; stopping the running script(s)"
+  if [ "$REAPER" -eq 1 ]; then
+    [ -z "$ACTIVE_SCRIPT_WORK" ] || "$ROOT/bin/fm-test-run-reap.sh" --script "$ACTIVE_SCRIPT_WORK" >&2 || true
+    if [ "${#WORKER_PIDS[@]}" -gt 0 ]; then
+      for slot in "${!WORKER_PIDS[@]}"; do
+        "$ROOT/bin/fm-test-run-reap.sh" --script "$RUN_TMP/w${WORKER_IDX[$slot]}" >&2 || true
+      done
+    fi
+  fi
+  [ -z "$ACTIVE_SCRIPT_GUARD" ] || wait "$ACTIVE_SCRIPT_GUARD" 2>/dev/null || true
+  if [ "${#WORKER_PIDS[@]}" -gt 0 ]; then
+    for slot in "${!WORKER_PIDS[@]}"; do
+      wait "${WORKER_PIDS[$slot]}" 2>/dev/null || true
+    done
+  fi
+  exit "$1"
+}
+
 trap cleanup_run EXIT
+trap 'runner_interrupted 129' HUP
+trap 'runner_interrupted 130' INT
+trap 'runner_interrupted 143' TERM
+start_run_sentinel
 
 runtime_works() {
   local name=$1 executable=$2
@@ -2293,8 +2382,37 @@ bounded_script_command() {
   fi
 }
 
-run_script_bounded() {  # <script> <out> <stream> <id>
-  local script=$1 out=$2 stream=$3 id=$4
+# script_group_command <bound> <out> <work> <command...>: run the script's
+# command in its own process group, recording the group id in
+# <work>/script.pgid, under the per-script bound when there is one.
+script_group_command() {
+  local bound=$1 out=$2 work=$3
+  # Read by fm-timeout-lib.sh's runners, never exported to the script.
+  local FM_TIMEOUT_GROUP_FILE="$work/script.pgid"
+  shift 3
+  if [ "$bound" -gt 0 ]; then
+    bounded_script_command "$bound" "$out" "$@"
+  elif [ "$GROUP_RUNNER" -eq 1 ]; then
+    fm_run_progress_bounded 0 0 "$out" "$out.guard" "$@"
+  else
+    "$@"
+  fi
+}
+
+# reap_script_sandbox <work> <out> <stream>: stop what the finished script left
+# running and remove its TMPDIR, reporting anything that had to be stopped.
+reap_script_sandbox() {
+  local work=$1 out=$2 stream=$3 line
+  [ "$REAPER" -eq 1 ] || return 0
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    printf 'fm-test-run: after the script ended, %s\n' "$line" >>"$out"
+    [ "$stream" -eq 1 ] && tail -1 "$out"
+  done < <("$ROOT/bin/fm-test-run-reap.sh" --script "$work" 2>&1 || true)
+}
+
+run_script_bounded() {  # <script> <out> <stream> <id> <work>
+  local script=$1 out=$2 stream=$3 id=$4 work=$5
   local rc bound reason herdr_guard=0 saved_path=$PATH
   : "$id"
   bound=$(script_bound_secs "$script")
@@ -2306,25 +2424,20 @@ run_script_bounded() {  # <script> <out> <stream> <id>
   fi
   set +e
   if [ "$stream" -eq 1 ]; then
-    if [ "$bound" -gt 0 ]; then
-      # Expansion is intentionally deferred to the child bash passed to -c.
-      # shellcheck disable=SC2016
-      bounded_script_command "$bound" "$out" bash -c \
-        'bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' _ "$script" "$out"
-      rc=$?
-    else
-      bash "$script" 2>&1 | tee "$out"
-      rc=${PIPESTATUS[0]}
-    fi
-  elif [ "$bound" -gt 0 ]; then
+    # Expansion is intentionally deferred to the child bash passed to -c.
+    # shellcheck disable=SC2016
+    script_group_command "$bound" "$out" "$work" bash -c \
+      'bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' _ "$script" "$out" &
+  else
     # The guard only reads the size of the file the script writes to.
     # shellcheck disable=SC2094
-    bounded_script_command "$bound" "$out" bash "$script" >"$out" 2>&1
-    rc=$?
-  else
-    bash "$script" >"$out" 2>&1
-    rc=$?
+    script_group_command "$bound" "$out" "$work" bash "$script" >"$out" 2>&1 &
   fi
+  ACTIVE_SCRIPT_GUARD=$!
+  ACTIVE_SCRIPT_WORK=$work
+  wait "$ACTIVE_SCRIPT_GUARD"
+  rc=$?
+  ACTIVE_SCRIPT_GUARD=
   if [ "$bound" -gt 0 ] && [ "$rc" -eq 124 ]; then
     reason=
     if [ "$PER_SCRIPT_TIMEOUT_AUTO" -eq 1 ]; then
@@ -2355,6 +2468,8 @@ run_script_bounded() {  # <script> <out> <stream> <id>
     [ "$rc" -ne 0 ] || rc=1
   fi
   rm -f "$out.herdr"
+  reap_script_sandbox "$work" "$out" "$stream"
+  ACTIVE_SCRIPT_WORK=
   return "$rc"
 }
 
@@ -2378,7 +2493,7 @@ run_one_serial() {
 
   set +e
   # Stream live output while retaining a copy for gate-skip detection.
-  TMPDIR="$work/tmp" TMP="$work/tmp" run_script_bounded "$script" "$out" 1 "s$TOTAL"
+  TMPDIR="$work/tmp" TMP="$work/tmp" run_script_bounded "$script" "$out" 1 "s$TOTAL" "$work"
   rc=$?
   set -e
   : "${rc:=1}"
@@ -2488,7 +2603,7 @@ else
       cd "$ROOT" || exit 1
       begin_ms=$(now_ms)
       set +e
-      run_script_bounded "$script" "$work/output" 0 "w$worker_n"
+      run_script_bounded "$script" "$work/output" 0 "w$worker_n" "$work"
       rc=$?
       set -e
       end_ms=$(now_ms)

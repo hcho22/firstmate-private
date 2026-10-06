@@ -19,8 +19,11 @@ mkdir -p "$TMP_ROOT"
 TMP_ROOT=$(cd "$TMP_ROOT" && pwd -P)
 JOB_LABEL=dev.firstmate.remote-job
 CASE_N=0
+# The stale-identity case starts a worker supervisor in this shell's group, and
+# its --fix replaces it with an isolated worker tree; both are stopped here.
 DOCTOR_WORKER_PID=
-trap 'if [ -n "$DOCTOR_WORKER_PID" ]; then kill "$DOCTOR_WORKER_PID" 2>/dev/null || true; fi; fm_test_cleanup || true' EXIT
+DOCTOR_WORKER_STATE=
+trap 'if [ -n "$DOCTOR_WORKER_PID" ]; then kill "$DOCTOR_WORKER_PID" 2>/dev/null || true; fi; if [ -n "$DOCTOR_WORKER_STATE" ]; then fm_test_stop_remote_job_worker "$DOCTOR_WORKER_STATE"; fi; fm_test_cleanup || true' EXIT
 
 # A fixture must be able to present a host with NO herdr, so the doctor never
 # sees the runner's own PATH. Only the two required tools are re-exposed, by
@@ -570,6 +573,7 @@ done
 HOME="$CASE_HOME" FM_ROOT_OVERRIDE="$ROOT" FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux \
   "$ROOT/bin/fm-remote-job-worker.sh" > "$CASE_STATE/worker.out" 2> "$CASE_STATE/worker.err" &
 DOCTOR_WORKER_PID=$!
+DOCTOR_WORKER_STATE="$CASE_HOME/.firstmate/remote-job"
 deadline=$((SECONDS + 60))
 while [ ! -f "$CASE_HOME/.firstmate/remote-job/worker.ready" ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.05
@@ -588,16 +592,10 @@ assert_contains "$DOCTOR_OUT" 'fix remote-job-worker=applied:' "--fix did not re
 assert_contains "$DOCTOR_OUT" 'check remote-job-worker=ok:' "the refreshed worker was not confirmed ready"
 assert_contains "$DOCTOR_OUT" 'check remote-job-probe=ok: the remote job worker completed the required-tool probe' \
   "doctor did not probe tools through the refreshed worker"
-DOCTOR_WORKER_PID=$(cat "$CASE_HOME/.firstmate/remote-job/worker.pid")
-kill -TERM "$DOCTOR_WORKER_PID"
-# fm-lint-waits: allow a reap grace before the forced kill below
-for _ in $(seq 1 100); do
-  kill -0 "$DOCTOR_WORKER_PID" 2>/dev/null || break
-  sleep 0.05
-done
-if kill -0 "$DOCTOR_WORKER_PID" 2>/dev/null; then
-  kill -KILL "$DOCTOR_WORKER_PID" 2>/dev/null || true
-fi
+fm_test_stop_remote_job_worker "$DOCTOR_WORKER_STATE"
+DOCTOR_WORKER_STATE=
+kill -TERM "$DOCTOR_WORKER_PID" 2>/dev/null || true
+wait "$DOCTOR_WORKER_PID" 2>/dev/null || true
 DOCTOR_WORKER_PID=
 pass "doctor refreshes stale worker identity before probing tools"
 

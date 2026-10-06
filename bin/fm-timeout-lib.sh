@@ -27,11 +27,25 @@
 #       counts as empty. It is a hang guard for commands that report progress
 #       as they go (bin/fm-test-run.sh's automatic per-script bound): a command
 #       that keeps producing output is never stopped for being slow, one that
-#       goes silent is stopped as quickly as a flat bound would. It needs perl;
-#       without perl it falls back to fm_run_timed <idle-seconds>.
+#       goes silent is stopped as quickly as a flat bound would. A 0 for
+#       <idle-seconds> or <backstop-seconds> disables that bound alone, and 0
+#       for both runs the command unbounded but still in its own process group
+#       (bin/fm-test-run.sh's unbounded scripts). It needs perl; without perl it
+#       falls back to fm_run_timed with whichever bound is set, idle first, or
+#       runs the command directly when neither is.
 #
 # A non-positive bound is not a bound: `timeout 0` and the perl fallback's
-# `alarm 0` both disable the deadline, so callers must reject 0 before calling.
+# `alarm 0` both disable the deadline, so callers of fm_run_timed must reject 0
+# before calling.
+#
+# FM_TIMEOUT_GROUP_FILE, when set in the calling shell, names a file both
+# runners write the bounded command's process-group id to as soon as that group
+# exists, whatever the mechanism. A caller that is itself interrupted uses it to
+# stop the command's whole group before it exits, since signalling the runner
+# alone would leave the group running (bin/fm-test-run-reap.sh). It is read as
+# a shell variable and never reaches the command's environment. Nothing is
+# written when the command gets no group of its own (the no-perl fallback of an
+# unbounded fm_run_progress_bounded).
 #
 # All four mechanisms terminate the whole process GROUP, not just the direct
 # child, so a hung grandchild (a vendor CLI spawned by a wrapper script, a git
@@ -56,6 +70,13 @@ fm_timeout_mechanism() {
   fi
 }
 
+# fm_timeout_record_group <pgid>: publish the bounded command's process-group id
+# to FM_TIMEOUT_GROUP_FILE, when the caller asked for it.
+fm_timeout_record_group() {
+  [ -n "${FM_TIMEOUT_GROUP_FILE:-}" ] || return 0
+  printf '%s\n' "$1" > "$FM_TIMEOUT_GROUP_FILE" 2>/dev/null || true
+}
+
 fm_run_bash_timeout() {
   local seconds=$1 command_status deadline_status child_pid watchdog_pid command_rc recorded_rc monitor_was_on=0
   shift
@@ -65,12 +86,14 @@ fm_run_bash_timeout() {
   set -m
   (
     set +m
+    unset FM_TIMEOUT_GROUP_FILE
     "$@"
     command_rc=$?
     printf '%s\n' "$command_rc" > "$command_status"
     exit "$command_rc"
   ) &
   child_pid=$!
+  fm_timeout_record_group "$child_pid"
   (
     set +m
     sleep "$seconds"
@@ -114,12 +137,14 @@ fm_run_external_timeout() {
   "$runner" -k 1 "$seconds" bash -c '
     status_file=$1
     shift
+    unset FM_TIMEOUT_GROUP_FILE
     "$@"
     command_rc=$?
     printf "%s\n" "$command_rc" > "$status_file"
     exit "$command_rc"
   ' _ "$status_file" "$@" &
   runner_pid=$!
+  fm_timeout_record_group "$runner_pid"
   if wait "$runner_pid"; then
     runner_rc=0
   else
@@ -147,8 +172,10 @@ fm_run_timed() {  # <seconds> <command...>
     timeout) fm_run_external_timeout timeout "$seconds" "$@" ;;
     gtimeout) fm_run_external_timeout gtimeout "$seconds" "$@" ;;
     perl)
-      perl -e 'my $t = shift; my $pid = fork; die "fork failed" unless defined $pid; if (!$pid) { setpgrp(0, 0); exec @ARGV } local $SIG{ALRM} = sub { kill "TERM", -$pid; select undef, undef, undef, 0.2; kill "KILL", -$pid; exit 124 }; alarm $t; waitpid $pid, 0; exit($? >> 8)' \
-        "$seconds" "$@"
+      # Both sides set the child's group so it exists before its id is
+      # published, whichever of them runs first.
+      perl -e 'my ($t, $g) = splice(@ARGV, 0, 2); delete $ENV{FM_TIMEOUT_GROUP_FILE}; my $pid = fork; die "fork failed" unless defined $pid; if (!$pid) { setpgrp(0, 0); exec @ARGV } setpgrp($pid, $pid); if (length $g && open(my $fh, ">", $g)) { print $fh "$pid\n"; close $fh } local $SIG{ALRM} = sub { kill "TERM", -$pid; select undef, undef, undef, 0.2; kill "KILL", -$pid; exit 124 }; alarm $t; waitpid $pid, 0; exit($? >> 8)' \
+        "$seconds" "${FM_TIMEOUT_GROUP_FILE:-}" "$@"
       ;;
     bash) fm_run_bash_timeout "$seconds" "$@" ;;
     *) return 124 ;;
@@ -160,9 +187,18 @@ fm_run_progress_bounded() {  # <idle-seconds> <backstop-seconds> <watch-file> <r
   shift 4
   rm -f "$reason" 2>/dev/null || true
   if ! command -v perl >/dev/null 2>&1; then
-    fm_run_timed "$idle" "$@"
-    rc=$?
-    [ "$rc" -ne 124 ] || printf 'idle\n' > "$reason" 2>/dev/null || true
+    if [ "$idle" -gt 0 ]; then
+      fm_run_timed "$idle" "$@"
+      rc=$?
+      [ "$rc" -ne 124 ] || printf 'idle\n' > "$reason" 2>/dev/null || true
+    elif [ "$backstop" -gt 0 ]; then
+      fm_run_timed "$backstop" "$@"
+      rc=$?
+      [ "$rc" -ne 124 ] || printf 'backstop\n' > "$reason" 2>/dev/null || true
+    else
+      (unset FM_TIMEOUT_GROUP_FILE; "$@")
+      rc=$?
+    fi
     return "$rc"
   fi
   perl -e '
@@ -170,10 +206,14 @@ fm_run_progress_bounded() {  # <idle-seconds> <backstop-seconds> <watch-file> <r
     use warnings;
     use POSIX ":sys_wait_h";
     use Time::HiRes qw(time sleep);
-    my ($idle, $backstop, $watch, $reason) = splice(@ARGV, 0, 4);
+    my ($idle, $backstop, $watch, $reason, $group) = splice(@ARGV, 0, 5);
+    delete $ENV{FM_TIMEOUT_GROUP_FILE};
     my $pid = fork;
     die "fork failed" unless defined $pid;
     if (!$pid) { setpgrp(0, 0); exec @ARGV or exit 127; }
+    # Set here too, so the group exists before its id is published.
+    setpgrp($pid, $pid);
+    if (length $group && open(my $fh, ">", $group)) { print $fh "$pid\n"; close $fh; }
     my $start = time;
     my $last = $start;
     my $size = -1;
@@ -185,7 +225,8 @@ fm_run_progress_bounded() {  # <idle-seconds> <backstop-seconds> <watch-file> <r
       my $now_size = @st ? $st[7] : 0;
       my $now = time;
       if ($now_size != $size) { $size = $now_size; $last = $now; }
-      my $why = $now - $last >= $idle ? "idle" : $now - $start >= $backstop ? "backstop" : "";
+      my $why = $idle > 0 && $now - $last >= $idle ? "idle"
+        : $backstop > 0 && $now - $start >= $backstop ? "backstop" : "";
       if ($why ne "") {
         kill "TERM", -$pid;
         sleep 0.2;
@@ -196,5 +237,5 @@ fm_run_progress_bounded() {  # <idle-seconds> <backstop-seconds> <watch-file> <r
       }
       sleep 0.5;
     }
-  ' "$idle" "$backstop" "$watch" "$reason" "$@"
+  ' "$idle" "$backstop" "$watch" "$reason" "${FM_TIMEOUT_GROUP_FILE:-}" "$@"
 }
