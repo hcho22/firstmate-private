@@ -1203,16 +1203,14 @@ SH
       && [ -e "$state/.last-check" ] \
       || fail "$backend watcher did not complete the direct custom check"
     child_pid=$(cat "$child_pid_file")
+    # By now the watcher is idling in its poll loop, where bash 5.2 can drop a
+    # TERM (see fm_test_await_term_stop, which repeats it).
     kill -TERM "$watcher_pid" 2>/dev/null || fail "could not stop $backend watcher"
-    deadline=$((SECONDS + HANG_GUARD_EVENT_SECS))
-    while process_is_live_non_zombie "$watcher_pid" && [ "$SECONDS" -lt "$deadline" ]; do
-      sleep 0.02
-    done
-    if process_is_live_non_zombie "$watcher_pid"; then
+    if ! fm_test_await_term_stop "$watcher_pid" "$HANG_GUARD_EVENT_SECS"; then
       kill -KILL "$watcher_pid" 2>/dev/null || true
       wait "$watcher_pid" 2>/dev/null || true
       kill -KILL "$child_pid" 2>/dev/null || true
-      fail "$backend watcher did not stop after the direct check returned"
+      fail "$backend watcher did not stop after the direct check returned: $(cat "$dir/watch.err")"
     fi
     rc=0
     wait "$watcher_pid" || rc=$?

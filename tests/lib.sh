@@ -144,6 +144,29 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# fm_test_await_term_stop <pid> <limit-secs>: after the caller sent <pid> a
+# TERM, wait at most <limit-secs> for it to stop, a zombie awaiting its
+# parent's wait counting as stopped. Returns 1 if it is still running then.
+# Bash 5.2 can lose a TERM that a script traps: when the signal lands while the
+# first of two command substitutions in one command runs, its trap runs while
+# the second is being parsed and fails with "trap: line 2: unexpected EOF while
+# looking for matching `)'", and the script carries on as if never signalled.
+# So TERM is sent again every 10 seconds while <pid> keeps running, far enough
+# apart that a repeat lands long after the exit cleanup an earlier TERM started
+# would have finished, instead of cutting it short.
+fm_test_await_term_stop() {
+  local pid=$1 deadline=$((SECONDS + $2)) resend=$((SECONDS + 10))
+  while kill -0 "$pid" 2>/dev/null; do
+    case "$(ps -p "$pid" -o stat= 2>/dev/null)" in Z*) return 0 ;; esac
+    [ "$SECONDS" -lt "$deadline" ] || return 1
+    if [ "$SECONDS" -ge "$resend" ]; then
+      kill -TERM "$pid" 2>/dev/null || true
+      resend=$((SECONDS + 10))
+    fi
+    sleep 0.05
+  done
+}
+
 # fm_test_stop_remote_job_worker <state-root>: stop the remote job worker tree
 # whose serving child <state-root>/worker.pid records. Its restart supervisor
 # would replace that child after a lone kill, so the whole tree is stopped
