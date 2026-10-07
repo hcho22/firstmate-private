@@ -71,9 +71,12 @@ pass() {
 # --- self-cleaning temp root ------------------------------------------------
 #
 # fm_test_tmproot <prefix> echoes a fresh temp dir and registers it for removal
-# on EXIT/INT/TERM. A test file that needs extra teardown (e.g. killing a
+# on EXIT/HUP/INT/TERM. A test file that needs extra teardown (e.g. killing a
 # daemon) should define its own EXIT trap and call fm_test_cleanup from inside
-# it so registered dirs are still removed.
+# it so registered dirs are still removed. A signal only exits, with 128 plus
+# its number, so whichever EXIT trap is installed runs exactly once and in its
+# own order: a file's teardown still finds the pid files and fixtures it stops
+# processes by, instead of a signal handler deleting them first.
 #
 # The call site is almost always `TMP_ROOT=$(fm_test_tmproot prefix)`, which
 # forks a subshell to capture stdout. Anything that function does to the
@@ -113,7 +116,7 @@ fm_test_cleanup() {
   fi
 }
 
-# fm_test_register_cleanup <path>: remove <path> at the same EXIT/INT/TERM
+# fm_test_register_cleanup <path>: remove <path> at the same EXIT/HUP/INT/TERM
 # cleanup, through the same registry, so a path a subshell or a laned case
 # (tests/case-lanes-helpers.sh) creates outside its temp root is still reaped.
 # FM_TEST_CLEANUP_DIRS is shell state and never reaches the file's shell from
@@ -137,8 +140,70 @@ fm_test_tmproot() {
 }
 
 trap fm_test_cleanup EXIT
-trap 'fm_test_cleanup; exit 130' INT
-trap 'fm_test_cleanup; exit 143' TERM
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# fm_test_await_term_stop <pid> <limit-secs>: after the caller sent <pid> a
+# TERM, wait at most <limit-secs> for it to stop, a zombie awaiting its
+# parent's wait counting as stopped. Returns 1 if it is still running then.
+# Bash 5.2 can lose a TERM that a script traps: when the signal lands while the
+# first of two command substitutions in one command runs, its trap runs while
+# the second is being parsed and fails with "trap: line 2: unexpected EOF while
+# looking for matching `)'", and the script carries on as if never signalled.
+# So TERM is sent again every 10 seconds while <pid> keeps running, far enough
+# apart that a repeat lands long after the exit cleanup an earlier TERM started
+# would have finished, instead of cutting it short.
+fm_test_await_term_stop() {
+  local pid=$1 deadline=$((SECONDS + $2)) resend=$((SECONDS + 10))
+  while kill -0 "$pid" 2>/dev/null; do
+    case "$(ps -p "$pid" -o stat= 2>/dev/null)" in Z*) return 0 ;; esac
+    [ "$SECONDS" -lt "$deadline" ] || return 1
+    if [ "$SECONDS" -ge "$resend" ]; then
+      kill -TERM "$pid" 2>/dev/null || true
+      resend=$((SECONDS + 10))
+    fi
+    sleep 0.05
+  done
+}
+
+# fm_test_stop_remote_job_worker <state-root>: stop the remote job worker tree
+# whose serving child <state-root>/worker.pid records. Its restart supervisor
+# would replace that child after a lone kill, so the whole tree is stopped
+# through bin/fm-remote-job-lib.sh's group-aware stop, which signals the
+# worker's own isolated group and never this test's. A missing pid file is a
+# no-op.
+fm_test_stop_remote_job_worker() {
+  local pid
+  [ -f "$1/worker.pid" ] || return 0
+  pid=$(cat "$1/worker.pid" 2>/dev/null) || return 0
+  fm_test_stop_remote_job_worker_tree "$pid"
+}
+
+# fm_test_stop_remote_job_worker_tree <pid>: the same group-aware stop for a
+# worker pid a test found some other way.
+fm_test_stop_remote_job_worker_tree() {
+  # shellcheck source=/dev/null
+  (. "$ROOT/bin/fm-remote-job-lib.sh" && fm_remote_job_stop_worker_tree "$1") || true
+}
+
+# fm_test_remote_job_workers_under <dir>: print the pid of every live remote job
+# worker process - supervisor, serving child, or lane - whose command line names
+# a code root inside <dir>, one per line, matching both the spelling given and
+# its physical path. Only the command itself counts: its interpreter, then
+# <root>/bin/fm-remote-job-worker.sh, then the worker's own arguments. A process
+# that merely names such a path among its arguments is not a worker.
+fm_test_remote_job_workers_under() {
+  local dir=${1%/} physical
+  physical=$(cd "$dir" 2>/dev/null && pwd -P) || physical=$dir
+  ps -u "$(id -u)" -o pid=,command= 2>/dev/null | awk -v a="$dir/" -v b="$physical/" '{
+    script = $0
+    sub(/^ *[0-9]+ +[^ ]+ +/, "", script)
+    sub(/ --(serve|lane .*)$/, "", script)
+    if ((index(script, a) == 1 || index(script, b) == 1) &&
+      substr(script, length(script) - 27) == "/bin/fm-remote-job-worker.sh") print $1
+  }'
+}
 
 # fm_test_reap_orphans: best-effort sweep for fixture roots left behind by a
 # prior run that was killed hard enough to skip the traps above (e.g. a

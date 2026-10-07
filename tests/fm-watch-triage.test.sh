@@ -178,7 +178,13 @@ record_pi_busy() {  # <state-dir> <id>
     --source pi-ext --event agent-start
 }
 
-reap() { kill "$1" 2>/dev/null || true; wait "$1" 2>/dev/null || true; }
+# Stop a watcher. Bash 5.2 can drop its TERM (see fm_test_await_term_stop,
+# which repeats it), so the wait is bounded by that instead of a bare wait.
+reap() {
+  kill "$1" 2>/dev/null || true
+  fm_test_await_term_stop "$1" 60 || kill -KILL "$1" 2>/dev/null || true
+  wait "$1" 2>/dev/null || true
+}
 
 # --- pure classifier predicates (fm-classify-lib.sh) ------------------------
 

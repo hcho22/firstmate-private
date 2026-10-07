@@ -32,9 +32,19 @@ LAB=$(mktemp -d "${TMPDIR:-/tmp}/fm-liveness.XXXXXX")
 SESSION=liveness
 
 cleanup_all() {
+  local bg
   "$REAL_TMUX" -L "$SOCKET" kill-server >/dev/null 2>&1 || true
   # kill-server can leave this run's socket file behind (tmux 3.6b does).
   [ ! -S "$SOCKET_PATH" ] || rm -f "$SOCKET_PATH"
+  # The background case's process leads a group of its own, so the HUP that
+  # kill-server sends each pane's foreground group never reaches it, and it
+  # would sleep on for its full 900s after the lab is gone.
+  if [ -n "${LAB:-}" ] && [ -s "$LAB/bg.pid" ]; then
+    bg=$(cat "$LAB/bg.pid" 2>/dev/null)
+    case "$(ps -o command= -p "$bg" 2>/dev/null)" in
+      "$LAB/bin/claude-link "*) kill "$bg" 2>/dev/null || true ;;
+    esac
+  fi
   [ -n "${LAB:-}" ] && rm -rf "$LAB"
 }
 trap cleanup_all EXIT
