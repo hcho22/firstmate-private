@@ -210,6 +210,7 @@ run_bootstrap_timeout_case() {
           command sleep 0.01
         done
       fi
+      # shellcheck disable=SC2030 # The simulated clock belongs to the bootstrap subprocess; this test shell's SECONDS never changes.
       SECONDS=$((SECONDS + inc))
       command sleep 0.01
     }
