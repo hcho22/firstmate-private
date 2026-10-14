@@ -37,9 +37,9 @@
 #                          resume. Unless afk is active. A pane whose crew shows
 #                          task-bound progress evidence at that moment is deferred
 #                          rather than escalated (wedge_defer_progress): its
-#                          attributed validation run's step activity within the
-#                          window or its CI wait, or with no run, writes in its
-#                          worktree or new processes running there
+#                          working validation run's step activity within the
+#                          window or its CI wait, or with no working run, writes
+#                          in its worktree or a fresh process tree running there
 #                          (crew_progress_evidence owns the rule). The deferral
 #                          restarts the window, so a crew whose evidence stops
 #                          escalates at most two windows after the last evidence,
@@ -320,7 +320,7 @@ window_label() {
 # The ONE derivation of a window's per-window marker key: `:`, `/` and `.` become
 # `_` so a window name is usable as a filename suffix. Every per-window file the
 # watcher keeps is named by it (.hash-, .count-, .stale-, .stale-since-,
-# .wedge-escalations-, .paused-*, .progress-*), and live homes hold those markers on
+# .wedge-escalations-, .paused-*, .writing-*), and live homes hold those markers on
 # disk under the current format, so the format lives here alone: a second copy is
 # how a future change to it silently orphans a window's markers instead of clearing
 # them. The helpers below take the derived key rather than re-deriving it, so one
@@ -724,55 +724,54 @@ resurface_absorbed() {  # <window> <throttle-marker> <age> <reason> [scope]
 
 # Defer ONE wedge escalation for a pane whose crew shows task-bound evidence that
 # its work is still progressing (crew_progress_evidence in fm-classify-lib.sh owns
-# what counts: its attributed validation run's fresh step activity or CI wait, or,
-# with no run attributed, writes in its own worktree or new processes running
+# what counts: its working validation run's fresh step activity or CI wait, or,
+# with no working run, writes in its own worktree or a fresh process tree running
 # there). The pane says nothing is happening; that evidence says otherwise, so the
 # escalation is deferred rather than fired. Deliberately a DEFERRAL, not a
 # cancellation: the idle timer restarts, so the next window probes again and a
 # crew whose evidence stops escalates within that window, and a
-# .progress-since-<key> marker ages the whole deferral chain so the pane still
-# re-surfaces once every PAUSE_RESURFACE_SECS through the shared
-# resurface_absorbed above - literally the same bounded cadence a declared pause
-# uses, throttled by its own .progress-resurfaced-<key> marker - and a crew whose
-# evidence keeps coming without real progress (a command that never ends but
-# keeps working) cannot stay invisible. The escalation counter is left alone: it
-# is neither advanced (this is not an escalation) nor reset (a later genuine
-# escalation must still carry the demand-deep-inspection history it had already
-# earned).
+# .writing-since-<key> marker (named for the worktree writes that first used the
+# chain) ages the whole deferral chain so the pane still re-surfaces once every
+# PAUSE_RESURFACE_SECS through the shared resurface_absorbed above - literally the
+# same bounded cadence a declared pause uses, throttled by its own
+# .writing-resurfaced-<key> marker - and a crew whose evidence keeps coming
+# without real progress (a command that never ends but keeps working) cannot
+# stay invisible. The escalation counter is left alone: it is neither advanced
+# (this is not an escalation) nor reset (a later genuine escalation must still
+# carry the demand-deep-inspection history it had already earned).
 wedge_defer_progress() {  # <window> <since-file> <triage-label> <idle-age> <evidence>
   local win=$1 since_file=$2 label=$3 age=$4 evidence=$5 key psf page
   key=$(window_key "$win")
-  psf="$STATE/.progress-since-$key"
+  psf="$STATE/.writing-since-$key"
   [ -e "$psf" ] || date +%s > "$psf"
   page=$(age_of "$psf")
   date +%s > "$since_file"
-  resurface_absorbed "$win" "$STATE/.progress-resurfaced-$key" "$page" \
+  resurface_absorbed "$win" "$STATE/.writing-resurfaced-$key" "$page" \
     "stale: $win (idle ${age}s, $evidence; deferred on progress evidence for ${page}s, rechecked on a long cadence not a wedge; confirm it is real progress)"
   triage_log "absorbed $label ($evidence, idle ${age}s): $win"
 }
 
 # Drop a window's progress-deferral chain wherever its stale bookkeeping resets,
 # so the bounded re-surface cadence is measured from the CURRENT quiet stretch and
-# a long-finished one cannot make the next deferral resurface immediately. The
-# .writing-* names are the same chain under its earlier name, dropped so a home
-# that ran the earlier watcher converges.
+# a long-finished one cannot make the next deferral resurface immediately.
 clear_progress_tracking() {  # <window-key>
   local key=$1
-  rm -f "$STATE/.progress-since-$key" "$STATE/.progress-resurfaced-$key" \
-    "$STATE/.writing-since-$key" "$STATE/.writing-resurfaced-$key"
+  rm -f "$STATE/.writing-since-$key" "$STATE/.writing-resurfaced-$key"
 }
 
 # Repeat-poll wedge-timer bookkeeping for an already-classified stale hash
 # absorbed as provably-working - repairs a missing/corrupt timer (self-heals a
 # watcher restart between recording the hash and recording the timer), or
-# escalates once STALE_ESCALATE_SECS have elapsed. Never re-reads the crew
-# state (the costly check already ran once, at classification time). Shared by
-# both places a hash can be absorbed this way: the plain non-terminal path,
-# and the stale_is_terminal-overridden path (a captain-relevant status-log
-# line that an active run/busy pane outranked).
-# The progress-evidence read runs ONLY here, inside the at-threshold branch that
-# is about to escalate: at most one bounded read per window per
-# STALE_ESCALATE_SECS, never per poll.
+# escalates once STALE_ESCALATE_SECS have elapsed. Shared by both places a hash
+# can be absorbed this way: the plain non-terminal path, and the
+# stale_is_terminal-overridden path (a captain-relevant status-log line that an
+# active run/busy pane outranked).
+# Below the threshold it never re-reads the crew state (the costly check already
+# ran once, at classification time). At the threshold, crew_progress_evidence
+# re-reads the current state through fm-crew-state.sh's bounded no-mistakes calls
+# and may run its worktree probes, ONLY inside the branch that is about to
+# escalate: at most one bounded read per window per STALE_ESCALATE_SECS, never
+# per poll.
 wedge_timer_check() {  # <window> <since-file> <triage-label> <escalation-count-file> <task>
   local win=$1 since_file=$2 label=$3 escalation_file=$4 task=$5 since age n reason evidence
   since=$(cat "$since_file" 2>/dev/null || true)

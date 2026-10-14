@@ -1395,7 +1395,9 @@ CI checks running, waiting for results..."
 
 # The watcher's evidence read over the REAL helper and the captured CLI format:
 # fresh step activity and a forge wait count, a stalled step does not, and the
-# crew's own worktree writes never outvote its attributed run.
+# crew's own worktree writes never outvote its working run. A run parked at a
+# gate leaves its pipeline idle, so there the crew's own writes count, and a
+# parked run whose crew wrote nothing does not.
 test_progress_evidence_over_real_helper() {
   reset_fakes
   local d anchor out; d=$(new_case progress-evidence-real)
@@ -1423,10 +1425,16 @@ test_progress_evidence_over_real_helper() {
   assert_contains "$out" "waiting on CI checks" "the forge wait evidence was not named"
   FM_FAKE_CI_LOGS=""
   FM_FAKE_AXI_STATUS="$(run_parked fm/feat-prog)"
+  out=$(PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" \
+    crew_progress_evidence feat-prog "$d/state" "$anchor" 240) \
+    || fail "a parked run's crew writing its worktree was not progress evidence"
+  assert_contains "$out" "writing its worktree" "the parked run's write evidence was not named"
+  # A quiet window that opens now: the crew writes nothing more inside it.
+  touch "$anchor"
   PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" \
     crew_progress_evidence feat-prog "$d/state" "$anchor" 240 >/dev/null \
-    && fail "a run parked at a gate counted as progress"
-  pass "progress evidence over the real helper: fresh steps and forge waits count, stalled or parked runs never do"
+    && fail "a run parked at a gate counted as progress while its crew did nothing"
+  pass "progress evidence over the real helper: fresh steps and forge waits count, a stalled step never does, and a parked run counts only its crew's own work"
 }
 
 # Usage error (no id) is the one non-zero exit.
