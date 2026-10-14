@@ -37,26 +37,29 @@
 # open-decisions fold" below) also writes: it persists a per-status-file byte
 # cursor and folded open-set as a side effect, so a per-drain fleet-wide scan
 # stays bounded by new appends instead of re-reading each task's whole lifetime
-# log every time. crew_worktree_written_since reads the task's meta file and walks
-# a bounded slice of its worktree instead of a status file, so callers run it only
-# at the moment they would otherwise escalate.
+# log every time. crew_progress_evidence re-reads bin/fm-crew-state.sh like the
+# absorb classification, and its two probes read the task's meta file plus a
+# bounded slice of its worktree (crew_worktree_written_since) or the process table
+# (crew_worktree_process_started_since) instead of a status file, so callers run
+# it only at the moment they would otherwise escalate.
 
 # Directory of this library, used to locate the sibling fm-crew-state.sh reader.
 # Resolved at source time from BASH_SOURCE so it works whether sourced by a
 # bin/ script (which sets its own SCRIPT_DIR) or directly by a test.
 _FM_CLASSIFY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)" || _FM_CLASSIFY_LIB_DIR="."
 
-# The crew current-state reader used for the "provably working" decision.
-# Overridable so tests can stub the run-step/pane verdict without a real worktree
-# or no-mistakes install; absent, it points at the real sibling script.
+# The crew current-state reader used for the "provably working" decision and the
+# wedge timer's progress evidence. Overridable so tests can stub the run-step/pane
+# verdict without a real worktree or no-mistakes install; absent, it points at the
+# real sibling script.
 FM_CREW_STATE_BIN="${FM_CREW_STATE_BIN:-$_FM_CLASSIFY_LIB_DIR/fm-crew-state.sh}"
 
-# fm_run_timed, the shared hard bound the worktree write probe below puts around
-# its one filesystem walk. bin/fm-timeout-lib.sh owns bounded execution for this
-# repo, so nothing here re-derives the coreutils/BSD/perl selection. That library
-# declares `set -u` for its own hygiene, which a sourced sibling must not impose on
-# THIS library's consumers - several of them deliberately run without it - so the
-# caller's setting is restored around the source.
+# fm_run_timed, the shared hard bound the worktree probes below put around their
+# filesystem walk and kernel reads. bin/fm-timeout-lib.sh owns bounded execution
+# for this repo, so nothing here re-derives the coreutils/BSD/perl selection. That
+# library declares `set -u` for its own hygiene, which a sourced sibling must not
+# impose on THIS library's consumers - several of them deliberately run without
+# it - so the caller's setting is restored around the source.
 case $- in *u*) _fm_classify_nounset=on ;; *) _fm_classify_nounset=off ;; esac
 # shellcheck source=bin/fm-timeout-lib.sh
 # shellcheck disable=SC1091
