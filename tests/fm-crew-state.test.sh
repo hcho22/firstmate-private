@@ -1393,6 +1393,44 @@ CI checks running, waiting for results..."
   pass "a ci step waiting on its checks is named as a forge wait"
 }
 
+# Only a monitor still waiting on pending checks is a forge wait. Red checks, an
+# auto-fix round, and a fix that ran out of attempts keep the run working (a
+# green reading must still never be masked) but are never named a forge wait, so
+# a ci step stalled on them carries no progress evidence of its own.
+test_ci_wait_named_only_for_pending_checks() {
+  reset_fakes
+  local d out marker; d=$(new_case ci-wait-pending-only)
+  make_repo_on_branch "$d/wt" fm/feat-cipend
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/feat-cipend.meta" "window=fm:fm-feat-cipend" "worktree=$d/wt" "kind=ship"
+  FM_FAKE_AXI_STATUS="$(run_ci_monitoring_with_activity fm/feat-cipend "15m0s ago: log: CI monitor")"
+  for marker in \
+    "CI checks running, waiting for results..." \
+    "no CI checks reported yet, waiting for checks to register..." \
+    "base branch advanced (aaaaaaa..bbbbbbb), re-arming CI monitor timeout" \
+    "issues detected but checks still pending, waiting for all checks to complete..."; do
+    FM_FAKE_CI_LOGS="monitoring CI for PR #2 (timeout: 4h0m0s)...
+$marker"
+    out=$(run_crew_state "$d" feat-cipend)
+    assert_contains "$out" "state: working" "pending marker '$marker' did not stay working"
+    assert_contains "$out" "ci waiting on checks" "pending marker '$marker' was not named a forge wait"
+  done
+  for marker in \
+    "CI checks failed before repository steps ran" \
+    "issues detected: 1 CI check failing" \
+    "issues detected: merge conflict - auto-fixing (attempt 2/10)..." \
+    "issues detected: Lint - max auto-fix attempts (3) reached, waiting for manual intervention..."; do
+    FM_FAKE_CI_LOGS="monitoring CI for PR #2 (timeout: 4h0m0s)...
+CI checks running, waiting for results...
+$marker"
+    out=$(run_crew_state "$d" feat-cipend)
+    assert_contains "$out" "state: working" "red marker '$marker' did not stay working"
+    assert_not_contains "$out" "state: done" "red marker '$marker' read as done"
+    assert_not_contains "$out" "ci waiting on checks" "red marker '$marker' was named a forge wait"
+  done
+  pass "only a ci step waiting on pending checks is named a forge wait; red checks and fix rounds are not"
+}
+
 # The watcher's evidence read over the REAL helper and the captured CLI format:
 # fresh step activity and a forge wait count, a stalled step does not, and the
 # crew's own worktree writes never outvote its working run. A run parked at a
@@ -1423,6 +1461,12 @@ test_progress_evidence_over_real_helper() {
     crew_progress_evidence feat-prog "$d/state" "$anchor" 240) \
     || fail "a ci step waiting on its checks was not progress evidence"
   assert_contains "$out" "waiting on CI checks" "the forge wait evidence was not named"
+  FM_FAKE_AXI_STATUS="$(run_ci_monitoring_with_activity fm/feat-prog "15m0s ago: log: issues detected: merge conflict - auto-fixing (attempt 2/10)...")"
+  FM_FAKE_CI_LOGS="CI checks running, waiting for results...
+issues detected: merge conflict - auto-fixing (attempt 2/10)..."
+  PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" \
+    crew_progress_evidence feat-prog "$d/state" "$anchor" 240 >/dev/null \
+    && fail "a ci step stalled in an auto-fix round counted as a forge wait"
   FM_FAKE_CI_LOGS=""
   FM_FAKE_AXI_STATUS="$(run_parked fm/feat-prog)"
   out=$(PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" \
@@ -1434,7 +1478,7 @@ test_progress_evidence_over_real_helper() {
   PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" \
     crew_progress_evidence feat-prog "$d/state" "$anchor" 240 >/dev/null \
     && fail "a run parked at a gate counted as progress while its crew did nothing"
-  pass "progress evidence over the real helper: fresh steps and forge waits count, a stalled step never does, and a parked run counts only its crew's own work"
+  pass "progress evidence over the real helper: fresh steps and forge waits count, a stalled step or fix round never does, and a parked run counts only its crew's own work"
 }
 
 # Usage error (no id) is the one non-zero exit.
@@ -1946,6 +1990,7 @@ test_provably_working_via_runs_list_fallback
 test_not_provably_working_when_stopped
 test_active_step_activity_reported_in_seconds
 test_ci_wait_on_checks_reported
+test_ci_wait_named_only_for_pending_checks
 test_progress_evidence_over_real_helper
 test_usage_error
 test_historical_same_branch_rewritten_head_not_current

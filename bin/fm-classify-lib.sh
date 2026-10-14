@@ -1784,6 +1784,31 @@ FM_WORKTREE_WRITE_MAXDEPTH=${FM_WORKTREE_WRITE_MAXDEPTH:-6}
 # gets it too.
 FM_WORKTREE_WRITE_TIMEOUT=${FM_WORKTREE_WRITE_TIMEOUT:-10}
 
+# The physical path of <id>'s recorded worktree, for both progress probes below.
+# Fails, printing nothing, for an id with no recorded worktree, a worktree that is
+# gone, and a secondmate home.
+#
+# A kind=secondmate task records a provisioned firstmate home, not a code tree, and
+# such a home runs its OWN supervision inside it: its state/ directory churns a
+# watcher beacon, pane hashes, and heartbeats whether or not the mate is producing
+# anything, so a probe there would report liveness for a mate that has done nothing.
+# Those homes are excluded outright rather than by pruning "state", which would also
+# hide a legitimate source directory of that name in an ordinary worktree. The
+# exclusion is a negative outcome like any other, so an unproductive mate keeps
+# escalating on the caller's unchanged schedule.
+_crew_probe_worktree() {  # <id> <state>
+  local id=$1 state=$2 wt kind
+  [ -n "$id" ] || return 1
+  wt=$(grep '^worktree=' "$state/$id.meta" 2>/dev/null | tail -1 | cut -d= -f2- || true)
+  [ -n "$wt" ] && [ -d "$wt" ] || return 1
+  kind=$(grep '^kind=' "$state/$id.meta" 2>/dev/null | tail -1 | cut -d= -f2- || true)
+  [ "$kind" != secondmate ] || return 1
+  if [ -e "$wt/.fm-secondmate-home" ] || [ -L "$wt/.fm-secondmate-home" ]; then
+    return 1
+  fi
+  (cd "$wt" 2>/dev/null && pwd -P)
+}
+
 # 0 when some regular file under <id>'s recorded worktree is newer than
 # <anchor-file>: positive evidence the crew is still producing work even though its
 # rendered pane has gone quiet. This is the third liveness input the wedge detector
@@ -1793,18 +1818,10 @@ FM_WORKTREE_WRITE_TIMEOUT=${FM_WORKTREE_WRITE_TIMEOUT:-10}
 # escalations against a crew that was demonstrably working the whole time.
 #
 # 1 for every other outcome, including an id with no recorded worktree, a worktree
-# that is gone, a missing anchor, and a walk that fails or finds nothing. Absence of
-# evidence therefore always leaves the caller's existing escalation schedule
-# untouched, so a crew that writes nothing still escalates exactly as before.
-#
-# A kind=secondmate task records a provisioned firstmate home, not a code tree, and
-# such a home runs its OWN supervision inside it: its state/ directory churns a
-# watcher beacon, pane hashes, and heartbeats whether or not the mate is producing
-# anything, so a walk there would report liveness for a mate that has done nothing.
-# Those homes are excluded outright rather than by pruning "state", which would also
-# hide a legitimate source directory of that name in an ordinary worktree. The
-# exclusion is a negative outcome like any other, so an unproductive mate keeps
-# escalating on the caller's unchanged schedule.
+# that is gone, a secondmate home (_crew_probe_worktree owns that exclusion), a
+# missing anchor, and a walk that fails or finds nothing. Absence of evidence
+# therefore always leaves the caller's existing escalation schedule untouched, so a
+# crew that writes nothing still escalates exactly as before.
 #
 # The anchor is the caller's own idle-window timer file, whose mtime already marks
 # when the quiet window opened, so `-newer` needs no clock arithmetic, no temp
@@ -1816,17 +1833,10 @@ FM_WORKTREE_WRITE_TIMEOUT=${FM_WORKTREE_WRITE_TIMEOUT:-10}
 # worktree's own filesystem rather than descending into a nested network or container
 # mount, so a write that lands only under such a mount is one more negative outcome.
 crew_worktree_written_since() {  # <id> <state> <anchor-file>
-  local id=$1 state=$2 anchor=$3 wt kind name hit bound
+  local id=$1 state=$2 anchor=$3 wt name hit bound
   local -a names=() prune=()
-  [ -n "$id" ] || return 1
   [ -f "$anchor" ] || return 1
-  wt=$(grep '^worktree=' "$state/$id.meta" 2>/dev/null | tail -1 | cut -d= -f2- || true)
-  [ -n "$wt" ] && [ -d "$wt" ] || return 1
-  kind=$(grep '^kind=' "$state/$id.meta" 2>/dev/null | tail -1 | cut -d= -f2- || true)
-  [ "$kind" != secondmate ] || return 1
-  if [ -e "$wt/.fm-secondmate-home" ] || [ -L "$wt/.fm-secondmate-home" ]; then
-    return 1
-  fi
+  wt=$(_crew_probe_worktree "$id" "$state") || return 1
   read -r -a names <<< "$FM_WORKTREE_WRITE_PRUNE"
   for name in ${names[@]+"${names[@]}"}; do
     [ "${#prune[@]}" -eq 0 ] || prune+=( -o )
@@ -1894,25 +1904,16 @@ _crew_process_cwds() {  # <bound>  (pids on stdin)
 # its escalation schedule, even while its harness restarts a housekeeping child.
 #
 # 1 for every other outcome, including a missing worktree record, a secondmate
-# home (same exclusion and reason as crew_worktree_written_since), an unreadable
-# process table, and a kernel read that outlives its fixed 5-second bound. Not a
-# pure status-file read: one process-table read plus one working-directory read
-# of those ancestors, so callers reach it only when they would otherwise
-# escalate.
+# home (_crew_probe_worktree owns that exclusion), an unreadable process table,
+# and a kernel read that outlives its fixed 5-second bound. Not a pure
+# status-file read: one process-table read plus one working-directory read of
+# those ancestors, so callers reach it only when they would otherwise escalate.
 crew_worktree_process_started_since() {  # <id> <state> <anchor-file>
-  local id=$1 state=$2 anchor=$3 wt kind bound since window roots cwd
-  [ -n "$id" ] || return 1
+  local id=$1 state=$2 anchor=$3 wt bound since window roots cwd
   [ -f "$anchor" ] || return 1
-  wt=$(grep '^worktree=' "$state/$id.meta" 2>/dev/null | tail -1 | cut -d= -f2- || true)
-  [ -n "$wt" ] && [ -d "$wt" ] || return 1
-  kind=$(grep '^kind=' "$state/$id.meta" 2>/dev/null | tail -1 | cut -d= -f2- || true)
-  [ "$kind" != secondmate ] || return 1
-  if [ -e "$wt/.fm-secondmate-home" ] || [ -L "$wt/.fm-secondmate-home" ]; then
-    return 1
-  fi
-  wt=$(cd "$wt" 2>/dev/null && pwd -P) || return 1
+  wt=$(_crew_probe_worktree "$id" "$state") || return 1
   bound=5
-  if [ "$(uname)" = Darwin ]; then since=$(stat -f %m "$anchor" 2>/dev/null); else since=$(stat -c %Y "$anchor" 2>/dev/null); fi
+  since=$(_fm_status_file_mtime "$anchor")
   case "$since" in ''|*[!0-9]*) return 1 ;; esac
   window=$(( $(date +%s) - since ))
   [ "$window" -gt 0 ] || return 1
@@ -1954,11 +1955,11 @@ crew_worktree_process_started_since() {  # <id> <state> <anchor-file>
 # The current-state read decides which evidence may count:
 #   - a working run attributed to this crew is authoritative. It counts while its
 #     freshest active step showed activity within <window-secs>, or while its ci
-#     step waits on the forge (the pipeline's own CI monitor and its ci_timeout
-#     own that external wait). A working run with neither prints nothing: the
-#     crew's own files and processes never outvote a running pipeline, so a
-#     stalled step escalates even while the crew keeps re-running its blocking
-#     call.
+#     step waits on the forge's pending checks (the pipeline's own CI monitor and
+#     its ci_timeout own that external wait; red checks or an auto-fix round are
+#     not such a wait). A working run with neither prints nothing: the crew's
+#     own files and processes never outvote a running pipeline, so a stalled
+#     step escalates even while the crew keeps re-running its blocking call.
 #   - every other read falls through to the crew's own work: a parked,
 #     finished, failed, or unknown attributed run (its pipeline is idle, so the
 #     crew is the active party), no attributed run, and an unreadable read. A
