@@ -1,0 +1,2 @@
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 15319.1792017638.h8rplE
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.

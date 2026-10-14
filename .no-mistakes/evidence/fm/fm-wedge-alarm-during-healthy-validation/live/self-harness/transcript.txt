@@ -1,0 +1,7 @@
+scenario=self-harness code=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Y260DSWRYVXH3GWGCQCN7S (d8fe03d)
+window FM_STALE_ESCALATE_SECS=260, duration 330s, recorded worktree /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Y260DSWRYVXH3GWGCQCN7S
+tool-call shell 92757 (cwd /private/tmp), its parent harness 35525: claude --model claude-opus-5-5 -p --verbose --output-format 
+fm-crew-state.sh at start: state: working · source: pane · harness busy (fm-spawn)
+[t+268s] WAKE (stale #1): stale: fmlv:fm-lv (idle 260s, possible wedge, escalation 1) 
+[t+331s] watcher still blocking at the end of the run: no wake queued in the last round
+[t+331s] summary: 1 possible-wedge/stale wake(s) in 330s

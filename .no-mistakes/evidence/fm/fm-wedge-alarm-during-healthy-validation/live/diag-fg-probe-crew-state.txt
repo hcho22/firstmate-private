@@ -1,0 +1,61 @@
+[t+ 30s] probe=EVIDENCE running=tests/fm-crew-state.test.sh
+    root 7028 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash bin/fm-test-run.sh --all --json /private/tmp/claude-501/-Users-hc
+    root 73658 IN-WT     cwd=<T>/wt cmd=bash /private/tmp/fmlvd.yDQml2/wt/bin/fm-test-run.sh tests/fm-crew-sta
+    root 72114 elsewhere cwd=<T> cmd=bash /Users/hcho/.no-mistakes/evidence/01M4Y260DSWRYVXH3GWGCQCN7S/live
+[t+ 41s] probe=EVIDENCE running=tests/fm-crew-state.test.sh
+    root 7028 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash bin/fm-test-run.sh --all --json /private/tmp/claude-501/-Users-hc
+    root 74044 IN-WT     cwd=<T>/wt cmd=bash tests/fm-crew-state.test.sh
+    root 72114 elsewhere cwd=<T> cmd=bash /Users/hcho/.no-mistakes/evidence/01M4Y260DSWRYVXH3GWGCQCN7S/live
+[t+ 51s] probe=EVIDENCE running=tests/fm-crew-state.test.sh
+    root 72114 elsewhere cwd=<T> cmd=bash /Users/hcho/.no-mistakes/evidence/01M4Y260DSWRYVXH3GWGCQCN7S/live
+    root 7028 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash bin/fm-test-run.sh --all --json /private/tmp/claude-501/-Users-hc
+    root 74044 IN-WT     cwd=<T>/wt cmd=bash tests/fm-crew-state.test.sh
+[t+ 62s] probe=EVIDENCE running=tests/fm-crew-state.test.sh
+    root 7028 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash bin/fm-test-run.sh --all --json /private/tmp/claude-501/-Users-hc
+    root 74044 IN-WT     cwd=<T>/wt cmd=bash tests/fm-crew-state.test.sh
+    root 72114 elsewhere cwd=<T> cmd=bash /Users/hcho/.no-mistakes/evidence/01M4Y260DSWRYVXH3GWGCQCN7S/live
+[t+ 72s] probe=EVIDENCE running=tests/fm-crew-state.test.sh
+    root 7028 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash bin/fm-test-run.sh --all --json /private/tmp/claude-501/-Users-hc
+    root 21901 elsewhere cwd=/Users/hcho/.treehouse/gr0wthlab-eba8c4/2/gr0wthlab cmd=claude --dangerously-skip-permissions --settings {"feedbackDrafts":"of
+    root 72114 elsewhere cwd=<T> cmd=bash /Users/hcho/.no-mistakes/evidence/01M4Y260DSWRYVXH3GWGCQCN7S/live
+    root 74044 IN-WT     cwd=<T>/wt cmd=bash tests/fm-crew-state.test.sh
+[t+ 83s] probe=EVIDENCE running=tests/fm-crew-state.test.sh
+    root 7028 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash bin/fm-test-run.sh --all --json /private/tmp/claude-501/-Users-hc
+    root 72114 elsewhere cwd=<T> cmd=bash /Users/hcho/.no-mistakes/evidence/01M4Y260DSWRYVXH3GWGCQCN7S/live
+    root 74044 IN-WT     cwd=<T>/wt cmd=bash tests/fm-crew-state.test.sh
+[t+ 94s] probe=EVIDENCE running=tests/fm-crew-state.test.sh
+    root 7028 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash bin/fm-test-run.sh --all --json /private/tmp/claude-501/-Users-hc
+    root 74044 IN-WT     cwd=<T>/wt cmd=bash tests/fm-crew-state.test.sh
+    root 72114 elsewhere cwd=<T> cmd=bash /Users/hcho/.no-mistakes/evidence/01M4Y260DSWRYVXH3GWGCQCN7S/live
+[t+104s] probe=EVIDENCE running=tests/fm-crew-state.test.sh
+    root 7028 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash bin/fm-test-run.sh --all --json /private/tmp/claude-501/-Users-hc
+    root 74044 IN-WT     cwd=<T>/wt cmd=bash tests/fm-crew-state.test.sh
+    root 72114 elsewhere cwd=<T> cmd=bash /Users/hcho/.no-mistakes/evidence/01M4Y260DSWRYVXH3GWGCQCN7S/live
+[t+114s] probe=none     running=tests/fm-crew-state.test.sh
+    root 11698 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 11694 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 11693 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 11695 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 21901 elsewhere cwd=/Users/hcho/.treehouse/gr0wthlab-eba8c4/2/gr0wthlab cmd=claude --dangerously-skip-permissions --settings {"feedbackDrafts":"of
+    root 72114 elsewhere cwd=<T> cmd=bash /Users/hcho/.no-mistakes/evidence/01M4Y260DSWRYVXH3GWGCQCN7S/live
+[t+126s] probe=none     running=tests/fm-crew-state.test.sh
+    root 11694 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 11693 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 11695 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 11698 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 74044 IN-WT     cwd=<T>/wt cmd=bash tests/fm-crew-state.test.sh
+    root 21901 elsewhere cwd=/Users/hcho/.treehouse/gr0wthlab-eba8c4/2/gr0wthlab cmd=claude --dangerously-skip-permissions --settings {"feedbackDrafts":"of
+    root 72114 elsewhere cwd=<T> cmd=bash /Users/hcho/.no-mistakes/evidence/01M4Y260DSWRYVXH3GWGCQCN7S/live
+[t+138s] probe=EVIDENCE running=tests/fm-crew-state.test.sh
+    root 11698 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 11694 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 11693 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 11695 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 72114 elsewhere cwd=<T> cmd=bash /Users/hcho/.no-mistakes/evidence/01M4Y260DSWRYVXH3GWGCQCN7S/live
+    root 74044 IN-WT     cwd=<T>/wt cmd=bash tests/fm-crew-state.test.sh
+[t+151s] probe=EVIDENCE running=tests/fm-crew-state.test.sh
+    root 11695 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 11694 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 72114 elsewhere cwd=<T> cmd=bash /Users/hcho/.no-mistakes/evidence/01M4Y260DSWRYVXH3GWGCQCN7S/live
+    root 11693 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh
+    root 11698 elsewhere cwd=/Users/hcho/.treehouse/firstmate-private-0ac9d2/4/firstmate-private cmd=bash tests/fm-backlog-atomicity.test.sh

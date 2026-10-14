@@ -1,0 +1,36 @@
+13989 56377       00:47 bash tests/fm-watch-triage.test.sh
+54392 56375       00:15 bash tests/fm-watch-triage.test.sh
+56099 91192       06:03 bash bin/fm-test-run.sh tests/fm-watch-triage.test.sh tests/fm-crew-state.test.sh tests/fm-daemon.test.sh tests/fm-teardown.test.sh
+56158 56099       06:02 bash bin/fm-test-run.sh tests/fm-watch-triage.test.sh tests/fm-crew-state.test.sh tests/fm-daemon.test.sh tests/fm-teardown.test.sh
+56165 56158       06:02 perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    my ($idle, $backstop, $watch, $reason, $group) = splice(@ARGV, 0, 5);\012    delete $ENV{FM_TIMEOUT_GROUP_FILE};\012    my $pid = fork;\012    die "fork failed" unless defined $pid;\012    if (!$pid) { setpgrp(0, 0); exec @ARGV or exit 127; }\012    # Set here too, so the group exists before its id is published.\012    setpgrp($pid, $pid);\012    if (length $group && open(my $fh, ">", $group)) { print $fh "$pid\n"; close $fh; }\012    my $start = time;\012    my $last = $start;\012    my $size = -1;\012    while (1) {\012      if (waitpid($pid, $idle || $backstop ? WNOHANG : 0) == $pid) {\012        exit(($? & 127) ? 128 + ($? & 127) : ($? >> 8));\012      }\012      my @st = stat($watch);\012      my $now_size = @st ? $st[7] : 0;\012      my $now = time;\012      if ($now_size != $size) { $size = $now_size; $last = $now; }\012      my $why = $now - $last >= $idle ? "idle" : $now - $start >= $backstop ? "backstop" : "";\012      if ($why ne "") {\012        kill "TERM", -$pid;\012        sleep 0.2;\012        kill "KILL", -$pid;\012        waitpid($pid, 0);\012        if (open(my $fh, ">", $reason)) { print $fh "$why\n"; close $fh; }\012        exit 124;\012      }\012      sleep 0.5;\012    }\012   0 0 /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-test-run.gBVfIa/w2/output /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-test-run.gBVfIa/w2/output.guard /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-test-run.gBVfIa/w2/script.pgid bash tests/fm-watch-triage.test.sh
+56190 56165       06:02 bash tests/fm-watch-triage.test.sh
+56375 56190       06:02 bash tests/fm-watch-triage.test.sh
+56376 56190       06:02 bash tests/fm-watch-triage.test.sh
+56377 56190       06:02 bash tests/fm-watch-triage.test.sh
+56379 56190       06:02 bash tests/fm-watch-triage.test.sh
+62161 13989       00:08 bash -c while :; do bash -c "sleep 2 & wait" & sleep 1; done
+64704 56379       00:05 bash tests/fm-watch-triage.test.sh
+65061 13989       00:05 bash tests/fm-watch-triage.test.sh
+65104 65061       00:05 bash /private/tmp/fmlv.djTTr7/wt/bin/fm-watch.sh
+67523 64704       00:03 bash /private/tmp/fmlv.djTTr7/wt/bin/fm-watch.sh
+69160 62161       00:01 bash -c sleep 2 & wait
+69171 69160       00:01 sleep 2
+70059 62161       00:00 bash -c sleep 2 & wait
+70060 62161       00:00 sleep 1
+70068 70059       00:00 sleep 2
+70069 56376       00:00 bash tests/fm-watch-triage.test.sh
+70201 54392       00:00 (bash)
+70203 70201       00:00 (bash)
+70215 70069       00:00 (bash)
+70286 56190       00:00 (sleep)
+70388 65061       00:00 (sleep)
+70390 64704       00:00 (sleep)
+70468 91192       00:00 (sleep)
+70486 70203       00:00 (bash)
+70492 70215       00:00 (bash)
+70495 67523       00:00 (bash)
+70496 70492       00:00 (cat)
+70498 70495       00:00 (bash)
+91188 91177       07:30 zsh -c unset TMUX TMUX_PANE; while :; do bin/fm-test-run.sh tests/fm-watch-triage.test.sh tests/fm-crew-state.test.sh tests/fm-daemon.test.sh tests/fm-teardown.test.sh; done
+91192 91188       07:30 bash bin/fm-test-run.sh tests/fm-watch-triage.test.sh tests/fm-crew-state.test.sh tests/fm-daemon.test.sh tests/fm-teardown.test.sh
+92177 91192       07:28 perl -e setpgrp(0, 0); my $parent = getppid(); select(undef, undef, undef, 0.5) while getppid() == $parent; exec @ARGV or exit 127 /private/tmp/fmlv.djTTr7/wt/bin/fm-test-run-reap.sh --run /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-test-run.gBVfIa

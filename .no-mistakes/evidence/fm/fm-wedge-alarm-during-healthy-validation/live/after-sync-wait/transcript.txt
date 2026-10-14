@@ -1,0 +1,8 @@
+scenario=sync-wait code=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Y260DSWRYVXH3GWGCQCN7S (d8fe03d)
+window FM_STALE_ESCALATE_SECS=30, duration 210s, tmux target fmlv:fm-lv, worktree /private/tmp/fmlv.Ep0OhA/wt
+fm-crew-state.sh at start: state: working · source: run-step · validating (running) · step test last activity 3s ago
+[t+181s] WAKE (stale #1): stale: fmlv:fm-lv (idle 30s, possible wedge, escalation 1) 
+[t+211s] watcher still blocking at the end of the run: no wake queued in the last round
+[t+211s] pipeline stand-in agent stopped producing output at t+131s
+[t+211s] summary: 1 possible-wedge/stale wake(s) in 210s
+fm-crew-state.sh at end: state: working · source: run-step · validating (running) · step test last activity 85s ago

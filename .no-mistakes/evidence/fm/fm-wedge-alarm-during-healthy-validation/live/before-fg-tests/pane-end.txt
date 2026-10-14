@@ -1,0 +1,40 @@
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-10-14T22:38:29Z tests/fm-crew-state.test.sh family=pure-contract-unit expected_gate_skip=none
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

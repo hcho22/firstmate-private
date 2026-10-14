@@ -1,0 +1,40 @@
+ok - max-defer does not flush or alarm while afk is inactive
+ok - library mode: sourcing the daemon defaults FM_WEDGE_ALARM_EXEC to discard (no test can fire a real notification)
+ok - wake helpers replace inherited notifier overrides with the safe recorder
+ok - the discard seam suppresses every notifier, including command: (fires nothing)
+ok - direct notifier helpers honor the discard seam, including command:
+ok - osascript channel routes through the notifier seam with the summary (never a real notification)
+ok - herdr channel routes through the notifier seam with the summary (never a real notification)
+ok - command channel runs the captain command with the summary on $1 and on stdin
+ok - command channel failures redact configured commands while logging their exit status
+ok - unknown channel directives are redacted while the alarm keeps running
+ok - off disables every active alert regardless of directive position (marker and tmux flash are unaffected)
+ok - auto resolves to the macOS osascript notifier on Darwin (default-on)
+ok - auto on a non-macOS platform selects no built-in OS channel (the marker or a configured command carries it)
+ok - config/wedge-alarm selects every configured channel and skips comment and blank lines
+ok - a failing channel logs and falls back to the next channel, never crashing the alarm
+ok - a hung notifier is bounded, logged, and falls through to the next channel
+ok - a backgrounded command notifier remains bounded until its process group is reaped
+ok - a hung notifier override is bounded, logged, and proceeds to the next channel
+/private/tmp/fmlv.djTTr7/wt/bin/fm-supervise-daemon.sh: line 803: 21629 Terminated: 15          sh -c 'sleep 30 & printf "%s" "$!" > "$1"; wait' sh "$child_file
+"
+ok - daemon shutdown stops and reaps the active notifier process group
+ok - inject_wedge_alarm writes the marker AND emits the active alert even with no tmux status-line (herdr backend)
+ok - in-process wedge throttle prevents alert spam when the marker cannot persist
+ok - fm-send returns 3 with a non-error no-resend warning when confirmation stays pending
+ok - fm-send exits non-zero when initial text send fails
+ok - fm-send exits non-zero unless delivery is proven empty
+ok - discover_supervisor_backend: override > TMUX_PANE > HERDR_ENV+HERDR_PANE_ID > tmux fallback
+ok - discover_supervisor_target: override > TMUX_PANE > herdr '<session>:<pane-id>' composition > firstmate:0 fallback
+ok - pane_is_busy: herdr native busy_state='busy' short-circuits without a capture fallback
+ok - primary busy guard isolates rendered signatures by detected harness
+ok - pane_is_busy: omitted backend defaults to tmux for Grok's isolated fallback
+ok - pane_input_pending: dispatches through fm_backend_composer_state for backend=herdr
+ok - inject_msg: herdr busy-guard defers before ever attempting a submit
+ok - inject_msg: herdr composer-guard defers before ever attempting a submit
+ok - inject_msg: herdr pane-gone check defers before any busy/composer/submit call
+ok - inject_msg: dispatches busy-guard/composer-guard/submit through the herdr backend and succeeds on a confirmed empty composer
+ok - inject_msg: defers on a dead-shell/unreadable composer (unknown), never typing the escalation into a shell
+ok - inject_msg: unrecognized composer states defer by default
+FM_TEST_END 2026-10-14T22:49:41Z tests/fm-daemon.test.sh exit=0 duration_ms=121735 gate_skip=false
+

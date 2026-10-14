@@ -1,0 +1,42 @@
+== 15:46:16
+35525   767 16:09 claude --model claude-opus-5-5 -p --verbose --output-format stream-json --setting-sources user --json-schema {\012\011"typ
+35677 35525 16:08 /Users/hcho/.pencil/mcp/cursor/out/mcp-server-darwin-x64 --app cursor --agent claudeCodeCLI
+-- children of harness 35525:
+35677 35525       16:09 /Users/hcho/.pencil/mcp/cursor/out/mcp-server-darwin-x64 --app cursor --agent claudeCodeCLI
+89047 35525       00:09 /bin/zsh -c source /Users/hcho/.claude/shell-snapshots/snapshot-zsh-1792017015241-sue6ec.sh 2>/dev/null || true && s
+92757 35525       00:03 /bin/zsh -c source /Users/hcho/.claude/shell-snapshots/snapshot-zsh-1792017015241-sue6ec.sh 2>/dev/null || true && s
+== 15:47:18
+35525   767 17:11 claude --model claude-opus-5-5 -p --verbose --output-format stream-json --setting-sources user --json-schema {\012\011"typ
+35677 35525 17:10 /Users/hcho/.pencil/mcp/cursor/out/mcp-server-darwin-x64 --app cursor --agent claudeCodeCLI
+-- children of harness 35525:
+35677 35525       17:10 /Users/hcho/.pencil/mcp/cursor/out/mcp-server-darwin-x64 --app cursor --agent claudeCodeCLI
+89047 35525       01:10 /bin/zsh -c source /Users/hcho/.claude/shell-snapshots/snapshot-zsh-1792017015241-sue6ec.sh 2>/dev/null || true && s
+92757 35525       01:04 /bin/zsh -c source /Users/hcho/.claude/shell-snapshots/snapshot-zsh-1792017015241-sue6ec.sh 2>/dev/null || true && s
+== 15:48:19
+35525   767 18:13 claude --model claude-opus-5-5 -p --verbose --output-format stream-json --setting-sources user --json-schema {\012\011"typ
+35677 35525 18:12 /Users/hcho/.pencil/mcp/cursor/out/mcp-server-darwin-x64 --app cursor --agent claudeCodeCLI
+-- children of harness 35525:
+35677 35525       18:12 /Users/hcho/.pencil/mcp/cursor/out/mcp-server-darwin-x64 --app cursor --agent claudeCodeCLI
+89047 35525       02:12 /bin/zsh -c source /Users/hcho/.claude/shell-snapshots/snapshot-zsh-1792017015241-sue6ec.sh 2>/dev/null || true && s
+92757 35525       02:06 /bin/zsh -c source /Users/hcho/.claude/shell-snapshots/snapshot-zsh-1792017015241-sue6ec.sh 2>/dev/null || true && s
+== 15:49:21
+35525   767 19:15 claude --model claude-opus-5-5 -p --verbose --output-format stream-json --setting-sources user --json-schema {\012\011"typ
+35677 35525 19:14 /Users/hcho/.pencil/mcp/cursor/out/mcp-server-darwin-x64 --app cursor --agent claudeCodeCLI
+-- children of harness 35525:
+35677 35525       19:15 /Users/hcho/.pencil/mcp/cursor/out/mcp-server-darwin-x64 --app cursor --agent claudeCodeCLI
+89047 35525       03:15 /bin/zsh -c source /Users/hcho/.claude/shell-snapshots/snapshot-zsh-1792017015241-sue6ec.sh 2>/dev/null || true && s
+92757 35525       03:09 /bin/zsh -c source /Users/hcho/.claude/shell-snapshots/snapshot-zsh-1792017015241-sue6ec.sh 2>/dev/null || true && s
+== 15:50:24
+35525   767 20:18 claude --model claude-opus-5-5 -p --verbose --output-format stream-json --setting-sources user --json-schema {\012\011"typ
+35677 35525 20:17 /Users/hcho/.pencil/mcp/cursor/out/mcp-server-darwin-x64 --app cursor --agent claudeCodeCLI
+-- children of harness 35525:
+35677 35525       20:17 /Users/hcho/.pencil/mcp/cursor/out/mcp-server-darwin-x64 --app cursor --agent claudeCodeCLI
+89047 35525       04:17 /bin/zsh -c source /Users/hcho/.claude/shell-snapshots/snapshot-zsh-1792017015241-sue6ec.sh 2>/dev/null || true && s
+92757 35525       04:11 /bin/zsh -c source /Users/hcho/.claude/shell-snapshots/snapshot-zsh-1792017015241-sue6ec.sh 2>/dev/null || true && s
+== 15:51:26
+35525   767 21:20 claude --model claude-opus-5-5 -p --verbose --output-format stream-json --setting-sources user --json-schema {\012\011"typ
+35677 35525 21:19 /Users/hcho/.pencil/mcp/cursor/out/mcp-server-darwin-x64 --app cursor --agent claudeCodeCLI
+-- children of harness 35525:
+35677 35525       21:19 /Users/hcho/.pencil/mcp/cursor/out/mcp-server-darwin-x64 --app cursor --agent claudeCodeCLI
+89047 35525       05:19 /bin/zsh -c source /Users/hcho/.claude/shell-snapshots/snapshot-zsh-1792017015241-sue6ec.sh 2>/dev/null || true && s
+92757 35525       05:13 /bin/zsh -c source /Users/hcho/.claude/shell-snapshots/snapshot-zsh-1792017015241-sue6ec.sh 2>/dev/null || true && s

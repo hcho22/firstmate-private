@@ -1,0 +1,7 @@
+scenario=parked-writes code=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Y260DSWRYVXH3GWGCQCN7S (d8fe03d)
+window FM_STALE_ESCALATE_SECS=30, duration 140s, tmux target fmlv:fm-lv, worktree /private/tmp/fmlv.UACTxb/wt
+fm-crew-state.sh at start: state: parked · source: run-step · parked at review: 2 finding(s) (ask-user: authority decision)
+[t+ 12s] WAKE: signal: /private/tmp/fmlv.UACTxb/home/state/lv.status 
+[t+141s] watcher still blocking at the end of the run: no wake queued in the last round
+[t+141s] summary: 0 possible-wedge/stale wake(s) in 140s
+fm-crew-state.sh at end: state: parked · source: run-step · parked at review: 2 finding(s) (ask-user: authority decision)

@@ -1,0 +1,40 @@
+ok - a trailing resolved: event does not corrupt state render (idle stays idle)
+ok - dead window ignores stale status log
+ok - closed pane still reports a terminal run-step
+ok - closed pane still reports an active run-step
+ok - no timeout command uses perl bound
+ok - scout skips the run lookup
+ok - torn-down worktree is handled gracefully
+ok - fm-crew-state remote: alive endpoint falls through to the routed status log
+ok - fm-crew-state remote: an idle alive endpoint reads alive, never gone or dead
+ok - fm-crew-state remote: an unreachable host reads unknown-remote, never gone or dead
+ok - fm-crew-state remote: the remote host's own dead verdict is reported truthfully
+ok - missing meta is handled gracefully
+ok - crew_is_provably_working absorbs a validating crew found only via the runs-list fallback
+ok - crew_is_provably_working still surfaces a genuinely stopped crew (safety property preserved)
+ok - a working run reports its freshest active step's activity age in seconds
+ok - a ci step waiting on its checks is named as a forge wait
+ok - only a ci step waiting on pending checks is named a forge wait; red checks and fix rounds are not
+ok - progress evidence over the real helper: fresh steps and forge waits count, a stalled step or fix round never does, and a parked run counts only its crew's
+own work
+ok - usage error exits 2
+ok - historical same-branch rewritten head is not attributed as current
+ok - active run with valid descendant fix head remains current
+ok - local work advanced past run head invalidates attribution
+ok - pipeline-owned active run binds without head equality and beats the failed row
+ok - a genuinely failed run with no later run is not hidden
+ok - coarse scan anchors the unresolvable active row instead of falling to an older one
+ok - coarse scan with a mismatched anchor stays unknown and lets the pane answer
+ok - the exemption requires branch_sync.state=pipeline_owned
+ok - the exemption never applies to a terminal run
+ok - missing run head falls back instead of matching by branch
+ok - active fix round with an unfetched pipeline head reads working
+ok - unanchored unverifiable active row is never attributed
+ok - unresolvable terminal row never reads as current
+ok - runs-list continuation attribution works when axi answers another branch
+ok - the snapshot overrides steer the read without reaching the processes it starts
+all fm-crew-state tests passed
+FM_TEST_END 2026-10-14T22:59:53Z tests/fm-crew-state.test.sh exit=0 duration_ms=97186 gate_skip=false
+FM_TEST_BEGIN 2026-10-14T22:59:53Z tests/fm-watch-triage.test.sh family=watcher-wake-lock expected_gate_skip=none
+FM_TEST_BEGIN 2026-10-14T22:59:53Z tests/fm-daemon.test.sh family=watcher-wake-lock expected_gate_skip=none
+

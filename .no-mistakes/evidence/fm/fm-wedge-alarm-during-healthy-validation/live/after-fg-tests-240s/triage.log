@@ -1,0 +1,5 @@
+[2026-10-14T15:46:18-0700] absorbed benign signal: /private/tmp/fmlv.djTTr7/home/state/lv.status
+[2026-10-14T15:46:19-0700] absorbed busy (no completed turn) timer reset: fmlv:fm-lv
+[2026-10-14T15:50:23-0700] absorbed busy (no completed turn) (starting new processes in its worktree, idle 242s): fmlv:fm-lv
+[2026-10-14T15:54:24-0700] absorbed busy (no completed turn) (starting new processes in its worktree, idle 240s): fmlv:fm-lv
+[2026-10-14T15:58:26-0700] absorbed busy (no completed turn) (starting new processes in its worktree, idle 241s): fmlv:fm-lv

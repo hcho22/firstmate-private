@@ -1,0 +1,10 @@
+scenario=parked-hung code=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Y260DSWRYVXH3GWGCQCN7S (d8fe03d)
+window FM_STALE_ESCALATE_SECS=30, duration 140s, tmux target fmlv:fm-lv, worktree /private/tmp/fmlv.jjnK5I/wt
+fm-crew-state.sh at start: state: parked · source: run-step · parked at review: 2 finding(s) (ask-user: authority decision)
+[t+ 10s] WAKE: signal: /private/tmp/fmlv.jjnK5I/home/state/lv.status 
+[t+ 51s] WAKE (stale #1): stale: fmlv:fm-lv (idle 31s, possible wedge, escalation 1) 
+[t+ 91s] WAKE (stale #2): stale: fmlv:fm-lv (idle 30s, possible wedge, escalation 2) 
+[t+132s] WAKE (stale #3): stale: fmlv:fm-lv (idle 33s, possible wedge, escalation 3, demand-deep-inspection: same pane has wedge-escalated 3 times in a row - do not re-absorb on the run-step/pane state alone) 
+[t+141s] watcher still blocking at the end of the run: no wake queued in the last round
+[t+141s] summary: 3 possible-wedge/stale wake(s) in 140s
+fm-crew-state.sh at end: state: parked · source: run-step · parked at review: 2 finding(s) (ask-user: authority decision)

@@ -1,0 +1,6 @@
+scenario=fg-tests code=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Y260DSWRYVXH3GWGCQCN7S (d8fe03d)
+window FM_STALE_ESCALATE_SECS=240, duration 900s, tmux target fmlv:fm-lv, worktree /private/tmp/fmlv.djTTr7/wt
+fm-crew-state.sh at start: state: working · source: pane · harness busy (fm-spawn)
+[t+901s] watcher still blocking at the end of the run: no wake queued in the last round
+[t+901s] summary: 0 possible-wedge/stale wake(s) in 900s
+fm-crew-state.sh at end: state: working · source: pane · harness busy (fm-spawn)

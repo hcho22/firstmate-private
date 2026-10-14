@@ -1,0 +1,5 @@
+[2026-10-14T15:38:30-0700] absorbed benign signal: /private/tmp/fmlv.vRQTlx/home/state/lv.status
+[2026-10-14T15:38:42-0700] absorbed non-terminal stale (provably working): fmlv:fm-lv
+[2026-10-14T15:39:17-0700] absorbed non-terminal stale (its validation run is waiting on CI checks, idle 34s): fmlv:fm-lv
+[2026-10-14T15:39:48-0700] absorbed non-terminal stale (its validation run is waiting on CI checks, idle 30s): fmlv:fm-lv
+[2026-10-14T15:40:19-0700] absorbed non-terminal stale (its validation run is waiting on CI checks, idle 30s): fmlv:fm-lv

@@ -1,0 +1,8 @@
+scenario=fg-tests code=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Y260DSWRYVXH3GWGCQCN7S (d8fe03d)
+window FM_STALE_ESCALATE_SECS=30, duration 170s, tmux target fmlv:fm-lv, worktree /private/tmp/fmlv.6zHYvW/wt
+fm-crew-state.sh at start: state: working · source: pane · harness busy (fm-spawn)
+[t+110s] WAKE (stale #1): stale: fmlv:fm-lv (idle 33s, possible wedge, escalation 1) 
+[t+149s] WAKE (stale #2): stale: fmlv:fm-lv (idle 32s, possible wedge, escalation 2) 
+[t+171s] watcher still blocking at the end of the run: no wake queued in the last round
+[t+171s] summary: 2 possible-wedge/stale wake(s) in 170s
+fm-crew-state.sh at end: state: working · source: pane · harness busy (fm-spawn)

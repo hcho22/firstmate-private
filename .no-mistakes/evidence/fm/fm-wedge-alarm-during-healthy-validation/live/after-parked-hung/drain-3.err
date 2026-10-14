@@ -1,0 +1,2 @@
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 4 --recovery-generation 34556.1792017589.eVsbXL
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.

@@ -1,0 +1,8 @@
+scenario=ci-red code=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Y260DSWRYVXH3GWGCQCN7S (d8fe03d)
+window FM_STALE_ESCALATE_SECS=30, duration 140s, tmux target fmlv:fm-lv, worktree /private/tmp/fmlv.AIytaW/wt
+fm-crew-state.sh at start: state: working · source: run-step · validating (running) · step ci last activity 1793s ago
+[t+ 57s] WAKE (stale #1): stale: fmlv:fm-lv (idle 32s, possible wedge, escalation 1) 
+[t+ 95s] WAKE (stale #2): stale: fmlv:fm-lv (idle 30s, possible wedge, escalation 2) 
+[t+136s] WAKE (stale #3): stale: fmlv:fm-lv (idle 33s, possible wedge, escalation 3, demand-deep-inspection: same pane has wedge-escalated 3 times in a row - do not re-absorb on the run-step/pane state alone) 
+[t+140s] summary: 3 possible-wedge/stale wake(s) in 140s
+fm-crew-state.sh at end: state: working · source: run-step · validating (running) · step ci last activity 1931s ago

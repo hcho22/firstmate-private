@@ -1,0 +1,9 @@
+scenario=fg-tests code=/tmp/fmlv-base.eRT2EX (7516a6f)
+window FM_STALE_ESCALATE_SECS=30, duration 140s, tmux target fmlv:fm-lv, worktree /private/tmp/fmlv.xaiCiH/wt
+fm-crew-state.sh at start: state: working · source: pane · harness busy (fm-spawn)
+[t+ 50s] WAKE (stale #1): stale: fmlv:fm-lv (idle 32s, possible wedge, escalation 1) 
+[t+ 96s] WAKE (stale #2): stale: fmlv:fm-lv (idle 33s, possible wedge, escalation 2) 
+[t+133s] WAKE (stale #3): stale: fmlv:fm-lv (idle 30s, possible wedge, escalation 3, demand-deep-inspection: same pane has wedge-escalated 3 times in a row - do not re-absorb on the run-step/pane state alone) 
+[t+141s] watcher still blocking at the end of the run: no wake queued in the last round
+[t+141s] summary: 3 possible-wedge/stale wake(s) in 140s
+fm-crew-state.sh at end: state: working · source: pane · harness busy (fm-spawn)

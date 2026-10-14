@@ -1,0 +1,4 @@
+[2026-10-14T15:38:40-0700] absorbed benign signal: /private/tmp/fmlv.niiMPd/home/state/lv.status
+[2026-10-14T15:38:51-0700] absorbed non-terminal stale (provably working): fmlv:fm-lv
+[2026-10-14T15:39:31-0700] absorbed non-terminal stale timer reset: fmlv:fm-lv
+[2026-10-14T15:40:08-0700] absorbed non-terminal stale timer reset: fmlv:fm-lv

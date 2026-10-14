@@ -1,0 +1,5 @@
+[2026-10-14T15:38:31-0700] absorbed benign signal: /private/tmp/fmlv.AuVtwi/home/state/lv.status
+[2026-10-14T15:38:41-0700] absorbed non-terminal stale (provably working): fmlv:fm-lv
+[2026-10-14T15:39:19-0700] absorbed non-terminal stale timer reset: fmlv:fm-lv
+[2026-10-14T15:39:57-0700] absorbed non-terminal stale timer reset: fmlv:fm-lv
+[2026-10-14T15:40:35-0700] absorbed non-terminal stale timer reset: fmlv:fm-lv
