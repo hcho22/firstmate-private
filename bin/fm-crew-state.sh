@@ -51,6 +51,10 @@
 #      checks" from "checks green, waiting on merge" (see nm_ci_checks_state) -
 #      a ci-step log-tail check overrides working -> done once checks read
 #      green, so a green PR is never silently read as still-validating.
+#      A working run with full detail also carries its progress evidence as
+#      detail segments: `step <name> last activity <secs>s ago` for the
+#      freshest active step (axi status' active_steps last_activity), and
+#      `ci waiting on checks` while the ci step waits on the forge.
 #   3. Reconcile the status log: if its last line says needs-decision/blocked but
 #      the run-step shows the run moved on, the log is deterministically stale and
 #      is flagged superseded. A genuinely parked run plus a needs-decision log
@@ -524,6 +528,22 @@ if [ "$HAVE_RUN" = 1 ]; then
             ;;
         esac
       fi
+    fi
+  fi
+
+  # Progress evidence for the watcher's wedge timer, read from the same TOON:
+  # the freshest active step's last activity, normalized to seconds, and the
+  # ci step's forge wait. The pipeline logs a still-running CI check only on
+  # change, so a long CI wait shows no fresh activity; the wait itself is named
+  # instead. Both are plain detail segments (crew_progress_evidence in
+  # fm-classify-lib.sh owns how they are judged).
+  if [ "$RUN_STATE" = working ] && [ "$RUN_SOURCE" = full ]; then
+    STEP_ACTIVITY=$(fm_nm_freshest_step_activity "$RUN_OUT")
+    if [ -n "$STEP_ACTIVITY" ]; then
+      RUN_DETAIL="$RUN_DETAIL${SEP}step ${STEP_ACTIVITY% *} last activity ${STEP_ACTIVITY##* }s ago"
+    fi
+    if [ "$CI_STEP_STATUS" = running ] && [ "$CI_LOG_STATE" = not-ready ]; then
+      RUN_DETAIL="$RUN_DETAIL${SEP}ci waiting on checks"
     fi
   fi
 

@@ -214,3 +214,86 @@ fm_nm_runs_status_for_worktree() {  # <worktree> <branch> <runs-list-output> [ex
   done <<< "$list"
   return 0
 }
+
+# Seconds in one compact duration as `axi status` renders it: `<n>s`,
+# `<n>m<n>s`, `<n>h<n>m`, or `<n>d<n>h`. Prints nothing for anything else, so
+# an unrecognized rendering reads as no activity rather than as fresh activity.
+fm_nm_compact_duration_secs() {  # <duration>
+  local d=$1 total=0 n unit
+  [ -n "$d" ] || return 0
+  while [ -n "$d" ]; do
+    n=${d%%[!0-9]*}
+    [ -n "$n" ] || return 0
+    d=${d#"$n"}
+    unit=${d:0:1}
+    d=${d:1}
+    case "$unit" in
+      d) total=$(( total + 10#$n * 86400 )) ;;
+      h) total=$(( total + 10#$n * 3600 )) ;;
+      m) total=$(( total + 10#$n * 60 )) ;;
+      s) total=$(( total + 10#$n )) ;;
+      *) return 0 ;;
+    esac
+  done
+  printf '%s' "$total"
+}
+
+# The freshest activity among the run's active steps, from the `active_steps`
+# table `axi status` prints while a step is running or fixing:
+#   active_steps[N]{step,status,active_for,round_active_for,last_activity,agent_pid,round}:
+#     test,fixing,2m35s,11s,"9s ago: claude producing output","84750",fix 1
+# The pipeline refreshes a step's last_activity from its step log and from its
+# own agent's output, and prefixes it with `quiet ` past step_quiet_warning;
+# either way the age is the leading `<duration> ago`. Columns are located by
+# header name, cells may be double-quoted with embedded commas, and every row
+# whose age cannot be read is skipped. Prints "<step> <age-secs>" for the
+# freshest readable row, or nothing when the table is absent or unreadable.
+fm_nm_freshest_step_activity() {  # <toon-output>
+  local rows step age best_step='' best_age='' secs
+  rows=$(printf '%s\n' "$1" | awk '
+    function cells(line, out,   n, i, c, q, cur) {
+      n = 0; q = 0; cur = ""
+      for (i = 1; i <= length(line); i++) {
+        c = substr(line, i, 1)
+        if (c == "\"") { q = !q; continue }
+        if (c == "," && !q) { out[++n] = cur; cur = ""; continue }
+        cur = cur c
+      }
+      out[++n] = cur
+      return n
+    }
+    !inside && /^[[:space:]]*active_steps\[[0-9]+\]\{[^}]*\}:[[:space:]]*$/ {
+      hdr = $0
+      sub(/^[^{]*\{/, "", hdr); sub(/\}.*$/, "", hdr)
+      nh = split(hdr, names, ",")
+      sc = 0; ac = 0
+      for (i = 1; i <= nh; i++) {
+        if (names[i] == "step") sc = i
+        if (names[i] == "last_activity") ac = i
+      }
+      ind = match($0, /[^[:space:]]/)
+      inside = (sc && ac) ? 1 : 0
+      next
+    }
+    inside {
+      if (match($0, /[^[:space:]]/) <= ind || $0 ~ /^[[:space:]]*$/) exit
+      line = $0; sub(/^[[:space:]]+/, "", line)
+      delete row
+      cells(line, row)
+      printf "%s\t%s\n", row[sc], row[ac]
+    }
+  ')
+  while IFS=$'\t' read -r step age; do
+    [ -n "$step" ] || continue
+    age=${age#quiet }
+    case "$age" in *" ago"|*" ago:"*) age=${age%% ago*} ;; *) continue ;; esac
+    secs=$(fm_nm_compact_duration_secs "$age")
+    [ -n "$secs" ] || continue
+    if [ -z "$best_age" ] || [ "$secs" -lt "$best_age" ]; then
+      best_step=$step
+      best_age=$secs
+    fi
+  done <<< "$rows"
+  [ -n "$best_age" ] && printf '%s %s' "$best_step" "$best_age"
+  return 0
+}
