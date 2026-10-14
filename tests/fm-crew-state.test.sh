@@ -344,6 +344,37 @@ run:
 EOF
 }
 
+# A running/fixing run as the installed CLI prints it while a step is active,
+# including the active_steps table whose last_activity cell carries the step's
+# freshest activity age (captured from no-mistakes v1.79.0 axi status).
+run_fixing_with_activity() {  # <branch> <last-activity-cell>
+  cat <<EOF
+run:
+  id: "01RUN"
+  branch: $1
+  status: running
+  head: "${FM_FAKE_RUN_HEAD:-abc1234}"
+  pr: ""
+  findings: 1 awaiting
+  steps[3]{step,status,findings,duration_ms}:
+    intent,completed,0,216
+    review,completed,0,5432
+    test,fixing,1,0
+  active_steps[1]{step,status,active_for,round_active_for,last_activity,agent_pid,round}:
+    test,fixing,2m35s,11s,"$2","84750",fix 1
+branch_sync:
+  state: pipeline_owned
+EOF
+}
+
+run_ci_monitoring_with_activity() {  # <branch> <last-activity-cell>
+  run_ci_monitoring "$1"
+  cat <<EOF
+  active_steps[1]{step,status,active_for,round_active_for,last_activity,agent_pid,round}:
+    ci,running,31m4s,31m4s,"$2","",round 1
+EOF
+}
+
 # ---------------------------------------------------------------------------
 # (a) active run-step is authoritative
 test_active_run_is_authoritative() {
@@ -1320,6 +1351,136 @@ EOF
   pass "crew_is_provably_working still surfaces a genuinely stopped crew (safety property preserved)"
 }
 
+# Progress evidence for the watcher's wedge timer: a working run reports its
+# freshest active step's activity age in seconds, from axi status' own table.
+test_active_step_activity_reported_in_seconds() {
+  reset_fakes
+  local d out; d=$(new_case step-activity)
+  make_repo_on_branch "$d/wt" fm/feat-act
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/feat-act.meta" "window=fm:fm-feat-act" "worktree=$d/wt" "kind=ship"
+  FM_FAKE_AXI_STATUS="$(run_fixing_with_activity fm/feat-act "9s ago: claude producing output, still going")"
+  out=$(run_crew_state "$d" feat-act)
+  assert_contains "$out" "state: working" "an active fix round stays working"
+  assert_contains "$out" "step test last activity 9s ago" "the active step's activity age was not reported"
+  FM_FAKE_AXI_STATUS="$(run_fixing_with_activity fm/feat-act "quiet 1h2m ago: log: running tests")"
+  out=$(run_crew_state "$d" feat-act)
+  assert_contains "$out" "step test last activity 3720s ago" "a quiet step's age was not normalized to seconds"
+  FM_FAKE_AXI_STATUS="$(run_fixing_with_activity fm/feat-act "unknown")"
+  out=$(run_crew_state "$d" feat-act)
+  assert_not_contains "$out" "last activity" "an unknown activity age was reported as activity"
+  pass "a working run reports its freshest active step's activity age in seconds"
+}
+
+# A ci step whose latest monitor marker says the checks are still running is a
+# forge wait, named as such even though its logged activity is old.
+test_ci_wait_on_checks_reported() {
+  reset_fakes
+  local d out; d=$(new_case ci-wait-evidence)
+  make_repo_on_branch "$d/wt" fm/feat-ciev
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/feat-ciev.meta" "window=fm:fm-feat-ciev" "worktree=$d/wt" "kind=ship"
+  FM_FAKE_AXI_STATUS="$(run_ci_monitoring_with_activity fm/feat-ciev "29m50s ago: log: CI checks running, waiting for results...")"
+  FM_FAKE_CI_LOGS="monitoring CI for PR #2 (timeout: 4h0m0s)...
+CI checks running, waiting for results..."
+  out=$(run_crew_state "$d" feat-ciev)
+  assert_contains "$out" "state: working" "a ci step waiting on checks stays working"
+  assert_contains "$out" "ci waiting on checks" "the forge wait was not named"
+  assert_contains "$out" "step ci last activity 1790s ago" "the ci step's own activity age was not reported"
+  FM_FAKE_CI_LOGS=""
+  out=$(run_crew_state "$d" feat-ciev)
+  assert_not_contains "$out" "ci waiting on checks" "an unreadable ci log was read as a forge wait"
+  pass "a ci step waiting on its checks is named as a forge wait"
+}
+
+# Only a monitor still waiting on pending checks is a forge wait. Red checks, an
+# auto-fix round, and a fix that ran out of attempts keep the run working (a
+# green reading must still never be masked) but are never named a forge wait, so
+# a ci step stalled on them carries no progress evidence of its own.
+test_ci_wait_named_only_for_pending_checks() {
+  reset_fakes
+  local d out marker; d=$(new_case ci-wait-pending-only)
+  make_repo_on_branch "$d/wt" fm/feat-cipend
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/feat-cipend.meta" "window=fm:fm-feat-cipend" "worktree=$d/wt" "kind=ship"
+  FM_FAKE_AXI_STATUS="$(run_ci_monitoring_with_activity fm/feat-cipend "15m0s ago: log: CI monitor")"
+  for marker in \
+    "CI checks running, waiting for results..." \
+    "no CI checks reported yet, waiting for checks to register..." \
+    "base branch advanced (aaaaaaa..bbbbbbb), re-arming CI monitor timeout" \
+    "issues detected but checks still pending, waiting for all checks to complete..."; do
+    FM_FAKE_CI_LOGS="monitoring CI for PR #2 (timeout: 4h0m0s)...
+$marker"
+    out=$(run_crew_state "$d" feat-cipend)
+    assert_contains "$out" "state: working" "pending marker '$marker' did not stay working"
+    assert_contains "$out" "ci waiting on checks" "pending marker '$marker' was not named a forge wait"
+  done
+  for marker in \
+    "CI checks failed before repository steps ran" \
+    "issues detected: 1 CI check failing" \
+    "issues detected: merge conflict - auto-fixing (attempt 2/10)..." \
+    "issues detected: Lint - max auto-fix attempts (3) reached, waiting for manual intervention..."; do
+    FM_FAKE_CI_LOGS="monitoring CI for PR #2 (timeout: 4h0m0s)...
+CI checks running, waiting for results...
+$marker"
+    out=$(run_crew_state "$d" feat-cipend)
+    assert_contains "$out" "state: working" "red marker '$marker' did not stay working"
+    assert_not_contains "$out" "state: done" "red marker '$marker' read as done"
+    assert_not_contains "$out" "ci waiting on checks" "red marker '$marker' was named a forge wait"
+  done
+  pass "only a ci step waiting on pending checks is named a forge wait; red checks and fix rounds are not"
+}
+
+# The watcher's evidence read over the REAL helper and the captured CLI format:
+# fresh step activity and a forge wait count, a stalled step does not, and the
+# crew's own worktree writes never outvote its working run. A run parked at a
+# gate leaves its pipeline idle, so there the crew's own writes count, and a
+# parked run whose crew wrote nothing does not.
+test_progress_evidence_over_real_helper() {
+  reset_fakes
+  local d anchor out; d=$(new_case progress-evidence-real)
+  make_repo_on_branch "$d/wt" fm/feat-prog
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/feat-prog.meta" "window=fm:fm-feat-prog" "worktree=$d/wt" "kind=ship"
+  anchor="$d/anchor"
+  : > "$anchor"
+  touch -t 200001010000 "$anchor"
+  FM_FAKE_AXI_STATUS="$(run_fixing_with_activity fm/feat-prog "6s ago: claude producing output")"
+  out=$(PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" \
+    crew_progress_evidence feat-prog "$d/state" "$anchor" 240) \
+    || fail "fresh step activity from the real CLI format was not progress evidence"
+  assert_contains "$out" "validation step test was active 6s ago" "the evidence was not named"
+  FM_FAKE_AXI_STATUS="$(run_fixing_with_activity fm/feat-prog "15m0s ago: claude producing output")"
+  printf 'x\n' > "$d/wt/written-by-crew.txt"
+  PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" \
+    crew_progress_evidence feat-prog "$d/state" "$anchor" 240 >/dev/null \
+    && fail "a stalled step counted as progress because the crew wrote its worktree"
+  FM_FAKE_AXI_STATUS="$(run_ci_monitoring_with_activity fm/feat-prog "29m50s ago: log: CI checks running, waiting for results...")"
+  FM_FAKE_CI_LOGS="CI checks running, waiting for results..."
+  out=$(PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" \
+    crew_progress_evidence feat-prog "$d/state" "$anchor" 240) \
+    || fail "a ci step waiting on its checks was not progress evidence"
+  assert_contains "$out" "waiting on CI checks" "the forge wait evidence was not named"
+  FM_FAKE_AXI_STATUS="$(run_ci_monitoring_with_activity fm/feat-prog "15m0s ago: log: issues detected: merge conflict - auto-fixing (attempt 2/10)...")"
+  FM_FAKE_CI_LOGS="CI checks running, waiting for results...
+issues detected: merge conflict - auto-fixing (attempt 2/10)..."
+  PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" \
+    crew_progress_evidence feat-prog "$d/state" "$anchor" 240 >/dev/null \
+    && fail "a ci step stalled in an auto-fix round counted as a forge wait"
+  FM_FAKE_CI_LOGS=""
+  FM_FAKE_AXI_STATUS="$(run_parked fm/feat-prog)"
+  out=$(PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" \
+    crew_progress_evidence feat-prog "$d/state" "$anchor" 240) \
+    || fail "a parked run's crew writing its worktree was not progress evidence"
+  assert_contains "$out" "writing its worktree" "the parked run's write evidence was not named"
+  # A quiet window that opens now: the crew writes nothing more inside it.
+  touch "$anchor"
+  PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" \
+    crew_progress_evidence feat-prog "$d/state" "$anchor" 240 >/dev/null \
+    && fail "a run parked at a gate counted as progress while its crew did nothing"
+  pass "progress evidence over the real helper: fresh steps and forge waits count, a stalled step or fix round never does, and a parked run counts only its crew's own work"
+}
+
 # Usage error (no id) is the one non-zero exit.
 test_usage_error() {
   reset_fakes
@@ -1827,6 +1988,10 @@ test_remote_dead_reports_remote_verdict
 test_missing_meta
 test_provably_working_via_runs_list_fallback
 test_not_provably_working_when_stopped
+test_active_step_activity_reported_in_seconds
+test_ci_wait_on_checks_reported
+test_ci_wait_named_only_for_pending_checks
+test_progress_evidence_over_real_helper
 test_usage_error
 test_historical_same_branch_rewritten_head_not_current
 test_active_run_descendant_fix_head_remains_current

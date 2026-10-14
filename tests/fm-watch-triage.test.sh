@@ -649,6 +649,63 @@ SH
   pass "the worktree write probe is wall-clock bounded, and hitting the bound reads as no write evidence"
 }
 
+# A worker's long foreground command living in <wt>: a sharded runner that
+# starts an overlapping shard every second, each shard starting its own child, as
+# a sharded test suite's shard scripts launch test after test. Overlapping shards
+# keep a fresh process tree running at every instant. Run it in the background
+# and read its pid from $!.
+shard_runner() {  # <wt>
+  cd "$1" && exec bash -c 'while :; do bash -c "sleep 2 & wait" & sleep 1; done'
+}
+
+# crew_worktree_process_started_since: a fresh process tree started under a
+# long-lived process of the crew's own worktree counts, bound by kernel facts
+# (process ancestry, start time, and working directory) rather than by any
+# process name. A long command that starts nothing new, a harness that only
+# restarts one lone housekeeping child of its own, a supervisor that merely runs
+# a command inside the worktree, and a secondmate home never count.
+test_worktree_process_probe_classifier() {
+  local dir state anchor wt runner harness outsider
+  dir=$(make_case classify-process-probe); state="$dir/state"
+  anchor="$state/anchor"; wt="$dir/wt"
+  mkdir -p "$wt"
+  printf 'window=test:fm-proc\nkind=ship\nworktree=%s\n' "$wt" > "$state/proc.meta"
+  printf 'window=test:fm-mate\nkind=secondmate\nworktree=%s\n' "$wt" > "$state/mate.meta"
+  # The crew's own long command, whose shards start their own children.
+  shard_runner "$wt" &
+  runner=$!
+  # The crew's harness: its foreground child never ends, while it keeps
+  # restarting one lone housekeeping child of its own (Claude Code's caffeinate).
+  ( cd "$wt" && exec bash -c 'sleep 600 & echo $! > "$1"; while :; do sleep 1 & wait $!; done' _ "$dir/hung.pid" ) &
+  harness=$!
+  # Both long-lived processes predate the quiet window that opens here.
+  sleep 3
+  : > "$anchor"
+  sleep 2
+  crew_worktree_process_started_since proc "$state" "$anchor" \
+    || fail "a fresh process tree under the crew's own long-lived worktree process was not evidence"
+  crew_worktree_process_started_since mate "$state" "$anchor" \
+    && fail "a secondmate home's processes were read as crew progress"
+  crew_worktree_process_started_since proc "$state" "$state/no-such-anchor" \
+    && fail "a missing anchor produced process evidence"
+  kill "$runner" 2>/dev/null || true
+  wait "$runner" 2>/dev/null || true
+  # The runner's last shards may outlive it by up to two seconds.
+  sleep 3
+  crew_worktree_process_started_since proc "$state" "$anchor" \
+    && fail "a harness that only restarts a lone child while its foreground child hangs was read as progress"
+  # A supervisor-style read: a fresh process tree inside the worktree whose
+  # nearest pre-window ancestor (this test's shell) lives elsewhere.
+  ( cd "$wt" && exec bash -c 'sleep 30 & echo $! > "$1"; wait' _ "$dir/outsider.pid" ) &
+  outsider=$!
+  wait_numeric_file "$dir/outsider.pid" || fail "the supervisor-style process tree never started"
+  crew_worktree_process_started_since proc "$state" "$anchor" \
+    && fail "a process tree started inside the worktree by an outside supervisor was read as crew progress"
+  kill "$harness" "$outsider" "$(cat "$dir/hung.pid")" "$(cat "$dir/outsider.pid")" 2>/dev/null || true
+  wait "$harness" "$outsider" 2>/dev/null || true
+  pass "the process probe counts only a fresh process tree under the crew's own long-lived worktree process"
+}
+
 # signal_crew_provably_working: a no-verb "signal:" wake is benign ONLY when EVERY
 # task it references is provably working; if any crew has stopped, or no task can be
 # resolved, it surfaces. Files map to ids by stripping .status / .turn-ended.
@@ -3506,6 +3563,332 @@ test_terminal_first_sight_drops_a_finished_write_deferral_chain() {
   pass "both first-sight paths through a captain-relevant status drop a finished write-deferral chain with the idle window"
 }
 
+# --- wedge timer: task-bound progress evidence ---------------------------------
+# The false possible-wedge alarms of 2026-10-13/14: a worker blocked on its
+# validation tool's synchronous response while the pipeline's agent kept
+# producing output, a run whose ci step waited on GitHub for half an hour, and a
+# worker running its own long sharded test command in the foreground. Each
+# escalated once per window and demanded deep inspection from the third while
+# its work was visibly progressing. These cases pin that task-bound progress
+# evidence defers the escalation, and that every real wedge still escalates.
+
+# An idle crew whose stale pane hash was already classified as working.
+progress_idle_fixture() {  # <case-name> <id> <window> <status-line> -> echoes dir
+  local dir state key pane_hash sig id=$2 window=$3
+  dir=$(make_case "$1"); state="$dir/state"
+  mkdir -p "$dir/wt"
+  printf 'idle pane' > "$dir/pane.txt"
+  printf 'window=%s\nkind=ship\nworktree=%s\n' "$window" "$dir/wt" > "$state/$id.meta"
+  printf '%s\n' "$4" > "$state/$id.status"
+  sig=$(seen_sig "$state/$id.status"); printf '%s' "$sig" > "$state/.seen-${id}_status"
+  key=$(printf '%s' "$window" | tr ':/.' '___')
+  pane_hash=$(hash_text "idle pane")
+  printf '%s' "$pane_hash" > "$state/.hash-$key"
+  printf '1\n' > "$state/.count-$key"
+  printf '%s' "$pane_hash" > "$state/.stale-$key"
+  printf '%s\n' "$dir"
+}
+
+# One watcher round on that idle window, opened <back> seconds ago (default 500,
+# past the 240s window). Prints "deferred" when the watcher stays quiet for a
+# whole poll cycle and restarts the window, otherwise "escalated: <reason>".
+# Every round's intentional stop or wake is acknowledged so the next round
+# starts from an empty queue.
+progress_round() {  # <dir> <window> <back-secs> [env assignments...]
+  local dir=$1 window=$2 back=$3 state key out pid since
+  shift 3
+  state="$dir/state"; out="$dir/watch.out"
+  key=$(printf '%s' "$window" | tr ':/.' '___')
+  back=$(( $(date +%s) - back ))
+  echo "$back" > "$state/.stale-since-$key"
+  set_mtime "$back" "$state/.stale-since-$key"
+  : > "$out"
+  env PATH="$dir/fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$dir/pane.txt" \
+    FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$dir/fakebin/fm-crew-state.sh" \
+    FM_STALE_ESCALATE_SECS=240 FM_PAUSE_RESURFACE_SECS=999999 FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$@" "$WATCH" > "$out" &
+  pid=$!
+  if wait_poll_cycle "$state" "$pid"; then
+    reap "$pid"
+    since=$(cat "$state/.stale-since-$key" 2>/dev/null || echo 0)
+    ack_stopped_cycle "$state" >/dev/null 2>&1 || { echo "unacknowledged quiet round"; return; }
+    if [ ! -s "$out" ] && [ "$since" -gt "$back" ]; then
+      echo deferred
+    else
+      echo "quiet without a deferral: since=$since out=$(cat "$out")"
+    fi
+    return
+  fi
+  wait_for_exit "$pid" 100 || true
+  echo "escalated: $(cat "$out")"
+  ack_stopped_cycle "$state" >/dev/null 2>&1 || echo "unacknowledged escalation"
+}
+
+# Three consecutive windows of one fixture; fails unless each deferred.
+assert_three_deferrals() {  # <dir> <window> <what> [env assignments...]
+  local dir=$1 window=$2 what=$3 n r key
+  shift 3
+  key=$(printf '%s' "$window" | tr ':/.' '___')
+  n=1
+  while [ "$n" -le 3 ]; do
+    r=$(progress_round "$dir" "$window" 500 "$@")
+    [ "$r" = deferred ] || fail "$what: window $n was not deferred: $r"
+    n=$((n + 1))
+  done
+  [ ! -e "$dir/state/.wedge-escalations-$key" ] || fail "$what: a deferral advanced the escalation counter"
+  [ -e "$dir/state/.writing-since-$key" ] || fail "$what: the deferral chain was not recorded"
+}
+
+# Three consecutive windows of one fixture; fails unless each escalated as a
+# possible wedge, with demand-deep-inspection from the third.
+assert_three_escalations() {  # <dir> <window> <what> [env assignments...]
+  local dir=$1 window=$2 what=$3 n r
+  shift 3
+  n=1
+  while [ "$n" -le 3 ]; do
+    r=$(progress_round "$dir" "$window" 500 "$@")
+    case "$r" in
+      "escalated: stale: $window (idle "*", possible wedge, escalation $n"*) ;;
+      *) fail "$what: window $n did not escalate as possible wedge $n: $r" ;;
+    esac
+    if [ "$n" -lt 3 ]; then
+      case "$r" in *demand-deep-inspection*) fail "$what: window $n demanded deep inspection early: $r" ;; esac
+    else
+      case "$r" in *demand-deep-inspection*) ;; *) fail "$what: window 3 did not demand deep inspection: $r" ;; esac
+    fi
+    n=$((n + 1))
+  done
+}
+
+# Case 1: blocked on the validation tool's synchronous response, idle pane, last
+# status a declared wait, while the pipeline's own agent produced output seconds
+# ago.
+test_wedge_deferred_while_validation_step_is_active() {
+  local dir
+  dir=$(progress_idle_fixture wedge-progress-sync-wait sync test:fm-sync 'paused: waiting on the validation response')
+  assert_three_deferrals "$dir" test:fm-sync "blocked on a validation run whose step is active" \
+    FM_FAKE_CREW_STATE='state: working · source: run-step · validating (fixing) · step test last activity 4s ago'
+  pass "a worker blocked on its validation run is not wedge-escalated while the run's active step shows fresh activity"
+}
+
+# Case 2: the run's ci step waits on GitHub checks; the pipeline logged the
+# running checks once, half an hour ago.
+test_wedge_deferred_while_ci_waits_on_checks() {
+  local dir
+  dir=$(progress_idle_fixture wedge-progress-ci-wait ciwait test:fm-ciwait 'working: validating')
+  assert_three_deferrals "$dir" test:fm-ciwait "a run waiting on CI checks" \
+    FM_FAKE_CREW_STATE='state: working · source: run-step · ci running · step ci last activity 1790s ago · ci waiting on checks'
+  pass "a worker whose validation run waits on CI checks is not wedge-escalated"
+}
+
+# Real wedge: the attributed run's active step has shown nothing for longer than
+# the window. The crew's own worktree writes do not outvote its pipeline.
+test_wedge_escalates_when_the_active_step_is_silent() {
+  local dir
+  dir=$(progress_idle_fixture wedge-progress-silent-step silent test:fm-silent 'working: validating')
+  printf 'scratch\n' > "$dir/wt/notes.txt"
+  assert_three_escalations "$dir" test:fm-silent "a run whose active step is silent" \
+    FM_FAKE_CREW_STATE='state: working · source: run-step · validating (running) · step review last activity 900s ago'
+  pass "a run whose active step has been silent past the window still escalates, demanding deep inspection from the third"
+}
+
+# Real wedges with no admissible evidence each escalate at the unchanged window:
+# a run parked at a gate nobody answers and a failed run, each while its crew
+# neither writes its worktree nor starts new work there, a run that reports
+# activity it cannot read, a dead endpoint with no run, and an unreadable
+# current-state read.
+test_wedge_escalates_without_progress_evidence() {
+  local dir verdict r i=0
+  for verdict in \
+    'state: parked · source: run-step · parked at review: 2 finding(s)' \
+    'state: failed · source: run-step · run failed' \
+    'state: working · source: run-step · validating (background run)' \
+    'state: unknown · source: none · backend target gone: test:fm-gone' \
+    'not a state line'; do
+    i=$((i + 1))
+    dir=$(progress_idle_fixture "wedge-progress-none-$i" "none$i" "test:fm-none$i" 'working: validating')
+    r=$(progress_round "$dir" "test:fm-none$i" 500 FM_FAKE_CREW_STATE="$verdict")
+    case "$r" in
+      "escalated: stale: test:fm-none$i (idle "*", possible wedge, escalation 1)"*) ;;
+      *) fail "no-evidence verdict '$verdict' did not escalate: $r" ;;
+    esac
+  done
+  pass "a parked or failed run with no own work, an unreadable run, a dead endpoint, and an unreadable state read each still escalate at the unchanged window"
+}
+
+# The stated bound: a deferral restarts the window, so once evidence stops the
+# next window escalates - at most two windows after the last evidence.
+test_wedge_escalates_one_window_after_evidence_stops() {
+  local dir r
+  dir=$(progress_idle_fixture wedge-progress-stops stops test:fm-stops 'working: validating')
+  r=$(progress_round "$dir" test:fm-stops 500 \
+    FM_FAKE_CREW_STATE='state: working · source: run-step · validating (running) · step review last activity 200s ago')
+  [ "$r" = deferred ] || fail "activity inside the window was not deferred: $r"
+  # The step falls silent; one window after that deferral restarted the clock,
+  # the very first check escalates.
+  r=$(progress_round "$dir" test:fm-stops 240 \
+    FM_FAKE_CREW_STATE='state: working · source: run-step · validating (running) · step review last activity 440s ago')
+  case "$r" in
+    "escalated: stale: test:fm-stops (idle 24"*"s, possible wedge, escalation 1)"*) ;;
+    *) fail "a run whose activity stopped did not escalate one window after its last deferral: $r" ;;
+  esac
+  pass "once progress evidence stops, the escalation fires one window after the last deferral (two windows after the last evidence at most)"
+}
+
+# Evidence that never stops (a command that never ends but keeps working, a CI
+# wait that never resolves) still re-surfaces on the bounded progress cadence,
+# labeled as a recheck naming the evidence rather than a wedge.
+test_progress_deferral_resurfaces_on_the_bounded_cadence() {
+  local dir key r back
+  dir=$(progress_idle_fixture wedge-progress-resurface resurf test:fm-resurf 'working: validating')
+  key=test_fm-resurf
+  back=$(( $(date +%s) - 500 ))
+  : > "$dir/state/.writing-since-$key"
+  set_mtime "$back" "$dir/state/.writing-since-$key"
+  r=$(progress_round "$dir" test:fm-resurf 500 FM_PAUSE_RESURFACE_SECS=240 \
+    FM_FAKE_CREW_STATE='state: working · source: run-step · ci running · ci waiting on checks')
+  case "$r" in
+    "escalated: stale: test:fm-resurf (idle "*"its validation run is waiting on CI checks; deferred on progress evidence for "*"rechecked on a long cadence not a wedge"*) ;;
+    *) fail "a long progress deferral did not re-surface as a labeled recheck: $r" ;;
+  esac
+  case "$r" in *"possible wedge"*) fail "a progress recheck was labeled a possible wedge: $r" ;; esac
+  [ -e "$dir/state/.writing-resurfaced-$key" ] || fail "the progress re-surface throttle was not recorded"
+  [ ! -e "$dir/state/.wedge-escalations-$key" ] || fail "a progress recheck advanced the escalation counter"
+  pass "a progress deferral that never ends re-surfaces once per bounded cadence as a recheck, not silence"
+}
+
+# Case 3 and its real-wedge twin: a busy worker past the completed-turn bound,
+# inside one long foreground command. The worker's command runs from a process
+# living in its worktree; only new processes started there count.
+busy_foreground_fixture() {  # <case-name> <id> <window> -> echoes dir
+  local dir state id=$2 window=$3 sig
+  dir=$(make_case "$1"); state="$dir/state"
+  mkdir -p "$dir/wt"
+  printf 'Working... running the sharded suite' > "$dir/pane.txt"
+  printf 'window=%s\nkind=ship\nharness=pi\nworktree=%s\n' "$window" "$dir/wt" > "$state/$id.meta"
+  record_pi_busy "$state" "$id"
+  printf 'working: running the full test suite\n' > "$state/$id.status"
+  sig=$(seen_sig "$state/$id.status"); printf '%s' "$sig" > "$state/.seen-${id}_status"
+  set_mtime "$(( $(date +%s) - 4000 ))" "$state/$id.meta"
+  printf '%s\n' "$dir"
+}
+
+# Run the watcher against a busy fixture with a short real-time window and
+# count deferrals until <want> of them happened or the watcher woke. The current
+# state reads as the busy pane alone unless <crew-state> names another verdict.
+# Prints "deferred <n>" or "escalated: <reason>".
+busy_foreground_watch() {  # <dir> <window> <want> [crew-state]
+  local dir=$1 window=$2 want=$3 verdict=${4:-'state: working · source: pane · harness busy (pi-ext)'}
+  local state key out pid since last n=0 deadline
+  state="$dir/state"; out="$dir/watch.out"
+  key=$(printf '%s' "$window" | tr ':/.' '___')
+  last=$(date +%s)
+  echo "$last" > "$state/.stale-since-$key"
+  : > "$out"
+  PATH="$dir/fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$dir/pane.txt" \
+    FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$dir/fakebin/fm-crew-state.sh" \
+    FM_FAKE_CREW_STATE="$verdict" \
+    FM_STALE_ESCALATE_SECS=3 FM_BUSY_TURN_MAX_SECS=60 FM_PAUSE_RESURFACE_SECS=999999 \
+    FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
+  pid=$!
+  deadline=$((SECONDS + 90))
+  while [ "$SECONDS" -lt "$deadline" ] && [ "$n" -lt "$want" ]; do
+    is_live_non_zombie "$pid" || break
+    since=$(cat "$state/.stale-since-$key" 2>/dev/null || true)
+    case "$since" in ''|*[!0-9]*) ;; *) if [ "$since" -gt "$last" ]; then n=$((n + 1)); last=$since; fi ;; esac
+    sleep 0.2
+  done
+  if is_live_non_zombie "$pid" && [ ! -s "$out" ]; then
+    reap "$pid"
+    ack_stopped_cycle "$state" >/dev/null 2>&1 || true
+    echo "deferred $n"
+    return
+  fi
+  wait_for_exit "$pid" 100 || true
+  echo "escalated: $(cat "$out")"
+  ack_stopped_cycle "$state" >/dev/null 2>&1 || true
+}
+
+test_wedge_deferred_while_own_long_command_starts_work() {
+  local dir runner r
+  dir=$(busy_foreground_fixture wedge-progress-foreground fg test:fm-fg)
+  # The worker's long command keeps starting fresh work in its worktree.
+  shard_runner "$dir/wt" &
+  runner=$!
+  # The runner predates every idle window the watcher opens below.
+  sleep 3
+  r=$(busy_foreground_watch "$dir" test:fm-fg 3)
+  kill "$runner" 2>/dev/null || true
+  wait "$runner" 2>/dev/null || true
+  [ "$r" = "deferred 3" ] || fail "a busy worker whose own long command keeps starting work was not deferred three windows running: $r"
+  [ ! -e "$dir/state/.wedge-escalations-test_fm-fg" ] || fail "a foreground-command deferral advanced the escalation counter"
+  pass "a busy worker inside its own long command that keeps starting work in its worktree is not wedge-escalated"
+}
+
+test_wedge_escalates_for_a_foreground_command_that_starts_nothing() {
+  local dir hung r
+  dir=$(busy_foreground_fixture wedge-progress-hung hung test:fm-hung)
+  # The worker's foreground command never ends and never starts anything new.
+  ( cd "$dir/wt" && exec sleep 600 ) &
+  hung=$!
+  sleep 3
+  r=$(busy_foreground_watch "$dir" test:fm-hung 1)
+  kill "$hung" 2>/dev/null || true
+  wait "$hung" 2>/dev/null || true
+  case "$r" in
+    "escalated: stale: test:fm-hung (idle "*", possible wedge, escalation 1)"*) ;;
+    *) fail "a foreground command that never ends and starts nothing was not escalated at the window: $r" ;;
+  esac
+  pass "a busy worker stuck in a foreground command that starts nothing still escalates at the unchanged window"
+}
+
+# The same real wedge under a harness that lives in the worktree and keeps
+# restarting one lone housekeeping child of its own while its foreground child
+# hangs, as Claude Code restarts caffeinate about every 240s for the whole of a
+# blocked call. Those restarts are not the crew's work.
+test_wedge_escalates_while_the_harness_restarts_a_lone_child() {
+  local dir harness r
+  dir=$(busy_foreground_fixture wedge-progress-housekeeping keep test:fm-keep)
+  ( cd "$dir/wt" && exec bash -c 'sleep 600 & echo $! > "$1"; while :; do sleep 1 & wait $!; done' _ "$dir/hung.pid" ) &
+  harness=$!
+  sleep 3
+  r=$(busy_foreground_watch "$dir" test:fm-keep 1)
+  kill "$harness" "$(cat "$dir/hung.pid")" 2>/dev/null || true
+  wait "$harness" 2>/dev/null || true
+  case "$r" in
+    "escalated: stale: test:fm-keep (idle "*", possible wedge, escalation 1)"*) ;;
+    *) fail "a hung foreground command under a harness restarting a lone child was not escalated at the window: $r" ;;
+  esac
+  pass "a harness that only restarts a lone housekeeping child while its foreground command hangs still escalates at the unchanged window"
+}
+
+# A run parked at a gate or failed leaves its pipeline idle, so the crew is the
+# active party: its own worktree writes, or its own long command's fresh work
+# under a busy pane past the completed-turn bound, defer the escalation exactly
+# as with no run attributed. With neither, test_wedge_escalates_without_progress_evidence
+# pins that the same runs still escalate.
+test_wedge_deferred_on_own_work_after_the_run_parks_or_fails() {
+  local verdict dir runner r i=0
+  for verdict in \
+    'state: parked · source: run-step · parked at review: 2 finding(s)' \
+    'state: failed · source: run-step · run failed'; do
+    i=$((i + 1))
+    dir=$(progress_idle_fixture "wedge-progress-idle-run-write-$i" "irw$i" "test:fm-irw$i" 'working: validating')
+    printf 'fix\n' > "$dir/wt/notes.txt"
+    r=$(progress_round "$dir" "test:fm-irw$i" 500 FM_FAKE_CREW_STATE="$verdict")
+    [ "$r" = deferred ] || fail "a crew writing its worktree under '$verdict' was not deferred: $r"
+    dir=$(busy_foreground_fixture "wedge-progress-idle-run-proc-$i" "irp$i" "test:fm-irp$i")
+    shard_runner "$dir/wt" &
+    runner=$!
+    sleep 3
+    r=$(busy_foreground_watch "$dir" "test:fm-irp$i" 1 "$verdict")
+    kill "$runner" 2>/dev/null || true
+    wait "$runner" 2>/dev/null || true
+    [ "$r" = "deferred 1" ] || fail "a crew whose own long command keeps starting work under '$verdict' was not deferred: $r"
+  done
+  pass "a parked or failed run's crew that writes its worktree or runs its own long command is deferred, not wedge-escalated"
+}
+
 # --- triage debug log stays size capped -------------------------------------
 
 test_triage_log_size_cap_accepts_spaced_wc_counts() {
@@ -4023,6 +4406,7 @@ fm_test_run_cases \
   test_empty_write_prune_widens_the_probe \
   test_empty_write_prune_from_the_environment_widens_the_probe \
   test_worktree_write_probe_is_wall_clock_bounded \
+  test_worktree_process_probe_classifier \
   test_signal_crew_provably_working_classifier \
   test_secondmate_status_signal_never_absorbed_classifier \
   test_provably_working_signal_absorbed \
@@ -4084,6 +4468,16 @@ fm_test_run_cases \
   test_nonterminal_paused_rechecks_authoritative_state \
   test_paused_authoritative_working_preserves_wedge_timer \
   test_nonterminal_stale_repairs_missing_or_corrupt_timer \
+  test_wedge_deferred_while_validation_step_is_active \
+  test_wedge_deferred_while_ci_waits_on_checks \
+  test_wedge_escalates_when_the_active_step_is_silent \
+  test_wedge_escalates_without_progress_evidence \
+  test_wedge_escalates_one_window_after_evidence_stops \
+  test_progress_deferral_resurfaces_on_the_bounded_cadence \
+  test_wedge_deferred_while_own_long_command_starts_work \
+  test_wedge_escalates_for_a_foreground_command_that_starts_nothing \
+  test_wedge_escalates_while_the_harness_restarts_a_lone_child \
+  test_wedge_deferred_on_own_work_after_the_run_parks_or_fails \
   test_wedge_escalation_deferred_while_worktree_is_written \
   test_write_deferral_resurfaces_on_the_bounded_cadence \
   test_secondmate_home_supervision_churn_is_not_write_evidence \
