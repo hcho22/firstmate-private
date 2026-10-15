@@ -116,6 +116,35 @@ wait_ws_gone() {  # <workspace_id>
   done
   return 1
 }
+# A new pane's interactive shell runs its startup files (prompt helpers,
+# version managers, and anything else the developer's rc files start) for
+# seconds after workspace create returns, and the production idle-shell proof
+# correctly refuses it until that settles. Wait until the production proof
+# itself reports the same lone idle shell twice in a row, so a case that needs
+# the pane-death route starts from a pane that route can actually take.
+wait_idle_shell() {  # <pane_id>
+  local deadline=$((SECONDS + 60)) pid previous='' stable=0
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    pid=$(PATH="$FAKEBIN:$HERDR_ORIGINAL_PATH" bash -c '
+      . "$1/bin/backends/herdr.sh"
+      fm_backend_herdr_cli() {
+        local session=$1
+        shift
+        HERDR_SESSION="$session" herdr "$@" --session "$session"
+      }
+      fm_backend_herdr_pane_idle_shell_sample "$2" "$3"
+    ' _ "$ROOT" "$HERDR_LAB_SESSION" "$1" 2>/dev/null) || pid=
+    if [ -n "$pid" ] && [ "$pid" = "$previous" ]; then
+      stable=$((stable + 1))
+      [ "$stable" -ge 2 ] && return 0
+    else
+      stable=0
+    fi
+    previous=$pid
+    sleep 0.1
+  done
+  return 1
+}
 
 # --- Part A: the OLD path (plain explicit close) steals focus on 0.7.5 -----
 # The spacer keeps the focused anchor away from the doomed workspace's right
@@ -146,6 +175,8 @@ fi
 read -r B_DOOMED_WS _ B_DOOMED_PANE <<<"$(mkws flash-b-doomed)" || fail 'could not create the Part B doomed workspace'
 read -r B_ANCHOR_WS B_ANCHOR_TAB _ <<<"$(mkws flash-b-anchor)" || fail 'could not create the Part B anchor workspace'
 read -r _ _ _ <<<"$(mkws flash-b-tail)" || fail 'could not create the Part B tail workspace'
+wait_idle_shell "$B_DOOMED_PANE" \
+  || fail 'the Part B doomed pane never settled to the lone idle shell the pane-death route requires'
 lab tab focus "$B_ANCHOR_TAB" >/dev/null || fail 'could not focus the Part B anchor'
 B_BEFORE=$(focus_snapshot) || fail 'could not capture the Part B pre-close focus'
 [ "$B_BEFORE" = "$(printf '%s\t%s' "$B_ANCHOR_WS" "$B_ANCHOR_TAB")" ] \
@@ -221,8 +252,8 @@ if [ "$STEAL_LIVE" = 1 ]; then
 fi
 
 # --- Part C: the plain-close FALLBACK, the case Part B cannot reach ---------
-# Part B always hands the adapter a freshly created workspace whose pane is a
-# bare idle shell, so its emptying-close plan always takes the focus-preserving
+# Part B always hands the adapter a workspace whose pane has settled to a bare
+# idle shell, so its emptying-close plan always takes the focus-preserving
 # pane-death route. The reported defect lives on the other branch: a doomed pane
 # whose shell holds a PERSISTENT child (a gitstatusd, a zsh-async worker,
 # direnv, or anything a crewmate backgrounded) fails the lone-idle-shell proof

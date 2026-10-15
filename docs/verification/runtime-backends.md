@@ -800,8 +800,10 @@ ok - real Herdr lab validation completed on Herdr 0.8.0 with the default-session
 ```
 
 The projected spawn in that run used the historical empty opt-in file, so a home that had already enabled the projection keeps it without any migration step.
-One concurrent cross-home recovery case refused under contention on a loaded machine and passed on an immediate rerun; recovery-path presentation lock contention is a deliberate hard refusal rather than a flat fallback, which default-on now makes reachable from any Herdr home.
 That run measured the default-on projection on Herdr 0.8.0 only, while the focus-flash regression below was last run on 0.7.5 before the flip, so neither run covered a defective release under default-on projection; the version floor and the focus-flash suite's Part C close that gap.
+Recovery-path presentation lock contention is a deliberate hard refusal rather than a flat fallback, which default-on now makes reachable from any Herdr home.
+A recovering task holds the session lock through its whole launch while a concurrent recovery's acquire is bounded at about five seconds, so on a loaded host the concurrent cross-home recovery case routinely takes that refusal on one side.
+On 2026-10-14 against Herdr 0.7.5, eight concurrent copies of the suite each took it, and the case now accepts it from at most one side, proves the refused side left its task record, journal, and old husk pane untouched, and resumes that task after the lock owner completes.
 
 The restored-shell session-start cleanup ran on 2026-07-24 against Herdr 0.7.5 protocol 17:
 
@@ -910,6 +912,7 @@ Direct lab probes on 2026-07-28 established the removal rules the emptying-close
 - The production focus-preserving close in the dangerous geometry repositioned the doomed workspace, ended its proved shell, and left every concurrent focus sample on the exact anchor with no corrective `tab focus` issued.
 
 Two real-hardware conditions were required for the pane-death path to engage and are now encoded in the adapter and its unit fixtures: BSD `ps` reports a login shell's `comm` as `-zsh`, and an idle shell transiently hosts a prompt helper (starship) as a second foreground process immediately after a `workspace.move` relayout, which the bounded settle window absorbs.
+A freshly created pane's interactive shell runs its startup files for seconds, and the proof refuses it until that settles, so a close issued immediately after create takes the plain-close fallback; on 2026-10-14 against Herdr 0.7.5 that made the focus-flash suite's mitigation case fail 6 of 8 concurrent copies until the case waited on the production proof before closing, after which 8 of 8 passed.
 
 The rules match the v0.7.5 tag source (`close_selected_workspace` reassigns focus from the closing workspace's index; `handle_pane_died` only clamps the stale focused index), and the upstream default branch resolves both paths by workspace id (PR #1877, commit `165dca45`, for the explicit close; PR #1912, commit `a979916`, for pane death), so the plan degrades to a harmless reorder-then-remove once a release carries them.
 

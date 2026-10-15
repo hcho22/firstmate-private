@@ -426,6 +426,28 @@ spawn_secondmate_task() {
     "$ROOT/bin/fm-spawn.sh" "$id" "$home" "sh -c 'sleep 120'" --secondmate --backend herdr
 }
 
+# Concurrent recoveries of existing presentation journals serialize on the
+# shared named-session lock, but the waiter's acquire is bounded while the
+# owner holds the lock through its whole launch, so a slow owner makes the
+# waiter refuse instead of resuming (docs/herdr-backend.md). That refusal is
+# the product contract: accept only its exact wording, prove it mutated
+# nothing, and resume that task only after the lock owner has completed.
+finish_concurrent_recovery() {  # <id> <home> <status> <stdout> <stderr> <old-pane> <meta-sum> <journal-sum>
+  local id=$1 home=$2 status=$3 out=$4 err=$5 old_pane=$6 meta_sum=$7 journal_sum=$8
+  [ "$status" -ne 0 ] || return 0
+  grep -F "herdr presentation recovery could not acquire its session lock; refusing a concurrent resume" "$err" >/dev/null 2>&1 \
+    || fail "concurrent recovery $id failed unexpectedly: $(cat "$err")"
+  [ "$(cksum < "$home/state/$id.meta")" = "$meta_sum" ] \
+    || fail "refused concurrent recovery $id changed its task record"
+  [ "$(cksum < "$home/state/$id.herdr-presentation")" = "$journal_sum" ] \
+    || fail "refused concurrent recovery $id changed its presentation journal"
+  lab pane get "$old_pane" >/dev/null 2>&1 \
+    || fail "refused concurrent recovery $id closed its old husk pane"
+  spawn_task "$id" "$home" "$PROJECT_DIR" > "$out" 2> "$err" \
+    || fail "recovery $id retry failed after the concurrent recovery completed: $(cat "$err")"
+  pass "real Herdr lab: concurrent recovery $id took the bounded lock refusal without mutation and resumed after the lock owner completed"
+}
+
 teardown_task() {  # <id> <home>
   local id=$1 home=$2
   FM_GATE_REFUSE_BYPASS=1 FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
@@ -1285,7 +1307,8 @@ teardown_task "$CROSS_RESTART_ID" "$SECOND_HOME_A" > "$TMP_ROOT/cross-restart-te
 pass "real Herdr lab: secondmate restart binding and reclaim stay isolated to the exact child home and parent"
 
 # Two homes recovering concurrently serialize on the named session lock and
-# each replace only their own exact husk.
+# each replace only their own exact husk; at most one may take the bounded
+# lock refusal and resume after the other completes.
 PRIMARY_WAVE_ID=resume-wave-primary
 BRAVO_WAVE_ID=resume-wave-bravo
 mkdir -p "$HOME_DIR/data/$PRIMARY_WAVE_ID" "$SECOND_HOME_B/data/$BRAVO_WAVE_ID"
@@ -1308,12 +1331,26 @@ PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" stop "$HERDR_LAB_SESSION" >/dev/
 PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" provision "$HERDR_LAB_SESSION" \
   || fail "could not reprovision the isolated session for concurrent recovery"
 CONCURRENT_RECOVERY_FOCUS=$(focus_snapshot)
+PRIMARY_WAVE_META_SUM=$(cksum < "$PRIMARY_WAVE_META")
+BRAVO_WAVE_META_SUM=$(cksum < "$BRAVO_WAVE_META")
+PRIMARY_WAVE_JOURNAL_SUM=$(cksum < "$HOME_DIR/state/$PRIMARY_WAVE_ID.herdr-presentation") \
+  || fail "primary recovery-wave fixture has no presentation journal"
+BRAVO_WAVE_JOURNAL_SUM=$(cksum < "$SECOND_HOME_B/state/$BRAVO_WAVE_ID.herdr-presentation") \
+  || fail "secondmate recovery-wave fixture has no presentation journal"
 spawn_task "$PRIMARY_WAVE_ID" "$HOME_DIR" "$PROJECT_DIR" > "$TMP_ROOT/primary-wave-resume.out" 2> "$TMP_ROOT/primary-wave-resume.err" &
 PRIMARY_WAVE_PID=$!
 spawn_task "$BRAVO_WAVE_ID" "$SECOND_HOME_B" "$PROJECT_DIR" > "$TMP_ROOT/bravo-wave-resume.out" 2> "$TMP_ROOT/bravo-wave-resume.err" &
 BRAVO_WAVE_PID=$!
-wait "$PRIMARY_WAVE_PID" || fail "concurrent primary recovery failed: $(cat "$TMP_ROOT/primary-wave-resume.err")"
-wait "$BRAVO_WAVE_PID" || fail "concurrent secondmate recovery failed: $(cat "$TMP_ROOT/bravo-wave-resume.err")"
+if wait "$PRIMARY_WAVE_PID"; then PRIMARY_WAVE_STATUS=0; else PRIMARY_WAVE_STATUS=$?; fi
+if wait "$BRAVO_WAVE_PID"; then BRAVO_WAVE_STATUS=0; else BRAVO_WAVE_STATUS=$?; fi
+[ "$PRIMARY_WAVE_STATUS" -eq 0 ] || [ "$BRAVO_WAVE_STATUS" -eq 0 ] \
+  || fail "both concurrent recoveries failed, so neither held the session lock: primary: $(cat "$TMP_ROOT/primary-wave-resume.err") secondmate: $(cat "$TMP_ROOT/bravo-wave-resume.err")"
+finish_concurrent_recovery "$PRIMARY_WAVE_ID" "$HOME_DIR" "$PRIMARY_WAVE_STATUS" \
+  "$TMP_ROOT/primary-wave-resume.out" "$TMP_ROOT/primary-wave-resume.err" \
+  "$PRIMARY_WAVE_OLD_PANE" "$PRIMARY_WAVE_META_SUM" "$PRIMARY_WAVE_JOURNAL_SUM"
+finish_concurrent_recovery "$BRAVO_WAVE_ID" "$SECOND_HOME_B" "$BRAVO_WAVE_STATUS" \
+  "$TMP_ROOT/bravo-wave-resume.out" "$TMP_ROOT/bravo-wave-resume.err" \
+  "$BRAVO_WAVE_OLD_PANE" "$BRAVO_WAVE_META_SUM" "$BRAVO_WAVE_JOURNAL_SUM"
 PRIMARY_WAVE_NEW_WT=$(remember_meta_worktree "$PRIMARY_WAVE_META")
 BRAVO_WAVE_NEW_WT=$(remember_meta_worktree "$BRAVO_WAVE_META")
 PRIMARY_WAVE_NEW_PANE=$(grep '^herdr_pane_id=' "$PRIMARY_WAVE_META" | cut -d= -f2-)
