@@ -1586,14 +1586,15 @@ SH
   chmod +x "$repo/tests/fm-worker-leak-fixture.test.sh"
 }
 
-# The nested runner a worker leak case started and has not yet waited for, and
-# the directory of the foreign workers it started outside that run. A case that
-# fails or is interrupted while the runner is still going stops it here, so the
-# runner's own interrupt path reaps its script and worker instead of leaving
-# them to the fixture's hang, and then stops the foreign workers, which no
-# reaper of that run may touch. It runs as FM_TEST_CASE_TEARDOWN and from the
-# file's EXIT trap.
+# The nested runner a worker leak case started and has not yet waited for, the
+# TMPDIR it runs with, and the directory of the foreign workers it started
+# outside that run. A case that fails or is interrupted while the runner is
+# still going stops it here, so the runner's own interrupt path (or, failing
+# that, its sentinel) reaps its script and worker instead of leaving them to the
+# fixture's hang, and then stops the foreign workers, which no reaper of that
+# run may touch. It runs as FM_TEST_CASE_TEARDOWN and from the file's EXIT trap.
 WORKER_LEAK_RUNNER=
+WORKER_LEAK_CALLER=
 WORKER_LEAK_FOREIGN=
 stop_worker_leak_case() {
   local state
@@ -1601,11 +1602,7 @@ stop_worker_leak_case() {
     # Only a case that already failed, or a file stopped mid-case, leaves a
     # runner here (a passing case collects its own). The wait is bounded, so
     # the file still ends and reports instead of hanging on that runner.
-    kill -TERM -- "-$WORKER_LEAK_RUNNER" 2>/dev/null || true
-    if ! fm_test_await_child_exit "$WORKER_LEAK_RUNNER" 60; then
-      kill -KILL -- "-$WORKER_LEAK_RUNNER" 2>/dev/null || true
-      fm_test_await_child_exit "$WORKER_LEAK_RUNNER" 10 || true
-    fi
+    fm_test_stop_nested_runner "$WORKER_LEAK_RUNNER" "$WORKER_LEAK_CALLER"
     WORKER_LEAK_RUNNER=
   fi
   if [ -n "$WORKER_LEAK_FOREIGN" ]; then
@@ -1639,7 +1636,7 @@ run_worker_leak_case() {
     exec perl -e '$SIG{INT} = "DEFAULT"; setpgrp(0, 0); exec @ARGV' \
     bin/fm-test-run.sh --jobs 1 tests/fm-worker-leak-fixture.test.sh) >"$tmp/out" 2>"$tmp/err" &
   runner=$!
-  WORKER_LEAK_RUNNER=$runner
+  WORKER_LEAK_RUNNER=$runner WORKER_LEAK_CALLER=$caller
   deadline=$((SECONDS + 180))
   while [ ! -s "$events/started" ]; do
     kill -0 "$runner" 2>/dev/null || fail "$mode: the run ended before its worker started: $(cat "$tmp/out" "$tmp/err")"

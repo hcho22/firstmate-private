@@ -184,6 +184,27 @@ fm_test_await_child_exit() {
   wait "$pid" 2>/dev/null || FM_TEST_CHILD_RC=$?
 }
 
+# fm_test_stop_nested_runner <pid> <caller-tmpdir>: a case teardown's stop of a
+# nested bin/fm-test-run.sh, this shell's background child <pid>, that leads its
+# own process group and runs with TMPDIR=<caller-tmpdir>. TERM to its group lets
+# its interrupt path reap the run. A runner still going 60s later is killed with
+# its group, which leaves the reaping to the sentinel the runner started in a
+# group of its own, so this then waits up to 60s for that sentinel to remove the
+# run's root from <caller-tmpdir>: a file cleanup that removed the root first
+# would leave the sentinel nothing to reap and the script's group running.
+# Every wait is bounded, so a runner that never ends cannot hang the file.
+fm_test_stop_nested_runner() {
+  local pid=$1 caller=$2 deadline
+  kill -TERM -- "-$pid" 2>/dev/null || true
+  fm_test_await_child_exit "$pid" 60 && return 0
+  kill -KILL -- "-$pid" 2>/dev/null || true
+  fm_test_await_child_exit "$pid" 10 || true
+  deadline=$((SECONDS + 60))
+  while [ -n "$(find "$caller" -mindepth 1 -maxdepth 1 2>/dev/null)" ] && [ "$SECONDS" -lt "$deadline" ]; do
+    sleep 0.1
+  done
+}
+
 # fm_test_stop_remote_job_worker <state-root>: stop the remote job worker tree
 # whose serving child <state-root>/worker.pid records. Its restart supervisor
 # would replace that child after a lone kill, so the whole tree is stopped
