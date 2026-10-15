@@ -1,0 +1,61 @@
+== environment
+task copy: /Users/hcho/.treehouse/firstmate-private-0ac9d2/3/firstmate-private
+task copy branch: fm/fm-crew-state-pushed-run  HEAD: d1f8fbec82f4c5d10fb06a6d9d7e4531b7e0854b
+no-mistakes: /usr/local/bin/no-mistakes (no-mistakes version v1.79.0 (fc540ac) 2026-09-19T09:34:47Z)
+tmux socket dir: private, no server -> the crew pane reads as gone
+
+== live axi status from the task copy (abridged)
+  id: "01M507053EMHQS39EJFYPVTXSG"
+  branch: fm/fm-crew-state-pushed-run
+  status: running
+  head_sha: ae4a814c56c9bc093b218b2f94320f5adcb498aa
+    test,running,0,0
+    test,running,24m7s,24m7s,"3s ago: claude producing output","22499",starting
+  state: pipeline_owned
+    run: "01M507053EMHQS39EJFYPVTXSG"
+    submitted_head: d1f8fbec82f4c5d10fb06a6d9d7e4531b7e0854b
+    current_head: ae4a814c56c9bc093b218b2f94320f5adcb498aa
+    pushed_head: ""
+run head ae4a814c56c9bc093b218b2f94320f5adcb498aa is NOT an object in the task copy (pipeline fix commits never fetched)
+
+== live runs ledger rows for this branch
+  running      fm/fm-crew-state-pushed-run ae4a814c  2026-10-15 09:40
+
+== live attribution rules on the real data (changed lib)
+branch_sync.pipeline.run            = 01M507053EMHQS39EJFYPVTXSG
+branch_sync.pipeline.submitted_head = d1f8fbec82f4c5d10fb06a6d9d7e4531b7e0854b
+branch_sync.pipeline.status         = running
+strict head rule:            rejects
+pipeline-owned custody rule: binds
+submitted-head rule (new):   binds
+ledger continuation rule:    prints nothing (no anchor row)
+
+### LIVE: daemon answers untouched (branch_sync.state is currently pipeline_owned)
+base crew-state: state: working · source: run-step · validating (running) · step test last activity 5s ago, active 1449s in run 01M507053EMHQS39EJFYPVTXSG
+base wedge timer evidence: its validation step test was active 6s ago  -> DEFER wedge escalation
+new  crew-state: state: working · source: run-step · validating (running) · step test last activity 7s ago, active 1451s in run 01M507053EMHQS39EJFYPVTXSG
+new  wedge timer evidence: its validation step test was active 9s ago  -> DEFER wedge escalation
+
+### POST-PUSH: real answers, branch_sync.state pipeline_owned -> behind (the value v1.79.0 reports after the pipeline pushes its fix commits)
+base crew-state: state: unknown · source: none · backend target gone: fm:fm-pushedrun-e2e
+base wedge timer evidence: (no evidence)  -> ESCALATE: possible wedge
+new  crew-state: state: working · source: run-step · validating (running) · step test last activity 18s ago, active 1462s in run 01M507053EMHQS39EJFYPVTXSG
+new  wedge timer evidence: its validation step test was active 23s ago  -> DEFER wedge escalation
+
+### ADVERSARIAL post-push: submitted_head is another commit (886ce09110f75237da908328017bcc47366edfce, this copy's HEAD~1: local work after submission / reused branch)
+base crew-state: state: unknown · source: none · backend target gone: fm:fm-pushedrun-e2e
+base wedge timer evidence: (no evidence)  -> ESCALATE: possible wedge
+new  crew-state: state: unknown · source: none · backend target gone: fm:fm-pushedrun-e2e
+new  wedge timer evidence: (no evidence)  -> ESCALATE: possible wedge
+
+### ADVERSARIAL post-push: branch_sync.pipeline.run names a different run
+base crew-state: state: unknown · source: none · backend target gone: fm:fm-pushedrun-e2e
+base wedge timer evidence: (no evidence)  -> ESCALATE: possible wedge
+new  crew-state: state: unknown · source: none · backend target gone: fm:fm-pushedrun-e2e
+new  wedge timer evidence: (no evidence)  -> ESCALATE: possible wedge
+
+### ADVERSARIAL post-push: the run is terminal (cancelled)
+base crew-state: state: unknown · source: none · backend target gone: fm:fm-pushedrun-e2e
+base wedge timer evidence: (no evidence)  -> ESCALATE: possible wedge
+new  crew-state: state: unknown · source: none · backend target gone: fm:fm-pushedrun-e2e
+new  wedge timer evidence: (no evidence)  -> ESCALATE: possible wedge
