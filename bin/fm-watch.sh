@@ -38,8 +38,9 @@
 #                          task-bound progress evidence at that moment is deferred
 #                          rather than escalated (wedge_defer_progress): its
 #                          working validation run's step activity within the
-#                          window or its CI wait, or with no working run, writes
-#                          in its worktree or a fresh process tree running there
+#                          window, its CI wait, or its active step's new work in
+#                          the run's own copy, or with no working run, writes in
+#                          its worktree or a fresh process tree running there
 #                          (crew_progress_evidence owns the rule). The deferral
 #                          restarts the window, so a crew whose evidence stops
 #                          escalates at most two windows after the last evidence,
@@ -724,9 +725,10 @@ resurface_absorbed() {  # <window> <throttle-marker> <age> <reason> [scope]
 
 # Defer ONE wedge escalation for a pane whose crew shows task-bound evidence that
 # its work is still progressing (crew_progress_evidence in fm-classify-lib.sh owns
-# what counts: its working validation run's fresh step activity or CI wait, or,
-# with no working run, writes in its own worktree or a fresh process tree running
-# there). The pane says nothing is happening; that evidence says otherwise, so the
+# what counts: its working validation run's fresh step activity, CI wait, or
+# active step's new work in the run's own copy, or, with no working run, writes in
+# its own worktree or a fresh process tree running there). The pane says nothing
+# is happening; that evidence says otherwise, so the
 # escalation is deferred rather than fired. Deliberately a DEFERRAL, not a
 # cancellation: the idle timer restarts, so the next window probes again and a
 # crew whose evidence stops escalates within that window, and a

@@ -11,6 +11,8 @@
 # instead of orphaning it. Getting this wrong in either
 # direction is unsafe: a false negative hides a genuinely parked run, and a
 # false positive lets teardown act on a run it does not own.
+# fm-classify-lib.sh's wedge-deferral probe also sources it, to resolve an
+# attributed run's own copy through fm_nm_run_worktree below.
 #
 # Bounded call to `no-mistakes "$@"` in dir $1, timeout $2 seconds. The bounded
 # form preserves stdout, stderr, and exit status; the checked form discards
@@ -218,8 +220,11 @@ fm_nm_runs_status_for_worktree() {  # <worktree> <branch> <runs-list-output> [ex
 # Seconds in one compact duration as `axi status` renders it: `<n>s`,
 # `<n>m<n>s`, `<n>h<n>m`, or `<n>d<n>h`. Prints nothing for anything else, so
 # an unrecognized rendering reads as no activity rather than as fresh activity.
-fm_nm_compact_duration_secs() {  # <duration>
-  local d=$1 total=0 n unit
+# The rendering truncates below its smallest unit, so `1h16m` is anywhere in
+# [4560, 4620); with `ceil` the result is the largest value the rendering can
+# stand for (4619) instead of the smallest.
+fm_nm_compact_duration_secs() {  # <duration> [ceil]
+  local d=$1 total=0 n unit last=''
   [ -n "$d" ] || return 0
   while [ -n "$d" ]; do
     n=${d%%[!0-9]*}
@@ -234,7 +239,15 @@ fm_nm_compact_duration_secs() {  # <duration>
       s) total=$(( total + 10#$n )) ;;
       *) return 0 ;;
     esac
+    last=$unit
   done
+  if [ "${2:-}" = ceil ]; then
+    case "$last" in
+      d) total=$(( total + 86399 )) ;;
+      h) total=$(( total + 3599 )) ;;
+      m) total=$(( total + 59 )) ;;
+    esac
+  fi
   printf '%s' "$total"
 }
 
@@ -244,12 +257,17 @@ fm_nm_compact_duration_secs() {  # <duration>
 #     test,fixing,2m35s,11s,"9s ago: claude producing output","84750",fix 1
 # The pipeline refreshes a step's last_activity from its step log and from its
 # own agent's output, and prefixes it with `quiet ` past step_quiet_warning;
-# either way the age is the leading `<duration> ago`. Columns are located by
-# header name, cells may be double-quoted with embedded commas, and every row
-# whose age cannot be read is skipped. Prints "<step> <age-secs>" for the
-# freshest readable row, or nothing when the table is absent or unreadable.
+# either way the age is the leading `<duration> ago`. A configured command the
+# step runs itself (the test step's `commands.test`) records no agent_pid and
+# refreshes last_activity only when it finishes. Columns are located by header
+# name, cells may be double-quoted with embedded commas, and every row whose
+# age cannot be read is skipped. Prints "<step> <age-secs> <active-secs>" for
+# the freshest readable row, where <active-secs> is the most that row's
+# active_for can stand for (how long ago, at most, the step started), or
+# "<step> <age-secs>" when active_for cannot be read; nothing when the table is
+# absent or unreadable.
 fm_nm_freshest_step_activity() {  # <toon-output>
-  local rows step age best_step='' best_age='' secs
+  local rows step age active best_step='' best_age='' best_active='' secs
   rows=$(printf '%s\n' "$1" | awk '
     function cells(line, out,   n, i, c, q, cur) {
       n = 0; q = 0; cur = ""
@@ -266,10 +284,11 @@ fm_nm_freshest_step_activity() {  # <toon-output>
       hdr = $0
       sub(/^[^{]*\{/, "", hdr); sub(/\}.*$/, "", hdr)
       nh = split(hdr, names, ",")
-      sc = 0; ac = 0
+      sc = 0; ac = 0; fc = 0
       for (i = 1; i <= nh; i++) {
         if (names[i] == "step") sc = i
         if (names[i] == "last_activity") ac = i
+        if (names[i] == "active_for") fc = i
       }
       ind = match($0, /[^[:space:]]/)
       inside = (sc && ac) ? 1 : 0
@@ -280,10 +299,10 @@ fm_nm_freshest_step_activity() {  # <toon-output>
       line = $0; sub(/^[[:space:]]+/, "", line)
       delete row
       cells(line, row)
-      printf "%s\t%s\n", row[sc], row[ac]
+      printf "%s\037%s\037%s\n", row[sc], row[ac], (fc ? row[fc] : "")
     }
   ')
-  while IFS=$'\t' read -r step age; do
+  while IFS=$'\037' read -r step age active; do
     [ -n "$step" ] || continue
     age=${age#quiet }
     case "$age" in *" ago"|*" ago:"*) age=${age%% ago*} ;; *) continue ;; esac
@@ -292,8 +311,31 @@ fm_nm_freshest_step_activity() {  # <toon-output>
     if [ -z "$best_age" ] || [ "$secs" -lt "$best_age" ]; then
       best_step=$step
       best_age=$secs
+      best_active=$(fm_nm_compact_duration_secs "$active" ceil)
     fi
   done <<< "$rows"
-  [ -n "$best_age" ] && printf '%s %s' "$best_step" "$best_age"
+  [ -n "$best_age" ] && printf '%s %s%s' "$best_step" "$best_age" "${best_active:+ $best_active}"
+  return 0
+}
+
+# The physical path of run <run-id>'s own copy, where the pipeline runs its
+# steps' commands and agents: <root>/worktrees/<repo-id>/<run-id>, under the
+# same root the no-mistakes CLI resolves (NM_HOME, else ~/.no-mistakes), so it
+# names the daemon that just answered `axi status` in this environment. The
+# daemon binds a run's processes by this same working directory when it reaps
+# them. Prints nothing unless <run-id> is a plain identifier naming exactly one
+# such directory.
+fm_nm_run_worktree() {  # <run-id>
+  local id=$1 root match='' d
+  case "$id" in ''|*[!A-Za-z0-9]*) return 0 ;; esac
+  root=${NM_HOME:-${HOME:-}/.no-mistakes}
+  [ -n "$root" ] && [ -d "$root/worktrees" ] || return 0
+  for d in "$root/worktrees"/*/"$id"; do
+    [ -d "$d" ] || continue
+    [ -z "$match" ] || return 0
+    match=$d
+  done
+  [ -n "$match" ] || return 0
+  (cd "$match" 2>/dev/null && pwd -P)
   return 0
 }

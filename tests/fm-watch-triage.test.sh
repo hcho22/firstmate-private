@@ -3624,14 +3624,15 @@ progress_round() {  # <dir> <window> <back-secs> [env assignments...]
   ack_stopped_cycle "$state" >/dev/null 2>&1 || echo "unacknowledged escalation"
 }
 
-# Three consecutive windows of one fixture; fails unless each deferred.
+# Three consecutive windows of one fixture; fails unless each deferred. Each
+# window opens PROGRESS_ROUND_BACK seconds before its round (default 500).
 assert_three_deferrals() {  # <dir> <window> <what> [env assignments...]
   local dir=$1 window=$2 what=$3 n r key
   shift 3
   key=$(printf '%s' "$window" | tr ':/.' '___')
   n=1
   while [ "$n" -le 3 ]; do
-    r=$(progress_round "$dir" "$window" 500 "$@")
+    r=$(progress_round "$dir" "$window" "${PROGRESS_ROUND_BACK:-500}" "$@")
     [ "$r" = deferred ] || fail "$what: window $n was not deferred: $r"
     n=$((n + 1))
   done
@@ -3640,13 +3641,14 @@ assert_three_deferrals() {  # <dir> <window> <what> [env assignments...]
 }
 
 # Three consecutive windows of one fixture; fails unless each escalated as a
-# possible wedge, with demand-deep-inspection from the third.
+# possible wedge, with demand-deep-inspection from the third. Each window opens
+# PROGRESS_ROUND_BACK seconds before its round (default 500).
 assert_three_escalations() {  # <dir> <window> <what> [env assignments...]
   local dir=$1 window=$2 what=$3 n r
   shift 3
   n=1
   while [ "$n" -le 3 ]; do
-    r=$(progress_round "$dir" "$window" 500 "$@")
+    r=$(progress_round "$dir" "$window" "${PROGRESS_ROUND_BACK:-500}" "$@")
     case "$r" in
       "escalated: stale: $window (idle "*", possible wedge, escalation $n"*) ;;
       *) fail "$what: window $n did not escalate as possible wedge $n: $r" ;;
@@ -3887,6 +3889,101 @@ test_wedge_deferred_on_own_work_after_the_run_parks_or_fails() {
     [ "$r" = "deferred 1" ] || fail "a crew whose own long command keeps starting work under '$verdict' was not deferred: $r"
   done
   pass "a parked or failed run's crew that writes its worktree or runs its own long command is deferred, not wedge-escalated"
+}
+
+# The false alarm of 2026-10-14 evening: a worker idles on its synchronous
+# validation wait while the run's test step runs the configured long test
+# command itself. The step's last activity stays one unchanged log line, the
+# worker's own command starts nothing, and the only progress is new processes
+# under the command the pipeline started in its own copy of the run. These
+# fixtures read the crew through the real bin/fm-crew-state.sh against a fake
+# no-mistakes CLI whose root (NM_HOME) holds that run's copy, so the run binding
+# is exercised end to end.
+PIPELINE_RUN_ID=01M4PIPESTEPRUN0000000000A
+
+# A working run on the crew's branch whose active test step has been quiet for
+# 53 minutes while running the configured command, as no-mistakes v1.79.0
+# renders it.
+pipeline_step_toon() {  # <branch> <head> [run-id]
+  cat <<EOF
+run:
+  id: "${3:-$PIPELINE_RUN_ID}"
+  branch: $1
+  status: running
+  head: $2
+  findings: none
+  steps[3]{step,status,findings,duration_ms}:
+    intent,completed,0,24
+    review,completed,0,5432
+    test,running,0,0
+  active_steps[1]{step,status,active_for,round_active_for,last_activity,agent_pid,round}:
+    test,running,55m3s,55m3s,"quiet 53m ago: running tests","",round 1
+branch_sync:
+  state: pipeline_owned
+EOF
+}
+
+# progress_idle_fixture plus a crew worktree on its own branch, a fake
+# no-mistakes CLI answering `axi status` with that run, and the run's own copy
+# under the fake root at $dir/nm/worktrees/<repo>/<run-id>.
+pipeline_step_fixture() {  # <case-name> <id> <window> -> echoes dir
+  local dir id=$2
+  dir=$(progress_idle_fixture "$1" "$id" "$3" 'paused: waiting on the validation response')
+  git -C "$dir/wt" init -q
+  git -C "$dir/wt" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
+  git -C "$dir/wt" checkout -q -b "fm/$id"
+  fm_shared_stub "$dir/fakebin" no-mistakes <<'SH'
+#!/usr/bin/env bash
+set -u
+[ "${1:-} ${2:-}" = "axi status" ] && printf '%s\n' "${FM_FAKE_AXI_STATUS:-}"
+exit 0
+SH
+  mkdir -p "$dir/nm/worktrees/repo/$PIPELINE_RUN_ID" "$dir/nm/worktrees/repo/01M4OTHERRUN00000000000000B"
+  printf '%s\n' "$dir"
+}
+
+# Sets PIPELINE_STEP_ENV to the env assignments a progress_round needs to read
+# the fixture's crew through the real current-state reader, with a 3-second
+# window: the process probe needs the step's long command to predate the quiet
+# window in real time, so callers open each window PROGRESS_ROUND_BACK=4
+# seconds back, after that command has run longer than that.
+pipeline_step_env() {  # <dir> <id>
+  PIPELINE_STEP_ENV=("FM_CREW_STATE_BIN=$ROOT/bin/fm-crew-state.sh" "NM_HOME=$1/nm" FM_STALE_ESCALATE_SECS=3
+    "FM_FAKE_AXI_STATUS=$(pipeline_step_toon "fm/$2" "$(git -C "$1/wt" rev-parse --short HEAD)")")
+}
+
+test_wedge_deferred_while_the_pipeline_step_command_starts_work() {
+  local dir runner PROGRESS_ROUND_BACK=4
+  dir=$(pipeline_step_fixture wedge-progress-pipeline-cmd pcmd test:fm-pcmd)
+  pipeline_step_env "$dir" pcmd
+  # The pipeline's own long test command, started in the run's copy before any
+  # quiet window opens.
+  shard_runner "$dir/nm/worktrees/repo/$PIPELINE_RUN_ID" &
+  runner=$!
+  sleep 6
+  assert_three_deferrals "$dir" test:fm-pcmd "a pipeline step whose own long command keeps starting work" "${PIPELINE_STEP_ENV[@]}"
+  kill "$runner" 2>/dev/null || true
+  wait "$runner" 2>/dev/null || true
+  pass "a worker waiting on its validation run is not wedge-escalated while the active step's own long command keeps starting work"
+}
+
+# Real-wedge counterparts: the step's command has stopped starting anything,
+# or the only new work runs under another run's copy, while the step's last
+# activity stays quiet past the window. Each still escalates every window and
+# demands deep inspection from the third.
+test_wedge_escalates_when_the_pipeline_step_command_starts_nothing() {
+  local dir hung other PROGRESS_ROUND_BACK=4
+  dir=$(pipeline_step_fixture wedge-progress-pipeline-hung phung test:fm-phung)
+  pipeline_step_env "$dir" phung
+  ( cd "$dir/nm/worktrees/repo/$PIPELINE_RUN_ID" && exec sleep 600 ) &
+  hung=$!
+  shard_runner "$dir/nm/worktrees/repo/01M4OTHERRUN00000000000000B" &
+  other=$!
+  sleep 6
+  assert_three_escalations "$dir" test:fm-phung "a pipeline step whose command starts nothing" "${PIPELINE_STEP_ENV[@]}"
+  kill "$hung" "$other" 2>/dev/null || true
+  wait "$hung" "$other" 2>/dev/null || true
+  pass "a pipeline step whose command starts nothing still escalates, even while another run's command keeps starting work"
 }
 
 # --- triage debug log stays size capped -------------------------------------
@@ -4478,6 +4575,8 @@ fm_test_run_cases \
   test_wedge_escalates_for_a_foreground_command_that_starts_nothing \
   test_wedge_escalates_while_the_harness_restarts_a_lone_child \
   test_wedge_deferred_on_own_work_after_the_run_parks_or_fails \
+  test_wedge_deferred_while_the_pipeline_step_command_starts_work \
+  test_wedge_escalates_when_the_pipeline_step_command_starts_nothing \
   test_wedge_escalation_deferred_while_worktree_is_written \
   test_write_deferral_resurfaces_on_the_bounded_cadence \
   test_secondmate_home_supervision_churn_is_not_write_evidence \

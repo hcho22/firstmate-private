@@ -38,10 +38,11 @@
 # cursor and folded open-set as a side effect, so a per-drain fleet-wide scan
 # stays bounded by new appends instead of re-reading each task's whole lifetime
 # log every time. crew_progress_evidence re-reads bin/fm-crew-state.sh like the
-# absorb classification, and its two probes read the task's meta file plus a
-# bounded slice of its worktree (crew_worktree_written_since) or the process table
-# (crew_worktree_process_started_since) instead of a status file, so callers run
-# it only at the moment they would otherwise escalate.
+# absorb classification, and its probes read the task's meta file plus a bounded
+# slice of its worktree (crew_worktree_written_since) or the process table
+# (crew_worktree_process_started_since, crew_run_step_process_started_since)
+# instead of a status file, so callers run it only at the moment they would
+# otherwise escalate.
 
 # Directory of this library, used to locate the sibling fm-crew-state.sh reader.
 # Resolved at source time from BASH_SOURCE so it works whether sourced by a
@@ -1884,46 +1885,46 @@ _crew_process_cwds() {  # <bound>  (pids on stdin)
 }
 
 # 0 when a fresh process tree that started after <anchor-file>'s mtime is still
-# running under a process that was already working in <id>'s recorded worktree
-# before that quiet window opened: positive evidence that the crew's own long
-# foreground command (a test suite, a build) keeps starting new work while the
-# harness sits busy on one tool call and nothing lands in the worktree itself.
+# running under a process that was already working in <dir> before that quiet
+# window opened: positive evidence that a long command running there (a test
+# suite, a build) keeps starting new work while nothing else shows it.
 #
-# Bound to the task by kernel facts, never by a process name or a backend pane
-# lookup. A process that started inside the window counts only when its own
-# parent did too, so the work is a new tree under the running command rather
-# than one lone child of a long-lived process: a harness keeps restarting
-# housekeeping children for the whole of a blocked tool call (observed for
-# Claude Code 2.1.284, which replaces a direct `caffeinate` child about every
-# 240s), and such a child never counts by itself. Walking that tree's parent
-# chain, the first ancestor that predates the window has its current directory
-# at the recorded worktree or below it: the crew's own harness or the command it
-# is running. A supervisor read that only runs a command inside the worktree,
-# such as fm-crew-state.sh's bounded no-mistakes call or a `git -C`, descends
-# from a supervisor process whose directory is elsewhere, so it never counts.
-# Only the long-lived ancestors' directories are read, so a young process that
-# exits between the two kernel reads still counts. A command that never ends but
-# starts nothing new, such as a hung network read, reports no evidence and keeps
-# its escalation schedule, even while its harness restarts a housekeeping child.
+# Bound by kernel facts, never by a process name or a backend pane lookup. A
+# process that started inside the window counts only when its own parent did
+# too, so the work is a new tree under the running command rather than one lone
+# child of a long-lived process: a harness keeps restarting housekeeping
+# children for the whole of a blocked tool call (observed for Claude Code
+# 2.1.284, which replaces a direct `caffeinate` child about every 240s), and
+# such a child never counts by itself. Walking that tree's parent chain, the
+# first ancestor that predates the window has its current directory at <dir> or
+# below it, and, with <not-before-epoch>, started no earlier than that epoch. A
+# supervisor read that only runs a command inside <dir>, such as
+# fm-crew-state.sh's bounded no-mistakes call or a `git -C`, descends from a
+# supervisor process whose directory is elsewhere, so it never counts. Only the
+# long-lived ancestors' directories are read, so a young process that exits
+# between the two kernel reads still counts. A command that never ends but
+# starts nothing new, such as a hung network read, reports no evidence, even
+# while its harness restarts a housekeeping child.
 #
-# 1 for every other outcome, including a missing worktree record, a secondmate
-# home (_crew_probe_worktree owns that exclusion), an unreadable process table,
-# and a kernel read that outlives its fixed 5-second bound. Not a pure
+# 1 for every other outcome, including a missing anchor, an unreadable process
+# table, and a kernel read that outlives its fixed 5-second bound. Not a pure
 # status-file read: one process-table read plus one working-directory read of
 # those ancestors, so callers reach it only when they would otherwise escalate.
-crew_worktree_process_started_since() {  # <id> <state> <anchor-file>
-  local id=$1 state=$2 anchor=$3 wt bound since window roots cwd
+_crew_fresh_tree_under() {  # <dir> <anchor-file> [not-before-epoch]
+  local dir=$1 anchor=$2 not_before=${3:-0} bound since now window roots cwd
   [ -f "$anchor" ] || return 1
-  wt=$(_crew_probe_worktree "$id" "$state") || return 1
+  case "$not_before" in ''|*[!0-9-]*) return 1 ;; esac
   bound=5
   since=$(_fm_status_file_mtime "$anchor")
   case "$since" in ''|*[!0-9]*) return 1 ;; esac
-  window=$(( $(date +%s) - since ))
+  now=$(date +%s)
+  window=$(( now - since ))
   [ "$window" -gt 0 ] || return 1
   # From ps's portable pid, ppid, and [[dd-]hh:]mm:ss elapsed time: the nearest
-  # pre-window ancestor of every process that started inside the window under a
-  # parent that also started inside it.
-  roots=$(LC_ALL=C fm_run_timed "$bound" ps -A -o pid= -o ppid= -o etime= 2>/dev/null | awk -v w="$window" -v self="$$" '
+  # pre-window ancestor, started no earlier than <not-before-epoch>, of every
+  # process that started inside the window under a parent that also started
+  # inside it.
+  roots=$(LC_ALL=C fm_run_timed "$bound" ps -A -o pid= -o ppid= -o etime= 2>/dev/null | awk -v w="$window" -v self="$$" -v now="$now" -v nb="$not_before" '
     NF >= 3 {
       e = $3; d = 0
       if (index(e, "-")) { split(e, dp, "-"); d = dp[1]; e = dp[2] }
@@ -1937,32 +1938,66 @@ crew_worktree_process_started_since() {  # <id> <state> <anchor-file>
         q = ppid[p]; hops = 0
         if (!(q in age) || age[q] >= w) continue
         while ((q in age) && age[q] < w && hops < 64) { q = ppid[q]; hops++ }
-        if ((q in age) && !(q in seen)) { seen[q] = 1; print q }
+        if ((q in age) && !(q in seen) && now - age[q] >= nb) { seen[q] = 1; print q }
       }
     }')
   [ -n "$roots" ] || return 1
   while IFS= read -r cwd; do
     cwd=${cwd#* }
-    case "$cwd" in "$wt"|"$wt"/*) return 0 ;; esac
+    case "$cwd" in "$dir"|"$dir"/*) return 0 ;; esac
   done <<< "$(printf '%s\n' "$roots" | _crew_process_cwds "$bound")"
   return 1
+}
+
+# 0 when the crew's own long foreground command keeps starting new work in
+# <id>'s recorded worktree while the harness sits busy on one tool call and
+# nothing lands in the worktree itself: _crew_fresh_tree_under that worktree, so
+# the long-lived ancestor is the crew's own harness or the command it is running.
+# 1 for every other outcome, including a missing worktree record and a
+# secondmate home (_crew_probe_worktree owns that exclusion).
+crew_worktree_process_started_since() {  # <id> <state> <anchor-file>
+  local wt
+  wt=$(_crew_probe_worktree "$1" "$2") || return 1
+  _crew_fresh_tree_under "$wt" "$3"
+}
+
+# 0 when the active step of no-mistakes run <run-id> keeps starting new work in
+# that run's own copy: a configured command the step runs itself, such as the
+# test step's long `commands.test`, shows no fresh activity in `axi status` until
+# it finishes. _crew_fresh_tree_under the run's copy (fm_nm_run_worktree in
+# bin/fm-nm-run-lib.sh resolves it), with the long-lived ancestor started no
+# earlier than <step-start-epoch>, binds the work to that run and to the step
+# now active in it rather than to a process left over from an earlier step.
+# 1 for every other outcome, including a run id whose copy cannot be resolved.
+crew_run_step_process_started_since() {  # <run-id> <anchor-file> <step-start-epoch>
+  local run_dir
+  if ! declare -F fm_nm_run_worktree >/dev/null; then
+    # shellcheck source=bin/fm-nm-run-lib.sh
+    # shellcheck disable=SC1091
+    . "$_FM_CLASSIFY_LIB_DIR/fm-nm-run-lib.sh" 2>/dev/null || return 1
+  fi
+  run_dir=$(fm_nm_run_worktree "$1")
+  [ -n "$run_dir" ] || return 1
+  _crew_fresh_tree_under "$run_dir" "$2" "$3"
 }
 
 # Positive, task-bound evidence that a crew the wedge timer is about to escalate
 # is still progressing. Prints a short phrase naming the evidence and returns 0,
 # or returns 1 with nothing printed. Callers reach it only at the moment they
 # would otherwise escalate, because it re-reads the crew's current state
-# (fm-crew-state.sh's bounded no-mistakes calls) and may run the two bounded
-# probes above.
+# (fm-crew-state.sh's bounded no-mistakes calls) and may run the bounded probes
+# above.
 #
 # The current-state read decides which evidence may count:
 #   - a working run attributed to this crew is authoritative. It counts while its
-#     freshest active step showed activity within <window-secs>, or while its ci
+#     freshest active step showed activity within <window-secs>, while its ci
 #     step waits on the forge's pending checks (the pipeline's own CI monitor and
 #     its ci_timeout own that external wait; red checks or an auto-fix round are
-#     not such a wait). A working run with neither prints nothing: the crew's
-#     own files and processes never outvote a running pipeline, so a stalled
-#     step escalates even while the crew keeps re-running its blocking call.
+#     not such a wait), or while that step keeps starting new work in the run's
+#     own copy (crew_run_step_process_started_since). A working run with none of
+#     these prints nothing: the crew's own files and processes never outvote a
+#     running pipeline, so a stalled step escalates even while the crew keeps
+#     re-running its blocking call.
 #   - every other read falls through to the crew's own work: a parked,
 #     finished, failed, or unknown attributed run (its pipeline is idle, so the
 #     crew is the active party), no attributed run, and an unreadable read. A
@@ -1973,8 +2008,9 @@ crew_worktree_process_started_since() {  # <id> <state> <anchor-file>
 # on this evidence restarts its idle window, so once evidence stops the next
 # window escalates: at most two windows after the last evidence.
 crew_progress_evidence() {  # <id> <state> <anchor-file> <window-secs>
-  local id=$1 state=$2 anchor=$3 window=$4 line rest seg secs
+  local id=$1 state=$2 anchor=$3 window=$4 line rest seg step secs active run read_at
   [ -n "$id" ] || return 1
+  read_at=$(date +%s)
   line=$("$FM_CREW_STATE_BIN" "$id" 2>/dev/null) || true
   case "$line" in "state: working "*) ;; *) line='' ;; esac
   rest=${line#*source: }
@@ -1985,13 +2021,21 @@ crew_progress_evidence() {  # <id> <state> <anchor-file> <window-secs>
         return 0
         ;;
     esac
-    seg=$(printf '%s\n' "$line" | sed -n 's/.* · step \([^ ]*\) last activity \([0-9][0-9]*\)s ago.*/\1 \2/p' | head -1)
-    [ -n "$seg" ] || return 1
-    secs=${seg##* }
+    seg=$(printf '%s\n' "$line" | sed -n 's/.* · step \([^ ]*\) last activity \([0-9][0-9]*\)s ago\(, active \([0-9][0-9]*\)s in run \([A-Za-z0-9][A-Za-z0-9]*\)\)\{0,1\}.*/\1 \2 \4 \5/p' | head -1)
+    read -r step secs active run <<< "$seg"
+    [ -n "$secs" ] || return 1
     case "$window" in ''|*[!0-9]*) return 1 ;; esac
-    [ "$secs" -lt "$window" ] || return 1
-    printf 'its validation step %s was active %ss ago' "${seg% *}" "$secs"
-    return 0
+    if [ "$secs" -lt "$window" ]; then
+      printf 'its validation step %s was active %ss ago' "$step" "$secs"
+      return 0
+    fi
+    # The step started at most <active> seconds before the read began; the
+    # 5-second margin covers the whole-second clocks of the read and of ps.
+    if [ -n "$run" ] && crew_run_step_process_started_since "$run" "$anchor" "$(( read_at - active - 5 ))"; then
+      printf 'its validation step %s is starting new processes in its run' "$step"
+      return 0
+    fi
+    return 1
   fi
   if crew_worktree_written_since "$id" "$state" "$anchor"; then
     printf 'writing its worktree'

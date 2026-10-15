@@ -55,11 +55,14 @@ make_repo_on_branch() {  # <dir> <branch>
 # `axi` surface - no runs-listing subcommand exists under it, verified against
 # the real CLI), and the actual top-level run-listing command, `no-mistakes
 # runs --limit N`, which is plain text - no run id, no quoting - serving
-# FM_FAKE_RUNS_LIST verbatim.
+# FM_FAKE_RUNS_LIST verbatim. All three are shared read-only links
+# (fm_shared_stub in tests/lib.sh), so the suite's cases do not each pay a host's
+# first-run assessment of a new executable inside the helper's bounded CLI read;
+# a case that needs a different stub installs its own with fm_shared_stub.
 make_fakebin() {  # <dir> -> echoes fakebin path
   local dir=$1 fb="$1/fakebin"
   mkdir -p "$fb"
-  cat > "$fb/no-mistakes" <<'SH'
+  fm_shared_stub "$fb" no-mistakes <<'SH'
 #!/usr/bin/env bash
 set -u
 case "${1:-}" in
@@ -79,7 +82,7 @@ case "${1:-}" in
 esac
 exit 0
 SH
-  cat > "$fb/tmux" <<'SH'
+  fm_shared_stub "$fb" tmux <<'SH'
 #!/usr/bin/env bash
 set -u
 case "${1:-}" in
@@ -93,7 +96,7 @@ case "${1:-}" in
 esac
 exit 0
 SH
-  cat > "$fb/herdr" <<'SH'
+  fm_shared_stub "$fb" herdr <<'SH'
 #!/usr/bin/env bash
 set -u
 case "${1:-}" in
@@ -122,7 +125,6 @@ case "${1:-}" in
 esac
 exit 0
 SH
-  chmod +x "$fb/no-mistakes" "$fb/tmux" "$fb/herdr"
   printf '%s\n' "$fb"
 }
 
@@ -1125,13 +1127,12 @@ test_no_timeout_uses_perl_bound() {
   make_fakebin "$d" >/dev/null
   calls_file="$d/no-mistakes.calls"
   : > "$calls_file"
-  cat > "$d/fakebin/no-mistakes" <<'SH'
+  fm_shared_stub "$d/fakebin" no-mistakes <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${FM_FAKE_NM_CALLS:-/dev/null}"
 printf '%s\n' "$$" > "${FM_FAKE_NM_PID:-/dev/null}"
 exec /bin/sleep 3600
 SH
-  chmod +x "$d/fakebin/no-mistakes"
   toolbin=$(make_no_timeout_toolbin "$d")
   fm_write_meta "$d/state/feat-timeout.meta" "window=fm:fm-feat-timeout" "worktree=$d/wt" "kind=ship" \
     "harness=claude"
@@ -1372,6 +1373,29 @@ test_active_step_activity_reported_in_seconds() {
   pass "a working run reports its freshest active step's activity age in seconds"
 }
 
+# The same segment names how long, at most, that step has been active and the
+# run it belongs to, so the watcher can look for new work under that run's own
+# copy while a command the step runs itself keeps last_activity quiet.
+test_active_step_reports_its_age_and_run() {
+  reset_fakes
+  local d out; d=$(new_case step-age-run)
+  make_repo_on_branch "$d/wt" fm/feat-age
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/feat-age.meta" "window=fm:fm-feat-age" "worktree=$d/wt" "kind=ship"
+  FM_FAKE_AXI_STATUS="$(run_fixing_with_activity fm/feat-age "quiet 53m ago: running tests")"
+  out=$(run_crew_state "$d" feat-age)
+  assert_contains "$out" "step test last activity 3180s ago, active 155s in run 01RUN" "the step's age and run were not reported"
+  # An hour-scale rendering drops its seconds; the age is the most it can mean.
+  FM_FAKE_AXI_STATUS="$(run_fixing_with_activity fm/feat-age "quiet 53m ago: running tests" | sed 's/test,fixing,2m35s,/test,fixing,1h16m,/')"
+  out=$(run_crew_state "$d" feat-age)
+  assert_contains "$out" "step test last activity 3180s ago, active 4619s in run 01RUN" "an hour-scale step age was not read as its upper bound"
+  FM_FAKE_AXI_STATUS="$(run_fixing_with_activity fm/feat-age "quiet 53m ago: running tests" | sed 's/id: "01RUN"/id: "01RUN; x"/')"
+  out=$(run_crew_state "$d" feat-age)
+  assert_contains "$out" "step test last activity 3180s ago" "the activity age was lost with an unreadable run id"
+  assert_not_contains "$out" "in run" "an unreadable run id was reported"
+  pass "a working run names its active step's age and its run id beside the step's activity"
+}
+
 # A ci step whose latest monitor marker says the checks are still running is a
 # forge wait, named as such even though its logged activity is old.
 test_ci_wait_on_checks_reported() {
@@ -1479,6 +1503,89 @@ issues detected: merge conflict - auto-fixing (attempt 2/10)..."
     crew_progress_evidence feat-prog "$d/state" "$anchor" 240 >/dev/null \
     && fail "a run parked at a gate counted as progress while its crew did nothing"
   pass "progress evidence over the real helper: fresh steps and forge waits count, a stalled step or fix round never does, and a parked run counts only its crew's own work"
+}
+
+# A bounded kernel or no-mistakes read that gives up under host load is the
+# probe's documented safe answer, no evidence, so on a loaded host one read that
+# shows nothing does not disprove the evidence. Up to three fresh reads of
+# <case-dir>'s feat-rsp evidence, with its run copies under <case-dir>/nm: 0
+# with the first evidence printed, 1 when none showed it.
+observe_run_step_evidence() {  # <case-dir>
+  local _
+  for _ in 1 2 3; do
+    PATH="$1/fakebin:$PATH" FM_STATE_OVERRIDE="$1/state" FM_CREW_STATE_BIN="$CREW_STATE" NM_HOME="$1/nm" \
+      crew_progress_evidence feat-rsp "$1/state" "$1/anchor" 240 && return 0
+  done
+  return 1
+}
+
+# A command the active step runs itself, such as the test step's configured
+# long command, keeps last_activity quiet until it finishes. New work under
+# that step in the run's own copy (NM_HOME/worktrees/<repo>/<run-id>) is
+# progress evidence; work under another run's copy, under a process that
+# predates the step, or under a copy that cannot be resolved is not.
+test_run_step_process_evidence_over_real_helper() {
+  reset_fakes
+  local d anchor out runner run_dir quiet; d=$(new_case run-step-process-evidence)
+  make_repo_on_branch "$d/wt" fm/feat-rsp
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/feat-rsp.meta" "window=fm:fm-feat-rsp" "worktree=$d/wt" "kind=ship"
+  run_dir="$d/nm/worktrees/repo/01RUN"
+  mkdir -p "$run_dir" "$d/nm/worktrees/repo/01OTHER"
+  # The step's long command: overlapping shards, each starting its own child.
+  # It stops once the case's fixtures are removed, so a failed assertion cannot
+  # leave it running and holding the test's output open.
+  ( cd "$run_dir" && exec bash -c 'while [ -d "$1" ]; do bash -c "sleep 2 & wait" & sleep 1; done' _ "$run_dir" ) &
+  runner=$!
+  # The command predates the quiet window that opens here by well over the
+  # step-start margin, so a step that began after it cannot claim it.
+  sleep 9
+  anchor="$d/anchor"
+  : > "$anchor"
+  sleep 2
+  quiet="$(run_fixing_with_activity fm/feat-rsp "quiet 53m ago: running tests")"
+  FM_FAKE_AXI_STATUS="$quiet"
+  out=$(observe_run_step_evidence "$d") \
+    || fail "new work under the active step's command in the run's own copy was not progress evidence"
+  assert_contains "$out" "validation step test is starting new processes in its run" "the run-step process evidence was not named"
+  FM_FAKE_AXI_STATUS="$(printf '%s\n' "$quiet" | sed 's/id: "01RUN"/id: "01OTHER"/')"
+  PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" NM_HOME="$d/nm" \
+    crew_progress_evidence feat-rsp "$d/state" "$anchor" 240 >/dev/null \
+    && fail "new work under another run's copy counted for this run"
+  # Every later negative read follows a positive control over the same live
+  # command, so the input it changes, not a command that stopped counting, is
+  # why it sees nothing.
+  FM_FAKE_AXI_STATUS="$quiet"
+  observe_run_step_evidence "$d" >/dev/null \
+    || fail "positive control before the older-process case: the run's own new work was not progress evidence"
+  FM_FAKE_AXI_STATUS="$(printf '%s\n' "$quiet" | sed 's/test,fixing,2m35s,/test,fixing,1s,/')"
+  PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" NM_HOME="$d/nm" \
+    crew_progress_evidence feat-rsp "$d/state" "$anchor" 240 >/dev/null \
+    && fail "new work under a process older than the active step counted for that step"
+  FM_FAKE_AXI_STATUS="$quiet"
+  observe_run_step_evidence "$d" >/dev/null \
+    || fail "positive control before the unresolvable-copy case: the run's own new work was not progress evidence"
+  PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" NM_HOME="$d/no-such-root" \
+    crew_progress_evidence feat-rsp "$d/state" "$anchor" 240 >/dev/null \
+    && fail "a run whose copy is not under the CLI's root counted as progress"
+  observe_run_step_evidence "$d" >/dev/null \
+    || fail "positive control before the two-copies case: the run's own new work was not progress evidence"
+  mkdir -p "$d/nm/worktrees/repo2/01RUN"
+  PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" NM_HOME="$d/nm" \
+    crew_progress_evidence feat-rsp "$d/state" "$anchor" 240 >/dev/null \
+    && fail "a run id naming two copies counted as progress"
+  rmdir "$d/nm/worktrees/repo2/01RUN"
+  observe_run_step_evidence "$d" >/dev/null \
+    || fail "positive control before the command stops: the run's own new work was not progress evidence"
+  kill "$runner" 2>/dev/null || true
+  wait "$runner" 2>/dev/null || true
+  # The command's last shards may outlive it by up to two seconds; after that
+  # the step starts nothing.
+  sleep 3
+  PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" NM_HOME="$d/nm" \
+    crew_progress_evidence feat-rsp "$d/state" "$anchor" 240 >/dev/null \
+    && fail "a step whose command stopped starting work counted as progress"
+  pass "progress evidence over the real helper: new work under the active step in the run's own copy counts, bound to that run and step"
 }
 
 # Usage error (no id) is the one non-zero exit.
@@ -1916,7 +2023,7 @@ test_overrides_do_not_reach_backend_probes() {
   fm_write_meta "$d/snap/feat-scope.meta" "window=default:w1:p2" "worktree=$d/wt" "kind=ship" \
     "backend=herdr" "harness=claude"
   printf 'working: from the snapshot copy\n' > "$d/snap/feat-scope.status"
-  cat > "$d/fakebin/herdr" <<'SH'
+  fm_shared_stub "$d/fakebin" herdr <<'SH'
 #!/usr/bin/env bash
 set -u
 { printf 'call %s\n' "$*"; env | grep '^FM_CREW_STATE_' || true; } >> "${FM_FAKE_HERDR_ENV_LOG:?}"
@@ -1926,7 +2033,6 @@ case "${1:-}" in
 esac
 exit 1
 SH
-  chmod +x "$d/fakebin/herdr"
   FM_FAKE_TMUX_MISSING=1
   : > "$d/herdr.env"
   local out
@@ -1989,9 +2095,11 @@ test_missing_meta
 test_provably_working_via_runs_list_fallback
 test_not_provably_working_when_stopped
 test_active_step_activity_reported_in_seconds
+test_active_step_reports_its_age_and_run
 test_ci_wait_on_checks_reported
 test_ci_wait_named_only_for_pending_checks
 test_progress_evidence_over_real_helper
+test_run_step_process_evidence_over_real_helper
 test_usage_error
 test_historical_same_branch_rewritten_head_not_current
 test_active_run_descendant_fix_head_remains_current
