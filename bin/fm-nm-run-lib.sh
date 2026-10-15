@@ -187,9 +187,6 @@ fm_nm_run_is_submitted_head_active() {  # <worktree> <toon-output>
   [ -n "$run_id" ] || return 1
   bound_run=$(fm_nm_branch_sync_field "$out" pipeline run)
   [ "$bound_run" = "$run_id" ] || return 1
-  case "$(fm_nm_branch_sync_field "$out" pipeline status)" in
-    completed|failed|cancelled) return 1 ;;
-  esac
   submitted=$(fm_nm_branch_sync_field "$out" pipeline submitted_head)
   [ -n "$submitted" ] || return 1
   local_full=$(git -C "$wt" rev-parse HEAD 2>/dev/null) || return 1
