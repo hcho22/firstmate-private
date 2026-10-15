@@ -1009,7 +1009,7 @@ _fm_lock_acquire_wait_handoff() {  # <lockdir> <caller-pid>
 # reconciliation refusal instead of wedging an unattended close.
 # Mutation-critical callers that can safely block keep fm_lock_acquire_wait.
 fm_lock_acquire_wait_bounded() {
-  local lockdir=$1 seconds=$2 caller_pid rc owner_pid
+  local lockdir=$1 seconds=$2 caller_pid rc owner_pid tries
   case "$seconds" in ''|*[!0-9]*|0) return 2 ;; esac
   _fm_wake_require_timeout || return 1
   if fm_lock_try_acquire "$lockdir"; then
@@ -1043,16 +1043,28 @@ fm_lock_acquire_wait_bounded() {
     return 0
   fi
   if [ "$rc" -eq 124 ]; then
-    owner_pid=$(cat "$lockdir/pid" 2>/dev/null || true)
-    case "$owner_pid" in
-      ''|*[!0-9]*|0) ;;
-      *)
-        if [ "$owner_pid" -gt 0 ] 2>/dev/null && fm_pid_alive "$owner_pid"; then
-          FM_LOCK_HELD_PID=$owner_pid
-          return 124
-        fi
-        ;;
-    esac
+    # Under churn a single owner read can land between two holders and see no
+    # pid. Re-observe briefly: a live holder is contention, a freed lock is
+    # taken, and only a lock that never shows either is unsafe.
+    tries=0
+    while :; do
+      owner_pid=$(cat "$lockdir/pid" 2>/dev/null || true)
+      case "$owner_pid" in
+        ''|*[!0-9]*|0) ;;
+        *)
+          if [ "$owner_pid" -gt 0 ] 2>/dev/null && fm_pid_alive "$owner_pid"; then
+            FM_LOCK_HELD_PID=$owner_pid
+            return 124
+          fi
+          ;;
+      esac
+      tries=$((tries + 1))
+      [ "$tries" -lt 10 ] || break
+      sleep 0.1
+      if fm_lock_try_acquire "$lockdir"; then
+        return 0
+      fi
+    done
     # shellcheck disable=SC2034 # Output read by callers after bounded acquisition.
     FM_LOCK_HELD_PID=
     return 1
