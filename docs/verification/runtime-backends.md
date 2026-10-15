@@ -800,10 +800,10 @@ ok - real Herdr lab validation completed on Herdr 0.8.0 with the default-session
 ```
 
 The projected spawn in that run used the historical empty opt-in file, so a home that had already enabled the projection keeps it without any migration step.
+That run measured the default-on projection on Herdr 0.8.0 only, while the focus-flash regression below was last run on 0.7.5 before the flip, so neither run covered a defective release under default-on projection; the version floor and the focus-flash suite's Part C close that gap.
 Recovery-path presentation lock contention is a deliberate hard refusal rather than a flat fallback, which default-on now makes reachable from any Herdr home.
 A recovering task holds the session lock through its whole launch while a concurrent recovery's acquire is bounded at about five seconds, so on a loaded host the concurrent cross-home recovery case routinely takes that refusal on one side.
 On 2026-10-14 against Herdr 0.7.5, eight concurrent copies of the suite each took it, and the case now accepts it from at most one side, proves the refused side left its task record, journal, and old husk pane untouched, and resumes that task after the lock owner completes.
-That run measured the default-on projection on Herdr 0.8.0 only, while the focus-flash regression below was last run on 0.7.5 before the flip, so neither run covered a defective release under default-on projection; the version floor and the focus-flash suite's Part C close that gap.
 
 The restored-shell session-start cleanup ran on 2026-07-24 against Herdr 0.7.5 protocol 17:
 
