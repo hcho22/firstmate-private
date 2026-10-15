@@ -181,6 +181,7 @@ fm_test_await_child_exit() {
     sleep 0.05
   done
   FM_TEST_CHILD_RC=0
+  # shellcheck disable=SC2034  # read by the callers in the sourcing test files
   wait "$pid" 2>/dev/null || FM_TEST_CHILD_RC=$?
 }
 
