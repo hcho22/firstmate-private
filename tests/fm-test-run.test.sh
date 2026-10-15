@@ -1598,6 +1598,9 @@ WORKER_LEAK_FOREIGN=
 stop_worker_leak_case() {
   local state
   if [ -n "$WORKER_LEAK_RUNNER" ]; then
+    # Only a case that already failed, or a file stopped mid-case, leaves a
+    # runner here (a passing case collects its own). The wait is bounded, so
+    # the file still ends and reports instead of hanging on that runner.
     kill -TERM -- "-$WORKER_LEAK_RUNNER" 2>/dev/null || true
     if ! fm_test_await_child_exit "$WORKER_LEAK_RUNNER" 60; then
       kill -KILL -- "-$WORKER_LEAK_RUNNER" 2>/dev/null || true
