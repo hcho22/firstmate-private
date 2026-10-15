@@ -2474,6 +2474,77 @@ EOF
   pass "an unresolvable active row with no same-branch anchor is never concluded (conservative refusal)"
 }
 
+# A parked run whose pipeline already pushed its own fix commit, as
+# no-mistakes v1.79.0 renders it: the run head is the pushed commit the task
+# copy never fetched, branch_sync reads `behind`, and branch_sync.pipeline
+# records the run id and the head it was submitted from.
+parked_pushed_fix_axi_status_toon() {  # <branch> <run-head> <submitted-head>
+  parked_axi_status_toon "$1" "$2"
+  cat <<EOF
+branch_sync:
+  state: behind
+  local:
+    branch: $1
+    head: $3
+    clean: true
+  pipeline:
+    run: "01RUN"
+    status: awaiting_approval
+    submitted_head: $3
+    current_head: $2
+    pushed_head: $2
+  relation: behind
+EOF
+}
+
+# The branch's only ledger row is the parked run itself, so no older row can
+# anchor the ledger continuation; the run's own record of submitting exactly
+# this worktree's HEAD is what binds it, and cleanup concludes it.
+test_parked_run_pushed_fix_bound_by_submitted_head_is_aborted() {
+  local case_dir rc head advanced_short
+  case_dir=$(make_case parked-run-pushed-fix-submitted)
+  write_meta "$case_dir" no-mistakes ship
+  land_shippable_commit "$case_dir"
+  head=$(git -C "$case_dir/wt" rev-parse HEAD)
+  advanced_short=$(make_unfetched_pipeline_heads "$case_dir")
+  assert_head_absent_from_worktree "$case_dir/wt" "$advanced_short" "parked-run-pushed-fix-submitted"
+
+  rc=0
+  FM_FAKE_AXI_STATUS="$(parked_pushed_fix_axi_status_toon fm/task-x1 "$advanced_short" "$head")" \
+  FM_FAKE_NM_RUNS_LIST="$(ledger_row running fm/task-x1 "$advanced_short" 2026-10-06 09:12)" \
+  FM_FAKE_NM_ABORT_LOG="$case_dir/nm-abort.log" \
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 0 "$rc" "parked-run-pushed-fix-submitted: teardown should still succeed"
+  assert_grep "abort --run 01RUN" "$case_dir/nm-abort.log" \
+    "parked-run-pushed-fix-submitted: teardown did not abort the parked run that records submitting this head"
+  pass "a parked single run that pushed its own fix is concluded by its submitted head, not orphaned"
+}
+
+# The same parked run submitted from another head - an earlier task's run on
+# a reused branch name, or this copy's head before later local work - proves
+# nothing about this worktree and is never aborted.
+test_parked_run_pushed_fix_other_submitted_head_is_never_aborted() {
+  local case_dir rc advanced_short other
+  case_dir=$(make_case parked-run-pushed-fix-other-submitted)
+  write_meta "$case_dir" no-mistakes ship
+  land_shippable_commit "$case_dir"
+  advanced_short=$(make_unfetched_pipeline_heads "$case_dir")
+  assert_head_absent_from_worktree "$case_dir/wt" "$advanced_short" "parked-run-pushed-fix-other-submitted"
+  other=$(git -C "$case_dir/wt" rev-parse HEAD~1)
+
+  rc=0
+  FM_FAKE_AXI_STATUS="$(parked_pushed_fix_axi_status_toon fm/task-x1 "$advanced_short" "$other")" \
+  FM_FAKE_NM_RUNS_LIST="$(ledger_row running fm/task-x1 "$advanced_short" 2026-10-06 09:12)" \
+  FM_FAKE_NM_ABORT_LOG="$case_dir/nm-abort.log" \
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 0 "$rc" "parked-run-pushed-fix-other-submitted: teardown should still succeed"
+  assert_absent "$case_dir/nm-abort.log" \
+    "parked-run-pushed-fix-other-submitted: teardown aborted a run submitted from another head"
+  pass "a parked run submitted from another head is never concluded"
+}
+
 # The anchor row resolves but to an OLDER commit: the worktree advanced past
 # it since the run was submitted, so exact-equality fails and the run is not
 # provably this worktree's submission. Ancestor-only anchors must never bind.
@@ -3336,6 +3407,8 @@ fm_test_run_cases \
   test_terminal_status_with_gate_never_queries_or_aborts_ledger_fallback \
   test_parked_run_advanced_head_locally_fetched_is_still_aborted \
   test_parked_advanced_run_without_anchor_is_never_aborted \
+  test_parked_run_pushed_fix_bound_by_submitted_head_is_aborted \
+  test_parked_run_pushed_fix_other_submitted_head_is_never_aborted \
   test_parked_advanced_run_ancestor_anchor_is_never_aborted \
   test_parked_terminal_unfetched_row_is_never_aborted \
   test_parked_run_terminal_newest_row_at_own_head_is_never_aborted \
