@@ -36,7 +36,10 @@
 #      diverged from it, invalidates attribution. While the pipeline owns the
 #      branch (branch_sync.state=pipeline_owned), its own custody attribution
 #      binds an ACTIVE run without head equality (fm_nm_run_is_pipeline_owned_active
-#      in bin/fm-nm-run-lib.sh).
+#      in bin/fm-nm-run-lib.sh), and an ACTIVE run whose own branch_sync record
+#      says it was submitted from exactly this worktree's HEAD binds even after
+#      it pushed fix commits this copy never fetched
+#      (fm_nm_run_is_submitted_head_active in bin/fm-nm-run-lib.sh).
 #      A run head whose commit object the task copy never fetched (the pipeline
 #      committed its fix round in its own checkout) cannot be verified locally;
 #      that row is recognized only as a provable pipeline-owned continuation -
@@ -428,12 +431,16 @@ if [ "$KIND" = ship ] && [ -n "$CREW_BRANCH" ] && command -v no-mistakes >/dev/n
   RUN_OUT=$(nm_run axi status)
   if [ -n "$RUN_OUT" ]; then
     run_branch=$(strip_quotes "$(nm_field branch)")
-    # Head equality, or the pipeline-owned-active exemption: while the
-    # pipeline owns this branch, the daemon's own branch attribution is
-    # authoritative and the lane head need not be a git object here
-    # (fm_nm_run_is_pipeline_owned_active in bin/fm-nm-run-lib.sh).
+    # Head equality, the active run's own record of submitting this exact
+    # head (its pushed fix commits need not be git objects here), or the
+    # pipeline-owned-active exemption: while the pipeline owns this branch,
+    # the daemon's own branch attribution is authoritative and the lane head
+    # need not be a git object here (fm_nm_run_is_submitted_head_active and
+    # fm_nm_run_is_pipeline_owned_active in bin/fm-nm-run-lib.sh).
     if [ -n "$run_branch" ] && [ "$run_branch" = "$CREW_BRANCH" ] \
-      && { nm_run_head_matches_worktree || fm_nm_run_is_pipeline_owned_active "$RUN_OUT"; }; then
+      && { nm_run_head_matches_worktree \
+        || fm_nm_run_is_submitted_head_active "$WT" "$RUN_OUT" \
+        || fm_nm_run_is_pipeline_owned_active "$RUN_OUT"; }; then
       HAVE_RUN=1
     else
       # The active-or-most-recent run is for another branch, or it names this

@@ -1980,6 +1980,148 @@ EOF
   pass "unresolvable terminal row never reads as current"
 }
 
+# The run as no-mistakes v1.79.0 renders it after its own ci step pushed a
+# fix commit the task copy never fetched: the run head is the pushed commit,
+# branch_sync reads `behind` (not pipeline_owned), and branch_sync.pipeline
+# records the run id and the head it was submitted from. Captured from a real
+# `axi status` on 2026-10-15; only the ids, heads, and timings are fixture
+# values. <run-status> "completed" also appends the terminal outcome.
+run_ci_pushed_fix_behind() {  # <branch> <run-head> <submitted-head> [pipeline-run] [run-status]
+  local st=${5:-running}
+  cat <<EOF
+run:
+  id: "01M49AQW5W6RW2APH2FT58PM8B"
+  branch: $1
+  status: $st
+  head: ${2:0:8}
+  head_sha: $2
+  pr: "https://github.com/o/r/pull/13"
+  findings: "1 awaiting, 3 info"
+  steps[3]{step,status,findings,duration_ms}:
+    push,completed,0,4252
+    pr,completed,0,40759
+    ci,${st},1,0
+  active_steps[1]{step,status,active_for,round_active_for,last_activity,agent_pid,round}:
+    ci,running,3h41m,12m4s,"quiet 9m ago: log: CI checks running, waiting for results...","",round 4
+branch_sync:
+  state: behind
+  changed: false
+  local:
+    branch: $1
+    head: $3
+    clean: true
+  pipeline:
+    run: "${4:-01M49AQW5W6RW2APH2FT58PM8B}"
+    status: $st
+    phase: ci
+    submitted_head: $3
+    current_head: $2
+    pushed_head: $2
+    pushed_at: 1791345239
+    push_generation: 4
+  target:
+    kind: upstream
+    remote: origin
+    url: "https://github.com/o/r.git"
+    ref: refs/heads/$1
+  remote:
+    observed_head: $2
+    freshness: pipeline_push
+    observed_at: 1791345239
+  relation: behind
+  safety: refresh_required
+  pr_state: open
+  next_action:
+    code: sync
+    command: no-mistakes axi sync
+EOF
+  [ "$st" != completed ] || printf 'outcome: passed\n'
+}
+
+# The 2026-10-06 false wedge alarm: an active single-run validation whose ci
+# step pushed its own fix commit. The run head is not an object in the task
+# copy, branch_sync is `behind`, and the ledger holds only this run's row, so
+# neither the head rule, the custody exemption, nor the ledger anchor can bind
+# it. The run's own record of submitting exactly this worktree's HEAD does:
+# the real step is reported with the progress evidence the wedge timer reads.
+test_pushed_fix_single_run_binds_by_its_submitted_head() {
+  reset_fakes
+  local d h1 h2 anchor out
+  d=$(new_case pushed-fix-single-run)
+  make_repo_on_branch "$d/wt" fm/feat-pushed
+  h1=$(git -C "$d/wt" rev-parse HEAD)
+  h2=$(mint_unfetched_fix_head "$d/wt")
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/pushed.meta" "window=fm:fm-pushed" "worktree=$d/wt" "kind=ship" "harness=claude"
+  printf 'paused: waiting on the validation response\n' > "$d/state/pushed.status"
+  FM_FAKE_AXI_STATUS="$(run_ci_pushed_fix_behind fm/feat-pushed "$h2" "$h1")"
+  FM_FAKE_RUNS_LIST="  running    fm/feat-pushed ${h2:0:8}  2026-10-06 09:12  https://github.com/o/r/pull/13"
+  FM_FAKE_CI_LOGS="CI checks running, waiting for results..."
+  FM_FAKE_BUSY=0
+  arm_idle_record "$d/state" pushed
+  out=$(run_crew_state "$d" pushed)
+  assert_contains "$out" "state: working" "the active pushed-fix run reads working"
+  assert_contains "$out" "source: run-step" "the run binds by its own submission record"
+  assert_contains "$out" "step ci last activity 540s ago" "the run's real step is reported"
+  assert_contains "$out" "in run 01M49AQW5W6RW2APH2FT58PM8B" "the run id reaches the progress evidence"
+  assert_contains "$out" "ci waiting on checks" "the forge wait is named"
+  anchor="$d/anchor"
+  : > "$anchor"
+  out=$(PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" \
+    crew_progress_evidence pushed "$d/state" "$anchor" 240) \
+    || fail "the pushed-fix run's forge wait was not progress evidence for the wedge timer"
+  assert_contains "$out" "waiting on CI checks" "the wedge timer's evidence was not named"
+  pass "an active single-run validation that pushed its own fix binds by its submitted head"
+}
+
+# Refusals for the submission binding: each fixture differs from the positive
+# case in exactly one fact, and the crew's own status log answers instead.
+#   reused-branch: the active run on this branch name was submitted from
+#     another task's commit
+#   local-advanced: this copy committed new work after submitting the run
+#   other-run: branch_sync.pipeline names a different run than the one shown
+#   finished: the run already ended
+test_pushed_fix_submission_binding_refusals() {
+  reset_fakes
+  local d h1 h2 submitted out c
+  for c in reused-branch local-advanced other-run finished; do
+    d=$(new_case "pushed-fix-refuse-$c")
+    make_repo_on_branch "$d/wt" fm/feat-refuse
+    h1=$(git -C "$d/wt" rev-parse HEAD)
+    h2=$(mint_unfetched_fix_head "$d/wt")
+    submitted=$h1
+    make_fakebin "$d" >/dev/null
+    fm_write_meta "$d/state/refuse.meta" "window=fm:fm-refuse" "worktree=$d/wt" "kind=ship" "harness=claude"
+    printf 'failed: the previous attempt failed\n' > "$d/state/refuse.status"
+    case "$c" in
+      reused-branch)
+        git -C "$d/wt.pipe" commit -q --allow-empty -m 'earlier task submission'
+        submitted=$(git -C "$d/wt.pipe" rev-parse HEAD)
+        FM_FAKE_AXI_STATUS="$(run_ci_pushed_fix_behind fm/feat-refuse "$h2" "$submitted")" ;;
+      local-advanced)
+        git -C "$d/wt" commit -q --allow-empty -m 'local work after submission'
+        FM_FAKE_AXI_STATUS="$(run_ci_pushed_fix_behind fm/feat-refuse "$h2" "$submitted")" ;;
+      other-run)
+        FM_FAKE_AXI_STATUS="$(run_ci_pushed_fix_behind fm/feat-refuse "$h2" "$submitted" 01M4OTHERRUN00000000000000B)" ;;
+      finished)
+        FM_FAKE_AXI_STATUS="$(run_ci_pushed_fix_behind fm/feat-refuse "$h2" "$submitted" "" completed)" ;;
+    esac
+    case "$c" in
+      reused-branch|local-advanced)
+        [ "$submitted" != "$(git -C "$d/wt" rev-parse HEAD)" ] \
+          || fail "$c: fixture broken - the submitted head is this copy's HEAD" ;;
+    esac
+    FM_FAKE_RUNS_LIST="  running    fm/feat-refuse ${h2:0:8}  2026-10-06 09:12  https://github.com/o/r/pull/13"
+    FM_FAKE_BUSY=0
+    arm_idle_record "$d/state" refuse
+    out=$(run_crew_state "$d" refuse)
+    assert_not_contains "$out" "source: run-step" "$c: the submission binding attributed a run it cannot prove"
+    assert_contains "$out" "source: status-log" "$c: the crew's own status log did not answer"
+    assert_contains "$out" "state: failed" "$c: the status log's state was not reported"
+  done
+  pass "the submission binding refuses a reused branch, local work after submission, another run, and a finished run"
+}
+
 # The same continuation recognition must work when bare `axi status` answers
 # with ANOTHER branch's run: this branch's own active run is then visible only
 # in the ledger, with coarse (status-word) detail.
@@ -2111,6 +2253,8 @@ test_coarse_mismatched_anchor_falls_to_pane_not_older_row
 test_non_pipeline_owned_unresolvable_head_not_attributed
 test_pipeline_owned_terminal_run_not_exempt
 test_missing_run_head_falls_back_to_current_state
+test_pushed_fix_single_run_binds_by_its_submitted_head
+test_pushed_fix_submission_binding_refusals
 test_active_fix_round_unfetched_pipeline_head_reports_current
 test_unanchored_unfetched_active_row_does_not_match
 test_unresolved_terminal_row_is_history_not_current

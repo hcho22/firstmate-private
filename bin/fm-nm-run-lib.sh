@@ -4,7 +4,9 @@
 # ONE owner for the no-mistakes run-attribution primitives used by
 # fm-crew-state.sh (read-only current-state reporting) and fm-teardown.sh
 # (pre-teardown run abort, see its "Fix 1" header comment). Both bind a run
-# by strict branch-and-head identity first, and both then recognize a provable
+# by strict branch-and-head identity first, then by the run's own recorded
+# submission of this copy's head (fm_nm_run_is_submitted_head_active below),
+# and both then recognize a provable
 # pipeline-owned continuation through fm_nm_runs_status_for_worktree below:
 # crew-state for an ACTIVE run, so a fix round never reads as an older failed
 # run, and teardown for a run PARKED at a gate, so cleanup concludes it
@@ -77,10 +79,12 @@ fm_nm_resolve_commit() {  # <worktree> <sha-ish>
 #   - run head is a strict ancestor of worktree HEAD, or diverged: no match
 #     (local work advanced outside the run, or the branch tip was rewritten)
 # A run head whose object this copy does not have cannot be proven here and is
-# rejected; fm_nm_runs_status_for_worktree below owns the one ledger-anchored
-# recognition for that case, and fm_nm_run_is_pipeline_owned_active below
-# carries the custody exemption: a live run whose pipeline currently owns the
-# branch binds without head equality.
+# rejected; fm_nm_run_is_submitted_head_active below binds an active run by its
+# own record of submitting this exact head, fm_nm_runs_status_for_worktree
+# below owns the one ledger-anchored recognition for that case, and
+# fm_nm_run_is_pipeline_owned_active below carries the custody exemption: a
+# live run whose pipeline currently owns the branch binds without head
+# equality.
 fm_nm_head_matches_worktree() {  # <worktree> <run_head>
   local wt=$1 run_head=$2 local_full run_full
   [ -n "$run_head" ] || return 1
@@ -126,6 +130,70 @@ fm_nm_run_is_active() {  # <toon-output>
 fm_nm_run_is_pipeline_owned_active() {  # <toon-output>
   [ "$(fm_nm_branch_sync_state "$1")" = pipeline_owned ] || return 1
   fm_nm_run_is_active "$1"
+}
+
+# Scalar <key> directly under the `branch_sync.<block>` sub-block of captured
+# `axi status` TOON $1, located by indentation so a same-named key elsewhere
+# (the run's own `status:`, another sub-block's `head:`) never answers:
+#   branch_sync:
+#     pipeline:
+#       run: "01M49AQW5W6RW2APH2FT58PM8B"
+#       submitted_head: f26317d59169245a1a5c3fa8b36a6cfdeb329dbf
+# Quotes stripped; empty when the block or key is absent.
+fm_nm_branch_sync_field() {  # <toon-output> <block> <key>
+  local v
+  v=$(printf '%s\n' "$1" | awk -v blk="$2" -v key="$3" '
+    function ind(s) { return match(s, /[^[:space:]]/) - 1 }
+    function keyed(s, k,   t) {
+      t = substr(s, ind(s) + 1)
+      if (substr(t, 1, length(k) + 1) != k ":") return 0
+      found = substr(t, length(k) + 2)
+      return 1
+    }
+    /^[[:space:]]*$/ { next }
+    depth == 0 { if ($0 ~ /^[[:space:]]*branch_sync:[[:space:]]*$/) { depth = 1; top = ind($0) }; next }
+    { i = ind($0) }
+    i <= top { exit }
+    depth == 1 {
+      if (child == "") child = i
+      if (i == child && keyed($0, blk) && found ~ /^[[:space:]]*$/) { depth = 2; bi = i }
+      next
+    }
+    i <= bi { exit }
+    {
+      if (grand == "") grand = i
+      if (i == grand && keyed($0, key)) { print found; exit }
+    }
+  ')
+  fm_nm_strip_quotes "$v"
+}
+
+# The submitted-head binding: an ACTIVE run binds to worktree $1 when its own
+# branch_sync record names it as the pipeline run (pipeline.run equals the
+# run's id) AND says that run was submitted from exactly this worktree's HEAD
+# (pipeline.submitted_head equals the full local HEAD). The head rule above
+# cannot see this once the pipeline pushes its own fix commits: the run head is
+# then a commit the task copy never fetched, branch_sync reads `behind` rather
+# than pipeline_owned, and a single-run branch has no older ledger row to
+# anchor fm_nm_runs_status_for_worktree. The submission record is the
+# pipeline's own, immutable for the run, and exact-equality only, so local work
+# committed after submission, a run from an earlier task on a reused branch
+# name, or another head's run never matches. Like the custody exemption it
+# never applies to a terminal run.
+fm_nm_run_is_submitted_head_active() {  # <worktree> <toon-output>
+  local wt=$1 out=$2 run_id bound_run submitted local_full
+  fm_nm_run_is_active "$out" || return 1
+  run_id=$(fm_nm_strip_quotes "$(fm_nm_field "$out" id)")
+  [ -n "$run_id" ] || return 1
+  bound_run=$(fm_nm_branch_sync_field "$out" pipeline run)
+  [ "$bound_run" = "$run_id" ] || return 1
+  case "$(fm_nm_branch_sync_field "$out" pipeline status)" in
+    completed|failed|cancelled) return 1 ;;
+  esac
+  submitted=$(fm_nm_branch_sync_field "$out" pipeline submitted_head)
+  [ -n "$submitted" ] || return 1
+  local_full=$(git -C "$wt" rev-parse HEAD 2>/dev/null) || return 1
+  [ "$submitted" = "$local_full" ]
 }
 
 # ONE owner for attribution from the pipeline's own runs ledger, replacing a
