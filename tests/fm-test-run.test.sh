@@ -223,6 +223,7 @@ init_changed_fixture_repo() {
   : >"$repo/bin/fm-supervisor-target-lib.sh"
   : >"$repo/bin/fm-control-lib.sh"
   : >"$repo/bin/fm-timeout-lib.sh"
+  : >"$repo/bin/fm-nm-run-lib.sh"
   : >"$repo/bin/fm-procevent-quota.sh"
   : >"$repo/bin/fm-quota-axi-lib.sh"
   : >"$repo/bin/fm-quota-choose.sh"
@@ -348,6 +349,14 @@ test_changed_dependency_selection_and_unmapped_failure() {
   assert_contains "$listed" "tests/fm-afk-return.test.sh" "supervisor target selects afk coverage"
   git -C "$repo" add bin/fm-supervisor-target-lib.sh
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm supervisor-change
+
+  printf '\n' >>"$repo/bin/fm-nm-run-lib.sh"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
+  assert_contains "$listed" "tests/fm-brief.test.sh" "no-mistakes run library selects crew-state coverage"
+  assert_contains "$listed" "tests/fm-pr-merge.test.sh" "no-mistakes run library selects teardown coverage"
+  assert_contains "$listed" "tests/fm-daemon.test.sh" "no-mistakes run library selects wedge-deferral coverage"
+  git -C "$repo" add bin/fm-nm-run-lib.sh
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm nm-run-lib-change
 
   printf '\n' >>"$repo/.agents/skills/example/SKILL.md"
   printf '\n' >>"$repo/.claude/settings.json"

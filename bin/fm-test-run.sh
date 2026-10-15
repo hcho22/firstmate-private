@@ -1376,10 +1376,10 @@ families_for_changed_path() {
       # Shared no-mistakes run-attribution primitives, sourced by
       # bin/fm-crew-state.sh (pure-contract-unit), bin/fm-teardown.sh's
       # pre-teardown run abort (pr-forge), and bin/fm-classify-lib.sh's
-      # run-copy probe, which tests/fm-crew-state.test.sh drives over the real
-      # helper (pure-contract-unit).
+      # wedge-deferral run-copy lookup (watcher-wake-lock).
       printf '%s\n' pure-contract-unit
       printf '%s\n' pr-forge
+      printf '%s\n' watcher-wake-lock
       ;;
     bin/fm-control-lib.sh)
       printf '%s\n' backend-dispatch
