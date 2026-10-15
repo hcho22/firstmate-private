@@ -1,0 +1,25 @@
+# Attempt 1 against real run 01M4YJKR5WFZJMRQYGKGBZH4FV: its configured command ended at ~00:06:30, before the first 60s window closed, so both watchers deferred on the fix agent's fresh activity (no differentiation).
+######## watcher code: fixed (this change f3ec246)
+# wakes delivered to firstmate
+[00:09:10] window closed with the watcher still blocking (no wake)
+# triage log (deferrals, timer resets)
+[2026-10-15T00:05:47-0700] absorbed benign signal: /tmp/fml.CZNO/rf/state/reaping.status
+[2026-10-15T00:06:59-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 6s ago, idle 62s): fm:fm-reaping
+[2026-10-15T00:08:00-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 2s ago, idle 60s): fm:fm-reaping
+[2026-10-15T00:09:00-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 10s ago, idle 60s): fm:fm-reaping
+######## watcher code: base (base fbd3c9b)
+# wakes delivered to firstmate
+[00:09:10] window closed with the watcher still blocking (no wake)
+# triage log (deferrals, timer resets)
+[2026-10-15T00:05:48-0700] absorbed benign signal: /tmp/fml.CZNO/rb/state/reaping.status
+[2026-10-15T00:06:58-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 6s ago, idle 62s): fm:fm-reaping
+[2026-10-15T00:07:59-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 2s ago, idle 60s): fm:fm-reaping
+[2026-10-15T00:08:59-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 9s ago, idle 60s): fm:fm-reaping
+# samples of the real run
+[00:05:44] axi active step:     test,fixing,5h14m,1h53m,"quiet 1h14m ago: log: running tests: bin/fm-test-run.sh --changed --exclude-family real-herdr-gated","",fix 2 | processes running bin/fm-test-run.sh in that run's copy: 1200(etime 00:08) 91687(etime 01:14:32) 
+[00:06:15] axi active step:     test,fixing,5h15m,1h53m,"quiet 1h15m ago: log: running tests: bin/fm-test-run.sh --changed --exclude-family real-herdr-gated","",fix 2 | processes running bin/fm-test-run.sh in that run's copy: 8155(etime 00:26) 91687(etime 01:15:03) 
+[00:06:45] axi active step:     test,fixing,5h15m,1h54m,"4s ago: claude producing output","33821",fix 2 | processes running bin/fm-test-run.sh in that run's copy: 
+[00:07:16] axi active step:     test,fixing,5h16m,1h54m,"5s ago: claude producing output","33821",fix 2 | processes running bin/fm-test-run.sh in that run's copy: 
+[00:07:46] axi active step:     test,fixing,5h16m,1h55m,"0s ago: claude producing output","33821",fix 2 | processes running bin/fm-test-run.sh in that run's copy: 
+[00:08:16] axi active step:     test,fixing,5h17m,1h55m,"0s ago: claude producing output","33821",fix 2 | processes running bin/fm-test-run.sh in that run's copy: 
+[00:08:48] axi active step:     test,fixing,5h17m,1h56m,"1s ago: claude producing output","33821",fix 2 | processes running bin/fm-test-run.sh in that run's copy: 

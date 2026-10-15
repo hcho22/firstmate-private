@@ -1,0 +1,22 @@
+[03:28:18] long command started (pid 51677)
+[03:29:17] A | load 8.19 | axi active step as the watcher reads it: test,fixing,4h18m,46m46s,"quiet 3m58s ago: running tests","",fix 2 | long command: pid 51677 etime 00:59 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[03:29:37] A | load 8.42 | axi active step as the watcher reads it: test,fixing,4h18m,47m7s,"quiet 4m19s ago: running tests","",fix 2 | long command: pid 51677 etime 01:19 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[03:29:58] A | load 8.60 | axi active step as the watcher reads it: test,fixing,4h19m,47m28s,"quiet 4m40s ago: running tests","",fix 2 | long command: pid 6297 etime 00:08 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[03:30:19] A | load 70.32 | axi active step as the watcher reads it: test,fixing,4h19m,47m49s,"quiet 5m1s ago: running tests","",fix 2 | long command: pid 6297 etime 00:29 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[03:30:40] A | load 54.22 | axi active step as the watcher reads it: test,fixing,4h19m,48m10s,"quiet 5m22s ago: running tests","",fix 2 | long command: pid 6297 etime 00:50 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[03:31:01] A | load 57.47 | axi active step as the watcher reads it: test,fixing,4h20m,48m31s,"quiet 5m43s ago: running tests","",fix 2 | long command: pid 6297 etime 01:11 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[03:31:23] A | load 86.98 | axi active step as the watcher reads it: test,fixing,4h20m,48m52s,"quiet 6m4s ago: running tests","",fix 2 | long command: pid 6297 etime 01:33 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[03:31:45] A | load 236.60 | axi active step as the watcher reads it: test,fixing,4h20m,49m14s,"quiet 6m27s ago: running tests","",fix 2 | long command: pid 6297 etime 01:55 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[03:32:07] A | load 268.66 | axi active step as the watcher reads it: test,fixing,4h21m,49m36s,"quiet 6m48s ago: running tests","",fix 2 | long command: pid 6297 etime 02:17 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[03:32:27] A | load 204.32 | axi active step as the watcher reads it: test,fixing,4h21m,49m57s,"quiet 7m9s ago: running tests","",fix 2 | long command: pid 6297 etime 02:37 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[03:32:48] A | load 155.32 | axi active step as the watcher reads it: test,fixing,4h21m,50m18s,"quiet 7m30s ago: running tests","",fix 2 | long command: pid 6297 etime 02:58 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[03:33:09] A | load 118.24 | axi active step as the watcher reads it: test,fixing,4h22m,50m39s,"quiet 7m51s ago: running tests","",fix 2 | long command: pid 6297 etime 03:20 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[03:33:31] A | load 99.13 | axi active step as the watcher reads it: test,fixing,4h22m,51m0s,"quiet 8m12s ago: running tests","",fix 2 | long command: pid 6297 etime 03:41 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[03:33:52] A | load 85.86 | axi active step as the watcher reads it: test,fixing,4h22m,51m21s,"quiet 8m33s ago: running tests","",fix 2 | long command: pid 6297 etime 04:02 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[03:34:12] phase A over, long command still running; stopping it
+[03:35:09] B | load 34.39 | axi active step as the watcher reads it: test,fixing,4h24m,52m38s,"quiet 3m41s ago: running tests","",fix 2 | long command: 
+[03:35:29] B | load 26.55 | axi active step as the watcher reads it: test,fixing,4h24m,52m59s,"quiet 4m2s ago: running tests","",fix 2 | long command: 
+[03:36:36] C | load 13.54 | axi active step as the watcher reads it: test,fixing,4h25m,54m5s,"quiet 5m8s ago: running tests","",fix 2 | long command: 
+[03:36:56] C | load 12.96 | axi active step as the watcher reads it: test,fixing,4h26m,54m26s,"quiet 5m29s ago: running tests","",fix 2 | long command: 
+[03:38:06] D | load 9.71 | axi active step as the watcher reads it: test,fixing,4h27m,55m35s,"quiet 6m39s ago: running tests","",fix 2 | long command: 
+[03:38:26] D | load 8.68 | axi active step as the watcher reads it: test,fixing,4h27m,55m56s,"quiet 6m59s ago: running tests","",fix 2 | long command: 

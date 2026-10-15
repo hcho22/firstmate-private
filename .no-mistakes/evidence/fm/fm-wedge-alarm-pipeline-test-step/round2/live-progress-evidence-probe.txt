@@ -1,0 +1,2 @@
+$ crew_progress_evidence wedgelive <state> <anchor 10s old> 6   # this change, 01:37:48
+its validation step test was active 5s ago (rc=0)

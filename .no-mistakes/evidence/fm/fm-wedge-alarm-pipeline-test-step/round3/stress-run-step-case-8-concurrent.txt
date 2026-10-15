@@ -1,0 +1,20 @@
+# 8 concurrent tests/fm-crew-state.test.sh runs at HEAD (6273c67), 159s wall
+/Users/hcho/.no-mistakes/evidence/01M4Z2NDNVFJXVP6PM2K4SF305/round3/drivers/stress-run-step-case.sh: line 22: 22574 Terminated: 15          ( while :; do
+    printf '[%s] load %s\n' "$(date +%T)" "$(sysctl -n vm.loadavg | awk '{print $2, $3, $4}')"; sleep 10;
+done ) > "$L/st-load.log"
+copy 1: exit=0 duration=143348ms | run-step case: ok
+copy 2: exit=0 duration=151167ms | run-step case: ok
+copy 3: exit=0 duration=152473ms | run-step case: ok
+copy 4: exit=0 duration=153062ms | run-step case: ok
+copy 5: exit=0 duration=153545ms | run-step case: ok
+copy 6: exit=0 duration=153883ms | run-step case: ok
+copy 7: exit=0 duration=154776ms | run-step case: ok
+copy 8: exit=0 duration=154293ms | run-step case: ok
+# host load (1m 5m 15m) while they ran
+[03:45:36] load 9.30 16.49 35.75
+[03:46:07] load 12.52 16.58 35.12
+[03:46:37] load 12.81 16.26 34.35
+[03:47:07] load 15.61 16.55 33.83
+[03:47:37] load 15.91 16.53 33.22
+[03:48:08] load 17.74 16.96 32.80
+# leftover 'sleep 2 & wait' runners: 0

@@ -1,0 +1,10 @@
+# tests/fm-crew-state.test.sh failed once in this step: one of ~58 executions of this change's new case
+# Context: bin/fm-test-run.sh tests/fm-crew-state.test.sh tests/fm-watch-triage.test.sh running in the run's copy as
+# scenario A's long command (drivers/drive-quiet-diag.sh, first run, 01:56-02:00 local), host load ~35-146 from other sessions.
+FM_TEST_BEGIN 2026-10-15T08:56:47Z tests/fm-crew-state.test.sh family=pure-contract-unit expected_gate_skip=none
+not ok - new work under the active step's command in the run's own copy was not progress evidence
+FM_TEST_END 2026-10-15T08:57:54Z tests/fm-crew-state.test.sh exit=1 duration_ms=66683 gate_skip=false
+(that run's full log was overwritten by the next diagnostic run; the FM_TEST lines are also in diag-quiet-A-60s-instrumented-run1.txt)
+
+# Reruns that passed: 46 isolated reps of test_run_step_process_evidence_over_real_helper (6 serial, 16 at 8 parallel,
+# 24 at 24 parallel, instrumented copy), 8 full-suite reruns from a copy (4 parallel), 3 other full-suite runs in the worktree.

@@ -1,0 +1,12 @@
+# Scenario D: run still working, nothing new in its copy, ANOTHER run's copy (/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4YJKR5WFZJMRQYGKGBZH4FV) starts a new process tree every second; watcher window 6s
+## this change (267c59f)
+### wakes delivered to firstmate
+[01:44:01] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 6s, possible wedge, escalation 1) 
+[01:44:28] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 8s, possible wedge, escalation 2) 
+[01:44:36] window closed with the watcher still blocking (no wake)
+### watcher triage log (deferrals and timer resets; per-poll absorbs omitted)
+[2026-10-15T01:43:38-0700] absorbed benign signal: /private/tmp/fmr2.BVrE/rD/state/wedgelive.status
+[2026-10-15T01:44:11-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:44:18-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 2s ago, idle 6s): fm:fm-wedgelive
+[2026-10-15T01:44:32-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+

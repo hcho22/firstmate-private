@@ -1,0 +1,27 @@
+# 16 concurrent tests/fm-crew-state.test.sh runs at HEAD (6273c67), 233s wall
+copy 1: exit=0 duration=187213ms | run-step case: ok
+copy 2: exit=0 duration=188795ms | run-step case: ok
+copy 3: exit=0 duration=191064ms | run-step case: ok
+copy 4: exit=0 duration=192665ms | run-step case: ok
+copy 5: exit=0 duration=193630ms | run-step case: ok
+copy 6: exit=0 duration=207708ms | run-step case: ok
+copy 7: exit=0 duration=212264ms | run-step case: ok
+copy 8: exit=0 duration=221175ms | run-step case: ok
+copy 9: exit=0 duration=214902ms | run-step case: ok
+copy 10: exit=0 duration=222597ms | run-step case: ok
+copy 11: exit=0 duration=220187ms | run-step case: ok
+copy 12: exit=0 duration=219437ms | run-step case: ok
+copy 13: exit=0 duration=224875ms | run-step case: ok
+copy 14: exit=0 duration=223079ms | run-step case: ok
+copy 15: exit=0 duration=223760ms | run-step case: ok
+copy 16: exit=0 duration=223967ms | run-step case: ok
+# host load (1m 5m 15m) while they ran
+[03:48:49] load 15.35 16.49 31.90
+[03:49:20] load 27.64 19.12 32.31
+[03:49:50] load 38.24 22.65 33.14
+[03:50:21] load 32.96 22.85 32.84
+[03:50:51] load 28.07 22.65 32.43
+[03:51:21] load 32.68 24.12 32.61
+[03:51:51] load 49.34 28.42 33.84
+[03:52:21] load 123.17 48.98 41.11
+# leftover 'sleep 2 & wait' runners: 0

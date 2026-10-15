@@ -1,0 +1,24 @@
+# Scenario A (60s window): real bin/fm-test-run.sh running in the run's own copy (/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305) the whole time; both watchers concurrently; axi status via forwarder-quiet.sh
+## this change (267c59f)
+### wakes delivered to firstmate
+[01:48:05] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 63s, possible wedge, escalation 1) 
+[01:51:20] window closed with the watcher still blocking (no wake)
+### watcher triage log (deferrals and timer resets; per-poll absorbs omitted)
+[2026-10-15T01:46:53-0700] absorbed benign signal: /private/tmp/fmr2.BVrE/qAf/state/wedgelive.status
+[2026-10-15T01:48:11-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:49:13-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 61s): fm:fm-wedgelive
+[2026-10-15T01:50:16-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 62s): fm:fm-wedgelive
+[2026-10-15T01:51:18-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 60s): fm:fm-wedgelive
+
+## base (fbd3c9b)
+### wakes delivered to firstmate
+[01:48:05] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 62s, possible wedge, escalation 1) 
+[01:49:14] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 61s, possible wedge, escalation 2) 
+[01:50:25] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 63s, possible wedge, escalation 3, demand-deep-inspection: same pane has wedge-escalated 3 times in a row - do not re-absorb on the run-step/pane state alone) 
+[01:51:19] window closed with the watcher still blocking (no wake)
+### watcher triage log (deferrals and timer resets; per-poll absorbs omitted)
+[2026-10-15T01:46:53-0700] absorbed benign signal: /private/tmp/fmr2.BVrE/qAb/state/wedgelive.status
+[2026-10-15T01:48:11-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:49:20-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:50:30-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+

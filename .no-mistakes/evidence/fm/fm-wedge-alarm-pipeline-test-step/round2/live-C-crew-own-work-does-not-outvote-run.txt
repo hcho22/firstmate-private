@@ -1,0 +1,10 @@
+# Scenario C: run still working, nothing new in its copy, the crew's OWN worktree (/private/tmp/fmr2.BVrE/wt2) starts a new process tree every second; watcher window 6s
+## this change (267c59f)
+### wakes delivered to firstmate
+[01:42:32] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 6s, possible wedge, escalation 1) 
+[01:43:04] window closed with the watcher still blocking (no wake)
+### watcher triage log (deferrals and timer resets; per-poll absorbs omitted)
+[2026-10-15T01:42:11-0700] absorbed benign signal: /private/tmp/fmr2.BVrE/rC/state/wedgelive.status
+[2026-10-15T01:42:40-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:42:48-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 2s ago, idle 7s): fm:fm-wedgelive
+

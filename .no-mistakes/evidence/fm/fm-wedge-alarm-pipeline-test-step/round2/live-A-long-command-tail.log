@@ -1,0 +1,12 @@
+ok - the exemption never applies to a terminal run
+ok - missing run head falls back instead of matching by branch
+ok - active fix round with an unfetched pipeline head reads working
+ok - unanchored unverifiable active row is never attributed
+ok - unresolvable terminal row never reads as current
+ok - runs-list continuation attribution works when axi answers another branch
+ok - the snapshot overrides steer the read without reaching the processes it starts
+all fm-crew-state tests passed
+FM_TEST_END 2026-10-15T08:38:31Z tests/fm-crew-state.test.sh exit=0 duration_ms=73916 gate_skip=false
+FM_TEST_BEGIN 2026-10-15T08:38:31Z tests/fm-watch-triage.test.sh family=watcher-wake-lock expected_gate_skip=none
+fm-test-run: interrupted; stopping the running script(s)
+stopped the processes still running in the script's process group 48695

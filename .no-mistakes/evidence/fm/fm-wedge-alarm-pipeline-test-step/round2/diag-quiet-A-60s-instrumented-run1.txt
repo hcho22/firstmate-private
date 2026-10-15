@@ -1,0 +1,29 @@
+# Scenario A rerun (60s window), instrumented copy of this change's bin/
+## wakes
+[02:00:33] window closed with the watcher still blocking (no wake)
+## triage
+[2026-10-15T01:57:02-0700] absorbed benign signal: /private/tmp/fmr2.BVrE/qDiag/state/wedgelive.status
+[2026-10-15T01:58:12-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 61s): fm:fm-wedgelive
+[2026-10-15T01:59:15-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 62s): fm:fm-wedgelive
+[2026-10-15T02:00:18-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 62s): fm:fm-wedgelive
+## long command
+FM_TEST_BEGIN 2026-10-15T08:56:47Z tests/fm-crew-state.test.sh family=pure-contract-unit expected_gate_skip=none
+FM_TEST_END 2026-10-15T08:57:54Z tests/fm-crew-state.test.sh exit=1 duration_ms=66683 gate_skip=false
+FM_TEST_BEGIN 2026-10-15T08:57:54Z tests/fm-watch-triage.test.sh family=watcher-wake-lock expected_gate_skip=none
+fm-test-run: interrupted; stopping the running script(s)
+## DIAG (evidence reads and process probes in the run's copy; cwd lines filtered to the run copy)
+[01:58:11] DIAG evidence read: state: working · source: run-step · validating (running) · step test last activity 265s ago, active 10079s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+[01:58:11] DIAG probe dir=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 window=62 nb=1792044606 now=1792054691 roots=63586 93078 70556 
+      DIAG cwd 63586 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[01:59:15] DIAG evidence read: state: working · source: run-step · validating (running) · step test last activity 329s ago, active 10139s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+[01:59:15] DIAG probe dir=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 window=63 nb=1792044610 now=1792054755 roots=97468 97464 97463 70556 97462 
+      DIAG cwd 97462 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 97463 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 97464 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 97468 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[02:00:17] DIAG evidence read: state: working · source: run-step · validating (running) · step test last activity 391s ago, active 10199s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+[02:00:17] DIAG probe dir=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 window=62 nb=1792044613 now=1792054817 roots=97464 97468 97462 97463 93078 70556 
+      DIAG cwd 97462 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 97463 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 97464 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 97468 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305

@@ -1,0 +1,5 @@
+$ crew_progress_evidence wedgelive <state> <anchor 15s old> 60   # this change, 03:29:15
+its validation step test is starting new processes in its run (rc=0)
+
+# base fbd3c9b, same moment
+ (rc=1)

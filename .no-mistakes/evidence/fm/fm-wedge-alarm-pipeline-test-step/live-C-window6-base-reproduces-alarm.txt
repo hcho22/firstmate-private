@@ -1,0 +1,19 @@
+# Scenario C (window 6s, BASE fbd3c9b code, long command running in the run's copy): wakes
+[00:00:17] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 6s, possible wedge, escalation 1) 
+[00:00:34] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 9s, possible wedge, escalation 2) 
+[00:00:49] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 7s, possible wedge, escalation 3, demand-deep-inspection: same pane has wedge-escalated 3 times in a row - do not re-absorb on the run-step/pane state alone) 
+[00:01:04] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 8s, possible wedge, escalation 4, demand-deep-inspection: same pane has wedge-escalated 4 times in a row - do not re-absorb on the run-step/pane state alone) 
+[00:01:18] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 8s, possible wedge, escalation 5, demand-deep-inspection: same pane has wedge-escalated 5 times in a row - do not re-absorb on the run-step/pane state alone) 
+[00:01:23] window closed with the watcher still blocking (no wake)
+# triage log
+[2026-10-15T00:00:10-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T00:00:23-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T00:00:40-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T00:00:54-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T00:01:09-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+# samples
+[00:00:08] axi active step:     test,running,49m12s,49m12s,"5s ago: claude producing output","99825",starting | long command pid 22784, cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[00:00:24] axi active step:     test,running,49m28s,49m28s,"21s ago: claude producing output","99825",starting | long command pid 22784, cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[00:00:40] axi active step:     test,running,49m43s,49m43s,"6s ago: claude producing output","99825",starting | long command pid 22784, cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[00:00:55] axi active step:     test,running,49m59s,49m59s,"22s ago: claude producing output","99825",starting | long command pid 22784, cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[00:01:11] axi active step:     test,running,50m15s,50m15s,"7s ago: claude producing output","99825",starting | long command pid 22784, cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305

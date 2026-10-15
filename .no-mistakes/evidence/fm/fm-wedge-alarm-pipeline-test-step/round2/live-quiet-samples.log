@@ -1,0 +1,26 @@
+[01:46:49] qAf | axi active step as the watcher reads it: test,fixing,2h35m,57m21s,"quiet 3m13s ago: running tests","",auto-fix 1/3 | long command: pid 7978 etime 00:13 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[01:47:10] qAf | axi active step as the watcher reads it: test,fixing,2h36m,57m42s,"quiet 3m34s ago: running tests","",auto-fix 1/3 | long command: pid 7978 etime 00:34 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[01:47:31] qAf | axi active step as the watcher reads it: test,fixing,2h36m,58m2s,"quiet 3m54s ago: running tests","",auto-fix 1/3 | long command: pid 7978 etime 00:55 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[01:47:51] qAf | axi active step as the watcher reads it: test,fixing,2h36m,58m23s,"quiet 4m15s ago: running tests","",auto-fix 1/3 | long command: pid 7978 etime 01:15 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[01:48:12] qAf | axi active step as the watcher reads it: test,fixing,2h37m,58m44s,"quiet 4m36s ago: running tests","",auto-fix 1/3 | long command: pid 7978 etime 01:36 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[01:48:33] qAf | axi active step as the watcher reads it: test,fixing,2h37m,59m4s,"quiet 4m56s ago: running tests","",auto-fix 1/3 | long command: pid 7978 etime 01:57 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[01:48:53] qAf | axi active step as the watcher reads it: test,fixing,2h37m,59m25s,"quiet 5m17s ago: running tests","",auto-fix 1/3 | long command: pid 7978 etime 02:17 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[01:49:14] qAf | axi active step as the watcher reads it: test,fixing,2h38m,59m46s,"quiet 5m38s ago: running tests","",auto-fix 1/3 | long command: pid 7978 etime 02:38 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[01:49:35] qAf | axi active step as the watcher reads it: test,fixing,2h38m,1h0m,"quiet 5m59s ago: running tests","",auto-fix 1/3 | long command: pid 7978 etime 02:59 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[01:49:56] qAf | axi active step as the watcher reads it: test,fixing,2h38m,1h0m,"quiet 6m20s ago: running tests","",auto-fix 1/3 | long command: pid 7978 etime 03:20 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[01:50:16] qAf | axi active step as the watcher reads it: test,fixing,2h39m,1h0m,"quiet 6m40s ago: running tests","",auto-fix 1/3 | long command: pid 7978 etime 03:40 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[01:50:37] qAf | axi active step as the watcher reads it: test,fixing,2h39m,1h1m,"quiet 7m1s ago: running tests","",auto-fix 1/3 | long command: pid 7978 etime 04:01 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[01:50:58] qAf | axi active step as the watcher reads it: test,fixing,2h40m,1h1m,"quiet 7m22s ago: running tests","",auto-fix 1/3 | long command: pid 7978 etime 04:22 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[01:51:18] qAf | axi active step as the watcher reads it: test,fixing,2h40m,1h1m,"quiet 7m42s ago: running tests","",auto-fix 1/3 | long command: pid 7978 etime 04:42 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[02:17:07] qB | axi active step as the watcher reads it: test,fixing,3h6m,1h27m,"quiet 3m1s ago: running tests","",auto-fix 1/3 | long command: 
+[02:17:27] qB | axi active step as the watcher reads it: test,fixing,3h6m,1h27m,"quiet 3m21s ago: running tests","",auto-fix 1/3 | long command: 
+[02:17:48] qB | axi active step as the watcher reads it: test,fixing,3h6m,1h28m,"quiet 3m42s ago: running tests","",auto-fix 1/3 | long command: 
+[02:18:08] qB | axi active step as the watcher reads it: test,fixing,3h7m,1h28m,"quiet 4m2s ago: running tests","",auto-fix 1/3 | long command: 
+[02:18:34] qC | axi active step as the watcher reads it: test,fixing,3h7m,1h29m,"quiet 4m28s ago: running tests","",auto-fix 1/3 | long command: 
+[02:18:54] qC | axi active step as the watcher reads it: test,fixing,3h7m,1h29m,"quiet 4m48s ago: running tests","",auto-fix 1/3 | long command: 
+[02:19:14] qC | axi active step as the watcher reads it: test,fixing,3h8m,1h29m,"quiet 5m8s ago: running tests","",auto-fix 1/3 | long command: 
+[02:19:35] qC | axi active step as the watcher reads it: test,fixing,3h8m,1h30m,"quiet 5m29s ago: running tests","",auto-fix 1/3 | long command: 
+[02:20:05] qD | axi active step as the watcher reads it: test,fixing,3h9m,1h30m,"quiet 5m59s ago: running tests","",auto-fix 1/3 | long command: 
+[02:20:25] qD | axi active step as the watcher reads it: test,fixing,3h9m,1h30m,"quiet 6m19s ago: running tests","",auto-fix 1/3 | long command: 
+[02:20:47] qD | axi active step as the watcher reads it: test,fixing,3h9m,1h31m,"quiet 6m40s ago: running tests","",auto-fix 1/3 | long command: 
+[02:21:08] qD | axi active step as the watcher reads it: test,fixing,3h10m,1h31m,"quiet 7m1s ago: running tests","",auto-fix 1/3 | long command: 

@@ -1,0 +1,20 @@
+[01:54:53] crew-state (1.4s): state: working · source: run-step · validating (running) · step test last activity 181s ago, active 9839s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+           crew_progress_evidence (1.5s): its validation step test is starting new processes in its run rc=0
+[01:54:59] crew-state (0.6s): state: working · source: run-step · validating (running) · step test last activity 187s ago, active 9899s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+           crew_progress_evidence (1.2s): its validation step test is starting new processes in its run rc=0
+[01:55:04] crew-state (0.4s): state: working · source: run-step · validating (running) · step test last activity 193s ago, active 9899s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+           crew_progress_evidence (1.3s): its validation step test is starting new processes in its run rc=0
+[01:55:10] crew-state (0.5s): state: working · source: run-step · validating (running) · step test last activity 199s ago, active 9899s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+           crew_progress_evidence (0.8s): its validation step test is starting new processes in its run rc=0
+[01:55:15] crew-state (0.4s): state: working · source: run-step · validating (running) · step test last activity 204s ago, active 9899s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+           crew_progress_evidence (1.0s): its validation step test is starting new processes in its run rc=0
+[01:55:21] crew-state (0.7s): state: working · source: run-step · validating (running) · step test last activity 210s ago, active 9899s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+           crew_progress_evidence (1.2s): its validation step test is starting new processes in its run rc=0
+[01:55:28] crew-state (0.6s): state: working · source: run-step · validating (running) · step test last activity 216s ago, active 9899s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+           crew_progress_evidence (1.6s): its validation step test is starting new processes in its run rc=0
+[01:55:34] crew-state (0.8s): state: working · source: run-step · validating (running) · step test last activity 223s ago, active 9899s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+           crew_progress_evidence (1.5s): its validation step test is starting new processes in its run rc=0
+[01:55:40] crew-state (0.4s): state: working · source: run-step · validating (running) · step test last activity 229s ago, active 9899s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+           crew_progress_evidence (1.0s): its validation step test is starting new processes in its run rc=0
+[1]+  Exit 143                ( cd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 && exec bin/fm-test-run.sh tests/fm-crew-state.test.sh ) > /private/tmp/fmr2.BVrE/diag-long2.log 2>&1
+FM_TEST_BEGIN 2026-10-15T08:54:32Z tests/fm-crew-state.test.sh family=pure-contract-unit expected_gate_skip=none

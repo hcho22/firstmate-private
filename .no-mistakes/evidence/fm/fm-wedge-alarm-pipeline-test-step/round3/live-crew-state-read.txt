@@ -1,0 +1,33 @@
+$ no-mistakes axi status --run 01M4Z2NDNVFJXVP6PM2K4SF305   # real daemon, 03:27:52
+/Users/hcho/.no-mistakes/evidence/01M4Z2NDNVFJXVP6PM2K4SF305/round3/drivers/drive.sh: child setpgid (45709 to 45709): Operation not permitted
+run:
+  id: "01M4Z2NDNVFJXVP6PM2K4SF305"
+  branch: fm/fm-wedge-alarm-pipeline-test-step
+  status: running
+  head: 6273c67f
+  active_steps[1]{step,status,active_for,round_active_for,last_activity,agent_pid,round}:
+    test,fixing,4h16m,45m22s,"1s ago: claude producing output","91226",fix 2
+
+# unmodified daemon answer
+$ bin/fm-crew-state.sh wedgelive   # this change (6273c67)
+state: working · source: run-step · validating (running) · step test last activity 1s ago, active 15419s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+$ bin/fm-crew-state.sh wedgelive   # base fbd3c9b
+state: working · source: run-step · validating (running) · step test last activity 2s ago
+
+# configured-command rendering (forwarder-quiet.sh)
+$ no-mistakes axi status   # active_steps as the watcher reads it
+  active_steps[1]{step,status,active_for,round_active_for,last_activity,agent_pid,round}:
+    test,fixing,4h16m,45m23s,"quiet 3m2s ago: running tests","",fix 2
+$ bin/fm-crew-state.sh wedgelive   # this change (6273c67)
+state: working · source: run-step · validating (running) · step test last activity 182s ago, active 15419s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+$ bin/fm-crew-state.sh wedgelive   # base fbd3c9b
+state: working · source: run-step · validating (running) · step test last activity 183s ago
+
+$ fm_nm_run_worktree 01M4Z2NDNVFJXVP6PM2K4SF305   # NM_HOME=/Users/hcho/.no-mistakes
+/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+$ fm_nm_run_worktree 01NOSUCHRUN
+(printed nothing above: rc=0)
+
+# no long command in the run's copy yet
+$ crew_progress_evidence wedgelive <state> <anchor 15s old> 60   # this change, 03:28:09
+ (rc=1)

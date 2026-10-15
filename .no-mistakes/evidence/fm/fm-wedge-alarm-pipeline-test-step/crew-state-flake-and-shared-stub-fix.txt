@@ -1,0 +1,20 @@
+# tests/fm-crew-state.test.sh flake seen once in this step, at host load ~300 (unmodified test file, head f3ec246)
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-10-15T06:55:33Z tests/fm-crew-state.test.sh family=pure-contract-unit expected_gate_skip=none
+not ok - pending no-checks marker -> working (missing: 'state: working')
+--- output ---
+state: unknown · source: pane · harness state unavailable (unknown missing)
+FM_TEST_END 2026-10-15T06:56:54Z tests/fm-crew-state.test.sh exit=1 duration_ms=81262 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=1 skipped_gate=0 duration_ms=82969
+FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=81262 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-crew-state.test.sh duration_ms=81262
+exit=1
+
+# Same host, fresh executable first run vs second run (load ~50): ~0.37s vs ~0.01s per stub; make_fakebin wrote 3 fresh stubs per case, each first-run inside the helper's 10s bounded CLI read.
+# After converting make_fakebin (and the two stub overrides) to fm_shared_stub:
+FM_TEST_END 2026-10-15T07:01:41Z tests/fm-crew-state.test.sh exit=0 duration_ms=102009 gate_skip=false
+exit=0
+# Same-conditions concurrent rerun (pre-fix file vs fixed file), both passed:
+== old: exit=0 secs=198 ok=70
+== new: exit=0 secs=181 ok=70

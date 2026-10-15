@@ -1,0 +1,16 @@
+# Scenario B (window 6s, THIS CHANGE f3ec246): the run stays working but its long command has exited at ~00:01:41, so the step starts nothing; wakes
+[00:01:42] watcher woke firstmate (rc=0): check: rearm-resurface 
+[00:01:56] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 7s, possible wedge, escalation 1) 
+[00:02:10] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 7s, possible wedge, escalation 2) 
+[00:02:23] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 8s, possible wedge, escalation 3, demand-deep-inspection: same pane has wedge-escalated 3 times in a row - do not re-absorb on the run-step/pane state alone) 
+[00:02:40] window closed with the watcher still blocking (no wake)
+# triage log
+[2026-10-15T00:01:47-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T00:02:01-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T00:02:13-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T00:02:31-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+# samples
+[00:01:40] axi active step:     test,running,50m44s,50m44s,"1s ago: claude producing output","99825",starting | long command pid 22784, cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[00:01:56] axi active step:     test,running,51m0s,51m0s,"17s ago: claude producing output","99825",starting | long command pid none, cwd 
+[00:02:11] axi active step:     test,running,51m15s,51m15s,"2s ago: claude producing output","99825",starting | long command pid none, cwd 
+[00:02:27] axi active step:     test,running,51m31s,51m31s,"18s ago: claude producing output","99825",starting | long command pid none, cwd 

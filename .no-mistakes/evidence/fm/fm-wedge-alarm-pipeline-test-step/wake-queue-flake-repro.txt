@@ -1,0 +1,34 @@
+# tests/fm-wake-queue.test.sh test_concurrent_append_and_drain flake (unrelated to this change)
+# configured run failure (logs/01M4Z2NDNVFJXVP6PM2K4SF305/test.log):
+ok - historical annotations replay nothing already announced and keep everything new
+wake drain: queue lock could not be acquired safely
+not ok - concurrent append/drain subprocess failed
+FM_TEST_END 2026-10-15T06:24:06Z tests/fm-wake-queue.test.sh exit=1 duration_ms=94449 gate_skip=false
+
+# Repro: the case's 40 concurrent fm_wake_append writers + one drain, drain deadline forced to FM_STATUS_PRESENTATION_LOCK_TIMEOUT=1 (default 10s, which the configured run exceeded at host load ~300)
+## run 1 (unmodified bin/):
+rep 3: rc=1 wake drain: queue lock could not be acquired safely
+rep 4: rc=1 wake drain: queue lock could not be acquired safely
+rep 5: rc=1 wake drain: queue lock could not be acquired safely
+rep 13: rc=1 wake drain: queue lock could not be acquired safely
+rep 15: rc=1 wake drain: queue lock could not be acquired safely
+reps=20 drained=1 skipped_on_live_holder=14 unsafe_acquire_failure=5 other=0
+
+[exited with code 0]
+
+## run 2 (temp copy of bin/ with two INSTR stderr lines in fm_lock_acquire_wait_bounded's rc=124 branch):
+rep 7: rc=1
+INSTR bounded: helper rc=124 owner_after_final_try=[94189] link=[]
+INSTR bounded: rc=124 owner_pid=[] alive=no
+wake drain: queue lock could not be acquired safely
+rep 12: rc=1
+INSTR bounded: helper rc=124 owner_after_final_try=[13260] link=[/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-wake-tests.LATqL8/c12/state/.wake-queue.lock.owner.A9ahtO]
+INSTR bounded: rc=124 owner_pid=[] alive=no
+wake drain: queue lock could not be acquired safely
+rep 16: rc=1
+INSTR bounded: helper rc=124 owner_after_final_try=[] link=[]
+INSTR bounded: rc=124 owner_pid=[] alive=no
+wake drain: queue lock could not be acquired safely
+reps=20 drained=6 skipped_on_live_holder=11 unsafe_acquire_failure=3 other=0
+
+# Reading: the timed helper hit its deadline (rc=124) while appenders churned the lock; the single owner re-read then saw no pid (between holders), so the drain returned 1 ('could not be acquired safely', exit 1) instead of its 124 contract ('WAKE DRAIN SKIPPED ... retry on the next drain', exit 0) - the case's 'wait $pid || fail' then fails.

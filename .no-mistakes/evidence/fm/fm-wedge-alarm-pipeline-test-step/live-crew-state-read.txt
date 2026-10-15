@@ -1,0 +1,10 @@
+$ no-mistakes axi status --run 01M4Z2NDNVFJXVP6PM2K4SF305   # real daemon, 23:43:22
+  active_steps[1]{step,status,active_for,round_active_for,last_activity,agent_pid,round}:
+    test,running,32m26s,32m26s,"5s ago: log: Now reading the real crew state for the fixture crew through the real daemon (scenario: crew-state names the step's age and run).","99825",starting
+
+$ bin/fm-crew-state.sh wedgelive   # head f3ec246 (this change)
+state: working · source: run-step · validating (running) · step test last activity 7s ago, active 1948s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+
+$ fm_nm_run_worktree 01M4Z2NDNVFJXVP6PM2K4SF305
+/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+

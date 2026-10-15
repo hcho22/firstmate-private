@@ -1,0 +1,48 @@
+# Scenario A rerun (60s window), instrumented copy of this change's bin/
+## wakes
+[02:16:55] window closed with the watcher still blocking (no wake)
+## triage
+[2026-10-15T02:11:20-0700] absorbed benign signal: /private/tmp/fmr2.BVrE/qDiag/state/wedgelive.status
+[2026-10-15T02:12:32-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 62s): fm:fm-wedgelive
+[2026-10-15T02:13:35-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 62s): fm:fm-wedgelive
+[2026-10-15T02:14:37-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 60s): fm:fm-wedgelive
+[2026-10-15T02:15:40-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 62s): fm:fm-wedgelive
+[2026-10-15T02:16:43-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 62s): fm:fm-wedgelive
+## long command
+FM_TEST_BEGIN 2026-10-15T09:11:05Z tests/fm-crew-state.test.sh family=pure-contract-unit expected_gate_skip=none
+FM_TEST_END 2026-10-15T09:12:30Z tests/fm-crew-state.test.sh exit=0 duration_ms=84774 gate_skip=false
+FM_TEST_BEGIN 2026-10-15T09:12:30Z tests/fm-watch-triage.test.sh family=watcher-wake-lock expected_gate_skip=none
+FM_TEST_END 2026-10-15T09:16:47Z tests/fm-watch-triage.test.sh exit=0 duration_ms=256528 gate_skip=false
+## base fbd3c9b, same time: wakes
+[02:12:31] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 62s, possible wedge, escalation 1) 
+[02:13:41] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 63s, possible wedge, escalation 2) 
+[02:14:48] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 61s, possible wedge, escalation 3, demand-deep-inspection: same pane has wedge-escalated 3 times in a row - do not re-absorb on the run-step/pane state alone) 
+[02:15:56] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 62s, possible wedge, escalation 4, demand-deep-inspection: same pane has wedge-escalated 4 times in a row - do not re-absorb on the run-step/pane state alone) 
+[02:16:56] window closed with the watcher still blocking (no wake)
+## DIAG (evidence reads and process probes in the run's copy; cwd lines filtered to the run copy)
+[02:12:31] DIAG evidence read: state: working · source: run-step · validating (running) · step test last activity 268s ago, active 10919s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+[02:12:31] DIAG probe dir=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 window=63 nb=1792044626 now=1792055551 ps_done_at=1792055551 roots=35971 90238 97278 97277 
+      DIAG cwd 90238 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[02:13:34] DIAG evidence read: state: working · source: run-step · validating (running) · step test last activity 331s ago, active 10979s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+[02:13:35] DIAG probe dir=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 window=62 nb=1792044630 now=1792055614 ps_done_at=1792055615 roots=45039 45037 45041 45035 35971 97278 97264 
+      DIAG cwd 45035 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 45037 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 45039 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 45041 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[02:14:36] DIAG evidence read: state: working · source: run-step · validating (running) · step test last activity 393s ago, active 11039s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+[02:14:36] DIAG probe dir=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 window=61 nb=1792044631 now=1792055676 ps_done_at=1792055676 roots=45041 45039 45035 97264 45037 97278 
+      DIAG cwd 45035 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 45037 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 45039 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 45041 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[02:15:39] DIAG evidence read: state: working · source: run-step · validating (running) · step test last activity 456s ago, active 11099s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+[02:15:39] DIAG probe dir=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 window=62 nb=1792044635 now=1792055739 ps_done_at=1792055739 roots=45035 82258 26129 45037 97264 13197 35971 97278 
+      DIAG cwd 13197 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 26129 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 45035 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 45037 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+[02:16:42] DIAG evidence read: state: working · source: run-step · validating (running) · step test last activity 519s ago, active 11159s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+[02:16:42] DIAG probe dir=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 window=62 nb=1792044638 now=1792055802 ps_done_at=1792055802 roots=45035 45041 97278 45037 35971 97264 
+      DIAG cwd 45035 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 45037 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+      DIAG cwd 45041 /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305

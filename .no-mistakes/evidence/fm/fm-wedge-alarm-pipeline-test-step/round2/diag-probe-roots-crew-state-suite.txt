@@ -1,0 +1,19 @@
+[01:52:58] window 20s
+  root 85829 (4 fresh) IN-RUN-COPY cwd=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 cmd=bash tests/fm-crew-state.test.sh
+  probe verdict (crew_run_step_process_started_since): evidence
+[01:53:07] window 20s
+  root 85829 (1 fresh) IN-RUN-COPY cwd=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 cmd=bash tests/fm-crew-state.test.sh
+  probe verdict (crew_run_step_process_started_since): evidence
+[01:53:17] window 20s
+  root 85829 (4 fresh) IN-RUN-COPY cwd=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 cmd=bash tests/fm-crew-state.test.sh
+  probe verdict (crew_run_step_process_started_since): evidence
+[01:53:26] window 20s
+  root 85829 (5 fresh) IN-RUN-COPY cwd=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 cmd=bash tests/fm-crew-state.test.sh
+  probe verdict (crew_run_step_process_started_since): evidence
+[01:53:35] window 20s
+  root 85829 (9 fresh) IN-RUN-COPY cwd=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 cmd=bash tests/fm-crew-state.test.sh
+  probe verdict (crew_run_step_process_started_since): evidence
+[01:53:44] window 20s
+  root 85829 (1 fresh) IN-RUN-COPY cwd=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 cmd=bash tests/fm-crew-state.test.sh
+  probe verdict (crew_run_step_process_started_since): evidence
+[1]+  Exit 143                ( cd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305 && exec bin/fm-test-run.sh tests/fm-crew-state.test.sh ) > /private/tmp/fmr2.BVrE/diag-long.log 2>&1

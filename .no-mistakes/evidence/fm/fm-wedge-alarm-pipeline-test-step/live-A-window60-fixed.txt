@@ -1,0 +1,64 @@
+# Scenario A (window 60s): wakes
+[23:50:04] window closed with the watcher still blocking (no wake)
+# triage log
+[2026-10-14T23:45:16-0700] absorbed benign signal: /tmp/fml.CZNO/state/wedgelive.status
+[2026-10-14T23:45:31-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:45:37-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:45:43-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:45:55-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:46:09-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:46:19-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:46:26-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:46:33-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 30s ago, idle 61s): fm:fm-wedgelive
+[2026-10-14T23:46:33-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:46:43-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:46:51-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:46:57-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:47:02-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:47:10-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:47:16-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:47:22-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:47:27-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:47:32-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:47:38-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 5s ago, idle 64s): fm:fm-wedgelive
+[2026-10-14T23:47:38-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:47:43-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:47:49-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:47:55-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:47:59-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:48:04-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:48:10-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:48:15-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:48:20-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:48:25-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:48:30-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:48:35-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:48:41-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 8s ago, idle 62s): fm:fm-wedgelive
+[2026-10-14T23:48:41-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:48:46-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:48:50-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:48:55-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:48:59-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:49:03-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:49:07-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:49:12-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:49:16-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:49:20-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:49:24-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:49:30-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:49:39-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:49:49-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 15s ago, idle 66s): fm:fm-wedgelive
+[2026-10-14T23:49:49-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:49:55-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+[2026-10-14T23:50:00-0700] absorbed non-terminal stale (provably working): fm:fm-wedgelive
+# samples
+[23:45:04] axi active step:     test,running,34m7s,34m7s,"5s ago: log: Scenario A foreground: real watcher loop (this change's code) blocking against the idle pane for 5 minutes while that command runs.","99825",starting | fm-test-run pid 2146, 2022 processes under it
+[23:45:36] axi active step:     test,running,34m40s,34m40s,"3s ago: claude producing output","99825",starting | fm-test-run pid 2146, 2038 processes under it
+[23:46:09] axi active step:     test,running,35m12s,35m12s,"5s ago: claude producing output","99825",starting | fm-test-run pid 2146, 2142 processes under it
+[23:46:41] axi active step:     test,running,35m45s,35m45s,"8s ago: claude producing output","99825",starting | fm-test-run pid 2146, 2187 processes under it
+[23:47:13] axi active step:     test,running,36m16s,36m16s,"9s ago: claude producing output","99825",starting | fm-test-run pid 2146, 2195 processes under it
+[23:47:43] axi active step:     test,running,36m47s,36m47s,"10s ago: claude producing output","99825",starting | fm-test-run pid 2146, 2203 processes under it
+[23:48:14] axi active step:     test,running,37m18s,37m18s,"11s ago: claude producing output","99825",starting | fm-test-run pid 2146, 2221 processes under it
+[23:48:45] axi active step:     test,running,37m49s,37m49s,"12s ago: claude producing output","99825",starting | fm-test-run pid 2146, 2260 processes under it
+[23:49:15] axi active step:     test,running,38m19s,38m19s,"12s ago: claude producing output","99825",starting | fm-test-run pid 2146, 2279 processes under it
+[23:49:46] axi active step:     test,running,38m50s,38m50s,"13s ago: claude producing output","99825",starting | fm-test-run pid 2146, 2293 processes under it

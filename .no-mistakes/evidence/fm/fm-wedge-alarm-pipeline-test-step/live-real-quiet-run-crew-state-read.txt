@@ -1,0 +1,8 @@
+$ no-mistakes axi status --run 01M4YJKR5WFZJMRQYGKGBZH4FV  # real daemon, 00:05:27
+  active_steps[1]{step,status,active_for,round_active_for,last_activity,agent_pid,round}:
+    test,fixing,5h14m,1h53m,"quiet 1h14m ago: log: running tests: bin/fm-test-run.sh --changed --exclude-family real-herdr-gated","",fix 2
+
+$ bin/fm-crew-state.sh reaping   # this change
+state: working · source: run-step · validating (running) · step test last activity 4440s ago, active 18899s in run 01M4YJKR5WFZJMRQYGKGBZH4FV
+$ bin/fm-crew-state.sh reaping   # base fbd3c9b
+state: working · source: run-step · validating (running) · step test last activity 4440s ago

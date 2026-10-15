@@ -1,0 +1,6 @@
+ok - the snapshot overrides steer the read without reaching the processes it starts
+all fm-crew-state tests passed
+FM_TEST_END 2026-10-15T08:48:12Z tests/fm-crew-state.test.sh exit=0 duration_ms=93614 gate_skip=false
+FM_TEST_BEGIN 2026-10-15T08:48:12Z tests/fm-watch-triage.test.sh family=watcher-wake-lock expected_gate_skip=none
+Terminated: 15
+fm-test-run: interrupted; stopping the running script(s)

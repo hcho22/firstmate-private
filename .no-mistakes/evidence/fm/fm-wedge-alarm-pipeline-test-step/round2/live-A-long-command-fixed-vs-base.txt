@@ -1,0 +1,54 @@
+# Scenario A: real bin/fm-test-run.sh running in the run's own copy (/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305); watcher window 6s; both watchers concurrently
+## this change (267c59f)
+### wakes delivered to firstmate
+[01:38:03] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 8s, possible wedge, escalation 1) 
+[01:38:21] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 6s, possible wedge, escalation 2) 
+[01:40:18] window closed with the watcher still blocking (no wake)
+### watcher triage log (deferrals and timer resets; per-poll absorbs omitted)
+[2026-10-15T01:37:32-0700] absorbed benign signal: /private/tmp/fmr2.BVrE/rAf/state/wedgelive.status
+[2026-10-15T01:37:45-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 1s ago, idle 6s): fm:fm-wedgelive
+[2026-10-15T01:37:53-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 7s): fm:fm-wedgelive
+[2026-10-15T01:38:06-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:38:13-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 6s): fm:fm-wedgelive
+[2026-10-15T01:38:25-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:38:32-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 6s): fm:fm-wedgelive
+[2026-10-15T01:38:41-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 8s): fm:fm-wedgelive
+[2026-10-15T01:38:49-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 4s ago, idle 7s): fm:fm-wedgelive
+[2026-10-15T01:38:57-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 7s): fm:fm-wedgelive
+[2026-10-15T01:39:06-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 8s): fm:fm-wedgelive
+[2026-10-15T01:39:15-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 8s): fm:fm-wedgelive
+[2026-10-15T01:39:23-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 7s): fm:fm-wedgelive
+[2026-10-15T01:39:31-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 7s): fm:fm-wedgelive
+[2026-10-15T01:39:40-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 8s): fm:fm-wedgelive
+[2026-10-15T01:39:49-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 4s ago, idle 8s): fm:fm-wedgelive
+[2026-10-15T01:40:00-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 10s): fm:fm-wedgelive
+[2026-10-15T01:40:09-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 8s): fm:fm-wedgelive
+
+## base (fbd3c9b)
+### wakes delivered to firstmate
+[01:37:55] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 7s, possible wedge, escalation 1) 
+[01:38:08] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 6s, possible wedge, escalation 2) 
+[01:38:26] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 7s, possible wedge, escalation 3, demand-deep-inspection: same pane has wedge-escalated 3 times in a row - do not re-absorb on the run-step/pane state alone) 
+[01:38:38] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 7s, possible wedge, escalation 4, demand-deep-inspection: same pane has wedge-escalated 4 times in a row - do not re-absorb on the run-step/pane state alone) 
+[01:38:52] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 8s, possible wedge, escalation 5, demand-deep-inspection: same pane has wedge-escalated 5 times in a row - do not re-absorb on the run-step/pane state alone) 
+[01:39:05] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 8s, possible wedge, escalation 6, demand-deep-inspection: same pane has wedge-escalated 6 times in a row - do not re-absorb on the run-step/pane state alone) 
+[01:39:26] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 6s, possible wedge, escalation 7, demand-deep-inspection: same pane has wedge-escalated 7 times in a row - do not re-absorb on the run-step/pane state alone) 
+[01:39:38] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 7s, possible wedge, escalation 8, demand-deep-inspection: same pane has wedge-escalated 8 times in a row - do not re-absorb on the run-step/pane state alone) 
+[01:40:00] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 9s, possible wedge, escalation 9, demand-deep-inspection: same pane has wedge-escalated 9 times in a row - do not re-absorb on the run-step/pane state alone) 
+[01:40:15] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 8s, possible wedge, escalation 10, demand-deep-inspection: same pane has wedge-escalated 10 times in a row - do not re-absorb on the run-step/pane state alone) 
+[01:40:19] window closed with the watcher still blocking (no wake)
+### watcher triage log (deferrals and timer resets; per-poll absorbs omitted)
+[2026-10-15T01:37:33-0700] absorbed benign signal: /private/tmp/fmr2.BVrE/rAb/state/wedgelive.status
+[2026-10-15T01:37:46-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 2s ago, idle 7s): fm:fm-wedgelive
+[2026-10-15T01:38:01-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:38:11-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:38:18-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 4s ago, idle 6s): fm:fm-wedgelive
+[2026-10-15T01:38:29-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:38:42-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:38:56-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:39:09-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:39:18-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 3s ago, idle 8s): fm:fm-wedgelive
+[2026-10-15T01:39:30-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:39:48-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T01:40:05-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+

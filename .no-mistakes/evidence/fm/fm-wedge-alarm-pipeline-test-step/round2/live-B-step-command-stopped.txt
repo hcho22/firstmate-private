@@ -1,0 +1,10 @@
+# Scenario B: run still working, its step's long command killed (nothing new in the run's copy); watcher window 6s
+## this change (267c59f)
+### wakes delivered to firstmate
+[01:41:09] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 7s, possible wedge, escalation 1) 
+[01:41:29] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 10s, possible wedge, escalation 2) 
+[01:41:34] window closed with the watcher still blocking (no wake)
+### watcher triage log (deferrals and timer resets; per-poll absorbs omitted)
+[2026-10-15T01:40:40-0700] absorbed benign signal: /private/tmp/fmr2.BVrE/rB/state/wedgelive.status
+[2026-10-15T01:41:17-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+

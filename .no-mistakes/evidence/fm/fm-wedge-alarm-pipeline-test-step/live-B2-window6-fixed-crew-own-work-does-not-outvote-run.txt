@@ -1,0 +1,17 @@
+# Scenario B2 (window 6s, THIS CHANGE f3ec246): run working, nothing new in the run's copy, the crew's OWN worktree (/tmp/fml.CZNO/wt) starts a new process tree every second; wakes
+[00:03:19] watcher woke firstmate (rc=0): check: rearm-resurface 
+[00:03:33] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 7s, possible wedge, escalation 1) 
+[00:03:47] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 7s, possible wedge, escalation 2) 
+[00:04:01] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 7s, possible wedge, escalation 3, demand-deep-inspection: same pane has wedge-escalated 3 times in a row - do not re-absorb on the run-step/pane state alone) 
+[00:04:17] window closed with the watcher still blocking (no wake)
+# triage log
+[2026-10-15T00:03:24-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 52s): fm:fm-wedgelive
+[2026-10-15T00:03:37-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T00:03:51-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T00:04:07-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T00:04:15-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test was active 5s ago, idle 7s): fm:fm-wedgelive
+# samples
+[00:03:17] axi active step:     test,running,52m21s,52m21s,"8s ago: claude producing output","99825",starting | crew-own shard runner pid 35247 cwd /private/tmp/fml.CZNO/wt, 3 fresh children
+[00:03:33] axi active step:     test,running,52m37s,52m37s,"24s ago: claude producing output","99825",starting | crew-own shard runner pid 35247 cwd /private/tmp/fml.CZNO/wt, 3 fresh children
+[00:03:49] axi active step:     test,running,52m53s,52m53s,"10s ago: claude producing output","99825",starting | crew-own shard runner pid 35247 cwd /private/tmp/fml.CZNO/wt, 3 fresh children
+[00:04:04] axi active step:     test,running,53m8s,53m8s,"25s ago: claude producing output","99825",starting | crew-own shard runner pid 35247 cwd /private/tmp/fml.CZNO/wt, 3 fresh children

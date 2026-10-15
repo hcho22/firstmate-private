@@ -1,0 +1,15 @@
+$ no-mistakes axi status --run 01M4Z2NDNVFJXVP6PM2K4SF305   # real daemon, 01:37:15
+run:
+  id: "01M4Z2NDNVFJXVP6PM2K4SF305"
+  branch: fm/fm-wedge-alarm-pipeline-test-step
+  status: running
+  head: 267c59f6
+  active_steps[1]{step,status,active_for,round_active_for,last_activity,agent_pid,round}:
+    test,fixing,2h26m,47m47s,"1s ago: claude producing output","15607",auto-fix 1/3
+
+$ bin/fm-crew-state.sh wedgelive   # this change (267c59f)
+state: working · source: run-step · validating (running) · step test last activity 1s ago, active 8819s in run 01M4Z2NDNVFJXVP6PM2K4SF305
+$ bin/fm-crew-state.sh wedgelive   # base fbd3c9b
+state: working · source: run-step · validating (running) · step test last activity 2s ago
+$ fm_nm_run_worktree 01M4Z2NDNVFJXVP6PM2K4SF305   # NM_HOME=/Users/hcho/.no-mistakes
+/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305

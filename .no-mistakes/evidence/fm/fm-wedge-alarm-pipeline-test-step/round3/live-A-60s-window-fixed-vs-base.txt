@@ -1,0 +1,46 @@
+# Scenario A (60s window): real bin/fm-test-run.sh running in the run's own copy (/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305); both watchers concurrently; axi status via forwarder-quiet.sh
+live-samples.log:[03:28:18] long command started (pid 51677)
+live-samples.log:[03:29:17] A | load 8.19 | axi active step as the watcher reads it: test,fixing,4h18m,46m46s,"quiet 3m58s ago: running tests","",fix 2 | long command: pid 51677 etime 00:59 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+live-samples.log:[03:29:37] A | load 8.42 | axi active step as the watcher reads it: test,fixing,4h18m,47m7s,"quiet 4m19s ago: running tests","",fix 2 | long command: pid 51677 etime 01:19 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+live-samples.log:[03:29:58] A | load 8.60 | axi active step as the watcher reads it: test,fixing,4h19m,47m28s,"quiet 4m40s ago: running tests","",fix 2 | long command: pid 6297 etime 00:08 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+live-samples.log:[03:30:19] A | load 70.32 | axi active step as the watcher reads it: test,fixing,4h19m,47m49s,"quiet 5m1s ago: running tests","",fix 2 | long command: pid 6297 etime 00:29 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+live-samples.log:[03:30:40] A | load 54.22 | axi active step as the watcher reads it: test,fixing,4h19m,48m10s,"quiet 5m22s ago: running tests","",fix 2 | long command: pid 6297 etime 00:50 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+live-samples.log:[03:31:01] A | load 57.47 | axi active step as the watcher reads it: test,fixing,4h20m,48m31s,"quiet 5m43s ago: running tests","",fix 2 | long command: pid 6297 etime 01:11 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+live-samples.log:[03:31:23] A | load 86.98 | axi active step as the watcher reads it: test,fixing,4h20m,48m52s,"quiet 6m4s ago: running tests","",fix 2 | long command: pid 6297 etime 01:33 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+live-samples.log:[03:31:45] A | load 236.60 | axi active step as the watcher reads it: test,fixing,4h20m,49m14s,"quiet 6m27s ago: running tests","",fix 2 | long command: pid 6297 etime 01:55 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+live-samples.log:[03:32:07] A | load 268.66 | axi active step as the watcher reads it: test,fixing,4h21m,49m36s,"quiet 6m48s ago: running tests","",fix 2 | long command: pid 6297 etime 02:17 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+live-samples.log:[03:32:27] A | load 204.32 | axi active step as the watcher reads it: test,fixing,4h21m,49m57s,"quiet 7m9s ago: running tests","",fix 2 | long command: pid 6297 etime 02:37 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+live-samples.log:[03:32:48] A | load 155.32 | axi active step as the watcher reads it: test,fixing,4h21m,50m18s,"quiet 7m30s ago: running tests","",fix 2 | long command: pid 6297 etime 02:58 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+live-samples.log:[03:33:09] A | load 118.24 | axi active step as the watcher reads it: test,fixing,4h22m,50m39s,"quiet 7m51s ago: running tests","",fix 2 | long command: pid 6297 etime 03:20 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+live-samples.log:[03:33:31] A | load 99.13 | axi active step as the watcher reads it: test,fixing,4h22m,51m0s,"quiet 8m12s ago: running tests","",fix 2 | long command: pid 6297 etime 03:41 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+live-samples.log:[03:33:52] A | load 85.86 | axi active step as the watcher reads it: test,fixing,4h22m,51m21s,"quiet 8m33s ago: running tests","",fix 2 | long command: pid 6297 etime 04:02 cwd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4Z2NDNVFJXVP6PM2K4SF305
+live-samples.log:[03:34:12] phase A over, long command still running; stopping it
+long-command-fm-test-run.log:FM_TEST_BEGIN 2026-10-15T10:28:19Z tests/fm-crew-state.test.sh family=pure-contract-unit expected_gate_skip=none
+long-command-fm-test-run.log:FM_TEST_END 2026-10-15T10:29:50Z tests/fm-crew-state.test.sh exit=0 duration_ms=91104 gate_skip=false
+long-command-fm-test-run.log:FM_TEST_BEGIN 2026-10-15T10:29:50Z tests/fm-watch-triage.test.sh family=watcher-wake-lock expected_gate_skip=none
+
+## this change (6273c67)
+### wakes delivered to firstmate
+[03:34:01] window closed with the watcher still blocking (no wake)
+### watcher triage log (deferrals and timer resets; per-poll absorbs omitted)
+[2026-10-15T03:28:34-0700] absorbed benign signal: /private/tmp/fmr3.sQpL/qAf/state/wedgelive.status
+[2026-10-15T03:29:43-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 61s): fm:fm-wedgelive
+[2026-10-15T03:30:46-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 62s): fm:fm-wedgelive
+[2026-10-15T03:31:50-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 62s): fm:fm-wedgelive
+[2026-10-15T03:32:53-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 62s): fm:fm-wedgelive
+[2026-10-15T03:33:57-0700] absorbed non-terminal stale (provably working after a declared pause) (its validation step test is starting new processes in its run, idle 62s): fm:fm-wedgelive
+
+## base (fbd3c9b)
+### wakes delivered to firstmate
+[03:29:43] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 60s, possible wedge, escalation 1) 
+[03:30:54] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 63s, possible wedge, escalation 2) 
+[03:32:12] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 64s, possible wedge, escalation 3, demand-deep-inspection: same pane has wedge-escalated 3 times in a row - do not re-absorb on the run-step/pane state alone) 
+[03:33:23] watcher woke firstmate (rc=0): stale: fm:fm-wedgelive (idle 61s, possible wedge, escalation 4, demand-deep-inspection: same pane has wedge-escalated 4 times in a row - do not re-absorb on the run-step/pane state alone) 
+[03:34:00] window closed with the watcher still blocking (no wake)
+### watcher triage log (deferrals and timer resets; per-poll absorbs omitted)
+[2026-10-15T03:28:34-0700] absorbed benign signal: /private/tmp/fmr3.sQpL/qAb/state/wedgelive.status
+[2026-10-15T03:29:49-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T03:31:05-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T03:32:20-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+[2026-10-15T03:33:29-0700] absorbed non-terminal stale (provably working after a declared pause) timer reset: fm:fm-wedgelive
+

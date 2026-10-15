@@ -1,0 +1,41 @@
+## tt-ctl: bin/fm-test-run.sh tests/fm-crew-state.test.sh -> exit 0 after 101s
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-10-15T10:42:09Z tests/fm-crew-state.test.sh family=pure-contract-unit expected_gate_skip=none
+FM_TEST_END 2026-10-15T10:43:48Z tests/fm-crew-state.test.sh exit=0 duration_ms=99537 gate_skip=false
+last ok before it: ok - the snapshot overrides steer the read without reaching the processes it starts
+test runner processes still alive with a cwd under this run's TMPDIR:
+  none
+every 'sleep 2 & wait' runner on the host at this moment (pid ppid etime cwd):
+   868 89164 00:01 /private/tmp/fmr3.sQpL/tmp-tt-r2/fm-test-run.zUc5Zc/s0/tmp/fm-crew-state.KTdRrP/run-step-process-evidence/nm/worktrees/repo/01RUN
+   1366 89164 00:00 /private/tmp/fmr3.sQpL/tmp-tt-r2/fm-test-run.zUc5Zc/s0/tmp/fm-crew-state.KTdRrP/run-step-process-evidence/nm/worktrees/repo/01RUN
+  89164 1 00:38 /private/tmp/fmr3.sQpL/tmp-tt-r2/fm-test-run.zUc5Zc/s0/tmp/fm-crew-state.KTdRrP/run-step-process-evidence/nm/worktrees/repo/01RUN
+
+## tt-head: bin/fm-test-run.sh tests/fm-crew-state.test.sh -> exit 1 after 78s (first not ok at +76s)
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-10-15T10:42:09Z tests/fm-crew-state.test.sh family=pure-contract-unit expected_gate_skip=none
+not ok - new work under the active step's command in the run's own copy was not progress evidence
+FM_TEST_END 2026-10-15T10:43:26Z tests/fm-crew-state.test.sh exit=1 duration_ms=76830 gate_skip=false
+last ok before it: ok - progress evidence over the real helper: fresh steps and forge waits count, a stalled step or fix round never does, and a parked run counts only its crew's own work
+test runner processes still alive with a cwd under this run's TMPDIR:
+  none
+every 'sleep 2 & wait' runner on the host at this moment (pid ppid etime cwd):
+  89127 47822 00:15 /private/tmp/fmr3.sQpL/tmp-tt-ctl/fm-test-run.H3FCG9/s0/tmp/fm-crew-state.Qgikgu/run-step-process-evidence/nm/worktrees/repo/01RUN
+  89164 1 00:16 /private/tmp/fmr3.sQpL/tmp-tt-r2/fm-test-run.zUc5Zc/s0/tmp/fm-crew-state.KTdRrP/run-step-process-evidence/nm/worktrees/repo/01RUN
+  93537 89164 00:02 /private/tmp/fmr3.sQpL/tmp-tt-r2/fm-test-run.zUc5Zc/s0/tmp/fm-crew-state.KTdRrP/run-step-process-evidence/nm/worktrees/repo/01RUN
+  93539 89127 00:02 
+  93961 89164 00:01 /private/tmp/fmr3.sQpL/tmp-tt-r2/fm-test-run.zUc5Zc/s0/tmp/fm-crew-state.KTdRrP/run-step-process-evidence/nm/worktrees/repo/01RUN
+  93962 89127 00:02 /private/tmp/fmr3.sQpL/tmp-tt-ctl/fm-test-run.H3FCG9/s0/tmp/fm-crew-state.Qgikgu/run-step-process-evidence/nm/worktrees/repo/01RUN
+
+## tt-r2: bin/fm-test-run.sh tests/fm-crew-state.test.sh -> still running 90s after its failure; stopped after 169s (first not ok at +76s)
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-10-15T10:42:09Z tests/fm-crew-state.test.sh family=pure-contract-unit expected_gate_skip=none
+not ok - new work under the active step's command in the run's own copy was not progress evidence
+fm-test-run: interrupted; stopping the running script(s)
+last ok before it: ok - progress evidence over the real helper: fresh steps and forge waits count, a stalled step or fix round never does, and a parked run counts only its crew's own work
+test runner processes still alive with a cwd under this run's TMPDIR:
+  none
+every 'sleep 2 & wait' runner on the host at this moment (pid ppid etime cwd):
+
