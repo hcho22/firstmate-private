@@ -111,6 +111,20 @@ fm_test_run_cases case_fail case_slow case_late"
   pass "a failing case fails the file with its status, running cases finish, and no new case starts"
 }
 
+test_a_lane_killed_mid_run_fails_the_file() {
+  local dir="$TMP_ROOT/killed-lane" out rc=0
+  # The case kills the lane running it, so that lane never reaches its end.
+  write_suite "$dir" "
+case_kill_lane() { kill -KILL \"\$(ps -o ppid= -p \"\$FM_TEST_CASE_PID\" | tr -d '[:space:]')\"; pass \"kill lane\"; }
+case_ok() { pass \"ok case\"; }
+fm_test_run_cases case_kill_lane case_ok"
+  out=$(FM_TEST_CASE_LANES=2 "$dir/suite.test.sh" 2>&1) || rc=$?
+  expect_code 1 "$rc" "a file whose lane was killed must fail: $out"
+  assert_contains "$out" "not ok - a case lane ended abnormally" "the killed lane was not reported: $out"
+  assert_contains "$out" "ok - ok case" "the other lane's case was lost: $out"
+  pass "a lane killed before it ends fails the file and is reported as ended abnormally"
+}
+
 test_bad_lane_count_is_refused() {
   local dir="$TMP_ROOT/bad-count" out rc=0
   write_suite "$dir" "$REVERSE_CASES
@@ -210,6 +224,7 @@ test_cases_run_concurrently
 test_one_lane_runs_cases_in_this_shell_in_order
 test_laned_cases_do_not_share_shell_state
 test_a_failing_case_fails_the_file_and_stops_claims
+test_a_lane_killed_mid_run_fails_the_file
 test_bad_lane_count_is_refused
 test_the_files_own_exit_trap_still_runs
 test_case_teardown_runs_for_each_laned_case

@@ -2148,13 +2148,35 @@ runner_interrupted() { # <exit-status>
       done
     fi
   fi
-  [ -z "$ACTIVE_SCRIPT_GUARD" ] || wait "$ACTIVE_SCRIPT_GUARD" 2>/dev/null || true
+  [ -z "$ACTIVE_SCRIPT_GUARD" ] || await_stopped_job "$ACTIVE_SCRIPT_GUARD"
   if [ "${#WORKER_PIDS[@]}" -gt 0 ]; then
     for slot in "${!WORKER_PIDS[@]}"; do
-      wait "${WORKER_PIDS[$slot]}" 2>/dev/null || true
+      await_stopped_job "${WORKER_PIDS[$slot]}"
     done
   fi
   exit "$1"
+}
+
+# await_stopped_job <pid>: after an interrupt, give a script's background job
+# up to 30 seconds to end once its script has been stopped, a zombie awaiting
+# this shell's wait counting as ended. Never the wait builtin: a Ctrl-C reaches
+# the runner's whole process group, so the job can die of the very signal whose
+# trap interrupts the runner's `wait` for it, and bash 5.2 on Linux can then
+# reap the job without recording that it ended. A later `wait` for that job
+# waits for any child to change state instead, and the sentinel stays a child
+# until the runner exits, so the run never ended.
+# Invoked indirectly by the traps below.
+# shellcheck disable=SC2329
+await_stopped_job() { # <pid>
+  local deadline=$((SECONDS + 30))
+  while :; do
+    case "$(ps -o stat= -p "$1" 2>/dev/null)" in '' | Z*) return 0 ;; esac
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      log "script job $1 was still running 30s after the interrupt; not waiting for it"
+      return 0
+    fi
+    sleep 0.1
+  done
 }
 
 trap cleanup_run EXIT

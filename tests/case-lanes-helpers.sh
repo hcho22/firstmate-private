@@ -108,13 +108,13 @@ fm_test_case_stop_lanes() {
   FM_TEST_CASE_LANE_PIDS=()
 }
 
-# One lane: claim cases in order until none is left, or one has failed. A lane
-# subshell does not inherit the EXIT, INT, or TERM traps, so only the file's own
-# shell ever runs its cleanup.
-fm_test_case_lane() {
+# One lane: claim cases in order until none is left, or one has failed, then
+# mark that the lane ended on its own. A lane subshell does not inherit the EXIT,
+# INT, or TERM traps, so only the file's own shell ever runs its cleanup.
+fm_test_case_lane() {  # <lane>
   local i rc dir=$FM_TEST_CASE_LANE_DIR
   for i in "${!FM_TEST_CASES[@]}"; do
-    [ ! -e "$dir/failed" ] || return 0
+    [ ! -e "$dir/failed" ] || break
     mkdir "$dir/claim/$i" 2>/dev/null || continue
     (
       # A command substitution whose only command is sh runs sh in place of
@@ -128,6 +128,7 @@ fm_test_case_lane() {
     [ "$rc" -eq 0 ] || : > "$dir/failed"
     printf '%s\n' "$rc" > "$dir/out/$i.rc"
   done
+  : > "$dir/ended/$1"
 }
 
 fm_test_case_print() {  # <index>
@@ -172,7 +173,7 @@ fm_test_case_trap_command() {  # <signal>
 }
 
 fm_test_run_cases() {  # <case-function>...
-  local lanes lane pid i rc status=0 on_exit on_int on_term
+  local lanes lane i rc status=0 on_exit on_int on_term
   FM_TEST_CASES=("$@")
   [ "${#FM_TEST_CASES[@]}" -gt 0 ] || fail "fm_test_run_cases needs at least one case"
   lanes=${FM_TEST_CASE_LANES:-}
@@ -197,7 +198,7 @@ fm_test_run_cases() {  # <case-function>...
   fi
 
   FM_TEST_CASE_LANE_DIR=$(fm_test_tmproot fm-test-case-lanes) || fail "could not create the case lane directory"
-  mkdir -p "$FM_TEST_CASE_LANE_DIR/claim" "$FM_TEST_CASE_LANE_DIR/out"
+  mkdir -p "$FM_TEST_CASE_LANE_DIR/claim" "$FM_TEST_CASE_LANE_DIR/out" "$FM_TEST_CASE_LANE_DIR/ended"
   on_exit=$(fm_test_case_trap_command EXIT)
   on_int=$(fm_test_case_trap_command INT)
   on_term=$(fm_test_case_trap_command TERM)
@@ -208,15 +209,22 @@ fm_test_run_cases() {  # <case-function>...
   # shellcheck disable=SC2064
   trap "fm_test_case_stop_lanes; fm_test_case_print_after_stop; ${on_exit:-:}" EXIT
   for ((lane = 0; lane < lanes; lane++)); do
-    fm_test_case_lane &
+    fm_test_case_lane "$lane" &
     FM_TEST_CASE_LANE_PIDS+=("$!")
   done
   while [ -n "$(fm_test_case_running_lanes)" ]; do
     fm_test_case_print_finished_prefix
     sleep 0.2
   done
-  for pid in "${FM_TEST_CASE_LANE_PIDS[@]}"; do
-    wait "$pid" || { printf 'not ok - a case lane ended abnormally (%s)\n' "$?" >&2; status=1; }
+  # A lane that was killed or exited mid-way left no end marker. The marker, not
+  # wait's status, tells: once the host's pids wrap, bash 3.2 drops a finished
+  # lane, status and all, when a later child of this shell reuses its pid, and
+  # wait then calls a lane that ended cleanly "not a child of this shell" (127).
+  for lane in "${!FM_TEST_CASE_LANE_PIDS[@]}"; do
+    rc=0
+    wait "${FM_TEST_CASE_LANE_PIDS[$lane]}" 2>/dev/null || rc=$?
+    [ -e "$FM_TEST_CASE_LANE_DIR/ended/$lane" ] \
+      || { printf 'not ok - a case lane ended abnormally (%s)\n' "$rc" >&2; status=1; }
   done
   FM_TEST_CASE_LANE_PIDS=()
   fm_test_case_print_finished_prefix

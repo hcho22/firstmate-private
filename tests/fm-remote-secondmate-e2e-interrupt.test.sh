@@ -29,15 +29,16 @@ serving_worker_under() {
   return 1
 }
 
-# The nested runner a case started and has not yet waited for. A case that fails
-# or is interrupted while that runner is still going stops it here, so the
-# runner's own interrupt path reaps the e2e and its worker instead of leaving the
-# e2e to run on. It runs as FM_TEST_CASE_TEARDOWN and from the file's EXIT trap.
+# The nested runner a case started and has not yet waited for, and the TMPDIR it
+# runs with. A case that fails or is interrupted while that runner is still going
+# stops it here, so the runner's own interrupt path (or, failing that, its
+# sentinel) reaps the e2e and its worker instead of leaving the e2e to run on.
+# It runs as FM_TEST_CASE_TEARDOWN and from the file's EXIT trap.
 E2E_RUNNER=
+E2E_CALLER=
 stop_e2e_runner() {
   [ -n "$E2E_RUNNER" ] || return 0
-  kill -TERM -- "-$E2E_RUNNER" 2>/dev/null || true
-  wait "$E2E_RUNNER" 2>/dev/null || true
+  fm_test_stop_nested_runner "$E2E_RUNNER" "$E2E_CALLER"
   E2E_RUNNER=
 }
 
@@ -53,7 +54,7 @@ run_e2e_interrupt_case() {
     exec perl -e '$SIG{INT} = "DEFAULT"; setpgrp(0, 0); exec @ARGV' \
     bin/fm-test-run.sh --jobs 1 "$E2E") >"$tmp/out" 2>"$tmp/err" &
   runner=$!
-  E2E_RUNNER=$runner
+  E2E_RUNNER=$runner E2E_CALLER=$caller
   deadline=$((SECONDS + FM_TEST_EVENT_HANG_GUARD_SECONDS))
   until serving_worker_under "$caller" >/dev/null; do
     kill -0 "$runner" 2>/dev/null \
@@ -65,7 +66,9 @@ run_e2e_interrupt_case() {
     int) kill -INT -- "-$runner" ;;
     abort) kill -KILL -- "-$runner" ;;
   esac
-  wait "$runner" 2>/dev/null || rc=$?
+  fm_test_await_child_exit "$runner" 120 \
+    || fail "$mode: the e2e run was still going 120s after it was ended: $(ps -A -o pid=,ppid=,pgid=,stat=,command= | awk -v g="$runner" '$3 == g') $(tail -20 "$tmp/err")"
+  rc=$FM_TEST_CHILD_RC
   E2E_RUNNER=
   if [ "$mode" = abort ]; then
     # The killed run cleans nothing up itself; the sentinel it left must.
