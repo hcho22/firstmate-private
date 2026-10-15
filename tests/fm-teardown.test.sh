@@ -2061,7 +2061,10 @@ case "${1:-} ${2:-}" in
     printf '%s\n' '{"server":{"running":true}}'
     ;;
   "session list")
-    printf '%s\n' '{"sessions":[{"name":"fmtest","running":true,"socket_path":"/tmp/fmtest.sock"}]}'
+    # A per-case socket: the presentation lock is machine-wide and keyed by the
+    # session's socket, so a shared fake socket made concurrently laned cases
+    # contend for one lock and refuse under load.
+    printf '{"sessions":[{"name":"fmtest","running":true,"socket_path":"%s"}]}\n' "${FM_FAKE_HERDR_SOCKET:?}"
     ;;
   "pane close")
     if [ "${FM_FAKE_HERDR_CLOSE_FAIL:-0}" = 1 ]; then
@@ -2105,7 +2108,7 @@ test_herdr_projection_teardown_retires_journal_only_after_confirmed_close() {
   configure_herdr_projection_teardown_case "$case_dir"
   log="$case_dir/herdr.log"; closed="$case_dir/closed"; restored="$case_dir/restored"; : > "$log"
 
-  FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" FM_FAKE_HERDR_RESTORED="$restored" \
+  FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" FM_FAKE_HERDR_RESTORED="$restored" FM_FAKE_HERDR_SOCKET="$case_dir/herdr.sock" \
     run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" \
     || fail "herdr-projection-confirmed-close: forced teardown failed"
   [ ! -e "$case_dir/state/task-x1.herdr-presentation" ] \
@@ -2125,7 +2128,7 @@ test_herdr_projection_teardown_retains_journal_when_close_unconfirmed() {
   log="$case_dir/herdr.log"; closed="$case_dir/closed"; restored="$case_dir/restored"; : > "$log"
 
   local rc=0
-  FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" FM_FAKE_HERDR_RESTORED="$restored" FM_FAKE_HERDR_PRESENCE_UNKNOWN=1 \
+  FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" FM_FAKE_HERDR_RESTORED="$restored" FM_FAKE_HERDR_SOCKET="$case_dir/herdr.sock" FM_FAKE_HERDR_PRESENCE_UNKNOWN=1 \
     run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
   [ "$rc" -ne 0 ] \
     || fail "herdr-projection-unconfirmed-close: teardown reported success after an unknown post-close presence read"
@@ -2151,7 +2154,7 @@ test_herdr_projection_teardown_surfaces_restore_failure_without_blocking_cleanup
   configure_herdr_projection_teardown_case "$case_dir"
   log="$case_dir/herdr.log"; closed="$case_dir/closed"; restored="$case_dir/restored"; : > "$log"
 
-  FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" FM_FAKE_HERDR_RESTORED="$restored" \
+  FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" FM_FAKE_HERDR_RESTORED="$restored" FM_FAKE_HERDR_SOCKET="$case_dir/herdr.sock" \
     FM_FAKE_HERDR_RESTORE_FAIL=1 \
     run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" \
     || fail "herdr-projection-restore-failure: a confirmed close with a failed focus restore blocked teardown"

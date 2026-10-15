@@ -51,6 +51,12 @@
 #      checks" from "checks green, waiting on merge" (see nm_ci_checks_state) -
 #      a ci-step log-tail check overrides working -> done once checks read
 #      green, so a green PR is never silently read as still-validating.
+#      A working run with full detail also carries its progress evidence as
+#      detail segments: `step <name> last activity <secs>s ago` for the
+#      freshest active step (axi status' active_steps last_activity), and
+#      `ci waiting on checks` while the ci step's latest monitor marker says it
+#      is waiting on pending checks (never once they read red or are being
+#      fixed).
 #   3. Reconcile the status log: if its last line says needs-decision/blocked but
 #      the run-step shows the run moved on, the log is deterministically stale and
 #      is flagged superseded. A genuinely parked run plus a needs-decision log
@@ -353,7 +359,11 @@ nm_effective_ci_step_status() {
 # actual PR #252 run). Reads the ci step's log tail via `axi logs` and scans it
 # for the MOST RECENT recognized marker (the log is append-only/chronological,
 # so the last match is current): green with nothing red after it means CI is
-# green right now, still only waiting on merge/close.
+# green right now, still only waiting on merge/close. Prints green; pending
+# while the monitor is still waiting on the forge's checks (none registered yet,
+# some still running, re-armed after the base branch advanced, or issues already
+# detected while other checks are still pending); not-ready once checks failed or
+# issues were detected and handed to a fix; or unknown.
 nm_ci_checks_state() {
   local run_id log_tail marker
   run_id=$(strip_quotes "$(nm_field id)")
@@ -365,7 +375,8 @@ nm_ci_checks_state() {
     | tail -1)
   case "$marker" in
     *"checks passed"*|*"no CI checks reported - still monitoring"*) printf 'green' ;;
-    *"no CI checks reported yet"*|*"checks failed"*|*"issues detected"*|*"CI checks running"*|*"base branch advanced"*"re-arming CI monitor timeout"*) printf 'not-ready' ;;
+    *"issues detected but checks still pending"*|*"no CI checks reported yet"*|*"CI checks running"*|*"base branch advanced"*"re-arming CI monitor timeout"*) printf 'pending' ;;
+    *"checks failed"*|*"issues detected"*) printf 'not-ready' ;;
     *) printf 'unknown' ;;
   esac
 }
@@ -527,6 +538,23 @@ if [ "$HAVE_RUN" = 1 ]; then
     fi
   fi
 
+  # Progress evidence for the watcher's wedge timer, read from the same TOON:
+  # the freshest active step's last activity, normalized to seconds, and the
+  # ci step's forge wait on pending checks. The pipeline logs a still-running CI
+  # check only on change, so a long CI wait shows no fresh activity; the wait
+  # itself is named instead. Red checks or an auto-fix round are not a forge
+  # wait, so they are never named one. Both are plain detail segments
+  # (crew_progress_evidence in fm-classify-lib.sh owns how they are judged).
+  if [ "$RUN_STATE" = working ] && [ "$RUN_SOURCE" = full ]; then
+    STEP_ACTIVITY=$(fm_nm_freshest_step_activity "$RUN_OUT")
+    if [ -n "$STEP_ACTIVITY" ]; then
+      RUN_DETAIL="$RUN_DETAIL${SEP}step ${STEP_ACTIVITY% *} last activity ${STEP_ACTIVITY##* }s ago"
+    fi
+    if [ "$CI_STEP_STATUS" = running ] && [ "$CI_LOG_STATE" = pending ]; then
+      RUN_DETAIL="$RUN_DETAIL${SEP}ci waiting on checks"
+    fi
+  fi
+
   if [ "$RUN_STATE" = working ] && log_reports_ci_ready; then
     if [ "$RUN_SOURCE" = coarse ]; then
       emit "done" status-log "$(status_line_note "$LOG_LINE")${SEP}run still monitoring PR"
@@ -539,9 +567,10 @@ if [ "$HAVE_RUN" = 1 ]; then
     elif [ "$CI_STEP_STATUS" = fixing ]; then
       CI_LOG_STATE=not-ready
     fi
-    if [ "$CI_LOG_STATE" != not-ready ]; then
-      emit "done" status-log "$(status_line_note "$LOG_LINE")${SEP}run still monitoring PR"
-    fi
+    case "$CI_LOG_STATE" in
+      pending|not-ready) ;;
+      *) emit "done" status-log "$(status_line_note "$LOG_LINE")${SEP}run still monitoring PR" ;;
+    esac
   fi
 
   # Reconcile the status log. A needs-decision/blocked log line that the run-step
