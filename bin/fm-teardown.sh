@@ -140,7 +140,9 @@
 #     crew's worktree, so they are not orphaned by removing the worktree.
 #     conclude_task_no_mistakes_run attributes the active-or-most-recent run to
 #     THIS task only when its branch AND code identity (bin/fm-nm-run-lib.sh's
-#     strict fm_nm_head_matches_worktree rule) both match this worktree, then
+#     strict fm_nm_head_matches_worktree rule, or the run's own record of
+#     submitting this exact head, fm_nm_run_is_submitted_head_active) both
+#     match this worktree, then
 #     runs `no-mistakes axi abort --run <id>` for that verified run instance.
 #     When the run head is absent from this copy's object store - the pipeline
 #     committed its fix round in its own repo and the task copy never fetched
@@ -1589,8 +1591,9 @@ retire_subagent_worktrees() {
 # worktree $1 belong to THIS task, and is it parked at a gate awaiting an agent
 # that is about to be removed? Prints nothing; returns 0 only on a genuine
 # match so the caller knows it is safe to abort - never a guess. Identity
-# binds through the strict object-local head rule, with bin/fm-nm-run-lib.sh's
-# shared ledger-anchored continuation rule as the only recognition for a head
+# binds through the strict object-local head rule or the run's own record of
+# submitting this worktree's exact head, with bin/fm-nm-run-lib.sh's shared
+# ledger-anchored continuation rule as the only other recognition for a head
 # this copy cannot resolve at all.
 NM_TEARDOWN_TIMEOUT=${FM_TEARDOWN_NM_TIMEOUT:-10}
 case "$NM_TEARDOWN_TIMEOUT" in ''|*[!0-9]*) NM_TEARDOWN_TIMEOUT=10 ;; esac
@@ -1618,8 +1621,10 @@ task_status_is_own_parked_run() {  # <worktree> <axi-status-output>
   case "$status" in
     completed|failed|cancelled|passed|checks-passed|running|fixing|ci) return 1 ;;
   esac
-  if ! fm_nm_head_matches_worktree "$wt" "$run_head"; then
-    # The strict object-local rule rejected this run head. That rejection is
+  if ! fm_nm_head_matches_worktree "$wt" "$run_head" \
+    && ! fm_nm_run_is_submitted_head_active "$wt" "$out"; then
+    # Neither the strict object-local rule nor the run's own record of
+    # submitting this exact head binds this run. The head rejection is
     # final when the head object resolves in this copy (diverged or rewritten
     # tips are genuine mismatches), but when the object is absent entirely -
     # the pipeline committed its fix round in its own repo and this copy
