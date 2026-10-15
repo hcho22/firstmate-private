@@ -11,6 +11,8 @@
 # instead of orphaning it. Getting this wrong in either
 # direction is unsafe: a false negative hides a genuinely parked run, and a
 # false positive lets teardown act on a run it does not own.
+# fm-classify-lib.sh's wedge-deferral probe also sources it, to resolve an
+# attributed run's own copy through fm_nm_run_worktree below.
 #
 # Bounded call to `no-mistakes "$@"` in dir $1, timeout $2 seconds. The bounded
 # form preserves stdout, stderr, and exit status; the checked form discards
