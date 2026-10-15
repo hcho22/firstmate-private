@@ -140,12 +140,13 @@
 #     crew's worktree, so they are not orphaned by removing the worktree.
 #     conclude_task_no_mistakes_run attributes the active-or-most-recent run to
 #     THIS task only when its branch AND code identity both match this
-#     worktree under bin/fm-nm-run-lib.sh's shared attribution rule - the same
-#     one bin/fm-crew-state.sh follows, so the run crew-state attributes is the
-#     run cleanup concludes: the strict fm_nm_head_matches_worktree rule, or
-#     the run's own record of submitting this exact head
-#     (fm_nm_run_is_submitted_head_active), which binds whether or not the
-#     run's current head resolves in this copy - then
+#     worktree under the head and submitted-head rules it shares with
+#     bin/fm-crew-state.sh through bin/fm-nm-run-lib.sh: the strict
+#     fm_nm_head_matches_worktree rule, or the run's own record of submitting
+#     this exact head (fm_nm_run_is_submitted_head_active), which binds
+#     whether or not the run's current head resolves in this copy. Crew-state's
+#     read-only custody exemption (fm_nm_run_is_pipeline_owned_active) is
+#     never an abort authorization here. On a match it
 #     runs `no-mistakes axi abort --run <id>` for that verified run instance.
 #     When neither binds and the run head is absent from this copy's object
 #     store - the pipeline committed its fix round in its own repo and the task
@@ -1594,11 +1595,13 @@ retire_subagent_worktrees() {
 # worktree $1 belong to THIS task, and is it parked at a gate awaiting an agent
 # that is about to be removed? Prints nothing; returns 0 only on a genuine
 # match so the caller knows it is safe to abort - never a guess. Identity
-# follows bin/fm-nm-run-lib.sh's shared attribution rule, the same one
-# bin/fm-crew-state.sh follows: the strict object-local head rule or the run's
-# own record of submitting this worktree's exact head (whether or not the run
-# head resolves here), with the shared ledger-anchored continuation rule as
-# the only other recognition for a head this copy cannot resolve at all.
+# binds through the head and submitted-head rules shared with
+# bin/fm-crew-state.sh in bin/fm-nm-run-lib.sh: the strict object-local head
+# rule or the run's own record of submitting this worktree's exact head
+# (whether or not the run head resolves here), with the shared ledger-anchored
+# continuation rule as the only other recognition for a head this copy cannot
+# resolve at all. Crew-state's read-only custody exemption never authorizes
+# an abort.
 NM_TEARDOWN_TIMEOUT=${FM_TEARDOWN_NM_TIMEOUT:-10}
 case "$NM_TEARDOWN_TIMEOUT" in ''|*[!0-9]*) NM_TEARDOWN_TIMEOUT=10 ;; esac
 # How many of the most recent `no-mistakes runs` rows the parked-run
