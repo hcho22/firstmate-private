@@ -1505,6 +1505,20 @@ issues detected: merge conflict - auto-fixing (attempt 2/10)..."
   pass "progress evidence over the real helper: fresh steps and forge waits count, a stalled step or fix round never does, and a parked run counts only its crew's own work"
 }
 
+# A bounded kernel or no-mistakes read that gives up under host load is the
+# probe's documented safe answer, no evidence, so on a loaded host one read that
+# shows nothing does not disprove the evidence. Up to three fresh reads of
+# <case-dir>'s feat-rsp evidence, with its run copies under <case-dir>/nm: 0
+# with the first evidence printed, 1 when none showed it.
+observe_run_step_evidence() {  # <case-dir>
+  local _
+  for _ in 1 2 3; do
+    PATH="$1/fakebin:$PATH" FM_STATE_OVERRIDE="$1/state" FM_CREW_STATE_BIN="$CREW_STATE" NM_HOME="$1/nm" \
+      crew_progress_evidence feat-rsp "$1/state" "$1/anchor" 240 && return 0
+  done
+  return 1
+}
+
 # A command the active step runs itself, such as the test step's configured
 # long command, keeps last_activity quiet until it finishes. New work under
 # that step in the run's own copy (NM_HOME/worktrees/<repo>/<run-id>) is
@@ -1519,7 +1533,9 @@ test_run_step_process_evidence_over_real_helper() {
   run_dir="$d/nm/worktrees/repo/01RUN"
   mkdir -p "$run_dir" "$d/nm/worktrees/repo/01OTHER"
   # The step's long command: overlapping shards, each starting its own child.
-  ( cd "$run_dir" && exec bash -c 'while :; do bash -c "sleep 2 & wait" & sleep 1; done' ) &
+  # It stops once the case's fixtures are removed, so a failed assertion cannot
+  # leave it running and holding the test's output open.
+  ( cd "$run_dir" && exec bash -c 'while [ -d "$1" ]; do bash -c "sleep 2 & wait" & sleep 1; done' _ "$run_dir" ) &
   runner=$!
   # The command predates the quiet window that opens here by well over the
   # step-start margin, so a step that began after it cannot claim it.
@@ -1529,27 +1545,38 @@ test_run_step_process_evidence_over_real_helper() {
   sleep 2
   quiet="$(run_fixing_with_activity fm/feat-rsp "quiet 53m ago: running tests")"
   FM_FAKE_AXI_STATUS="$quiet"
-  out=$(PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" NM_HOME="$d/nm" \
-    crew_progress_evidence feat-rsp "$d/state" "$anchor" 240) \
+  out=$(observe_run_step_evidence "$d") \
     || fail "new work under the active step's command in the run's own copy was not progress evidence"
   assert_contains "$out" "validation step test is starting new processes in its run" "the run-step process evidence was not named"
   FM_FAKE_AXI_STATUS="$(printf '%s\n' "$quiet" | sed 's/id: "01RUN"/id: "01OTHER"/')"
   PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" NM_HOME="$d/nm" \
     crew_progress_evidence feat-rsp "$d/state" "$anchor" 240 >/dev/null \
     && fail "new work under another run's copy counted for this run"
+  # Every later negative read follows a positive control over the same live
+  # command, so the input it changes, not a command that stopped counting, is
+  # why it sees nothing.
+  FM_FAKE_AXI_STATUS="$quiet"
+  observe_run_step_evidence "$d" >/dev/null \
+    || fail "positive control before the older-process case: the run's own new work was not progress evidence"
   FM_FAKE_AXI_STATUS="$(printf '%s\n' "$quiet" | sed 's/test,fixing,2m35s,/test,fixing,1s,/')"
   PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" NM_HOME="$d/nm" \
     crew_progress_evidence feat-rsp "$d/state" "$anchor" 240 >/dev/null \
     && fail "new work under a process older than the active step counted for that step"
   FM_FAKE_AXI_STATUS="$quiet"
+  observe_run_step_evidence "$d" >/dev/null \
+    || fail "positive control before the unresolvable-copy case: the run's own new work was not progress evidence"
   PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" NM_HOME="$d/no-such-root" \
     crew_progress_evidence feat-rsp "$d/state" "$anchor" 240 >/dev/null \
     && fail "a run whose copy is not under the CLI's root counted as progress"
+  observe_run_step_evidence "$d" >/dev/null \
+    || fail "positive control before the two-copies case: the run's own new work was not progress evidence"
   mkdir -p "$d/nm/worktrees/repo2/01RUN"
   PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" FM_CREW_STATE_BIN="$CREW_STATE" NM_HOME="$d/nm" \
     crew_progress_evidence feat-rsp "$d/state" "$anchor" 240 >/dev/null \
     && fail "a run id naming two copies counted as progress"
   rmdir "$d/nm/worktrees/repo2/01RUN"
+  observe_run_step_evidence "$d" >/dev/null \
+    || fail "positive control before the command stops: the run's own new work was not progress evidence"
   kill "$runner" 2>/dev/null || true
   wait "$runner" 2>/dev/null || true
   # The command's last shards may outlive it by up to two seconds; after that
