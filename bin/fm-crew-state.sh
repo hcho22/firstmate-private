@@ -53,10 +53,12 @@
 #      green, so a green PR is never silently read as still-validating.
 #      A working run with full detail also carries its progress evidence as
 #      detail segments: `step <name> last activity <secs>s ago` for the
-#      freshest active step (axi status' active_steps last_activity), and
-#      `ci waiting on checks` while the ci step's latest monitor marker says it
-#      is waiting on pending checks (never once they read red or are being
-#      fixed).
+#      freshest active step (axi status' active_steps last_activity), followed
+#      by `, active <secs>s in run <run-id>` when the step's active_for and the
+#      run id are readable (the most seconds since that step started, and the
+#      run whose own copy holds the step's processes), and `ci waiting on
+#      checks` while the ci step's latest monitor marker says it is waiting on
+#      pending checks (never once they read red or are being fixed).
 #   3. Reconcile the status log: if its last line says needs-decision/blocked but
 #      the run-step shows the run moved on, the log is deterministically stale and
 #      is flagged superseded. A genuinely parked run plus a needs-decision log
@@ -539,16 +541,26 @@ if [ "$HAVE_RUN" = 1 ]; then
   fi
 
   # Progress evidence for the watcher's wedge timer, read from the same TOON:
-  # the freshest active step's last activity, normalized to seconds, and the
-  # ci step's forge wait on pending checks. The pipeline logs a still-running CI
-  # check only on change, so a long CI wait shows no fresh activity; the wait
-  # itself is named instead. Red checks or an auto-fix round are not a forge
-  # wait, so they are never named one. Both are plain detail segments
-  # (crew_progress_evidence in fm-classify-lib.sh owns how they are judged).
+  # the freshest active step's last activity, normalized to seconds, with how
+  # long that step has been active and the run it belongs to, and the ci step's
+  # forge wait on pending checks. The pipeline logs a still-running CI check
+  # only on change, so a long CI wait shows no fresh activity; the wait itself
+  # is named instead. Red checks or an auto-fix round are not a forge wait, so
+  # they are never named one. A configured command the step runs itself shows
+  # no fresh activity until it finishes; the step's age and run id let the
+  # caller look for new work under that run's own copy instead. All are plain
+  # detail segments (crew_progress_evidence in fm-classify-lib.sh owns how they
+  # are judged).
   if [ "$RUN_STATE" = working ] && [ "$RUN_SOURCE" = full ]; then
     STEP_ACTIVITY=$(fm_nm_freshest_step_activity "$RUN_OUT")
     if [ -n "$STEP_ACTIVITY" ]; then
-      RUN_DETAIL="$RUN_DETAIL${SEP}step ${STEP_ACTIVITY% *} last activity ${STEP_ACTIVITY##* }s ago"
+      read -r step_name step_age step_active <<< "$STEP_ACTIVITY"
+      RUN_DETAIL="$RUN_DETAIL${SEP}step $step_name last activity ${step_age}s ago"
+      run_id=$(strip_quotes "$(nm_field id)")
+      case "$run_id" in ''|*[!A-Za-z0-9]*) run_id='' ;; esac
+      if [ -n "$step_active" ] && [ -n "$run_id" ]; then
+        RUN_DETAIL="$RUN_DETAIL, active ${step_active}s in run $run_id"
+      fi
     fi
     if [ "$CI_STEP_STATUS" = running ] && [ "$CI_LOG_STATE" = pending ]; then
       RUN_DETAIL="$RUN_DETAIL${SEP}ci waiting on checks"
