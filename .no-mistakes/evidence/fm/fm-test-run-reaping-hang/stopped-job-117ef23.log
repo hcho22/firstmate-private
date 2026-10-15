@@ -1,0 +1,6 @@
+stopped script job(s): 65099 of runner 64663
+iter=1 mode=stopped-job jobs=1 rc=143 want=143 ended_in=31.00s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|fm-test-run: script job 65099 was still running 30s after the interrupt; not waiting for it|] ok
+SUMMARY mode=stopped-job jobs=1 iterations=1 failures=0
+stopped script job(s): 80482 80497 of runner 80102
+iter=1 mode=stopped-job jobs=2 rc=143 want=143 ended_in=60.34s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|fm-test-run: script job 80482 was still running 30s after the interrupt; not waiting for it|fm-test-run: script job 80497 was still running 30s after the interrupt; not waiting for it|] ok
+SUMMARY mode=stopped-job jobs=2 iterations=1 failures=0

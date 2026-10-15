@@ -1,0 +1,133 @@
+=== iter 1 mode=group-term jobs=2 runner=32828 script-pgids=[38194 38156 ] stopped-job=none
+--- processes in the runner's and scripts' groups before the signal:
+32828 32546 32828 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+37905 32828 32828 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+37959 32828 32828 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+38057 37905 32828 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+38074 38057 32828 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+38131 37959 32828 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+38149 38131 32828 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+38156 38074 38156 S    bash tests/fm-brief.test.sh
+38170 38156 38156 S    sleep 600
+38194 38149 38194 S    bash tests/fm-crew-state.test.sh
+38205 38194 38194 S    sleep 600
+38928 32828 32828 ?    (sleep)
+--- runner ended=1 after 2.62s rc=143
+--- runner stderr (last 4 lines):
+fm-test-run: test runtime node=/usr/local/bin/node
+fm-test-run: interrupted; stopping the running script(s)
+stopped the processes still running in the script's process group 38156
+stopped the processes still running in the script's process group 38194
+--- processes left in those groups 1s after the runner ended: none
+--- run root left in the caller's TMPDIR: none
+=== iter 2 mode=group-term jobs=2 runner=44112 script-pgids=[53495 53162 ] stopped-job=none
+--- processes in the runner's and scripts' groups before the signal:
+44112 32546 44112 R    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+52485 44112 44112 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+52757 44112 44112 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+53006 52485 44112 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+53069 53006 44112 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+53162 53069 53162 S    bash tests/fm-brief.test.sh
+53183 53162 53162 S    sleep 600
+53291 52757 44112 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+53380 53291 44112 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+53495 53380 53495 S    bash tests/fm-crew-state.test.sh
+53547 53495 53495 S    sleep 600
+54352 44112 44112 S    (sleep)
+--- runner ended=1 after 3.90s rc=143
+--- runner stderr (last 4 lines):
+Terminated: 15
+fm-test-run: interrupted; stopping the running script(s)
+stopped the processes still running in the script's process group 53162
+stopped the processes still running in the script's process group 53495
+--- processes left in those groups 1s after the runner ended: none
+--- run root left in the caller's TMPDIR: none
+=== iter 3 mode=group-term jobs=2 runner=65018 script-pgids=[68354 68332 ] stopped-job=none
+--- processes in the runner's and scripts' groups before the signal:
+65018 32546 65018 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+67997 65018 65018 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+68134 65018 65018 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+68271 67997 65018 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+68294 68271 65018 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+68326 68134 65018 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+68332 68294 68332 S    bash tests/fm-brief.test.sh
+68334 68326 65018 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+68343 68332 68332 S    sleep 600
+68354 68334 68354 S    bash tests/fm-crew-state.test.sh
+68359 68354 68354 S    sleep 600
+68877 65018 65018 S    (sleep)
+--- runner ended=1 after 2.36s rc=143
+--- runner stderr (last 4 lines):
+Terminated: 15
+fm-test-run: interrupted; stopping the running script(s)
+stopped the processes still running in the script's process group 68332
+stopped the processes still running in the script's process group 68354
+--- processes left in those groups 1s after the runner ended: none
+--- run root left in the caller's TMPDIR: none
+=== iter 4 mode=group-term jobs=2 runner=74512 script-pgids=[76673 76610 ] stopped-job=none
+--- processes in the runner's and scripts' groups before the signal:
+74512 32546 74512 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+76440 74512 74512 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+76481 74512 74512 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+76540 76440 74512 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+76551 76540 74512 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+76585 76481 74512 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+76608 76585 74512 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+76610 76551 76610 S    bash tests/fm-brief.test.sh
+76636 76610 76610 S    sleep 600
+76673 76608 76673 S    bash tests/fm-crew-state.test.sh
+76702 76673 76673 S    sleep 600
+77085 74512 74512 S    (sleep)
+--- runner ended=1 after 2.16s rc=143
+--- runner stderr (last 4 lines):
+Terminated: 15
+fm-test-run: interrupted; stopping the running script(s)
+stopped the processes still running in the script's process group 76610
+stopped the processes still running in the script's process group 76673
+--- processes left in those groups 1s after the runner ended: none
+--- run root left in the caller's TMPDIR: none
+=== iter 5 mode=group-term jobs=2 runner=83133 script-pgids=[87536 87506 ] stopped-job=none
+--- processes in the runner's and scripts' groups before the signal:
+83133 32546 83133 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+87132 83133 83133 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+87326 83133 83133 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+87434 87132 83133 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+87443 87434 83133 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+87486 87326 83133 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+87496 87486 83133 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+87506 87443 87506 S    bash tests/fm-brief.test.sh
+87519 87506 87506 S    sleep 600
+87536 87496 87536 S    bash tests/fm-crew-state.test.sh
+87552 87536 87536 S    sleep 600
+88486 83133 83133 S    (sleep)
+--- runner ended=1 after 3.24s rc=143
+--- runner stderr (last 4 lines):
+fm-test-run: test runtime node=/usr/local/bin/node
+fm-test-run: interrupted; stopping the running script(s)
+stopped the processes still running in the script's process group 87506
+stopped the processes still running in the script's process group 87536
+--- processes left in those groups 1s after the runner ended: none
+--- run root left in the caller's TMPDIR: none
+=== iter 6 mode=group-term jobs=2 runner=99072 script-pgids=[2683 2634 ] stopped-job=none
+--- processes in the runner's and scripts' groups before the signal:
+ 2415 99072 99072 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+ 2444 99072 99072 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+ 2513  2415 99072 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+ 2543  2513 99072 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+ 2599  2444 99072 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+ 2629  2599 99072 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+ 2634  2543  2634 S    bash tests/fm-brief.test.sh
+ 2656  2634  2634 S    sleep 600
+ 2683  2629  2683 S    bash tests/fm-crew-state.test.sh
+ 2696  2683  2683 S    sleep 600
+ 3161 99072 99072 S    (sleep)
+99072 32546 99072 S    bash bin/fm-test-run.sh --jobs 2 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+--- runner ended=1 after 2.07s rc=143
+--- runner stderr (last 4 lines):
+Terminated: 15
+fm-test-run: interrupted; stopping the running script(s)
+stopped the processes still running in the script's process group 2634
+stopped the processes still running in the script's process group 2683
+--- processes left in those groups 1s after the runner ended: none
+--- run root left in the caller's TMPDIR: none
+SUMMARY mode=group-term jobs=2 iterations=6 clean=6 not-clean=0

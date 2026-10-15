@@ -1,0 +1,154 @@
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-10-15T04:53:53Z tests/fm-test-run.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - runtime selection preserves callers, finds installed capabilities, fails closed, and cleans up
+ok - exact suite coverage: --all lists every tests/*.test.sh once
+ok - family selection returns a proper subset of the suite
+ok - single-script selection lists exactly that path
+ok - changed-file selection stays conservative (never silent full suite)
+ok - runner and its documentation surfaces select their curated family, not just their contract owners
+ok - CONTEXT.md changes select documentation and guidance checks
+ok - changed selection covers dependents and fails closed for unmapped source
+ok - a bin reference selects the referencing scripts, and consumers still select their curated families
+ok - the automatic changed bound scales with the duration hint and stays flat when explicit
+ok - changed defaults to bounded automatic scheduling with serial override
+ok - a plain script list defaults to bounded automatic concurrency without an automatic timeout
+ok - every script, serial or concurrent, runs with its own private TMPDIR
+ok - only the real-herdr-gated and live-harness-optin families reach the real herdr; any other script that does is failed
+ok - family proofs run concurrently only within separate family phases
+ok - empty changed selection emits deterministic text and JSON summaries
+ok - timing markers and JSON artifact are valid
+ok - aggregate exit reflects any script failure
+ok - gate-skip accounting is honest and non-failing
+ok - fail-on-gate-skip converts herdr-not-found into a hard failure
+ok - exclude-family drops the named primary family after selection
+ok - portable shard union, disjointness, and coverage guard hold
+ok - portable serial shards are a deterministic disjoint cover of the serial lane
+ok - coverage guard reports and bounds the unmeasured portable serial share
+ok - portable serial shard lanes refuse mismatched, out-of-range, and countless names
+ok - --jobs refuses non-proven / stateful selections
+ok - --jobs admits and schedules a family with a recorded concurrent proof
+ok - an unclassified new test stays serial while the proven residual family runs concurrently
+ok - a concurrent run starts the longest-hint script first
+ok - --per-script-timeout-secs turns a hung script into a bounded failure
+ok - Ctrl-C stops the run and leaves no remote job worker or sandbox behind
+ok - TERM stops the run and leaves no remote job worker or sandbox behind
+ok - a script killed without its cleanup leaves no remote job worker behind once it ends
+ok - a run killed outright leaves no remote job worker or sandbox behind
+ok - a script killed without its cleanup leaves no worker run from the checkout with its state in the sandbox
+ok - a script killed before its checkout-rooted worker published worker.pid leaves no worker behind
+ok - a script killed while its checkout-rooted worker waits to restart leaves no worker behind
+ok - the reaper leaves workers outside the script's sandbox running, and never reads one older than the run
+ok - the worker scan never reports a process that only names a worker among its arguments
+ok - the progress-aware guard stops silence and the backstop, never slow progress
+ok - scripts run without the caller's firstmate state and live session identity
+ok - --max-wall-ms fails an over-budget run and refuses a malformed budget
+ok - jobs scheduler runs proven scripts; failure propagates; non-proven refused
+ok - Herdr CI family-run step times out at 20 min under a 75 min job backstop
+ok - aggregate-json merges lane timing artifacts
+FM_TEST_END 2026-10-15T04:57:56Z tests/fm-test-run.test.sh exit=0 duration_ms=238452 gate_skip=false
+FM_TEST_BEGIN 2026-10-15T04:57:56Z tests/fm-case-lanes.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - laned cases print their output in the order given, not the order they finish
+ok - laned cases run concurrently
+ok - one lane runs every case in the file's own shell, in order
+ok - each laned case runs in its own subshell, so exports never leak between cases
+ok - a failing case fails the file with its status, running cases finish, and no new case starts
+ok - a lane killed before it ends fails the file and is reported as ended abnormally
+ok - a lane count that is not a positive whole number is refused
+ok - a file's own EXIT cleanup still runs after its laned cases
+ok - the file's case teardown runs with each case's own globals, laned or serial
+ok - FM_TEST_CASE_PID names the live shell running each case, serial or laned
+ok - a stopped laned file reports what it got through, stops its cases, and runs its own cleanup
+FM_TEST_END 2026-10-15T04:58:08Z tests/fm-case-lanes.test.sh exit=0 duration_ms=12418 gate_skip=false
+FM_TEST_BEGIN 2026-10-15T04:58:08Z tests/fm-teardown.test.sh family=pr-forge expected_gate_skip=none
+ok - local-only worktree with HEAD on a fork remote is torn down and the home summary is refreshed
+ok - teardown closes its own backlog item before reporting success
+ok - teardown honors config/backlog-backend=manual and still finishes cleanly
+ok - local-only worktree with truly unpushed work is refused (safety preserved)
+ok - local-only worktree with work merged into local main is torn down (no regression)
+ok - no-mistakes worktree with HEAD on origin is torn down (no regression)
+ok - no-mistakes worktree with genuinely unlanded work is refused (safety preserved)
+ok - local-only worktree with unpushed work is torn down under --force (escape hatch)
+ok - fm-pr-check publishes the PR-ready line on a secondmate's parent channel once
+ok - a secondmate home's teardown delivers the child's final line or refuses until it can
+ok - teardown completes when an exact busy-state sidecar is already absent
+ok - herdr teardown removes pane-owned escalation dedupe state
+ok - herdr flat teardown refuses before returning the isolated copy under lock contention and the retry completes cleanly
+ok - herdr flat teardown never erases records when pane presence is unparseable
+ok - herdr flat teardown preflight refuses before every destructive change
+ok - forced secondmate teardown preflights every Herdr child before cleanup mutation
+ok - forced secondmate teardown holds every descendant lifecycle and metadata lock
+ok - forced secondmate teardown retains Herdr child identity until exact pane disappearance
+ok - forced teardown retains a nested secondmate home and its grandchild's Herdr identity when the grandchild close is unconfirmed
+ok - herdr projection teardown retires its journal only after confirming the exact recorded pane is gone
+ok - herdr projection teardown retains every record when post-close presence is unknown
+ok - herdr projection teardown surfaces failed focus restoration without turning confirmed cleanup into a hard failure
+ok - squash-merged + deleted-branch worktree (PR merged) is torn down (the fix)
+ok - squash-merged PR accepts a local HEAD that is an ancestor of the final PR head
+ok - teardown discovers a merged PR by branch name and tears down when no pr= was ever recorded
+ok - squash-merged PR accepts replayed unpushed local patches contained in the PR head
+ok - merged PR does not allow teardown after a later local commit
+ok - fm-pr-check does not refresh PR head after HEAD moves
+ok - fm-pr-check records the remote PR head when the local worktree lags
+ok - worktree whose content already landed in the default branch is torn down (content fallback)
+ok - content fallback refreshes origin default before comparing trees
+ok - dirty worktree is refused even when its committed work has landed (dirty always wins)
+ok - gh lookup error with content not in default refuses (fail-safe)
+ok - provably-stale worktree index.lock (old, no live holder) is cleared and teardown succeeds
+ok - live-held worktree index.lock is never removed and teardown refuses
+ok - lsof errors leave worktree index.lock in place and refuse teardown
+ok - stale lock cleanup rechecks and refuses dirty worktree before return
+ok - normal repo index.lock is resolved from the worktree and cleared when stale
+ok - lock mtime read failures leave worktree index.lock in place and refuse teardown
+ok - transient index.lock cleared after first failed return is retried successfully without force-remove
+ok - persistent index.lock exhausts retries and refuses without force-removing the lock
+ok - empty retry wait overrides use the default without aborting teardown
+ok - fractional legacy retry wait remains supported without arithmetic
+ok - a task's own parked no-mistakes run is aborted, not orphaned, before the worker is removed
+ok - a parked run the pipeline advanced past the task copy is still concluded from the runs ledger, not orphaned
+ok - a ledger row for a different head never authorizes a parked-run abort
+ok - a malformed ledger row never authorizes a parked-run abort
+ok - an impossible ledger date never authorizes a parked-run abort
+ok - a terminal status with a stale gate never reaches ledger cleanup
+ok - an advanced head present locally aborts through the strict rule alone - the ledger fallback stays dormant
+ok - an unresolvable active row with no same-branch anchor is never concluded (conservative refusal)
+ok - an ancestor-only anchor never binds an advanced parked run to this task
+ok - a terminal unfetched-head row is stale history and never concludes a run
+ok - a terminal newest row anchored at this worktree's head never authorizes an abort
+ok - a resolvable diverged newer same-branch row makes every older row stale history; no run is concluded
+ok - consecutive unresolvable rows are ambiguous and never conclude a run
+ok - a ledger-proven continuation is still left alone while the run is autonomously active
+ok - teardown refuses before reap or removal when a task-owned run remains parked
+ok - a different run cannot confirm the targeted abort
+ok - empty post-abort status is not accepted as confirmation
+ok - the CLI's exact run-not-found signal confirms completion
+ok - a parked run on another branch is never aborted by this task's teardown (ownership is precise)
+ok - a task-owned autonomous running step is left alone rather than aborted
+ok - a leaked descendant process rooted under the task's worktree is reaped by teardown, not left surviving
+ok - a leaked descendant process rooted under the task's per-task tasktmp is reaped by teardown too
+ok - a ship teardown refuses while an isolated-subagent copy holds work found nowhere else
+ok - a ship teardown retires a clean isolated-subagent copy that holds nothing of its own
+ok - a ship teardown refuses when it cannot inventory the isolated-subagent copies
+ok - a forced teardown discards isolated-subagent copies but keeps their branches
+ok - missing lsof falls back to reaping the tmux pane process group
+ok - an erroring lsof scan refuses teardown and preserves the task
+ok - a reused pid with a different start time is never force-killed
+ok - an exec change preserves birth identity and the process is reaped
+ok - a process spawned during grace is reaped on a later pass
+ok - persistent leaked processes refuse teardown after bounded retries
+ok - a process exiting during identity lookup does not block teardown
+ok - the run abort and the leaked-process reap both complete before the destructive worktree return
+FM_TEST_END 2026-10-15T05:00:22Z tests/fm-teardown.test.sh exit=0 duration_ms=133302 gate_skip=false
+FM_TEST_BEGIN 2026-10-15T05:00:22Z tests/fm-remote-secondmate-e2e-interrupt.test.sh family=secondmate expected_gate_skip=none
+ok - Ctrl-C during the remote secondmate e2e leaves no remote job worker or sandbox behind
+ok - killing the remote secondmate e2e run outright leaves no remote job worker or sandbox behind
+FM_TEST_END 2026-10-15T05:00:34Z tests/fm-remote-secondmate-e2e-interrupt.test.sh exit=0 duration_ms=12250 gate_skip=false
+FM_TEST_SUMMARY total=4 failed=0 skipped_gate=0 duration_ms=465401
+FM_TEST_SUMMARY_FAMILY family=pr-forge count=1 duration_ms=133302 failed=0
+FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=2 duration_ms=250870 failed=0
+FM_TEST_SUMMARY_FAMILY family=secondmate count=1 duration_ms=12250 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-test-run.test.sh duration_ms=238452
+FM_TEST_SLOWEST rank=2 script=tests/fm-teardown.test.sh duration_ms=133302
+FM_TEST_SLOWEST rank=3 script=tests/fm-case-lanes.test.sh duration_ms=12418
+FM_TEST_SLOWEST rank=4 script=tests/fm-remote-secondmate-e2e-interrupt.test.sh duration_ms=12250
+exit=0 elapsed=470s

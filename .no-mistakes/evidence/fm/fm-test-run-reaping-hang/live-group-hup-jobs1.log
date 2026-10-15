@@ -1,0 +1,52 @@
+=== iter 1 mode=group-hup jobs=1 runner=64744 script-pgids=[67450 ] stopped-job=none
+--- processes in the runner's and scripts' groups before the signal:
+64744 64695 64744 S    bash bin/fm-test-run.sh --jobs 1 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+66425 64744 64744 S    bash bin/fm-test-run.sh --jobs 1 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+66461 66425 64744 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+67450 66461 67450 S    bash -c bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}" _ tests/fm-brief.test.sh /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh000
+67464 67450 67450 S    bash tests/fm-brief.test.sh
+67468 67450 67450 S    tee /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-int-drive.vxbQF8/caller/fm-test-run.kG04qx/out.0
+67474 67464 67450 S    sleep 600
+--- runner ended=1 after 3.74s rc=129
+--- runner stderr (last 4 lines):
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+fm-test-run: interrupted; stopping the running script(s)
+stopped the processes still running in the script's process group 67450
+--- processes left in those groups 1s after the runner ended: none
+--- run root left in the caller's TMPDIR: none
+=== iter 2 mode=group-hup jobs=1 runner=81322 script-pgids=[85800 ] stopped-job=none
+--- processes in the runner's and scripts' groups before the signal:
+81322 64695 81322 S    bash bin/fm-test-run.sh --jobs 1 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+85756 81322 81322 S    bash bin/fm-test-run.sh --jobs 1 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+85776 85756 81322 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+85800 85776 85800 S    bash -c bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}" _ tests/fm-brief.test.sh /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh000
+85803 85800 85800 S    bash tests/fm-brief.test.sh
+85805 85800 85800 S    tee /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-int-drive.LDkVHM/caller/fm-test-run.dGPD2V/out.0
+85808 85803 85800 S    sleep 600
+--- runner ended=1 after 2.62s rc=129
+--- runner stderr (last 4 lines):
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+fm-test-run: interrupted; stopping the running script(s)
+stopped the processes still running in the script's process group 85800
+--- processes left in those groups 1s after the runner ended: none
+--- run root left in the caller's TMPDIR: none
+=== iter 3 mode=group-hup jobs=1 runner=92114 script-pgids=[93918 ] stopped-job=none
+--- processes in the runner's and scripts' groups before the signal:
+92114 64695 92114 S    bash bin/fm-test-run.sh --jobs 1 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+93785 92114 92114 S    bash bin/fm-test-run.sh --jobs 1 tests/fm-brief.test.sh tests/fm-crew-state.test.sh
+93788 93785 92114 S    perl -e \012    use strict;\012    use warnings;\012    use POSIX ":sys_wait_h";\012    use Time::HiRes qw(time sleep);\012    
+93918 93788 93918 S    bash -c bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}" _ tests/fm-brief.test.sh /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh000
+93945 93918 93918 S    bash tests/fm-brief.test.sh
+93956 93918 93918 S    tee /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-int-drive.R6gYgG/caller/fm-test-run.ZMoewU/out.0
+93972 93945 93918 S    sleep 600
+--- runner ended=1 after 1.28s rc=129
+--- runner stderr (last 4 lines):
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+fm-test-run: interrupted; stopping the running script(s)
+stopped the processes still running in the script's process group 93918
+--- processes left in those groups 1s after the runner ended: none
+--- run root left in the caller's TMPDIR: none
+SUMMARY mode=group-hup jobs=1 iterations=3 clean=3 not-clean=0

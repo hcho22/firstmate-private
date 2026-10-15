@@ -1,0 +1,18 @@
+helper=/tmp/lanewrap-base-src.RnP6oy bash=3.2.57(1)-release lanes=600 hold=600s
+host pid at start=86800 at end=37855 (pid_max 99999; end < start means the counter wrapped)
+suite exit=1 after 692s; ok lines=600/600
+stderr (not ok and bash errors):
+  /tmp/lanewrap-base-src.RnP6oy/tests/case-lanes-helpers.sh: line 219: wait: pid 86993 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
+  /tmp/lanewrap-base-src.RnP6oy/tests/case-lanes-helpers.sh: line 219: wait: pid 31988 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
+  /tmp/lanewrap-base-src.RnP6oy/tests/case-lanes-helpers.sh: line 219: wait: pid 34288 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
+  /tmp/lanewrap-base-src.RnP6oy/tests/case-lanes-helpers.sh: line 219: wait: pid 65477 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
+  /tmp/lanewrap-base-src.RnP6oy/tests/case-lanes-helpers.sh: line 219: wait: pid 84462 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
+  /tmp/lanewrap-base-src.RnP6oy/tests/case-lanes-helpers.sh: line 219: wait: pid 1647 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
+  /tmp/lanewrap-base-src.RnP6oy/tests/case-lanes-helpers.sh: line 219: wait: pid 22110 is not a child of this shell
+  not ok - a case lane ended abnormally (127)

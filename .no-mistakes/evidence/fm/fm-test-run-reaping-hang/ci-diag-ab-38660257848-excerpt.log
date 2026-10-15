@@ -1,0 +1,28 @@
+# Read-only excerpts of the author's diagnostic CI A/B, run 38660257848 (branch fm/diag-reaping-hang-ci @ eb5cc81, Linux GitHub runner, /usr/bin/bash), fetched 2026-10-15.
+# Not driven in this test step. Runner code there = this branch's bin/fm-test-run.sh (unchanged since 44eb0c2).
+## job 116179584294 'base copy 1' (base runner):
+2026-10-15T00:32:57.3826076Z lane rc=0 284 ok lines
+2026-10-15T00:36:22.5581580Z HANG in file1 after: ok - --per-script-timeout-secs turns a hung script into a bounded failure
+2026-10-15T00:36:22.5700813Z  154328    2387  154328  154328 Ss   do_wait                  bash bin/fm-test-run.sh tests/fm-test-run.test.sh
+2026-10-15T00:36:22.5703305Z  154338  154328  154338  154328 S    poll_schedule_timeout.co perl -e setpgrp(0, 0); my $parent = getppid(); select(undef, undef, undef, 0.5) while getppid() == $parent; e
+2026-10-15T00:36:22.5704578Z  154371  154328  154328  154328 S    do_wait                  bash bin/fm-test-run.sh tests/fm-test-run.test.sh
+2026-10-15T00:36:22.5708937Z  154373  154371  154328  154328 S    do_wait                  perl -e      use strict;     use warnings;     use POSIX ":sys_wait_h";     use Time::HiRes qw(time sleep);  
+2026-10-15T00:36:22.5710594Z  154374  154373  154374  154328 S    do_wait                  bash -c bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}" _ tests/fm-test-run.test.sh /tmp/fm-test-run.9YuGr
+2026-10-15T00:36:22.5711487Z  154375  154374  154374  154328 S    do_wait                  bash tests/fm-test-run.test.sh
+2026-10-15T00:36:22.5712743Z  154412  154375  154374  154328 S    do_wait                  bash tests/fm-test-run.test.sh
+2026-10-15T00:36:22.5713676Z  199902  154412  154374  154328 S    do_wait                  bash tests/fm-test-run.test.sh
+2026-10-15T00:36:22.5714419Z  200001  199902  200001  154328 S    do_wait                  bash bin/fm-test-run.sh --jobs 1 tests/fm-worker-leak-fixture.test.sh
+2026-10-15T00:36:22.5715657Z  200090  200001  200090  154328 S    poll_schedule_timeout.co perl -e setpgrp(0, 0); my $parent = getppid(); select(undef, undef, undef, 0.5) while getppid() == $parent; e
+2026-10-15T00:36:22.5811913Z /home/runner/work/_temp/ab8730ec-7bc4-40ad-b6d3-77fd2229fb42.sh: line 3: 154328 Killed                  setsid bin/fm-test-run.sh "$@" > "$out" 2> "$out.err"
+2026-10-15T00:36:24.5841916Z ##[error]Process completed with exit code 137.
+## job 116179584304 'fixed copy 1' (fixed runner):
+2026-10-15T00:32:57.5375473Z lane rc=0 284 ok lines
+2026-10-15T00:33:57.6080190Z file1 rc=0 45 ok lines
+2026-10-15T00:34:52.6806175Z file2 rc=0 45 ok lines
+2026-10-15T00:35:52.7451139Z file3 rc=0 45 ok lines
+2026-10-15T00:36:52.8308675Z file4 rc=0 45 ok lines
+2026-10-15T00:37:52.9063102Z file5 rc=0 45 ok lines
+2026-10-15T00:38:52.9717686Z file6 rc=0 45 ok lines
+2026-10-15T00:39:53.0388401Z file7 rc=0 45 ok lines
+2026-10-15T00:40:53.1156525Z file8 rc=0 45 ok lines
+2026-10-15T00:40:53.1158664Z SUMMARY variant=fixed runs=9 hangs=0 fails=0

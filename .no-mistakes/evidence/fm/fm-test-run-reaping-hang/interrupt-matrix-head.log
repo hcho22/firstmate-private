@@ -1,0 +1,89 @@
+# fm-test-run.sh interrupt matrix at b4b74ad, Darwin 25.6.0, GNU bash, version 3.2.57(1)-release (x86_64-apple-darwin25)
+iter=1 mode=int-group jobs=1 rc=130 want=130 ended_in=0.96s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=2 mode=int-group jobs=1 rc=130 want=130 ended_in=0.86s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=3 mode=int-group jobs=1 rc=130 want=130 ended_in=0.87s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=4 mode=int-group jobs=1 rc=130 want=130 ended_in=0.87s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=5 mode=int-group jobs=1 rc=130 want=130 ended_in=0.75s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=6 mode=int-group jobs=1 rc=130 want=130 ended_in=0.83s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=7 mode=int-group jobs=1 rc=130 want=130 ended_in=0.86s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=8 mode=int-group jobs=1 rc=130 want=130 ended_in=0.77s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=9 mode=int-group jobs=1 rc=130 want=130 ended_in=0.75s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=10 mode=int-group jobs=1 rc=130 want=130 ended_in=0.87s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+SUMMARY mode=int-group jobs=1 iterations=10 failures=0
+iter=1 mode=term-group jobs=1 rc=143 want=143 ended_in=1.09s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=2 mode=term-group jobs=1 rc=143 want=143 ended_in=1.30s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=3 mode=term-group jobs=1 rc=143 want=143 ended_in=1.27s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=4 mode=term-group jobs=1 rc=143 want=143 ended_in=0.77s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=5 mode=term-group jobs=1 rc=143 want=143 ended_in=0.79s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=6 mode=term-group jobs=1 rc=143 want=143 ended_in=0.76s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=7 mode=term-group jobs=1 rc=143 want=143 ended_in=0.73s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=8 mode=term-group jobs=1 rc=143 want=143 ended_in=0.87s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=9 mode=term-group jobs=1 rc=143 want=143 ended_in=0.78s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=10 mode=term-group jobs=1 rc=143 want=143 ended_in=0.87s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+SUMMARY mode=term-group jobs=1 iterations=10 failures=0
+iter=1 mode=hup-group jobs=1 rc=129 want=129 ended_in=0.73s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=2 mode=hup-group jobs=1 rc=129 want=129 ended_in=0.79s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=3 mode=hup-group jobs=1 rc=129 want=129 ended_in=0.86s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=4 mode=hup-group jobs=1 rc=129 want=129 ended_in=0.88s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=5 mode=hup-group jobs=1 rc=129 want=129 ended_in=0.71s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=6 mode=hup-group jobs=1 rc=129 want=129 ended_in=0.74s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=7 mode=hup-group jobs=1 rc=129 want=129 ended_in=0.83s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=8 mode=hup-group jobs=1 rc=129 want=129 ended_in=0.77s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=9 mode=hup-group jobs=1 rc=129 want=129 ended_in=0.87s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=10 mode=hup-group jobs=1 rc=129 want=129 ended_in=0.77s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+SUMMARY mode=hup-group jobs=1 iterations=10 failures=0
+iter=1 mode=term-runner jobs=1 rc=143 want=143 ended_in=0.83s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=2 mode=term-runner jobs=1 rc=143 want=143 ended_in=0.72s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=3 mode=term-runner jobs=1 rc=143 want=143 ended_in=0.87s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=4 mode=term-runner jobs=1 rc=143 want=143 ended_in=0.84s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=5 mode=term-runner jobs=1 rc=143 want=143 ended_in=0.88s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=6 mode=term-runner jobs=1 rc=143 want=143 ended_in=0.86s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=7 mode=term-runner jobs=1 rc=143 want=143 ended_in=0.83s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=8 mode=term-runner jobs=1 rc=143 want=143 ended_in=0.76s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=9 mode=term-runner jobs=1 rc=143 want=143 ended_in=0.82s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=10 mode=term-runner jobs=1 rc=143 want=143 ended_in=0.84s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+SUMMARY mode=term-runner jobs=1 iterations=10 failures=0
+iter=1 mode=int-group jobs=2 rc=130 want=130 ended_in=1.34s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=2 mode=int-group jobs=2 rc=130 want=130 ended_in=1.15s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=3 mode=int-group jobs=2 rc=130 want=130 ended_in=1.19s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=4 mode=int-group jobs=2 rc=130 want=130 ended_in=1.34s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=5 mode=int-group jobs=2 rc=130 want=130 ended_in=1.25s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=6 mode=int-group jobs=2 rc=130 want=130 ended_in=1.21s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=7 mode=int-group jobs=2 rc=130 want=130 ended_in=1.31s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=8 mode=int-group jobs=2 rc=130 want=130 ended_in=1.20s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=9 mode=int-group jobs=2 rc=130 want=130 ended_in=1.25s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=10 mode=int-group jobs=2 rc=130 want=130 ended_in=1.08s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+SUMMARY mode=int-group jobs=2 iterations=10 failures=0
+iter=1 mode=term-group jobs=2 rc=143 want=143 ended_in=1.08s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=2 mode=term-group jobs=2 rc=143 want=143 ended_in=1.06s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=3 mode=term-group jobs=2 rc=143 want=143 ended_in=1.00s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=4 mode=term-group jobs=2 rc=143 want=143 ended_in=1.09s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=5 mode=term-group jobs=2 rc=143 want=143 ended_in=1.03s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=6 mode=term-group jobs=2 rc=143 want=143 ended_in=0.99s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=7 mode=term-group jobs=2 rc=143 want=143 ended_in=1.08s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=8 mode=term-group jobs=2 rc=143 want=143 ended_in=0.94s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=9 mode=term-group jobs=2 rc=143 want=143 ended_in=1.06s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=10 mode=term-group jobs=2 rc=143 want=143 ended_in=1.01s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+SUMMARY mode=term-group jobs=2 iterations=10 failures=0
+iter=1 mode=hup-group jobs=2 rc=129 want=129 ended_in=1.05s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=2 mode=hup-group jobs=2 rc=129 want=129 ended_in=1.05s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=3 mode=hup-group jobs=2 rc=129 want=129 ended_in=1.05s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=4 mode=hup-group jobs=2 rc=129 want=129 ended_in=1.08s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=5 mode=hup-group jobs=2 rc=129 want=129 ended_in=1.06s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=6 mode=hup-group jobs=2 rc=129 want=129 ended_in=1.08s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=7 mode=hup-group jobs=2 rc=129 want=129 ended_in=0.99s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=8 mode=hup-group jobs=2 rc=129 want=129 ended_in=0.94s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=9 mode=hup-group jobs=2 rc=129 want=129 ended_in=1.11s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=10 mode=hup-group jobs=2 rc=129 want=129 ended_in=1.06s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+SUMMARY mode=hup-group jobs=2 iterations=10 failures=0
+iter=1 mode=term-runner jobs=2 rc=143 want=143 ended_in=1.17s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=2 mode=term-runner jobs=2 rc=143 want=143 ended_in=1.29s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=3 mode=term-runner jobs=2 rc=143 want=143 ended_in=1.31s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=4 mode=term-runner jobs=2 rc=143 want=143 ended_in=1.23s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=5 mode=term-runner jobs=2 rc=143 want=143 ended_in=1.22s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=6 mode=term-runner jobs=2 rc=143 want=143 ended_in=1.26s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=7 mode=term-runner jobs=2 rc=143 want=143 ended_in=1.38s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=8 mode=term-runner jobs=2 rc=143 want=143 ended_in=1.36s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=9 mode=term-runner jobs=2 rc=143 want=143 ended_in=1.40s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+iter=10 mode=term-runner jobs=2 rc=143 want=143 ended_in=1.47s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|] ok
+SUMMARY mode=term-runner jobs=2 iterations=10 failures=0

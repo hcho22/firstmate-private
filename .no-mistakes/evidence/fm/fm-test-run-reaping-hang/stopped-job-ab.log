@@ -1,0 +1,45 @@
+# stopped script job(s), then TERM to the runner alone: fixed runner b4b74ad vs base 840208d; the driver gives up at 100s
+## fixed (HEAD)
+stopped script job(s): 82038 of runner 81951
+iter=1 mode=stopped-job jobs=1 rc=143 want=143 ended_in=30.11s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|fm-test-run: script job 82038 was still running 30s after the interrupt; not waiting for it|] ok
+stopped script job(s): 88753 of runner 88673
+iter=2 mode=stopped-job jobs=1 rc=143 want=143 ended_in=30.38s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|fm-test-run: script job 88753 was still running 30s after the interrupt; not waiting for it|] ok
+stopped script job(s): 93697 of runner 93227
+iter=3 mode=stopped-job jobs=1 rc=143 want=143 ended_in=30.68s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|fm-test-run: script job 93697 was still running 30s after the interrupt; not waiting for it|] ok
+SUMMARY mode=stopped-job jobs=1 iterations=3 failures=0
+stopped script job(s): 1041 1063 of runner 221
+iter=1 mode=stopped-job jobs=2 rc=143 want=143 ended_in=61.11s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|fm-test-run: script job 1041 was still running 30s after the interrupt; not waiting for it|fm-test-run: script job 1063 was still running 30s after the interrupt; not waiting for it|] ok
+stopped script job(s): 17125 17135 of runner 17026
+iter=2 mode=stopped-job jobs=2 rc=143 want=143 ended_in=60.99s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|fm-test-run: script job 17125 was still running 30s after the interrupt; not waiting for it|fm-test-run: script job 17135 was still running 30s after the interrupt; not waiting for it|] ok
+stopped script job(s): 29619 29630 of runner 29499
+iter=3 mode=stopped-job jobs=2 rc=143 want=143 ended_in=60.18s leftover_procs=0 sandbox_left=none run_root_left=none stderr=[fm-test-run: interrupted; stopping the running script(s)|fm-test-run: script job 29619 was still running 30s after the interrupt; not waiting for it|fm-test-run: script job 29630 was still running 30s after the interrupt; not waiting for it|] ok
+SUMMARY mode=stopped-job jobs=2 iterations=3 failures=0
+## base (840208d)
+stopped script job(s): 41908 of runner 41795
+iter=1 mode=stopped-job jobs=1 rc=HUNG want=143 ended_in=98.76s leftover_procs=1 sandbox_left=none run_root_left=/tmp/fmdrv.u1RzAE/caller/fm-test-run.4aDIrx stderr=[fm-test-run: interrupted; stopping the running script(s)|] FAIL
+    --- out
+    FM_TEST_BEGIN 2026-10-15T03:04:50Z tests/fm-brief.test.sh family=pure-contract-unit expected_gate_skip=none
+    ok - hang fixture fm-brief.test.sh started
+    --- err
+    fm-test-run: test runtime python3=/usr/local/bin/python3.11
+    fm-test-run: test runtime node=/usr/local/bin/node
+    fm-test-run: interrupted; stopping the running script(s)
+    stopped the processes still running in the script's process group 41921
+    --- left
+    41831 41831 S    perl -e setpgrp(0, 0); my $parent = getppid(); select(undef, undef, undef, 0.5) while getppid() == $parent; exec @ARGV or exit 127 /tmp/fmdrv.u1RzAE/repo/bin/fm-test-run-reap.sh --run /tmp/fmdrv.u1RzAE/caller/fm-test-run.4aDIrx
+SUMMARY mode=stopped-job jobs=1 iterations=1 failures=1
+stopped script job(s): 62348 62364 of runner 62217
+iter=1 mode=stopped-job jobs=2 rc=HUNG want=143 ended_in=99.34s leftover_procs=1 sandbox_left=none run_root_left=/tmp/fmdrv.ATxDD7/caller/fm-test-run.us0F1h stderr=[fm-test-run: interrupted; stopping the running script(s)|] FAIL
+    --- out
+    FM_TEST_BEGIN 2026-10-15T03:06:32Z tests/fm-brief.test.sh family=pure-contract-unit expected_gate_skip=none
+    FM_TEST_BEGIN 2026-10-15T03:06:32Z tests/fm-composer-lib.test.sh family=pure-contract-unit expected_gate_skip=none
+    --- err
+    fm-test-run: test runtime python3=/usr/local/bin/python3.11
+    fm-test-run: test runtime node=/usr/local/bin/node
+    fm-test-run: interrupted; stopping the running script(s)
+    stopped the processes still running in the script's process group 62390
+    stopped the processes still running in the script's process group 62395
+    --- left
+    62286 62286 S    perl -e setpgrp(0, 0); my $parent = getppid(); select(undef, undef, undef, 0.5) while getppid() == $parent; exec @ARGV or exit 127 /tmp/fmdrv.ATxDD7/repo/bin/fm-test-run-reap.sh --run /tmp/fmdrv.ATxDD7/caller/fm-test-run.us0F1h
+SUMMARY mode=stopped-job jobs=2 iterations=1 failures=1
+# Rows marked FAIL under '## base' are the expected pre-fix behavior: the base runner's interrupt trap blocks in 'wait' on a job that never reports its end.

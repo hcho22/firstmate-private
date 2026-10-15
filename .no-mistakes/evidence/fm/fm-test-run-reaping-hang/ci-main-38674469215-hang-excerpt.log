@@ -1,0 +1,18 @@
+# Read-only excerpt of CI run 38674469215 (main @ fbd3c9b, without this branch's fix), job 116224785632 'Behavior portable parallel 1', fetched 2026-10-15
+2026-10-15T03:08:33.6241846Z FM_TEST_BEGIN 2026-10-15T03:08:33Z tests/fm-test-run.test.sh family=pure-contract-unit expected_gate_skip=none
+2026-10-15T03:09:28.3890126Z ok - a concurrent run starts the longest-hint script first
+2026-10-15T03:09:28.3912380Z ok - --per-script-timeout-secs turns a hung script into a bounded failure
+2026-10-15T03:16:03.6583626Z ##[error]The operation was canceled.
+2026-10-15T03:16:04.1464596Z Cleaning up orphan processes
+2026-10-15T03:16:04.1720089Z Terminate orphan process: pid (2351) (bash)
+2026-10-15T03:16:04.1741324Z Terminate orphan process: pid (2371) (perl)
+2026-10-15T03:16:04.1866673Z Terminate orphan process: pid (73856) (bash)
+2026-10-15T03:16:04.1886519Z Terminate orphan process: pid (73858) (perl)
+2026-10-15T03:16:04.1905917Z Terminate orphan process: pid (73859) (bash)
+2026-10-15T03:16:04.1925184Z Terminate orphan process: pid (73860) (bash)
+2026-10-15T03:16:04.1944508Z Terminate orphan process: pid (73861) (tee)
+2026-10-15T03:16:04.1964638Z Terminate orphan process: pid (73894) (bash)
+2026-10-15T03:16:04.1994845Z Terminate orphan process: pid (119700) (bash)
+2026-10-15T03:16:04.2015710Z Terminate orphan process: pid (119757) (bash)
+2026-10-15T03:16:04.2036723Z Terminate orphan process: pid (119885) (perl)
+2026-10-15T03:16:04.2065825Z Terminate orphan process: pid (151782) (sleep)

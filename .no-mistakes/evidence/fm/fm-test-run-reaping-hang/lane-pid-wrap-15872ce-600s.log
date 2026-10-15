@@ -1,0 +1,5 @@
+helper=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M4YJKR5WFZJMRQYGKGBZH4FV bash=3.2.57(1)-release lanes=600 hold=600s
+host pid at start=51927 at end=66154 (pid_max 99999; end < start means the counter wrapped)
+suite exit=0 after 682s; ok lines=600/600
+stderr (not ok and bash errors):
+  (none)

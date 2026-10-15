@@ -1,0 +1,10 @@
+2157:trap 'stop_worker_leak_case; fm_test_cleanup' EXIT
+[0s] running test_terminated_run_leaves_no_remote_job_worker from tests/fm-test-run.test.sh@840208d (lanes=1, variant as-is), watchdog 260s
+[1s] driver: SIGSTOPped the nested runner 5338 (state T   ) once its fixture script 5978 was running
+[260s] driver: WATCHDOG - the test file is still running 260s in; nested runner state: T   
+[260s] driver: test file ended rc=137; nested runner now: gone
+[260s] driver: tracked fixture/worker processes:  5976:bash_-c_bash_"$1"_2>&1_|_tee_"$2";_exit_"${PIPESTATUS[0]}"__ 5978:bash_tests/fm-worker-leak-fixture.test.sh 5979:tee_/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T 6072:/bin/bash_/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh00 6312:/bin/bash_/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh00 6748:sleep_600 23883:/bin/bash_/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh00
+[261s] driver: +1s after the file ended, still alive: none
+[265s] driver: +5s after the file ended, still alive: none
+[275s] driver: +15s after the file ended, still alive: none
+[290s] driver: +30s after the file ended, still alive: none

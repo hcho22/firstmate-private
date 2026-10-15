@@ -1,0 +1,5 @@
+helper=/tmp/lanerepro/after bash=3.2.57(1)-release lanes=600 hold=900s
+host pid at start=62824 at end=60554 (pid_max 99999; end < start means the counter wrapped)
+suite exit=0 after 986s; ok lines=600/600
+stderr (not ok and bash errors):
+  (none)

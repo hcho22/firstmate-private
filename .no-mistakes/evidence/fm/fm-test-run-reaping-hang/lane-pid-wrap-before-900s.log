@@ -1,0 +1,22 @@
+helper=/tmp/lanerepro/before bash=3.2.57(1)-release lanes=600 hold=900s
+host pid at start=62823 at end=60515 (pid_max 99999; end < start means the counter wrapped)
+suite exit=1 after 986s; ok lines=600/600
+stderr (not ok and bash errors):
+  /tmp/lanerepro/before/tests/case-lanes-helpers.sh: line 219: wait: pid 63331 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
+  /tmp/lanerepro/before/tests/case-lanes-helpers.sh: line 219: wait: pid 64905 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
+  /tmp/lanerepro/before/tests/case-lanes-helpers.sh: line 219: wait: pid 74937 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
+  /tmp/lanerepro/before/tests/case-lanes-helpers.sh: line 219: wait: pid 82961 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
+  /tmp/lanerepro/before/tests/case-lanes-helpers.sh: line 219: wait: pid 56908 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
+  /tmp/lanerepro/before/tests/case-lanes-helpers.sh: line 219: wait: pid 7891 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
+  /tmp/lanerepro/before/tests/case-lanes-helpers.sh: line 219: wait: pid 32791 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
+  /tmp/lanerepro/before/tests/case-lanes-helpers.sh: line 219: wait: pid 93421 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
+  /tmp/lanerepro/before/tests/case-lanes-helpers.sh: line 219: wait: pid 24843 is not a child of this shell
+  not ok - a case lane ended abnormally (127)
