@@ -1599,7 +1599,10 @@ stop_worker_leak_case() {
   local state
   if [ -n "$WORKER_LEAK_RUNNER" ]; then
     kill -TERM -- "-$WORKER_LEAK_RUNNER" 2>/dev/null || true
-    wait "$WORKER_LEAK_RUNNER" 2>/dev/null || true
+    if ! fm_test_await_child_exit "$WORKER_LEAK_RUNNER" 60; then
+      kill -KILL -- "-$WORKER_LEAK_RUNNER" 2>/dev/null || true
+      fm_test_await_child_exit "$WORKER_LEAK_RUNNER" 10 || true
+    fi
     WORKER_LEAK_RUNNER=
   fi
   if [ -n "$WORKER_LEAK_FOREIGN" ]; then
@@ -1651,7 +1654,9 @@ run_worker_leak_case() {
     term) kill -TERM "$runner" ;;
     abort) kill -KILL -- "-$runner" ;;
   esac
-  wait "$runner" 2>/dev/null || rc=$?
+  fm_test_await_child_exit "$runner" 120 \
+    || fail "$mode: the run was still going 120s after it was ended: $(ps -A -o pid=,ppid=,pgid=,stat=,command= | awk -v g="$runner" '$3 == g') $(cat "$tmp/out" "$tmp/err")"
+  rc=$FM_TEST_CHILD_RC
   WORKER_LEAK_RUNNER=
   if [ "$mode" = abort ]; then
     # Nothing in the dead run cleans up; the sentinel it left behind must.

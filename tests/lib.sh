@@ -167,6 +167,23 @@ fm_test_await_term_stop() {
   done
 }
 
+# fm_test_await_child_exit <pid> <limit-secs>: wait at most <limit-secs> for this
+# shell's background child <pid> to end, a zombie awaiting this shell's wait
+# counting as ended, then collect its exit status in FM_TEST_CHILD_RC. Returns 1,
+# leaving the child running, if it has not ended by then, so a child that never
+# ends fails its case at once instead of hanging the whole file.
+FM_TEST_CHILD_RC=
+fm_test_await_child_exit() {
+  local pid=$1 deadline=$((SECONDS + $2))
+  while :; do
+    case "$(ps -o stat= -p "$pid" 2>/dev/null)" in '' | Z*) break ;; esac
+    [ "$SECONDS" -lt "$deadline" ] || return 1
+    sleep 0.05
+  done
+  FM_TEST_CHILD_RC=0
+  wait "$pid" 2>/dev/null || FM_TEST_CHILD_RC=$?
+}
+
 # fm_test_stop_remote_job_worker <state-root>: stop the remote job worker tree
 # whose serving child <state-root>/worker.pid records. Its restart supervisor
 # would replace that child after a lone kill, so the whole tree is stopped

@@ -37,7 +37,10 @@ E2E_RUNNER=
 stop_e2e_runner() {
   [ -n "$E2E_RUNNER" ] || return 0
   kill -TERM -- "-$E2E_RUNNER" 2>/dev/null || true
-  wait "$E2E_RUNNER" 2>/dev/null || true
+  if ! fm_test_await_child_exit "$E2E_RUNNER" 60; then
+    kill -KILL -- "-$E2E_RUNNER" 2>/dev/null || true
+    fm_test_await_child_exit "$E2E_RUNNER" 10 || true
+  fi
   E2E_RUNNER=
 }
 
@@ -65,7 +68,9 @@ run_e2e_interrupt_case() {
     int) kill -INT -- "-$runner" ;;
     abort) kill -KILL -- "-$runner" ;;
   esac
-  wait "$runner" 2>/dev/null || rc=$?
+  fm_test_await_child_exit "$runner" 120 \
+    || fail "$mode: the e2e run was still going 120s after it was ended: $(ps -A -o pid=,ppid=,pgid=,stat=,command= | awk -v g="$runner" '$3 == g') $(tail -20 "$tmp/err")"
+  rc=$FM_TEST_CHILD_RC
   E2E_RUNNER=
   if [ "$mode" = abort ]; then
     # The killed run cleans nothing up itself; the sentinel it left must.
