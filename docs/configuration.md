@@ -917,6 +917,10 @@ FM_STALE_WORKTREE_LOCK_AGE_SECS=30       # min mtime age before fm-teardown.sh t
 FM_TREEHOUSE_RETURN_LOCK_RETRIES=3        # retries after a treehouse return fails on the transient git index.lock signature
 FM_TREEHOUSE_RETURN_LOCK_RETRY_WAIT_SECS=1 # seconds fm-teardown.sh waits before each retry after that signature
 FM_STALE_WORKTREE_LOCK_RETRY_WAIT_SECS=   # legacy alias for FM_TREEHOUSE_RETURN_LOCK_RETRY_WAIT_SECS when the new variable is unset
+FM_TREEHOUSE_GET_STALL_SECS=120       # seconds a running treehouse get may show no new process and no CPU time before fm-spawn.sh refuses it as stuck
+FM_TREEHOUSE_GET_MAX_SECS=900         # absolute ceiling, in seconds, for a treehouse get that never settles in a worktree
+FM_TREEHOUSE_GET_EXIT_GRACE_SECS=10   # seconds nothing may be running in the pane's shell after the launch line before fm-spawn.sh refuses the get as exited
+FM_TREEHOUSE_GET_START_SECS=60        # seconds fm-spawn.sh waits when the get cannot be observed (the pane's shell never reported its pid, or the process table cannot be read)
 FM_FLEET_SYNC_PACKED_REFS_LOCK_RETRIES=3        # fetch retries after fm-fleet-sync.sh hits the orphaned .git/packed-refs.lock signature
 FM_FLEET_SYNC_PACKED_REFS_LOCK_RETRY_WAIT_SECS=1 # seconds fm-fleet-sync.sh waits before each of those retries
 FM_FLEET_SYNC_PACKED_REFS_LOCK_AGE_SECS=30       # min mtime age before fm-fleet-sync.sh treats a leftover packed-refs.lock as provably stale
@@ -969,6 +973,14 @@ FM_INBOX_PROFILE=       # overrides config/inbox-profile; explicitly empty force
 When it is unset or blank, `FM_STALE_WORKTREE_LOCK_RETRY_WAIT_SECS` remains a compatible fallback, and a blank fallback uses the 1-second default.
 An invalid nonblank wait falls back to 1 second rather than interrupting teardown.
 Teardown never removes a lock during the retry window, and after that window it attempts stale-lock cleanup only for a still-present lock that passes the configured age and live-holder checks.
+
+`fm-spawn.sh` waits for `treehouse get` to enter its worktree by watching the pane shell's own processes, not by counting polls, because creating the isolated copy is the one launch step whose duration depends on the host.
+A copy that is slow but still advancing (a process starts or exits, or any of them spends CPU time) completes the launch.
+A get that has exited without a worktree is refused after `FM_TREEHOUSE_GET_EXIT_GRACE_SECS`, saying so.
+A get whose processes stop changing for `FM_TREEHOUSE_GET_STALL_SECS` is refused as stuck, naming the process it was waiting on, and a get that keeps changing without ever settling is refused at `FM_TREEHOUSE_GET_MAX_SECS`.
+When the get cannot be observed, the wait keeps the original bound of `FM_TREEHOUSE_GET_START_SECS` seconds.
+Each variable accepts a nonnegative whole number of seconds, and an unset, blank, or invalid value uses the default.
+A refused launch leaves its endpoint for inspection exactly as before, and the get may still finish there later.
 
 `fm-fleet-sync.sh` applies the same shape to an orphaned `.git/packed-refs.lock`: it retries only Git's `Unable to create '...packed-refs.lock': File exists` fetch failure up to `FM_FLEET_SYNC_PACKED_REFS_LOCK_RETRIES` times (nonnegative integer; unset, blank, or invalid uses the default of 3), waiting `FM_FLEET_SYNC_PACKED_REFS_LOCK_RETRY_WAIT_SECS` seconds (nonnegative whole or fractional; invalid falls back to 1 second) before each.
 Only after those retries exhaust does it remove the lock, and only when it is provably stale - still present, mtime age at least `FM_FLEET_SYNC_PACKED_REFS_LOCK_AGE_SECS` (default 30), and no `lsof` holder of the lock file or of the clone worktree itself (a live `git` keeps that as its cwd even in the window after it closes the lock and before it exits).

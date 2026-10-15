@@ -1986,6 +1986,61 @@ validate_spawn_worktree() {  # <source> <inspect-target>
   fi
 }
 
+# The wait for `treehouse get` to enter its worktree (below) watches the pane
+# shell's own process tree instead of counting polls. Creating the isolated copy
+# is the one launch step whose duration scales with the host rather than with
+# firstmate: a checkout of a large project, a pool reclaim, or a project hook can
+# take far past a minute on a loaded machine and still be advancing, so a fixed
+# poll count refused launches that were about to succeed and left the late copy
+# behind with nobody waiting for it. Three structural facts replace the count:
+#   - the pane shell runs a launch line that records its own pid before
+#     `treehouse get`, which proves the shell reached the command and names the
+#     process whose children are the get;
+#   - a get that has exited without entering a worktree leaves that shell with no
+#     children, so it is refused after FM_TREEHOUSE_GET_EXIT_GRACE_SECS;
+#   - a get that is alive but whose process tree stops changing (no new process
+#     and no CPU time on any of them) for FM_TREEHOUSE_GET_STALL_SECS is stuck.
+# FM_TREEHOUSE_GET_MAX_SECS is the absolute ceiling for a get that never settles.
+# Where the shell never reports its pid, or the process table cannot be read,
+# nothing can be observed and the wait keeps the original bound of
+# FM_TREEHOUSE_GET_START_SECS seconds (or 60 polls), so an unobservable pane is
+# never waited on longer than it was before.
+treehouse_wait_seconds() {  # <env-var-name> <default>
+  local value=${!1:-}
+  case "$value" in
+    ''|*[!0-9]*) printf '%s\n' "$2" ;;
+    *) printf '%s\n' "$value" ;;
+  esac
+}
+
+# treehouse_get_tree <shell-pid>: the processes below <shell-pid> as one line
+# "<command>" (the deepest one, the thing the get is waiting on) followed by one
+# "<pid> <cpu-time>" line per descendant. Whole-output equality between two
+# polls is the progress test: it changes when a process starts, exits, or spends
+# CPU. Fails when the process table cannot be read.
+treehouse_get_tree() {
+  local table
+  table=$(LC_ALL=C ps -A -o pid=,ppid=,time=,command= 2>/dev/null) || return 1
+  [ -n "$table" ] || return 1
+  printf '%s\n' "$table" | awk -v root="$1" '
+    { pid = $1; parent[pid] = $2; cpu[pid] = $3
+      $1 = ""; $2 = ""; $3 = ""; sub(/^ +/, ""); cmd[pid] = $0; order[++n] = pid }
+    END {
+      depth[root] = 0; changed = 1
+      while (changed) {
+        changed = 0
+        for (i = 1; i <= n; i++) {
+          p = order[i]
+          if (!(p in depth) && (parent[p] in depth)) { depth[p] = depth[parent[p]] + 1; changed = 1 }
+        }
+      }
+      deepest = ""; best = 0
+      for (i = 1; i <= n; i++) { p = order[i]; if (p != root && (p in depth) && depth[p] >= best) { best = depth[p]; deepest = p } }
+      print (deepest == "" ? "" : substr(cmd[deepest], 1, 100))
+      for (i = 1; i <= n; i++) { p = order[i]; if (p != root && (p in depth)) print p, cpu[p] }
+    }'
+}
+
 # A pooled slot whose only deviation is a submodule gitlink is stale, not dirty:
 # an earlier refresh moved the superproject and left the submodule checkout on
 # the pin the previous base recorded. The refusal still stands and this gate
@@ -2538,6 +2593,9 @@ kimi_spawn_fail() {  # <detail>
   echo "error: $1; inspect window $T" >&2
 }
 
+# Per-task temp root: /tmp/fm-<id>/ (see its use below). Named here because the
+# wait for `treehouse get` keeps a short-lived pid record in it.
+TASK_TMP="/tmp/fm-$ID"
 if [ "$RELAUNCH" -eq 1 ]; then
   # No worktree is acquired: the recorded one is reused as-is. What must be
   # proven instead is that the adopted endpoint's shell is actually sitting in
@@ -2556,6 +2614,13 @@ if [ "$RELAUNCH" -eq 1 ]; then
   fi
   [ "$KIND" = secondmate ] || validate_spawn_worktree "relaunch" "$T"
 elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
+  # The launch line records the pane shell's pid where the wait below can read it
+  # (see the treehouse_get_tree comment for what that buys), then `treehouse get`
+  # follows on its own line exactly as before.
+  mkdir -p "$TASK_TMP"
+  TREEHOUSE_SHELL_PID_FILE="$TASK_TMP/treehouse-get.shell-pid"
+  rm -f "$TREEHOUSE_SHELL_PID_FILE"
+  spawn_send_text_line "$WT_TARGET" "printf '%s\\n' \"\$\$\" > $(shell_quote "$TREEHOUSE_SHELL_PID_FILE")"
   spawn_send_text_line "$WT_TARGET" 'treehouse get'
 
   # Wait for the treehouse subshell: the pane's cwd moves from the project to the worktree.
@@ -2578,8 +2643,22 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   # a mismatch just becomes the new candidate rather than resetting the wait, so a
   # pane that is already settled by the first real read only costs the one existing
   # inter-poll sleep as confirmation, not a whole extra cycle on top.
+  # Waiting is bounded by the process-tree checks described at treehouse_get_tree,
+  # not by a poll count; the settle rule above is unchanged.
   candidate=""
-  for _ in $(seq 1 60); do
+  th_start=$SECONDS
+  th_polls=0
+  th_start_secs=$(treehouse_wait_seconds FM_TREEHOUSE_GET_START_SECS 60)
+  th_stall_secs=$(treehouse_wait_seconds FM_TREEHOUSE_GET_STALL_SECS 120)
+  th_max_secs=$(treehouse_wait_seconds FM_TREEHOUSE_GET_MAX_SECS 900)
+  th_exit_grace=$(treehouse_wait_seconds FM_TREEHOUSE_GET_EXIT_GRACE_SECS 10)
+  th_shell_pid=
+  th_fingerprint=
+  th_changed_at=$th_start
+  th_idle_since=
+  th_waiting_on=
+  th_refusal=
+  while :; do
     p=$(spawn_current_path "$WT_TARGET" || true)
     if [ -n "$p" ]; then
       p_real=$(real_path_or_raw "$p")
@@ -2595,10 +2674,61 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
     else
       candidate=""
     fi
+    th_polls=$((th_polls + 1))
+    th_now=$SECONDS
+    if [ -z "$th_shell_pid" ] && [ -r "$TREEHOUSE_SHELL_PID_FILE" ]; then
+      th_shell_pid=$(head -n 1 "$TREEHOUSE_SHELL_PID_FILE" 2>/dev/null || true)
+      case "$th_shell_pid" in ''|*[!0-9]*) th_shell_pid= ;; esac
+    fi
+    if [ -n "$candidate" ]; then
+      # The pane already left the project and only awaits its confirming read.
+      th_changed_at=$th_now
+      th_idle_since=
+    elif [ -z "$th_shell_pid" ] || ! th_tree=$(treehouse_get_tree "$th_shell_pid"); then
+      # Nothing observable about the get: keep the original bound.
+      if [ "$th_polls" -ge 60 ] || [ $((th_now - th_start)) -ge "$th_start_secs" ]; then
+        th_refusal="treehouse get did not enter a worktree within ${th_start_secs}s (the pane's shell never reported starting it, or its processes could not be read)"
+        break
+      fi
+    elif ! kill -0 "$th_shell_pid" 2>/dev/null; then
+      th_refusal="the pane's shell exited before treehouse get entered a worktree"
+      break
+    else
+      th_waiting_on=${th_tree%%$'\n'*}
+      th_processes=
+      case "$th_tree" in *$'\n'*) th_processes=${th_tree#*$'\n'} ;; esac
+      if [ -z "$th_processes" ]; then
+        # The shell ran the launch line but has nothing running: treehouse get
+        # failed or exited without entering a worktree.
+        [ -n "$th_idle_since" ] || th_idle_since=$th_now
+        if [ $((th_now - th_idle_since)) -ge "$th_exit_grace" ]; then
+          th_refusal="treehouse get exited without entering a worktree (nothing is running in the pane's shell; read the pane for its error)"
+          break
+        fi
+      else
+        th_idle_since=
+        if [ "$th_processes" != "$th_fingerprint" ]; then
+          th_fingerprint=$th_processes
+          th_changed_at=$th_now
+        elif [ $((th_now - th_changed_at)) -ge "$th_stall_secs" ]; then
+          th_refusal="treehouse get made no progress for ${th_stall_secs}s (waiting on: ${th_waiting_on:-an unnamed process})"
+          break
+        fi
+      fi
+    fi
+    if [ $((th_now - th_start)) -ge "$th_max_secs" ]; then
+      th_refusal="treehouse get was still not settled in a worktree after ${th_max_secs}s (last running: ${th_waiting_on:-nothing observed})"
+      break
+    fi
     sleep 1
   done
+  # The pid record and the directory made for it go away on every outcome, so a
+  # refusal later in the launch strands no temp root (the per-task root is made
+  # again below once the launch is past its refusals).
+  rm -f "$TREEHOUSE_SHELL_PID_FILE"
+  rmdir "$TASK_TMP" 2>/dev/null || true
   if [ -z "$WT" ]; then
-    echo "error: treehouse get did not enter a worktree within 60s; inspect window $T" >&2
+    echo "error: $th_refusal; inspect window $T" >&2
     exit 1
   fi
 
@@ -2635,7 +2765,6 @@ fi
 # Nested (not a bare /tmp/fm-<id>/gotmp) so other per-task temp can live alongside
 # later, and teardown cleans one deterministic path. GOTMPDIR (not TMPDIR) is the
 # targeted knob: TMPDIR is too broad (affects every program's temp, not just Go's).
-TASK_TMP="/tmp/fm-$ID"
 mkdir -p "$TASK_TMP/gotmp"
 
 # Per-harness turn-end hook where enabled: a file that touches
