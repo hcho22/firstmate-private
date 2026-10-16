@@ -917,6 +917,10 @@ FM_STALE_WORKTREE_LOCK_AGE_SECS=30       # min mtime age before fm-teardown.sh t
 FM_TREEHOUSE_RETURN_LOCK_RETRIES=3        # retries after a treehouse return fails on the transient git index.lock signature
 FM_TREEHOUSE_RETURN_LOCK_RETRY_WAIT_SECS=1 # seconds fm-teardown.sh waits before each retry after that signature
 FM_STALE_WORKTREE_LOCK_RETRY_WAIT_SECS=   # legacy alias for FM_TREEHOUSE_RETURN_LOCK_RETRY_WAIT_SECS when the new variable is unset
+FM_TREEHOUSE_GET_STALL_SECS=120       # seconds a running treehouse get may show no new process and no CPU time before fm-spawn.sh refuses it as stuck
+FM_TREEHOUSE_GET_MAX_SECS=900         # absolute ceiling, in seconds, for a treehouse get that never settles in a worktree, and for how long spawn and teardown wait to take the Herdr presentation lock back after treehouse work
+FM_TREEHOUSE_GET_EXIT_GRACE_SECS=10   # seconds nothing may be running in the pane's shell after the launch line before fm-spawn.sh refuses the get as exited
+FM_TREEHOUSE_GET_START_SECS=60        # seconds (or as many polls) fm-spawn.sh waits without being able to observe the get (the pane's shell never reported its pid, or the process table cannot be read)
 FM_FLEET_SYNC_PACKED_REFS_LOCK_RETRIES=3        # fetch retries after fm-fleet-sync.sh hits the orphaned .git/packed-refs.lock signature
 FM_FLEET_SYNC_PACKED_REFS_LOCK_RETRY_WAIT_SECS=1 # seconds fm-fleet-sync.sh waits before each of those retries
 FM_FLEET_SYNC_PACKED_REFS_LOCK_AGE_SECS=30       # min mtime age before fm-fleet-sync.sh treats a leftover packed-refs.lock as provably stale
@@ -969,6 +973,19 @@ FM_INBOX_PROFILE=       # overrides config/inbox-profile; explicitly empty force
 When it is unset or blank, `FM_STALE_WORKTREE_LOCK_RETRY_WAIT_SECS` remains a compatible fallback, and a blank fallback uses the 1-second default.
 An invalid nonblank wait falls back to 1 second rather than interrupting teardown.
 Teardown never removes a lock during the retry window, and after that window it attempts stale-lock cleanup only for a still-present lock that passes the configured age and live-holder checks.
+
+`fm-spawn.sh` waits for `treehouse get` to enter its worktree by watching the pane shell's own processes, not by counting polls, because creating the isolated copy is the one launch step whose duration depends on the host.
+A copy that is slow but still advancing (a process starts or exits, or any of them spends CPU time) completes the launch.
+A get that has exited without a worktree is refused after `FM_TREEHOUSE_GET_EXIT_GRACE_SECS`, saying so.
+A get whose processes stop changing for `FM_TREEHOUSE_GET_STALL_SECS` is refused as stuck, naming the process it was waiting on, and a get that keeps changing without ever settling is refused at `FM_TREEHOUSE_GET_MAX_SECS`.
+A get that is only waiting its turn on its project's pool, because another get or `treehouse return` on the same pool holds treehouse's pool lock (`treehouse-state.lock`, found with `lsof`), counts that operation's progress as its own; when nothing holding that lock advances either, the refusal names those processes beside what the get was waiting on.
+Those processes are looked up again whenever one of them closes the lock, so an operation that finished with the pool but keeps running neither counts as progress nor takes the blame.
+When the get cannot be observed, the wait keeps the original bound: `FM_TREEHOUSE_GET_START_SECS` seconds, or as many polls, without an observation end it.
+The spawn does not hold the home's task-set lock while the get runs, so a slow copy does not refuse other dispatches in that home, and it waits for that lock again once the get settles.
+On Herdr, a projected spawn likewise releases the session presentation lock across the get, and teardown releases it across every `treehouse return`, so a slow copy does not refuse teardowns or pane closes either; each takes it back for up to `FM_TREEHOUSE_GET_MAX_SECS`, and [Presentation spaces](herdr-backend.md#presentation-spaces) owns what happens when it cannot.
+Forced secondmate teardown refuses a home while a spawn there still holds its task lock, naming that task.
+Each variable accepts a nonnegative whole number of seconds, and an unset, blank, or invalid value uses the default.
+A refused launch keeps its endpoint exactly as before: a flat pane or window stays for inspection, where the get may still finish later, while a projected Herdr launch's abort cleanup removes its projection whenever it can take that lock back.
 
 `fm-fleet-sync.sh` applies the same shape to an orphaned `.git/packed-refs.lock`: it retries only Git's `Unable to create '...packed-refs.lock': File exists` fetch failure up to `FM_FLEET_SYNC_PACKED_REFS_LOCK_RETRIES` times (nonnegative integer; unset, blank, or invalid uses the default of 3), waiting `FM_FLEET_SYNC_PACKED_REFS_LOCK_RETRY_WAIT_SECS` seconds (nonnegative whole or fractional; invalid falls back to 1 second) before each.
 Only after those retries exhaust does it remove the lock, and only when it is provably stale - still present, mtime age at least `FM_FLEET_SYNC_PACKED_REFS_LOCK_AGE_SECS` (default 30), and no `lsof` holder of the lock file or of the clone worktree itself (a live `git` keeps that as its cwd even in the window after it closes the lock and before it exits).

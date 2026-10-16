@@ -2183,13 +2183,19 @@ fm_backend_herdr_projection_create_task() {  # <cwd> <workspace-label> <task-lab
 
 # fm_backend_herdr_projection_cleanup_exact: same-process abort cleanup for a
 # projection whose create calls returned complete exact IDs.
-# It performs no lookup and never calls workspace close.
+# It performs no lookup and never calls workspace close. A pane whose exact get
+# already answers not-found is gone and needs no close; that is the seeded pane
+# once a completed create pruned it. Succeeds only when every given pane is
+# confirmed gone.
 fm_backend_herdr_projection_cleanup_exact() {  # <session> <task-pane> <seeded-pane>
-  local session=$1 task_pane=$2 seeded_pane=$3
-  [ -z "$task_pane" ] || fm_backend_herdr_projection_close_pane_focus_preserving "$session" "$task_pane" || true
-  if [ -n "$seeded_pane" ] && [ "$seeded_pane" != "$task_pane" ]; then
-    fm_backend_herdr_projection_close_pane_focus_preserving "$session" "$seeded_pane" || true
-  fi
+  local session=$1 pane status=0
+  for pane in "$2" "$3"; do
+    [ -n "$pane" ] || continue
+    [ "$(fm_backend_herdr_pane_presence_state "$session" "$pane")" != dead ] || continue
+    fm_backend_herdr_projection_close_pane_focus_preserving "$session" "$pane" || true
+    [ "$(fm_backend_herdr_pane_presence_state "$session" "$pane")" = dead ] || status=1
+  done
+  return "$status"
 }
 
 # fm_backend_herdr_projection_parent_workspace_exact: resolve one exact parent
@@ -2521,22 +2527,28 @@ fm_backend_herdr_target_ready() {  # <target>
   fm_backend_herdr_server_ensure "$FM_BACKEND_HERDR_SESSION" || return 1
 }
 
-# fm_backend_herdr_current_path: the live FOREGROUND process's cwd, or empty on
-# any error. Mirrors tmux's pane_current_path poll used for worktree-path
-# discovery after `treehouse get`.
+# fm_backend_herdr_current_path: the cwd of the pane's foreground process-group
+# leader, or empty on any error. That is the process tmux's pane_current_path
+# reads, so fm-spawn.sh's worktree-path discovery after `treehouse get` settles
+# at the same moment on both backends: while the get runs, the group leader is
+# treehouse itself, still in the project, and only the subshell it opens in the
+# new worktree leads a foreground group there.
 #
-# Verified pitfall: `pane get`'s `.result.pane.cwd` is the pane's cwd AT
-# CREATION TIME - the top-level shell's cwd - and does NOT update when that
-# shell `cd`s or enters a subshell (as `treehouse get` does). Reading it here
-# would make fm-spawn.sh's worktree-discovery poll never see the pane "leave"
-# the project directory, since `cwd` stays frozen at the original path forever.
-# `.result.pane.foreground_cwd` tracks the ACTUALLY RUNNING foreground
-# process's cwd instead, which is what changes when `treehouse get` enters its
-# worktree subshell - confirmed live against a real treehouse acquisition.
+# Verified pitfalls (Herdr 0.7.5 with the real treehouse): `pane get`'s
+# `.result.pane.cwd` is the pane's cwd AT CREATION TIME and never updates, and
+# its `.result.pane.foreground_cwd` follows the newest foreground process, which
+# during the get is a post-checkout hook or setup step already running inside
+# the new worktree. Settling on that let a spawn type its launch while the get
+# could still fail, and the launch then ran in the primary checkout.
 fm_backend_herdr_current_path() {  # <target>
   fm_backend_herdr_target_ready "$1" || return 0
-  fm_backend_herdr_cli "$FM_BACKEND_HERDR_SESSION" pane get "$FM_BACKEND_HERDR_PANE" 2>/dev/null \
-    | jq -r '.result.pane.foreground_cwd // empty' 2>/dev/null
+  fm_backend_herdr_cli "$FM_BACKEND_HERDR_SESSION" pane process-info --pane "$FM_BACKEND_HERDR_PANE" 2>/dev/null \
+    | jq -r --arg pane "$FM_BACKEND_HERDR_PANE" '
+        .result.process_info
+        | select(.pane_id == $pane)
+        | .foreground_process_group_id as $leader
+        | [.foreground_processes[]? | select(.pid == $leader) | .cwd | strings] | first // empty
+      ' 2>/dev/null
 }
 
 # fm_backend_herdr_send_text_line: send one line of TEXT then submit,

@@ -175,11 +175,13 @@ if [ "$status" -eq 0 ] && [ "$mutation" = tab-create ]; then
       ;;
   esac
 fi
-if [ "$status" -eq 0 ] && [ "${1:-} ${2:-}" = "pane get" ] && [ -d "$POST_CREATE_ABORT_CONTROL" ]; then
+if [ "$status" -eq 0 ] && [ "${1:-} ${2:-} ${3:-}" = "pane process-info --pane" ] && [ -d "$POST_CREATE_ABORT_CONTROL" ]; then
   for task_dir in "$POST_CREATE_ABORT_CONTROL"/abort-*; do
     [ -d "$task_dir" ] || continue
-    [ "${3:-}" = "$(cat "$task_dir/task-pane" 2>/dev/null || true)" ] || continue
-    out=$(printf '%s' "$out" | jq --arg cwd "$POST_CREATE_ABORT_CONTROL/not-a-worktree" '.result.pane.foreground_cwd = $cwd')
+    [ "${4:-}" = "$(cat "$task_dir/task-pane" 2>/dev/null || true)" ] || continue
+    out=$(printf '%s' "$out" | jq --arg cwd "$POST_CREATE_ABORT_CONTROL/not-a-worktree" '
+      .result.process_info |= (.foreground_process_group_id as $leader
+        | .foreground_processes |= map(if .pid == $leader then .cwd = $cwd else . end))')
     break
   done
 fi
@@ -428,10 +430,11 @@ spawn_secondmate_task() {
 
 # Concurrent recoveries of existing presentation journals serialize on the
 # shared named-session lock, but the waiter's acquire is bounded while the
-# owner holds the lock through its whole launch, so a slow owner makes the
-# waiter refuse instead of resuming (docs/herdr-backend.md). That refusal is
-# the product contract: accept only its exact wording, prove it mutated
-# nothing, and resume that task only after the lock owner has completed.
+# owner holds the lock through its reclaim and again around its launch handoff,
+# so a slow owner makes the waiter refuse instead of resuming
+# (docs/herdr-backend.md). That refusal is the product contract: accept only
+# its exact wording, prove it mutated nothing, and resume that task only after
+# the lock owner has completed.
 finish_concurrent_recovery() {  # <id> <home> <status> <stdout> <stderr> <old-pane> <meta-sum> <journal-sum>
   local id=$1 home=$2 status=$3 out=$4 err=$5 old_pane=$6 meta_sum=$7 journal_sum=$8
   [ "$status" -ne 0 ] || return 0
@@ -774,7 +777,7 @@ fi
 assert_focus_is "$CAPTAIN_FOCUS" "bounded presentation lock flat fallback"
 assert_raw_presentation_mutations_preserved_since "$LOCK_CONTENTION_FOCUS_START" "bounded presentation lock flat fallback"
 teardown_task lock-contended "$HOME_DIR" > "$TMP_ROOT/lock-contended-teardown.out" 2> "$TMP_ROOT/lock-contended-teardown.err" \
-  || fail "flat lock-contention fixture teardown failed"
+  || fail "flat lock-contention fixture teardown failed: $(cat "$TMP_ROOT/lock-contended-teardown.err")"
 assert_focus_is "$CAPTAIN_FOCUS" "bounded presentation lock flat fallback teardown"
 pass "real Herdr lab: bounded lock contention warns and falls back flat without projection or focus drift"
 PROJECTION_ORDER_START=$(log_line_count)
@@ -888,10 +891,16 @@ ABORT_SEQUENCE=$(sed -n "$((ABORT_FOCUS_START + 1)),\$p" "$FOCUS_AUDIT_LOG" | aw
   $1 == "pane-close" && $4 == a { print "close-a" }
   $1 == "pane-close" && $4 == b { print "close-b" }
 ')
-case "$ABORT_SEQUENCE" in
-  $'create-a\nclose-a\ncreate-b\nclose-b'|$'create-b\nclose-b\ncreate-a\nclose-a') ;;
-  *) fail "concurrent post-create abort cleanup interleaved outside the presentation lock: $ABORT_SEQUENCE" ;;
-esac
+# Neither spawn holds the presentation lock while its get runs, so the other
+# may create its projection in between; each create and each abort cleanup is
+# still one locked, focus-preserving mutation, which the audits below check.
+[ "$(printf '%s\n' "$ABORT_SEQUENCE" | LC_ALL=C sort | tr '\n' ' ')" = 'close-a close-b create-a create-b ' ] \
+  || fail "concurrent post-create aborts did not each create and clean up exactly one projection: $ABORT_SEQUENCE"
+for ABORT_TASK in a b; do
+  [ "$(printf '%s\n' "$ABORT_SEQUENCE" | grep -n -x "create-$ABORT_TASK" | cut -d: -f1)" -lt \
+    "$(printf '%s\n' "$ABORT_SEQUENCE" | grep -n -x "close-$ABORT_TASK" | cut -d: -f1)" ] \
+    || fail "post-create abort $ABORT_TASK cleaned up before it created its projection: $ABORT_SEQUENCE"
+done
 ABORT_UNRESTORED=$(sed -n "$((ABORT_FOCUS_START + 1)),\$p" "$FOCUS_AUDIT_LOG" | awk -F '\t' -v a="$ABORT_A_PANE" -v b="$ABORT_B_PANE" '
   ($1 == "workspace-create" || $1 == "tab-create" || $1 == "workspace-move" || ($1 == "pane-close" && $4 != a && $4 != b)) && $2 != $3 { print }
 ')
@@ -909,8 +918,12 @@ done
 [ ! -e "$HOME_DIR/state/abort-a.meta" ] && [ ! -e "$HOME_DIR/state/abort-b.meta" ] \
   || fail "post-create abort fixtures published task metadata before launch"
 rm -rf "$POST_CREATE_ABORT_CONTROL"
-rm -f "$HOME_DIR/state/abort-a.herdr-presentation" "$HOME_DIR/state/abort-b.herdr-presentation"
-pass "real Herdr lab: concurrent post-create abort cleanup stays serialized with exact focus restoration"
+[ ! -e "$HOME_DIR/state/abort-a.herdr-presentation" ] && [ ! -e "$HOME_DIR/state/abort-b.herdr-presentation" ] \
+  || fail "post-create abort cleanup removed its projections but left their presentation journals"
+if grep -F "warning: herdr presentation cleanup" "$TMP_ROOT/abort-a.err" "$TMP_ROOT/abort-b.err" >/dev/null 2>&1; then
+  fail "post-create abort cleanup warned: $(cat "$TMP_ROOT/abort-a.err" "$TMP_ROOT/abort-b.err")"
+fi
+pass "real Herdr lab: concurrent post-create abort cleanup stays serialized with exact focus restoration and retires its journals"
 
 SHAPE_CLEANUP_AUDIT_START=$(focus_audit_line_count)
 teardown_task shape "$HOME_DIR" > "$TMP_ROOT/on-teardown.out" 2> "$TMP_ROOT/on-teardown.err" \
@@ -936,7 +949,7 @@ finish_concurrent_teardown order-a "$ORDER_A_TEARDOWN_STATUS" "$TMP_ROOT/order-a
 finish_concurrent_teardown order-b "$ORDER_B_TEARDOWN_STATUS" "$TMP_ROOT/order-b-teardown.out" "$TMP_ROOT/order-b-teardown.err"
 assert_focus_is "$CAPTAIN_FOCUS" "concurrent projected teardowns"
 teardown_task order-fail "$HOME_DIR" > "$TMP_ROOT/order-fail-teardown.out" 2> "$TMP_ROOT/order-fail-teardown.err" \
-  || fail "projected ordering failure fixture teardown failed"
+  || fail "projected ordering failure fixture teardown failed: $(cat "$TMP_ROOT/order-fail-teardown.err")"
 assert_focus_is "$CAPTAIN_FOCUS" "failed-order projection teardown"
 pass "real Herdr lab: concurrent projected cleanup is serialized and leaves active workspace/tab unchanged"
 
@@ -1191,7 +1204,7 @@ AFLAT_LABEL=$(lab workspace get "$AFLAT_WSID" | jq -r '.result.workspace.label')
   || fail "cross-home lock contention published a projection journal"
 assert_focus_is "$CAPTAIN_FOCUS" "cross-home lock contention flat fallback"
 teardown_task aflat "$SECOND_HOME_A" > "$TMP_ROOT/aflat-teardown.out" 2> "$TMP_ROOT/aflat-teardown.err" \
-  || fail "flat cross-home contention fixture teardown failed"
+  || fail "flat cross-home contention fixture teardown failed: $(cat "$TMP_ROOT/aflat-teardown.err")"
 pass "real Herdr lab: session lock contention from a secondmate home falls back flat with no journal"
 
 # Same-identity recovery replaces only one exact agent-free husk in its
@@ -1231,7 +1244,7 @@ for RESTART_ID in fm-hibit-resume-r1 wheelhouse-healing-r1; do
   NEW_RESTART_WSID=$(grep '^herdr_workspace_id=' "$RESTART_META" | cut -d= -f2-)
   NEW_RESTART_PANE=$(grep '^herdr_pane_id=' "$RESTART_META" | cut -d= -f2-)
   [ "$NEW_RESTART_WSID" = "$OLD_RESTART_WSID" ] \
-    || fail "$RESTART_ID reclaim flattened into a different workspace"
+    || fail "$RESTART_ID reclaim flattened into a different workspace: $(cat "$TMP_ROOT/$RESTART_ID-reclaim.err")"
   [ "$NEW_RESTART_PANE" != "$OLD_RESTART_PANE" ] \
     || fail "$RESTART_ID reclaim reused the old husk pane"
   [ "$(lab workspace get "$NEW_RESTART_WSID" | jq -r '.result.workspace.label')" = "$OLD_RESTART_LABEL" ] \
@@ -1367,9 +1380,9 @@ if lab pane get "$PRIMARY_WAVE_OLD_PANE" >/dev/null 2>&1 \
 fi
 assert_focus_is "$CONCURRENT_RECOVERY_FOCUS" "concurrent cross-home recovery"
 teardown_task "$PRIMARY_WAVE_ID" "$HOME_DIR" > "$TMP_ROOT/primary-wave-teardown.out" 2> "$TMP_ROOT/primary-wave-teardown.err" \
-  || fail "concurrent primary recovery teardown failed"
+  || fail "concurrent primary recovery teardown failed: $(cat "$TMP_ROOT/primary-wave-teardown.err")"
 teardown_task "$BRAVO_WAVE_ID" "$SECOND_HOME_B" > "$TMP_ROOT/bravo-wave-teardown.out" 2> "$TMP_ROOT/bravo-wave-teardown.err" \
-  || fail "concurrent secondmate recovery teardown failed"
+  || fail "concurrent secondmate recovery teardown failed: $(cat "$TMP_ROOT/bravo-wave-teardown.err")"
 "$REAL_TREEHOUSE" return --force "$PRIMARY_WAVE_OLD_WT" >/dev/null 2>&1 || true
 "$REAL_TREEHOUSE" return --force "$BRAVO_WAVE_OLD_WT" >/dev/null 2>&1 || true
 "$REAL_TREEHOUSE" return --force "$PRIMARY_WAVE_NEW_WT" >/dev/null 2>&1 || true

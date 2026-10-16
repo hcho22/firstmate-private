@@ -56,9 +56,10 @@
 #      launched as a foreground command (verified: `treehouse get` opens
 #      exactly such a subshell). `pane_cwd` stays frozen at wherever the
 #      pane's shell was when it invoked that foreground command - worse than
-#      herdr's frozen-cwd trap (herdr at least exposes a `foreground_cwd`
-#      that tracks this; zellij's CLI exposes no live-process cwd field and
-#      no per-pane pid to read it from `/proc`/`lsof` either). This directly
+#      herdr's frozen-cwd trap (herdr at least exposes per-process cwds in
+#      `pane process-info` that track this; zellij's CLI exposes no
+#      live-process cwd field and no per-pane pid to read it from
+#      `/proc`/`lsof` either). This directly
 #      contradicts the design report's assumption ("acceptable for tmux and
 #      zellij") and required a different implementation strategy - see
 #      fm_backend_zellij_current_path below and docs/zellij-backend.md
@@ -408,7 +409,7 @@ fm_backend_zellij_target_ready() {  # <target> [expected-label]
 # into the acquired worktree, even after the subshell is fully interactive and
 # a `pwd` typed into it prints the correct live path on screen. Zellij's CLI
 # exposes no per-pane pid and no live-process cwd field to read instead
-# (unlike herdr's `foreground_cwd`), so passive JSON polling cannot solve
+# (unlike herdr's `pane process-info`), so passive JSON polling cannot solve
 # this. Active probe instead: print the pane's `$PWD` with a unique marker
 # (atomically submitted, mirroring send_text_line), briefly settle, then capture
 # and read only that marker line. Scoped to fm-spawn.sh's own worktree-discovery

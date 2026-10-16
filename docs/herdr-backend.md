@@ -113,6 +113,12 @@ Ordering failure never fails the task spawn.
 Firstmate does not retry, adopt, reuse, close, delete, or rename anything in response to an unavailable method, lock contention, ambiguous socket, lost response, failed move, or verification mismatch.
 The worker remains on the ordinary flat or Herdr-current-order path.
 
+A projected spawn holds the session presentation lock from its create, order, and restart binding through launch handoff, except while `treehouse get` runs in the new pane.
+The get's duration scales with the host, so the lock is released before it and waited for again, for up to `FM_TREEHOUSE_GET_MAX_SECS`, once the get settles or the launch aborts before then; until then teardowns, pane closes, and other spawns on the session proceed.
+A refused get therefore still removes its projection under the lock.
+Its attempt journal is retired once the exact task pane, the seeded pane, and the workspace are all confirmed gone; a seeded pane the create already pruned answers not-found and counts as gone.
+A lock still busy at that bound after the get refuses the launch, naming its holder, and abort cleanup then makes its usual bounded attempt before the exact projection cleanup, leaving the task pane and journal in place with a warning when it cannot.
+
 Normal task metadata remains the sole endpoint authority after creation.
 Cleanup closes only the exact recorded task pane and never calls `workspace close`.
 Herdr 0.7.5's explicit close moves focus to a neighbor whenever it empties a non-focused workspace, while its pane-death removal preserves the focused workspace whenever the dying workspace sits behind it or the focused workspace is last; both behaviors are fixed in Herdr 0.8.0, and the exact rules live in the adapter header of `bin/backends/herdr.sh`.
@@ -124,6 +130,8 @@ Any ambiguity, unsupported or failed move, or unproved shell falls back to the p
 Ordinary non-projected task removal serializes through the same session lock, applies the same focus-safe plan when its close would empty a non-focused workspace, keeps the legitimate plain close when the target is the active tab, and refuses an unlocked close if the lock cannot be acquired.
 Task cleanup acquires that session lock before the task's isolated copy is returned, so a contended lock refuses up front while the copy, every durable record, and the endpoint are all intact for a plain rerun.
 Forced secondmate cleanup recursively preflights every Herdr child endpoint and acquires every affected named-session lock before mutating any child, then retains each child's durable identity unless that exact pane returns structured not-found after its close.
+Every `treehouse return`, of a task copy, a child copy, or a home, runs without those locks, because it takes the pool lock and can wait behind a slow `treehouse get` on the same pool.
+The next close on a released session waits for its lock again, for up to `FM_TREEHOUSE_GET_MAX_SECS`, and a lock not taken back skips that close and retains its durable records exactly as a refused close does.
 Durable task records are erased only once the exact pane is confirmed gone through its structured presence: after every close path, only a structured not-found response counts as gone, while a present or unknown result retains every record with a visible, retryable error.
 Missing or malformed endpoint identity and missing confirmation machinery are ambiguity, never proof of a gone pane, and refuse record removal the same way.
 If lock, snapshot, pane identity, or restoration is ambiguous, cleanup warns and preserves the journal for manual inspection.
@@ -208,6 +216,10 @@ An environment variable alone is not reliable when another Herdr server is runni
 When the selected named server is not running, the adapter launches it from the environment [Runtime backend](configuration.md#runtime-backend-configbackend--fm_backend) describes, because Herdr passes its server startup environment to every later pane.
 An already-running server is reused without restart or environment changes.
 Explicit named-session routing and unrelated launch environment remain intact.
+
+Worktree discovery after `treehouse get` reads the cwd of the pane's foreground process-group leader from `pane process-info`, the same process tmux's `pane_current_path` reports.
+While the get runs, that leader is treehouse itself in the project, and only the subshell it opens in the new worktree moves it there.
+`pane get`'s `foreground_cwd` is not used, because it follows the newest foreground process, such as a hook already running inside the new worktree while the get can still fail.
 
 Literal text and Enter are separate operations on `fm-send.sh`'s typed plane; ordinary local text steers instead use the durable steering inbox and send only its best-effort constant doorbell through this adapter.
 Spawn-time fixed commands may use Herdr's atomic run primitive.
@@ -339,6 +351,7 @@ tests/fm-backend-herdr-respawn-idem-e2e.test.sh
 tests/fm-backend-herdr-workspace-per-home-e2e.test.sh
 tests/fm-backend-herdr-launcher-workspace-e2e.test.sh
 tests/fm-backend-herdr-presentation-e2e.test.sh
+tests/fm-backend-herdr-treehouse-wait-e2e.test.sh
 tests/fm-backend-herdr-eventwait-smoke.test.sh
 tests/fm-herdr-session-cleanup.test.sh
 tests/fm-herdr-session-cleanup-e2e.test.sh

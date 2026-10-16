@@ -1121,11 +1121,39 @@ fm_meta_lock_path() {
 # serialize: either the spawn publishes first and the teardown's preflight
 # covers it, or the teardown owns the set and the spawn refuses. Both directions
 # fail closed.
+#
+# A fresh spawn gives this lock up while `treehouse get` runs, because that one
+# step can take many minutes on a loaded host, and waits for it again afterwards
+# through publication. Its task spawn lock (state/.spawn-<id>.lock), taken while
+# it first holds this lock and kept until it exits, is what keeps it visible in
+# between: forced teardown refuses a home in which a live process holds one.
 fm_task_set_lock_path() {  # <state-dir>
   local state=$1
   [ -n "$state" ] || return 1
   case "$state" in *[$'\n\r\t']*) return 1 ;; esac
   printf '%s/.task-set.lock\n' "$state"
+}
+
+# fm_treehouse_get_max_secs: FM_TREEHOUSE_GET_MAX_SECS, the ceiling on a
+# `treehouse get` that never settles, which also bounds how long spawn and
+# teardown wait to take a Herdr session presentation lock back once their
+# treehouse work is done. An unset, blank, or invalid value uses 900.
+fm_treehouse_get_max_secs() {
+  case "${FM_TREEHOUSE_GET_MAX_SECS:-}" in
+    ''|*[!0-9]*) printf '900\n' ;;
+    *) printf '%s\n' "$FM_TREEHOUSE_GET_MAX_SECS" ;;
+  esac
+}
+
+# fm_lock_holder_label <pid>: "pid <pid> (<command>)", so a refusal names what
+# holds a lock (fm_lock_try_acquire leaves the holder in FM_LOCK_HELD_PID).
+fm_lock_holder_label() {  # <pid>
+  local args
+  case "${1:-}" in
+    ''|*[!0-9]*) printf 'a process that could not be identified'; return 0 ;;
+  esac
+  args=$(ps -o args= -p "$1" 2>/dev/null | head -n 1 | tr -c '[:print:]' ' ' | cut -c1-200 | sed 's/[[:space:]]*$//')
+  printf 'pid %s (%s)' "$1" "${args:-command unavailable}"
 }
 
 fm_failure_episode_reset() {

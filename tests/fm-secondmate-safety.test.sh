@@ -2337,9 +2337,16 @@ task_set_lock_path() {  # <state-dir>
 # pid is gone, so a lock taken in a subshell that then exits would be stolen and
 # the contention under test would never happen.
 hold_task_set_lock() {  # <state-dir> -> echoes "<holder-pid> <lock-path>"
-  local state=$1 lock holder
-  lock=$(task_set_lock_path "$state") || return 1
+  local lock
+  lock=$(task_set_lock_path "$1") || return 1
   [ -n "$lock" ] || return 1
+  hold_lock "$1" "$lock"
+}
+
+# hold_lock <state-dir> <lock-path> -> echoes "<holder-pid> <lock-path>": a live
+# process holds <lock-path> until <state-dir> disappears or ten minutes pass.
+hold_lock() {
+  local state=$1 lock=$2 holder
   # stdout/stderr are redirected so the long-lived holder does not inherit this
   # function's command-substitution pipe; leaving it open would block the caller
   # until the holder exited, by which point the lock would be stale and the
@@ -2520,6 +2527,41 @@ EOF
   kill "$holder" 2>/dev/null || true
   wait "$holder" 2>/dev/null || true
   pass "forced teardown refuses while a fresh task is being published in the home"
+}
+
+# A fresh spawn gives up the task-set lock while its `treehouse get` runs, so all
+# that marks the task it is still creating is its own task lock.
+test_force_teardown_refuses_while_a_fresh_spawn_is_in_flight() {
+  local home subhome fakebin err log lock rec held holder
+  rec=$(seed_task_set_lock_home spawn-inflight-teardown)
+  IFS='|' read -r home subhome <<EOF
+$rec
+EOF
+  err="$TMP_ROOT/spawn-inflight-teardown.err"
+  held=$(hold_lock "$subhome/state" "$subhome/state/.spawn-newtask.lock") \
+    || fail "could not stage a held task spawn lock"
+  holder=${held%% *}
+  lock=${held#* }
+  fakebin=$(make_fake_tmux "$TMP_ROOT/spawn-inflight-teardown-fake")
+  log="$TMP_ROOT/spawn-inflight-teardown-fake/tmux.log"
+  if PATH="$fakebin:$PATH" FM_HOME="$home" FM_FAKE_TMUX_LOG="$log" \
+    FM_FAKE_TMUX_CAPTURE="$TMP_ROOT/spawn-inflight-teardown-fake/pane.txt" \
+    "$ROOT/bin/fm-teardown.sh" domain --force >/dev/null 2>"$err"; then
+    fail "forced teardown proceeded while a fresh spawn was creating a task in the home"
+  fi
+  [ -d "$subhome" ] || fail "forced teardown removed the home despite refusing"
+  [ -e "$subhome/state/child.meta" ] || fail "forced teardown removed child metadata despite refusing"
+  [ -e "$home/state/domain.meta" ] || fail "forced teardown cleared parent metadata despite refusing"
+  grep -F 'kill-window' "$log" >/dev/null && fail "forced teardown killed a window despite refusing"
+  [ -e "$lock" ] || fail "forced teardown removed the spawn's task lock"
+  [ ! -e "$subhome/state/.task-set.lock" ] || fail "forced teardown left the home's task-set lock held after refusing"
+  grep -F 'is creating task newtask right now' "$err" >/dev/null \
+    || fail "the refusal did not name the task being created: $(cat "$err")"
+  grep -F "pid $holder (" "$err" >/dev/null \
+    || fail "the refusal did not name the process holding the spawn lock: $(cat "$err")"
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+  pass "forced teardown refuses a home while a fresh spawn there is still creating its task"
 }
 
 test_fresh_spawn_refuses_while_a_forced_teardown_owns_the_task_set() {
@@ -2961,6 +3003,7 @@ test_force_teardown_refuses_non_directory_descendant_state
 test_force_teardown_refuses_symlinked_descendant_state
 test_force_teardown_locks_descendant_with_absent_state
 test_force_teardown_refuses_while_a_task_is_being_published
+test_force_teardown_refuses_while_a_fresh_spawn_is_in_flight
 test_fresh_spawn_refuses_while_a_forced_teardown_owns_the_task_set
 test_fresh_remote_secondmate_spawn_refuses_while_task_set_is_owned
 test_secondmate_force_teardown_refuses_child_active_home_descendant
