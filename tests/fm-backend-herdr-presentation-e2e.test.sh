@@ -175,11 +175,13 @@ if [ "$status" -eq 0 ] && [ "$mutation" = tab-create ]; then
       ;;
   esac
 fi
-if [ "$status" -eq 0 ] && [ "${1:-} ${2:-}" = "pane get" ] && [ -d "$POST_CREATE_ABORT_CONTROL" ]; then
+if [ "$status" -eq 0 ] && [ "${1:-} ${2:-} ${3:-}" = "pane process-info --pane" ] && [ -d "$POST_CREATE_ABORT_CONTROL" ]; then
   for task_dir in "$POST_CREATE_ABORT_CONTROL"/abort-*; do
     [ -d "$task_dir" ] || continue
-    [ "${3:-}" = "$(cat "$task_dir/task-pane" 2>/dev/null || true)" ] || continue
-    out=$(printf '%s' "$out" | jq --arg cwd "$POST_CREATE_ABORT_CONTROL/not-a-worktree" '.result.pane.foreground_cwd = $cwd')
+    [ "${4:-}" = "$(cat "$task_dir/task-pane" 2>/dev/null || true)" ] || continue
+    out=$(printf '%s' "$out" | jq --arg cwd "$POST_CREATE_ABORT_CONTROL/not-a-worktree" '
+      .result.process_info |= (.foreground_process_group_id as $leader
+        | .foreground_processes |= map(if .pid == $leader then .cwd = $cwd else . end))')
     break
   done
 fi
@@ -916,8 +918,12 @@ done
 [ ! -e "$HOME_DIR/state/abort-a.meta" ] && [ ! -e "$HOME_DIR/state/abort-b.meta" ] \
   || fail "post-create abort fixtures published task metadata before launch"
 rm -rf "$POST_CREATE_ABORT_CONTROL"
-rm -f "$HOME_DIR/state/abort-a.herdr-presentation" "$HOME_DIR/state/abort-b.herdr-presentation"
-pass "real Herdr lab: concurrent post-create abort cleanup stays serialized with exact focus restoration"
+[ ! -e "$HOME_DIR/state/abort-a.herdr-presentation" ] && [ ! -e "$HOME_DIR/state/abort-b.herdr-presentation" ] \
+  || fail "post-create abort cleanup removed its projections but left their presentation journals"
+if grep -F "warning: herdr presentation cleanup" "$TMP_ROOT/abort-a.err" "$TMP_ROOT/abort-b.err" >/dev/null 2>&1; then
+  fail "post-create abort cleanup warned: $(cat "$TMP_ROOT/abort-a.err" "$TMP_ROOT/abort-b.err")"
+fi
+pass "real Herdr lab: concurrent post-create abort cleanup stays serialized with exact focus restoration and retires its journals"
 
 SHAPE_CLEANUP_AUDIT_START=$(focus_audit_line_count)
 teardown_task shape "$HOME_DIR" > "$TMP_ROOT/on-teardown.out" 2> "$TMP_ROOT/on-teardown.err" \

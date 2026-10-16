@@ -95,10 +95,11 @@
 #   projection mutation. The lock is not held while `treehouse get` runs: it is
 #   released before the get and waited for again, for up to
 #   FM_TREEHOUSE_GET_MAX_SECS, once the get settles or the launch aborts before
-#   then, so a refused get still removes its projection under the lock. A lock
-#   still busy after the get refuses the launch, and abort cleanup then makes
-#   one bounded attempt, leaving the projection and its journal for inspection
-#   when that fails too.
+#   then, so a refused get still removes its projection under the lock, and
+#   retires its journal once the exact panes and workspace are confirmed gone. A
+#   lock still busy after the get refuses the launch, and abort cleanup then
+#   makes one bounded attempt, leaving the projection and its journal for
+#   inspection when that fails too.
 #   The exact response-derived new workspace is inserted
 #   immediately after its owning parent (firstmate or 2ndmate-<id>) contiguous
 #   child block. Ordering never authorizes lifecycle cleanup, and any
@@ -760,6 +761,8 @@ HERDR_PROJECTION_ABORT_CLEANUP=0
 HERDR_PROJECTION_ABORT_SESSION=
 HERDR_PROJECTION_ABORT_TASK_PANE=
 HERDR_PROJECTION_ABORT_SEEDED_PANE=
+HERDR_PROJECTION_ABORT_WORKSPACE=
+HERDR_PROJECTION_ABORT_JOURNAL=
 HERDR_PRESENTATION_ORDER_LOCK=
 HERDR_PRESENTATION_ORDER_LOCK_HELD=0
 HERDR_PRESENTATION_RELEASED_FOR_GET=0
@@ -850,10 +853,16 @@ spawn_abort_cleanup() {
   fi
   if [ "$HERDR_PROJECTION_ABORT_CLEANUP" = 1 ]; then
     HERDR_PROJECTION_ABORT_CLEANUP=0
-    fm_backend_herdr_projection_cleanup_exact \
-      "$HERDR_PROJECTION_ABORT_SESSION" \
-      "$HERDR_PROJECTION_ABORT_TASK_PANE" \
-      "$HERDR_PROJECTION_ABORT_SEEDED_PANE" || true
+    # A fresh projection's attempt journal is retired once its exact panes and
+    # workspace are confirmed gone, since nothing is left for it to quarantine.
+    if fm_backend_herdr_projection_cleanup_exact \
+         "$HERDR_PROJECTION_ABORT_SESSION" \
+         "$HERDR_PROJECTION_ABORT_TASK_PANE" \
+         "$HERDR_PROJECTION_ABORT_SEEDED_PANE" \
+       && [ -n "$HERDR_PROJECTION_ABORT_JOURNAL" ] \
+       && [ "$(fm_backend_herdr_workspace_presence_state "$HERDR_PROJECTION_ABORT_SESSION" "$HERDR_PROJECTION_ABORT_WORKSPACE")" = dead ]; then
+      rm -f "$HERDR_PROJECTION_ABORT_JOURNAL"
+    fi
   fi
   if [ "$HERDR_PRESENTATION_ORDER_LOCK_HELD" = 1 ]; then
     HERDR_PRESENTATION_ORDER_LOCK_HELD=0
@@ -1977,9 +1986,9 @@ BRIEF_REAL="$BRIEF_DIR_REAL/$(basename "$BRIEF")"
 # PROJ_ABS can still carry a symlinked path component (e.g. macOS's /tmp ->
 # /private/tmp) when it came from the ship/scout branch's logical `pwd` above.
 # Every backend's own current-path read (tmux's pane_current_path, herdr's
-# foreground_cwd, zellij/cmux's active pwd probe against the live shell) can
-# report the OS-level, physically-resolved cwd, so comparing it against a
-# still-symlinked PROJ_ABS can misfire both ways: false-negative (the poll
+# foreground group leader cwd, zellij/cmux's active pwd probe against the live
+# shell) can report the OS-level, physically-resolved cwd, so comparing it
+# against a still-symlinked PROJ_ABS can misfire both ways: false-negative (the poll
 # below never notices the pane left the project) or false-positive (the
 # isolation guard refuses a spawn that never actually tangled). Canonicalize
 # once here so every downstream comparison uses the same physical form
@@ -2471,6 +2480,8 @@ case "$BACKEND" in
                 HERDR_PROJECTION_ABORT_SESSION=$FM_BACKEND_HERDR_PROJECTION_SESSION
                 HERDR_PROJECTION_ABORT_TASK_PANE=$FM_BACKEND_HERDR_PROJECTION_PANE_ID
                 HERDR_PROJECTION_ABORT_SEEDED_PANE=$FM_BACKEND_HERDR_PROJECTION_SEEDED_PANE_ID
+                HERDR_PROJECTION_ABORT_WORKSPACE=$FM_BACKEND_HERDR_PROJECTION_WORKSPACE_ID
+                HERDR_PROJECTION_ABORT_JOURNAL=$HERDR_PRESENTATION_JOURNAL
               fi
               exit 1
             fi
@@ -2484,6 +2495,8 @@ case "$BACKEND" in
             HERDR_PROJECTION_ABORT_SESSION=$HERDR_SES
             HERDR_PROJECTION_ABORT_TASK_PANE=$HERDR_PANE_ID
             HERDR_PROJECTION_ABORT_SEEDED_PANE=$FM_BACKEND_HERDR_PROJECTION_SEEDED_PANE_ID
+            HERDR_PROJECTION_ABORT_WORKSPACE=$HERDR_WORKSPACE_ID
+            HERDR_PROJECTION_ABORT_JOURNAL=$HERDR_PRESENTATION_JOURNAL
             fm_backend_herdr_projection_order_best_effort \
               "$HERDR_SES" "$HERDR_WORKSPACE_ID" "$HERDR_PARENT_LABEL" "$HERDR_PARENT_WORKSPACE_ID"
             HERDR_HOME_ID=$(fm_backend_herdr_projection_home_identity "$HERDR_LABEL_HOME" 2>/dev/null || true)
@@ -2731,6 +2744,10 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   spawn_send_text_line "$WT_TARGET" 'treehouse get'
 
   # Wait for the treehouse subshell: the pane's cwd moves from the project to the worktree.
+  # tmux's and herdr's reads both report the cwd of the pane's foreground
+  # process-group leader, which is treehouse itself, still in the project, until
+  # its subshell opens in the worktree; a hook already running inside the new
+  # worktree never moves it.
   # Target the stable window id, not the name: if the name is ever lost (e.g. an
   # automatic-rename slips through), display-message -t <bad-name> falls back to the
   # active client's window, which would misread firstmate's OWN pane path as the

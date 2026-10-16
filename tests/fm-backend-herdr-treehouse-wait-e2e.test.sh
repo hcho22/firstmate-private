@@ -5,7 +5,10 @@
 # pane exposes the foreground cwd the wait settles on).
 # A stand-in `treehouse` that spends longer than the original sixty-poll bound
 # while visibly working must complete the launch and record its worktree, and
-# one that errors out must be refused promptly, saying it exited.
+# one that errors out must be refused promptly, saying it exited. One that fails
+# after running a hook inside its new worktree, which moves the pane's newest
+# foreground process there, must be refused the same way with no launch line
+# ever typed into the pane.
 # While a projected spawn's get is still running, neither the session-wide
 # presentation lock nor the home's task-set lock may be held, so a teardown on
 # the same Herdr session gets past its lock preflight and a second fresh
@@ -15,7 +18,7 @@
 # for a busy presentation lock instead of launching without it, and refuses,
 # naming the holder and the projection it leaves, only at the get ceiling. A
 # refused get's abort cleanup waits for a busy lock the same way and removes
-# its projection under it.
+# its projection and journal under it, without a warning.
 # Every Herdr call goes through the guarded named-session lab helper, and lab
 # teardown verifies that the default fleet session is unchanged.
 set -u
@@ -80,7 +83,9 @@ mkdir -p "$CONTROL"
 # In gate mode the first get to start holds the pool's treehouse-state.lock, as
 # treehouse does across its copy, while it starts short-lived children until the
 # case creates control/release; every later get acquires at once. In gatefail
-# mode that first get then exits with an error instead of acquiring. Teardown's
+# mode that first get then exits with an error instead of acquiring. In hookfail
+# mode the get creates its worktree, runs a hook-like child inside it for the
+# case's seconds, and then exits with an error instead of entering. Teardown's
 # `treehouse return` has nothing to give back, but it takes that same pool lock
 # first, as treehouse does, so it waits behind a gated get.
 cat > "$PANEBIN/treehouse" <<SH
@@ -115,6 +120,11 @@ case "\$FMT_MODE" in
 esac
 wt="\$FMT_POOL/slot-\$\$"
 git worktree add -q --detach "\$wt" >&2 || exit 1
+if [ "\$FMT_MODE" = hookfail ]; then
+  (cd "\$wt" && "$REAL_SLEEP" "\$FMT_SECONDS")
+  echo "stand-in: fatal: setup failed inside the new worktree" >&2
+  exit 1
+fi
 cd "\$wt" && exec bash --noprofile --norc -i
 SH
 chmod +x "$FAKEBIN/herdr" "$FAKEBIN/sleep" "$PANEBIN/treehouse" "$TMP_ROOT/bash-norc"
@@ -137,7 +147,7 @@ cleanup_all() {
     PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" teardown "$HERDR_LAB_SESSION" >/dev/null 2>&1 || status=1
     LAB_READY=0
   fi
-  rm -rf "/tmp/fm-hthw-slow-$$" "/tmp/fm-hthw-fail-$$" "/tmp/fm-hthw-gated-$$" "/tmp/fm-hthw-second-$$" \
+  rm -rf "/tmp/fm-hthw-slow-$$" "/tmp/fm-hthw-fail-$$" "/tmp/fm-hthw-hookfail-$$" "/tmp/fm-hthw-gated-$$" "/tmp/fm-hthw-second-$$" \
     "/tmp/fm-hthw-held-$$" "/tmp/fm-hthw-refused-$$" "/tmp/fm-hthw-ceiling-$$" "$TMP_ROOT"
   exit "$status"
 }
@@ -197,6 +207,25 @@ case "$out" in *"treehouse get exited without entering a worktree"*) ;; *) fail 
 [ $((SECONDS - start)) -lt 40 ] || fail "the exited get was not refused promptly on Herdr"
 [ ! -e "$HOME_DIR/state/$FAIL_ID.meta" ] || fail "a refused launch recorded a task"
 pass "a get that exits without a worktree is refused promptly on Herdr and says so"
+
+HOOKFAIL_ID="hthw-hookfail-$$"
+if out=$(spawn_case "$HOOKFAIL_ID" hookfail 5 FM_TREEHOUSE_GET_EXIT_GRACE_SECS=1); then
+  fail "a treehouse get that failed after a hook ran inside its new worktree launched on Herdr: $out"
+fi
+case "$out" in *"treehouse get exited without entering a worktree"*) ;; *) fail "the hook-failed get was not refused for exiting without a worktree: $out" ;; esac
+[ ! -e "$HOME_DIR/state/$HOOKFAIL_ID.meta" ] || fail "a refused launch recorded a task"
+hookfail_target=$(printf '%s\n' "$out" | sed -n 's/.*; inspect window \([^ ]*\)$/\1/p' | tail -n 1)
+[ -n "$hookfail_target" ] || fail "the refusal did not name the pane it left: $out"
+hookfail_screen=$(herdr pane read "${hookfail_target#*:}" --source recent --lines 200) \
+  || fail "could not read the refused get's pane ${hookfail_target#*:}"
+case "$hookfail_screen" in
+  *"stand-in: fatal: setup failed inside the new worktree"*) ;;
+  *) fail "the refused get's pane does not show the hook failure, so it proves nothing: $hookfail_screen" ;;
+esac
+case "$hookfail_screen" in
+  *GOTMPDIR*|*"sleep 120"*) fail "a launch line was typed into the pane while treehouse get was still running its hook: $hookfail_screen" ;;
+esac
+pass "a get that fails after a hook ran inside its new worktree is refused on Herdr with no launch line typed"
 
 # wait_for <path> <pid> <what>: until <path> exists, while <pid> still runs.
 wait_for() {
@@ -324,11 +353,14 @@ case "$out" in
 esac
 case "$out" in
   *"leaving projected task pane"*) fail "abort cleanup left the refused get's projection behind: $out" ;;
+  *"warning: herdr presentation"*) fail "abort cleanup of the refused get warned: $out" ;;
 esac
 [ "$(workspace_count)" = "$workspaces_before" ] \
   || fail "abort cleanup did not remove the refused get's projected workspace: $out"
+[ ! -e "$HOME_DIR/state/$REFUSED_ID.herdr-presentation" ] \
+  || fail "abort cleanup removed the refused get's projection but left its presentation journal: $out"
 [ ! -e "$HOME_DIR/state/$REFUSED_ID.meta" ] || fail "a refused launch recorded a task"
-pass "a refused get's abort cleanup waits out a busy presentation lock and removes its projection under it"
+pass "a refused get's abort cleanup waits out a busy presentation lock and removes its projection and journal under it"
 
 # Past the get ceiling the spawn refuses, naming the holder, and abort cleanup,
 # unable to take the lock either, leaves the projection for inspection and says so.

@@ -1428,6 +1428,42 @@ test_projection_close_restores_exact_prior_focus() {
   pass "herdr presentation focus: exact pane close restores the exact prior workspace and tab"
 }
 
+test_projection_cleanup_exact_treats_not_found_panes_as_gone() {
+  local dir log resp fb out status
+  # Abort cleanup after a completed create: the task pane is already gone and
+  # the seeded default pane was pruned by the create itself, so both exact gets
+  # answer not-found. Nothing is closed, nothing warns, and cleanup succeeds.
+  dir="$TMP_ROOT/projection-cleanup-gone"; mkdir -p "$dir/responses"
+  log="$dir/log"; resp="$dir/responses"; : > "$log"
+  printf '%s\n' '{"error":{"code":"pane_not_found","message":"pane w2:p2 not found"}}' > "$resp/1.out"
+  printf '%s\n' '{"error":{"code":"pane_not_found","message":"pane w2:p1 not found"}}' > "$resp/2.out"
+  fb=$(make_herdr_fakebin "$dir")
+  out=$(PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
+    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_projection_cleanup_exact fmtest w2:p2 w2:p1' "$ROOT" 2>&1)
+  status=$?
+  [ "$status" -eq 0 ] || fail "abort cleanup should succeed when every exact pane is already gone: $out"
+  [ -z "$out" ] || fail "abort cleanup warned about panes that are already gone: $out"
+  assert_not_contains "$(cat "$log")" $'pane\x1fclose' "abort cleanup closed a pane that was already gone"
+
+  # A seeded pane that still exists in the captain's active tab is still refused,
+  # and cleanup reports it as not done.
+  dir="$TMP_ROOT/projection-cleanup-active"; mkdir -p "$dir/responses"
+  log="$dir/log"; resp="$dir/responses"; : > "$log"
+  printf '%s\n' '{"result":{"pane":{"pane_id":"w9:p1","tab_id":"w9:t1","workspace_id":"w9"}}}' > "$resp/1.out"
+  printf '%s\n' '{"result":{"workspaces":[{"workspace_id":"w9","active_tab_id":"w9:t1","focused":true}]}}' > "$resp/2.out"
+  printf '%s\n' '{"result":{"tabs":[{"tab_id":"w9:t1","focused":true}]}}' > "$resp/3.out"
+  printf '%s\n' '{"result":{"pane":{"pane_id":"w9:p1","tab_id":"w9:t1","workspace_id":"w9"}}}' > "$resp/4.out"
+  printf '%s\n' '{"result":{"pane":{"pane_id":"w9:p1","tab_id":"w9:t1","workspace_id":"w9"}}}' > "$resp/5.out"
+  fb=$(make_herdr_fakebin "$dir")
+  out=$(PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
+    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_projection_cleanup_exact fmtest "" w9:p1' "$ROOT" 2>&1)
+  status=$?
+  [ "$status" -ne 0 ] || fail "abort cleanup reported success while an exact pane still exists: $out"
+  assert_contains "$out" "target is the captain's active tab" "abort cleanup did not keep refusing the focus-unsafe close"
+  assert_not_contains "$(cat "$log")" $'pane\x1fclose' "abort cleanup closed the captain's active tab"
+  pass "herdr presentation abort cleanup: an exact pane already gone needs no close and no warning, and an existing focus-unsafe pane is still refused"
+}
+
 test_projection_close_refuses_active_tab() {
   local dir log resp fb out status
   dir="$TMP_ROOT/projection-focus-active-refusal"; mkdir -p "$dir/responses"
@@ -2990,19 +3026,29 @@ test_kill_is_best_effort() {
   pass "fm_backend_herdr_kill: calls pane close and stays best-effort on failure"
 }
 
-test_current_path_reads_cwd() {
+test_current_path_reads_foreground_group_leader() {
   local dir log resp fb out
   dir="$TMP_ROOT/cwd"; mkdir -p "$dir/responses"; log="$dir/log"; resp="$dir/responses"; : > "$log"
-  # Verified pitfall (herdr-verification-p2.md): .result.pane.cwd is frozen at
-  # pane-creation time and never updates; .foreground_cwd tracks the live
-  # running process (e.g. a treehouse get subshell) and is what must be read.
-  printf '{"result":{"pane":{"cwd":"/tmp/pane-creation-dir","foreground_cwd":"/tmp/fake-worktree"}}}\n' > "$resp/1.out"
+  # The shapes below are what real Herdr 0.7.5 reported while the real
+  # treehouse get ran a post-checkout hook inside its new worktree, and once its
+  # subshell had entered it. During the hook the newest foreground processes
+  # (which pane get's foreground_cwd follows) already sit in the worktree, while
+  # the foreground group leader, treehouse itself, is still in the project.
+  printf '%s\n' '{"result":{"type":"pane_process_info","process_info":{"pane_id":"w1:p2","shell_pid":100,"foreground_process_group_id":200,"foreground_processes":[{"pid":230,"name":"sleep","cwd":"/tmp/fake-pool/1/project"},{"pid":220,"name":"bash","cwd":"/tmp/fake-pool/1/project"},{"pid":210,"name":"git","cwd":"/tmp/fake-project"},{"pid":200,"name":"treehouse","cwd":"/tmp/fake-project"}]}}}' > "$resp/1.out"
+  printf '%s\n' '{"result":{"type":"pane_process_info","process_info":{"pane_id":"w1:p2","shell_pid":100,"foreground_process_group_id":300,"foreground_processes":[{"pid":300,"name":"bash","cwd":"/tmp/fake-pool/1/project"}]}}}' > "$resp/2.out"
+  # A leader that is not among the foreground processes, or another pane's
+  # answer, reports nothing rather than a guess.
+  printf '%s\n' '{"result":{"type":"pane_process_info","process_info":{"pane_id":"w1:p2","shell_pid":100,"foreground_process_group_id":400,"foreground_processes":[{"pid":410,"name":"sleep","cwd":"/tmp/fake-pool/1/project"}]}}}' > "$resp/3.out"
+  printf '%s\n' '{"result":{"type":"pane_process_info","process_info":{"pane_id":"w9:p9","shell_pid":100,"foreground_process_group_id":300,"foreground_processes":[{"pid":300,"name":"bash","cwd":"/tmp/fake-pool/1/project"}]}}}' > "$resp/4.out"
   fb=$(make_herdr_fakebin "$dir")
-  out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
-    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_current_path default:w1:p2' "$ROOT" )
-  [ "$out" = "/tmp/fake-worktree" ] || fail "current_path should read foreground_cwd (the live process), not the frozen creation-time cwd, got '$out'"
-  assert_contains "$(cat "$log")" $'\x1f''pane'$'\x1f''get'$'\x1f''w1:p2' "current_path did not call pane get"
-  pass "fm_backend_herdr_current_path: reads pane foreground_cwd (the live running process), not the frozen creation-time cwd"
+  out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" bash -c '
+    . "$0/bin/backends/herdr.sh"
+    for _ in 1 2 3 4; do printf "[%s]\n" "$(fm_backend_herdr_current_path default:w1:p2)"; done
+  ' "$ROOT" )
+  [ "$out" = $'[/tmp/fake-project]\n[/tmp/fake-pool/1/project]\n[]\n[]' ] \
+    || fail "current_path should read the foreground group leader's cwd (the project while a hook runs in the new worktree, the worktree once the subshell leads), got '$out'"
+  assert_contains "$(cat "$log")" $'\x1f''pane'$'\x1f''process-info'$'\x1f''--pane'$'\x1f''w1:p2' "current_path did not read the exact pane's process info"
+  pass "fm_backend_herdr_current_path: reads the foreground group leader's cwd, so a hook running inside a new worktree does not move it before treehouse get's subshell does"
 }
 
 # --- busy_state (semantic agent state) ---------------------------------------
@@ -4550,6 +4596,7 @@ test_projection_create_uses_exact_response_ids_and_leaves_one_task_pane
 test_projection_create_never_closes_a_concurrent_same_label_tab
 test_projection_focus_snapshot_requires_exact_workspace_and_tab
 test_projection_close_restores_exact_prior_focus
+test_projection_cleanup_exact_treats_not_found_panes_as_gone
 test_projection_close_refuses_active_tab
 test_projection_close_reports_focus_restore_failure
 test_projection_close_rechecks_required_agent_state_at_boundary
@@ -4599,7 +4646,7 @@ test_capture_works_around_small_lines_bug
 test_capture_preserves_pane_read_failure
 test_send_key_normalizes_and_targets_pane
 test_kill_is_best_effort
-test_current_path_reads_cwd
+test_current_path_reads_foreground_group_leader
 test_busy_state_working_maps_to_busy
 test_busy_state_done_and_blocked_map_to_idle
 test_busy_state_unknown_on_no_agent

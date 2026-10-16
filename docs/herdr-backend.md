@@ -116,6 +116,7 @@ The worker remains on the ordinary flat or Herdr-current-order path.
 A projected spawn holds the session presentation lock from its create, order, and restart binding through launch handoff, except while `treehouse get` runs in the new pane.
 The get's duration scales with the host, so the lock is released before it and waited for again, for up to `FM_TREEHOUSE_GET_MAX_SECS`, once the get settles or the launch aborts before then; until then teardowns, pane closes, and other spawns on the session proceed.
 A refused get therefore still removes its projection under the lock.
+Its attempt journal is retired once the exact task pane, the seeded pane, and the workspace are all confirmed gone; a seeded pane the create already pruned answers not-found and counts as gone.
 A lock still busy at that bound after the get refuses the launch, naming its holder, and abort cleanup then makes its usual bounded attempt before the exact projection cleanup, leaving the task pane and journal in place with a warning when it cannot.
 
 Normal task metadata remains the sole endpoint authority after creation.
@@ -215,6 +216,10 @@ An environment variable alone is not reliable when another Herdr server is runni
 When the selected named server is not running, the adapter launches it from the environment [Runtime backend](configuration.md#runtime-backend-configbackend--fm_backend) describes, because Herdr passes its server startup environment to every later pane.
 An already-running server is reused without restart or environment changes.
 Explicit named-session routing and unrelated launch environment remain intact.
+
+Worktree discovery after `treehouse get` reads the cwd of the pane's foreground process-group leader from `pane process-info`, the same process tmux's `pane_current_path` reports.
+While the get runs, that leader is treehouse itself in the project, and only the subshell it opens in the new worktree moves it there.
+`pane get`'s `foreground_cwd` is not used, because it follows the newest foreground process, such as a hook already running inside the new worktree while the get can still fail.
 
 Literal text and Enter are separate operations on `fm-send.sh`'s typed plane; ordinary local text steers instead use the durable steering inbox and send only its best-effort constant doorbell through this adapter.
 Spawn-time fixed commands may use Herdr's atomic run primitive.

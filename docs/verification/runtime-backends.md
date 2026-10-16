@@ -639,6 +639,35 @@ The CLI matrix was checked directly:
 All destructive verification used `bin/fm-herdr-lab.sh` with a non-default `fm-lab-` name and a byte-identical default-session tripwire.
 No ambient `herdr server stop` command is a supported test operation.
 
+### Worktree discovery cwd
+
+Measured 2026-10-16 against Herdr 0.7.5 (protocol 17) and the real treehouse v3.1.0 in an isolated `fm-lab-` session, sampling once a second while `treehouse get` ran a post-checkout hook inside the new worktree and then failed or entered:
+
+```sh
+herdr pane get <pane> | jq -c '{cwd: .result.pane.cwd, fg: .result.pane.foreground_cwd}'
+herdr pane process-info --pane <pane> | jq -c '.result.process_info | {pgid: .foreground_process_group_id, fg: [.foreground_processes[] | {pid, name, cwd}]}'
+```
+
+Observed while the hook ran (paths shortened):
+
+```text
+get={"cwd":"<project>","fg":"<pool>/1/project"} pi={"pgid":42477,"fg":[{"pid":42529,"name":"sleep","cwd":"<pool>/1/project"},{"pid":42527,"name":"bash","cwd":"<pool>/1/project"},{"pid":42525,"name":"git","cwd":"<project>"},{"pid":42477,"name":"treehouse","cwd":"<project>"}]}
+```
+
+Observed once the subshell had entered the worktree:
+
+```text
+pi={"pgid":48208,"fg":[{"pid":48208,"name":"bash","cwd":"<pool>/1/project"}]}
+```
+
+`foreground_cwd` follows the newest foreground process, so it reported the worktree while the get could still fail; the foreground group leader stayed in the project until treehouse's own subshell led the group in the worktree, which is what tmux's `pane_current_path` reads.
+`fm_backend_herdr_current_path` therefore reads the leader's cwd.
+`tests/fm-backend-herdr.test.sh` pins both shapes, and `tests/fm-backend-herdr-treehouse-wait-e2e.test.sh` refreshes the live proof with a get that fails after a hook ran inside its new worktree:
+
+```text
+ok - a get that fails after a hook ran inside its new worktree is refused on Herdr with no launch line typed
+```
+
 ### Submit confirmation
 
 Measured 2026-08-19 against Herdr 0.8.0 and Claude Code 2.1.236 in an isolated `fm-lab-` session.
