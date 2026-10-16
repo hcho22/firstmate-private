@@ -1,0 +1,39 @@
+### fml-slow-32615
+rc=0 elapsed=31s
+--- spawn transcript
+warning: /private/tmp/fml.Oil6gY/home/data/fml-slow-32615/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-slow-32615 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-32641-6945:w2:p2 worktree=/private/tmp/fml.Oil6gY/pool/.treehouse/project-60dba2/2/project
+--- state/fml-slow-32615.meta (worktree and endpoint)
+window=fm-lab-fm-live-thw-32641-6945:w2:p2
+worktree=/private/tmp/fml.Oil6gY/pool/.treehouse/project-60dba2/2/project
+project=/private/tmp/fml.Oil6gY/project
+backend=herdr
+herdr_pane_id=w2:p2
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.Oil6gY/pool/.treehouse/project-60dba2/2/project
+--- herdr pane process-info w2:p2
+unknown option: w2:p2
+
+--- herdr pane read w2:p2
+Run "treehouse update" to update
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.Oil6gY/pool/.t
+reehouse/project-60dba2/2/project. Type 'exit' to retu
+rn.
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ export GOTMPDIR=/tmp/fm-fml-slow-32615/gotmp
+bash-3.2$ sh -c 'sleep 600'
+
+--- hook.log
+1792139650 01:34:10 hook start mode=fast pid=33368 cwd=/private/tmp/fml.Oil6gY/pool/.treehouse/project-60dba2/1/project
+1792139650 01:34:10 hook end mode=fast pid=33368
+1792139659 01:34:19 hook start mode=slow:20 pid=35196 cwd=/private/tmp/fml.Oil6gY/pool/.treehouse/project-60dba2/2/project
+1792139681 01:34:41 hook end mode=slow:20 pid=35196
+1792139692 01:34:52 hook start mode=fast pid=43096 cwd=/private/tmp/fml.Oil6gY/pool/.treehouse/project-60dba2/2/project
+1792139692 01:34:52 hook end mode=fast pid=43096
+1792139705 01:35:05 hook start mode=fast pid=45560 cwd=/private/tmp/fml.Oil6gY/pool/.treehouse/project-60dba2/1/project
+1792139705 01:35:05 hook end mode=fast pid=45560

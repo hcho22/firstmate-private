@@ -1,0 +1,11 @@
+[02:04:03 +0s] world /private/tmp/fml.uYbo5b code-root /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M51B1HENTJ72NPQ4TPKNB0C4 backend tmux scenario queuehang hook_secs 100 n 2
+[02:04:03 +0s] FM_TREEHOUSE_GET_STALL_SECS=30 MAX=<default> EXIT_GRACE=<default> START=<default>
+/Users/hcho/.no-mistakes/evidence/01M51B1HENTJ72NPQ4TPKNB0C4/t3/live-treehouse-wait.sh: line 232: /private/tmp/fml.uYbo5b/hook.log: No such file or directory
+/Users/hcho/.no-mistakes/evidence/01M51B1HENTJ72NPQ4TPKNB0C4/t3/live-treehouse-wait.sh: line 235: /private/tmp/fml.uYbo5b/hook.log: No such file or directory
+[02:04:03 +0s] spawn fml-qh1-12179: start
+/Users/hcho/.no-mistakes/evidence/01M51B1HENTJ72NPQ4TPKNB0C4/t3/live-treehouse-wait.sh: line 235: /private/tmp/fml.uYbo5b/hook.log: No such file or directory
+/Users/hcho/.no-mistakes/evidence/01M51B1HENTJ72NPQ4TPKNB0C4/t3/live-treehouse-wait.sh: line 235: /private/tmp/fml.uYbo5b/hook.log: No such file or directory
+[02:04:08 +5s] spawn fml-qh2-12179: start
+[02:04:36 +33s] spawn fml-qh1-12179: exit 1 after 33s: warning: /private/tmp/fml.uYbo5b/home/data/fml-qh1-12179/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches error: treehouse get made no progress for 30s (waiting on: sleep 86400); inspect window firstmate:fm-fml-qh1-12179 
+[02:04:41 +38s] spawn fml-qh2-12179: exit 1 after 33s: warning: /private/tmp/fml.uYbo5b/home/data/fml-qh2-12179/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches error: treehouse get made no progress for 30s (waiting on: treehouse get), and nothing else holding its pool lock (treehouse-state.lock) open advanced either: pi
+[02:04:41 +38s] done

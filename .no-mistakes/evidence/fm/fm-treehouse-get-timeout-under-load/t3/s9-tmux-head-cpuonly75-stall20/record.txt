@@ -1,0 +1,33 @@
+### fml-busy-39141
+rc=0 elapsed=80s
+--- spawn transcript
+warning: /private/tmp/fml.mot6LM/home/data/fml-busy-39141/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-busy-39141 harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fml-busy-39141 worktree=/private/tmp/fml.mot6LM/pool/.treehouse/project-937e68/1/project
+--- state/fml-busy-39141.meta (worktree and endpoint)
+window=firstmate:fm-fml-busy-39141
+worktree=/private/tmp/fml.mot6LM/pool/.treehouse/project-937e68/1/project
+project=/private/tmp/fml.mot6LM/project
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.mot6LM/pool/.treehouse/project-937e68/1/project
+--- tmux pane_current_path / pane_current_command for firstmate:fm-fml-busy-39141
+/private/tmp/fml.mot6LM/pool/.treehouse/project-937e68/1/project sleep
+--- tmux capture-pane firstmate:fm-fml-busy-39141
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s /bin/zsh`.
+For more details, please visit https://support.apple.com/kb/HT208050.
+bash-3.2$ printf '%s\n' "$$" > '/tmp/fm-fml-busy-39141/treehouse-get.shell-pid'
+bash-3.2$ treehouse get
+A new version of treehouse is available: v3.1.0 → v3.1.4
+Run "treehouse update" to update
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.mot6LM/pool/.treehouse/project-937e68/1/
+project. Type 'exit' to return.
+(base) hcho@Chos-iMac-9711 project % export GOTMPDIR=/tmp/fm-fml-busy-39141/gotm
+p
+(base) hcho@Chos-iMac-9711 project % sh -c 'sleep 600'
+
+--- hook.log
+1792141485 02:04:45 hook start mode=busy:75 pid=40092 cwd=/private/tmp/fml.mot6LM/pool/.treehouse/project-937e68/1/project
+1792141560 02:06:00 hook end mode=busy:75 pid=40092
+1792141569 02:06:09 hook start mode=fast pid=76280 cwd=/private/tmp/fml.mot6LM/pool/.treehouse/project-937e68/1/project
+1792141569 02:06:09 hook end mode=fast pid=76280

@@ -1,0 +1,5 @@
+[00:14:34 +0s] world /private/tmp/fml.sFT2VU code-root /tmp/fml-base-dd5a411 backend tmux scenario slow hook_secs 100 n 2
+[00:14:34 +0s] FM_TREEHOUSE_GET_STALL_SECS=<default> MAX=<default> EXIT_GRACE=<default> START=<default>
+[00:14:34 +0s] spawn fml-slow-53689: start
+[00:15:43 +69s] spawn fml-slow-53689: exit 1 after 69s: warning: /private/tmp/fml.sFT2VU/home/data/fml-slow-53689/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches error: treehouse get did not enter a worktree within 60s; inspect window firstmate:fm-fml-slow-53689 
+[00:15:43 +69s] done

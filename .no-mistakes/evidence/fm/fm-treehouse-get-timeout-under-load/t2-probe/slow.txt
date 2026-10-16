@@ -1,0 +1,34 @@
+workspace create: {"id":"cli:workspace:create","result":{"root_pane":{"agent_status":"unknown","cwd":"/private/tmp/fmp.o7rW5I/project","focused":true,"foreground_cwd":"/private/tmp/fmp.o7rW5I/project","pane_id":"w1:p1","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":24},"tab_id":"w1:t1","terminal_id":"term_65df06a0da58b1","workspace_id":"w1"},"tab":{"agent_status":"unknown","focused":true,"label":"1","number":1,"pane_count":1,"tab_id":"w1:t1","workspace_id":"w1"},"type":"workspace_created","workspace":{"active_tab_id":"w1:t1","agent_status":"unknown","focused":true,"label":"probe","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"}}}
+pane=w1:p1
+00:50:15 t=1 get={"cwd":"/private/tmp/fmp.o7rW5I/project","fg":"/private/tmp/fmp.o7rW5I/project"} pi={"pgid":46034,"shell":45743,"fg":[{"pid":46065,"name":"git","cwd":"/private/tmp/fmp.o7rW5I/project"},{"pid":46034,"name":"treehouse","cwd":"/private/tmp/fmp.o7rW5I/project"}]}
+00:50:16 t=2 get={"cwd":"/private/tmp/fmp.o7rW5I/project","fg":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"} pi={"pgid":46034,"shell":45743,"fg":[{"pid":46500,"name":"sleep","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"},{"pid":46340,"name":"bash","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"},{"pid":46318,"name":"git","cwd":"/private/tmp/fmp.o7rW5I/project"},{"pid":46034,"name":"treehouse","cwd":"/private/tmp/fmp.o7rW5I/project"}]}
+00:50:17 t=3 get={"cwd":"/private/tmp/fmp.o7rW5I/project","fg":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"} pi={"pgid":46034,"shell":45743,"fg":[{"pid":47018,"name":"sleep","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"},{"pid":46340,"name":"bash","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"},{"pid":46318,"name":"git","cwd":"/private/tmp/fmp.o7rW5I/project"},{"pid":46034,"name":"treehouse","cwd":"/private/tmp/fmp.o7rW5I/project"}]}
+00:50:18 t=4 get={"cwd":"/private/tmp/fmp.o7rW5I/project","fg":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"} pi={"pgid":46034,"shell":45743,"fg":[{"pid":47367,"name":"sleep","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"},{"pid":46340,"name":"bash","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"},{"pid":46318,"name":"git","cwd":"/private/tmp/fmp.o7rW5I/project"},{"pid":46034,"name":"treehouse","cwd":"/private/tmp/fmp.o7rW5I/project"}]}
+00:50:19 t=5 get={"cwd":"/private/tmp/fmp.o7rW5I/project","fg":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"} pi={"pgid":46034,"shell":45743,"fg":[{"pid":47971,"name":"sleep","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"},{"pid":46340,"name":"bash","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"},{"pid":46318,"name":"git","cwd":"/private/tmp/fmp.o7rW5I/project"},{"pid":46034,"name":"treehouse","cwd":"/private/tmp/fmp.o7rW5I/project"}]}
+00:50:20 t=6 get={"cwd":"/private/tmp/fmp.o7rW5I/project","fg":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"} pi={"pgid":48208,"shell":45743,"fg":[{"pid":48208,"name":"bash","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"}]}
+00:50:21 t=7 get={"cwd":"/private/tmp/fmp.o7rW5I/project","fg":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"} pi={"pgid":48208,"shell":45743,"fg":[{"pid":48208,"name":"bash","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"}]}
+00:50:22 t=8 get={"cwd":"/private/tmp/fmp.o7rW5I/project","fg":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"} pi={"pgid":48208,"shell":45743,"fg":[{"pid":48208,"name":"bash","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"}]}
+00:50:24 t=9 get={"cwd":"/private/tmp/fmp.o7rW5I/project","fg":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"} pi={"pgid":48208,"shell":45743,"fg":[{"pid":48208,"name":"bash","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"}]}
+00:50:25 t=10 get={"cwd":"/private/tmp/fmp.o7rW5I/project","fg":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"} pi={"pgid":48208,"shell":45743,"fg":[{"pid":48208,"name":"bash","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"}]}
+00:50:26 t=11 get={"cwd":"/private/tmp/fmp.o7rW5I/project","fg":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"} pi={"pgid":48208,"shell":45743,"fg":[{"pid":48208,"name":"bash","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"}]}
+00:50:27 t=12 get={"cwd":"/private/tmp/fmp.o7rW5I/project","fg":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"} pi={"pgid":48208,"shell":45743,"fg":[{"pid":48208,"name":"bash","cwd":"/private/tmp/fmp.o7rW5I/pool/.treehouse/project-ecc84a/1/project"}]}
+--- pane read
+s /bin/zsh`.
+For more details, please visit https://support.apple.
+com/kb/HT208050.
+bash-3.2$ treehouse get
+A new version of treehouse is available: v3.1.0 → v3.
+1.4
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fmp.o7rW5I/pool/.
+treehouse/project-ecc84a/1/project. Type 'exit' to re
+turn.
+
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -
+s /bin/zsh`.
+For more details, please visit https://support.apple.
+com/kb/HT208050.
+bash-3.2$

@@ -1,0 +1,16 @@
+### fml-fail-6929
+rc=1 elapsed=17s
+--- spawn transcript
+warning: /private/tmp/fml.2SatlK/home/data/fml-fail-6929/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: treehouse get exited without entering a worktree (nothing is running in the pane's shell; read the pane for its error); inspect window fm-lab-fm-live-thw-7108-15371:w2:p2
+warning: herdr presentation cleanup could not verify the exact pane; refusing focus-unsafe pane close
+--- no state/fml-fail-6929.meta (no task recorded)
+--- presentation journal state/fml-fail-6929.herdr-presentation still present
+
+--- hook.log
+1792135488 00:24:48 hook start mode=fast pid=11209 cwd=/private/tmp/fml.2SatlK/pool/.treehouse/project-9f39dc/1/project
+1792135488 00:24:48 hook end mode=fast pid=11209
+1792135497 00:24:58 hook start mode=fail pid=25597 cwd=/private/tmp/fml.2SatlK/pool/.treehouse/project-9f39dc/2/project
+1792135498 00:24:58 hook fail pid=25597
+1792135518 00:25:18 hook start mode=fast pid=39659 cwd=/private/tmp/fml.2SatlK/pool/.treehouse/project-9f39dc/1/project
+1792135518 00:25:18 hook end mode=fast pid=39659

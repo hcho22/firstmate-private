@@ -1,0 +1,2 @@
+warning: /private/tmp/fml.wtz5i5/home/data/fml-slowfail-82541/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: treehouse get exited without entering a worktree (nothing is running in the pane's shell; read the pane for its error); inspect window firstmate:fm-fml-slowfail-82541

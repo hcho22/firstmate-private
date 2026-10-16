@@ -1,0 +1,5 @@
+[01:14:24 +0s] world /private/tmp/fml.yHNsSP code-root /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M51B1HENTJ72NPQ4TPKNB0C4 backend tmux scenario slowfail hook_secs 20 n 2
+[01:14:24 +0s] FM_TREEHOUSE_GET_STALL_SECS=<default> MAX=<default> EXIT_GRACE=<default> START=<default>
+[01:14:24 +0s] spawn fml-slowfail-18495: start
+[01:14:58 +34s] spawn fml-slowfail-18495: exit 1 after 34s: warning: /private/tmp/fml.yHNsSP/home/data/fml-slowfail-18495/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches error: treehouse get exited without entering a worktree (nothing is running in the pane's shell; read the pane for its error); inspect window firstmate:fm-f
+[01:14:58 +34s] done

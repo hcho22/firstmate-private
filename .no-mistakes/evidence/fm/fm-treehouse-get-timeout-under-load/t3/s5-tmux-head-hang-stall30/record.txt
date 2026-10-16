@@ -1,0 +1,9 @@
+### fml-hang-12176
+rc=1 elapsed=33s
+--- spawn transcript
+warning: /private/tmp/fml.4VdIiF/home/data/fml-hang-12176/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: treehouse get made no progress for 30s (waiting on: sleep 86400); inspect window firstmate:fm-fml-hang-12176
+--- no state/fml-hang-12176.meta (no task recorded)
+
+--- hook.log
+1792141445 02:04:05 hook start mode=hang pid=15040 cwd=/private/tmp/fml.4VdIiF/pool/.treehouse/project-b6de18/1/project

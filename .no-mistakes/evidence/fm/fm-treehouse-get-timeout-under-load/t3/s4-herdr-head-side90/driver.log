@@ -1,0 +1,18 @@
+[02:02:14 +0s] world /private/tmp/fml.SPrHuQ code-root /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M51B1HENTJ72NPQ4TPKNB0C4 backend herdr scenario side hook_secs 90 n 2
+[02:02:14 +0s] FM_TREEHOUSE_GET_STALL_SECS=<default> MAX=<default> EXIT_GRACE=<default> START=<default>
+[02:02:15 +1s] provisioned isolated Herdr lab session fm-lab-fm-live-thw-62584-8341 (projected presentation on)
+[02:02:15 +1s] spawn fml-w-62458: start
+[02:02:23 +9s] spawn fml-w-62458: exit 0 after 8s: warning: /private/tmp/fml.SPrHuQ/home/data/fml-w-62458/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches warning: herdr presentation parent is absent or ambiguous; using the ordinary flat layout without projection spawned fml-w-62458 harness=sh kind=ship mode=no-mista
+[02:02:23 +9s] spawn fml-side-62458: start
+[02:02:33 +19s] spawn fml-other-62458: start
+[02:02:43 +29s] spawn fml-other-62458: exit 0 after 10s: warning: /private/tmp/fml.SPrHuQ/home/data/fml-other-62458/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-other-62458 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-62584-8341:w3:p2 worktree=/private/tmp/fml.SPrHuQ/pool2/.treeh
+[02:02:43 +29s] while the slow get runs: hook.log tail: 1792141348 02:02:28 hook start mode=slow:90 pid=67887 cwd=/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project
+[02:02:43 +29s] slow spawn fml-side-62458 still waiting on its get after fml-other-62458 launched
+[02:02:46 +32s] teardown fml-w-62458 is past its start and still running (waits in treehouse return behind the get's pool lock)
+[02:04:11 +117s] teardown fml-w-62458: exit 0 after 87s; meta left: no; worktrees: 3
+[02:04:14 +120s] spawn fml-side-62458: exit 0 after 111s: warning: /private/tmp/fml.SPrHuQ/home/data/fml-side-62458/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-side-62458 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-62584-8341:w2:p2 worktree=/private/tmp/fml.SPrHuQ/pool/.treehous
+[02:04:14 +120s] teardown fml-w-62458 transcript: teardown: reaping leaked worktree process(es) for fml-w-62458: 64378 65921 teardown: force-killing leaked worktree process(es) for fml-w-62458: 64378 A new version of treehouse is available: v3.1.0 → v3.1.4 Run "treehouse update" to update  🌳 Worktree returned to pool. /private/tmp/fml.SPrHuQ/project: already current teardown fml-w-62458 complete (window fm-lab-fm-live-thw-62584-8341:w1:p2, worktr
+[02:04:25 +131s] teardown fml-side-62458: exit 1 after 11s; meta left: yes; worktrees: 3
+[02:04:38 +144s] teardown fml-other-62458: exit 0 after 13s; meta left: no; worktrees: 3
+[02:04:38 +144s] done
+[02:04:39 +145s] lab session fm-lab-fm-live-thw-62584-8341 torn down; default fleet session unchanged

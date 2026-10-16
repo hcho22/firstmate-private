@@ -1,0 +1,9 @@
+teardown: reaping leaked worktree process(es) for fml-busy-39141: 71295 73693
+teardown: force-killing leaked worktree process(es) for fml-busy-39141: 71295
+A new version of treehouse is available: v3.1.0 → v3.1.4
+Run "treehouse update" to update
+
+🌳 Worktree returned to pool.
+/private/tmp/fml.mot6LM/project: already current
+teardown fml-busy-39141 complete (window firstmate:fm-fml-busy-39141, worktree /private/tmp/fml.mot6LM/pool/.treehouse/project-937e68/1/project)
+Backlog: fml-busy-39141 just finished (this home keeps no backlog at /private/tmp/fml.mot6LM/home/data/backlog.md). Update /private/tmp/fml.mot6LM/home/data/backlog.md - move fml-busy-39141 to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.

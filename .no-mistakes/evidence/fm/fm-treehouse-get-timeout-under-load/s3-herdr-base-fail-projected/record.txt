@@ -1,0 +1,16 @@
+### fml-fail-44000
+rc=1 elapsed=74s
+--- spawn transcript
+warning: /private/tmp/fml.EENnVx/home/data/fml-fail-44000/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: treehouse get did not enter a worktree within 60s; inspect window fm-lab-fm-live-thw-44139-22126:w2:p2
+warning: herdr presentation cleanup could not verify the exact pane; refusing focus-unsafe pane close
+--- no state/fml-fail-44000.meta (no task recorded)
+--- presentation journal state/fml-fail-44000.herdr-presentation still present
+
+--- hook.log
+1792135867 00:31:07 hook start mode=fast pid=45976 cwd=/private/tmp/fml.EENnVx/pool/.treehouse/project-69f7a6/1/project
+1792135867 00:31:07 hook end mode=fast pid=45976
+1792135874 00:31:14 hook start mode=fail pid=48145 cwd=/private/tmp/fml.EENnVx/pool/.treehouse/project-69f7a6/2/project
+1792135874 00:31:14 hook fail pid=48145
+1792135951 00:32:31 hook start mode=fast pid=60598 cwd=/private/tmp/fml.EENnVx/pool/.treehouse/project-69f7a6/1/project
+1792135951 00:32:31 hook end mode=fast pid=60598

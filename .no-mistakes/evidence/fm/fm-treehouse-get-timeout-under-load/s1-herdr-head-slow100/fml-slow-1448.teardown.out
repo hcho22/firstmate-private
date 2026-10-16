@@ -1,0 +1,8 @@
+teardown: reaping leaked worktree process(es) for fml-slow-1448: 2929 5657
+A new version of treehouse is available: v3.1.0 → v3.1.4
+Run "treehouse update" to update
+
+🌳 Worktree returned to pool.
+/private/tmp/fml.sTawOb/project: already current
+teardown fml-slow-1448 complete (window fm-lab-fm-live-thw-1515-13878:w1:p2, worktree /private/tmp/fml.sTawOb/pool/.treehouse/project-1e00e8/1/project)
+Backlog: fml-slow-1448 just finished (this home keeps no backlog at /private/tmp/fml.sTawOb/home/data/backlog.md). Update /private/tmp/fml.sTawOb/home/data/backlog.md - move fml-slow-1448 to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.

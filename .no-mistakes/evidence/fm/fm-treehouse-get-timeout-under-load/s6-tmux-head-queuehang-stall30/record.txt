@@ -1,0 +1,16 @@
+### fml-qh1-6928
+rc=1 elapsed=35s
+--- spawn transcript
+warning: /private/tmp/fml.IqzuXW/home/data/fml-qh1-6928/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: treehouse get made no progress for 30s (waiting on: sleep 86400); inspect window firstmate:fm-fml-qh1-6928
+--- no state/fml-qh1-6928.meta (no task recorded)
+
+### fml-qh2-6928
+rc=1 elapsed=34s
+--- spawn transcript
+warning: /private/tmp/fml.IqzuXW/home/data/fml-qh2-6928/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: treehouse get made no progress for 30s (waiting on: treehouse get), and nothing else holding its pool lock (treehouse-state.lock) open advanced either: pid 8812 (treehouse get); inspect window firstmate:fm-fml-qh2-6928
+--- no state/fml-qh2-6928.meta (no task recorded)
+
+--- hook.log
+1792135485 00:24:45 hook start mode=hang pid=9019 cwd=/private/tmp/fml.IqzuXW/pool/.treehouse/project-9f48b4/1/project

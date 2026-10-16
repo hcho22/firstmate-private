@@ -1,0 +1,6 @@
+[02:04:43 +0s] world /private/tmp/fml.mot6LM code-root /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M51B1HENTJ72NPQ4TPKNB0C4 backend tmux scenario busy hook_secs 75 n 2
+[02:04:43 +0s] FM_TREEHOUSE_GET_STALL_SECS=20 MAX=<default> EXIT_GRACE=<default> START=<default>
+[02:04:43 +0s] spawn fml-busy-39141: start
+[02:06:03 +80s] spawn fml-busy-39141: exit 0 after 80s: warning: /private/tmp/fml.mot6LM/home/data/fml-busy-39141/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-busy-39141 harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fml-busy-39141 worktree=/private/tmp/fml.mot6LM/pool/.treehouse/projec
+[02:06:12 +89s] teardown fml-busy-39141: exit 0 after 9s; meta left: no; worktrees: 2
+[02:06:12 +89s] done

@@ -1,0 +1,77 @@
+### fml-q1-7491
+rc=0 elapsed=117s
+--- spawn transcript
+warning: /private/tmp/fml.JPEi6R/home1/data/fml-q1-7491/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-q1-7491 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-7783-21195:w3:p2 worktree=/private/tmp/fml.JPEi6R/pool/.treehouse/project-60b7ea/3/project
+--- state/fml-q1-7491.meta (worktree and endpoint)
+window=fm-lab-fm-live-thw-7783-21195:w3:p2
+worktree=/private/tmp/fml.JPEi6R/pool/.treehouse/project-60b7ea/3/project
+project=/private/tmp/fml.JPEi6R/project
+backend=herdr
+herdr_pane_id=w3:p2
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.JPEi6R/pool/.treehouse/project-60b7ea/3/project
+--- herdr pane process-info w3:p2
+unknown option: w3:p2
+
+--- herdr pane read w3:p2
+Run "treehouse update" to update
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.JPEi6R/pool/.t
+reehouse/project-60b7ea/3/project. Type 'exit' to retu
+rn.
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ export GOTMPDIR=/tmp/fm-fml-q1-7491/gotmp
+bash-3.2$ sh -c 'sleep 600'
+
+### fml-q2-7491
+rc=0 elapsed=221s
+--- spawn transcript
+warning: /private/tmp/fml.JPEi6R/home2/data/fml-q2-7491/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-q2-7491 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-7783-21195:w4:p2 worktree=/private/tmp/fml.JPEi6R/pool/.treehouse/project-60b7ea/4/project
+--- state/fml-q2-7491.meta (worktree and endpoint)
+window=fm-lab-fm-live-thw-7783-21195:w4:p2
+worktree=/private/tmp/fml.JPEi6R/pool/.treehouse/project-60b7ea/4/project
+project=/private/tmp/fml.JPEi6R/project
+backend=herdr
+herdr_pane_id=w4:p2
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.JPEi6R/pool/.treehouse/project-60b7ea/4/project
+--- herdr pane process-info w4:p2
+unknown option: w4:p2
+
+--- herdr pane read w4:p2
+Run "treehouse update" to update
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.JPEi6R/pool/.t
+reehouse/project-60b7ea/4/project. Type 'exit' to retu
+rn.
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ export GOTMPDIR=/tmp/fm-fml-q2-7491/gotmp
+bash-3.2$ sh -c 'sleep 600'
+
+--- hook.log
+1792141713 02:08:33 hook start mode=fast pid=11903 cwd=/private/tmp/fml.JPEi6R/pool/.treehouse/project-60b7ea/1/project
+1792141713 02:08:33 hook end mode=fast pid=11903
+1792141721 02:08:41 hook start mode=fast pid=17704 cwd=/private/tmp/fml.JPEi6R/pool/.treehouse/project-60b7ea/2/project
+1792141721 02:08:41 hook end mode=fast pid=17704
+1792141730 02:08:50 hook start mode=slow:100 pid=22267 cwd=/private/tmp/fml.JPEi6R/pool/.treehouse/project-60b7ea/3/project
+1792141837 02:10:37 hook end mode=slow:100 pid=22267
+1792141837 02:10:37 hook start mode=slow:100 pid=67186 cwd=/private/tmp/fml.JPEi6R/pool/.treehouse/project-60b7ea/4/project
+1792141947 02:12:27 hook end mode=slow:100 pid=67186
+1792141958 02:12:38 hook start mode=fast pid=89457 cwd=/private/tmp/fml.JPEi6R/pool/.treehouse/project-60b7ea/3/project
+1792141958 02:12:38 hook end mode=fast pid=89457
+1792141972 02:12:52 hook start mode=fast pid=93781 cwd=/private/tmp/fml.JPEi6R/pool/.treehouse/project-60b7ea/4/project
+1792141972 02:12:52 hook end mode=fast pid=93781
+1792141984 02:13:04 hook start mode=fast pid=95269 cwd=/private/tmp/fml.JPEi6R/pool/.treehouse/project-60b7ea/1/project
+1792141984 02:13:04 hook end mode=fast pid=95269
+1792141996 02:13:16 hook start mode=fast pid=99268 cwd=/private/tmp/fml.JPEi6R/pool/.treehouse/project-60b7ea/2/project
+1792141996 02:13:16 hook end mode=fast pid=99268

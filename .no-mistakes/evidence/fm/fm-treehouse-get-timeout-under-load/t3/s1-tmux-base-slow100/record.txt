@@ -1,0 +1,9 @@
+### fml-slow-28689
+rc=1 elapsed=69s
+--- spawn transcript
+warning: /private/tmp/fml.jFUHzl/home/data/fml-slow-28689/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: treehouse get did not enter a worktree within 60s; inspect window firstmate:fm-fml-slow-28689
+--- no state/fml-slow-28689.meta (no task recorded)
+
+--- hook.log
+1792141250 02:00:50 hook start mode=slow:100 pid=30299 cwd=/private/tmp/fml.jFUHzl/pool/.treehouse/project-700906/1/project

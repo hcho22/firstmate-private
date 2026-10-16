@@ -1,0 +1,9 @@
+teardown: reaping leaked worktree process(es) for fml-q4-42460: 91210 93520
+teardown: force-killing leaked worktree process(es) for fml-q4-42460: 91210
+A new version of treehouse is available: v3.1.0 → v3.1.4
+Run "treehouse update" to update
+
+🌳 Worktree returned to pool.
+/private/tmp/fml.Iopd0F/project: already current
+teardown fml-q4-42460 complete (window fm-lab-fm-live-thw-42561-17664:w5:p2, worktree /private/tmp/fml.Iopd0F/pool/.treehouse/project-30f3bc/5/project)
+Backlog: fml-q4-42460 just finished (this home keeps no backlog at /private/tmp/fml.Iopd0F/home/data/backlog.md). Update /private/tmp/fml.Iopd0F/home/data/backlog.md - move fml-q4-42460 to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.

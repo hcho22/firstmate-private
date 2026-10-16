@@ -1,0 +1,14 @@
+### fml-slowfail-7478
+rc=1 elapsed=38s
+--- spawn transcript
+warning: /private/tmp/fml.Busb3Q/home/data/fml-slowfail-7478/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: treehouse get exited without entering a worktree (nothing is running in the pane's shell; read the pane for its error); inspect window fm-lab-fm-live-thw-7782-4357:w2:p2
+--- no state/fml-slowfail-7478.meta (no task recorded)
+
+--- hook.log
+1792141713 02:08:33 hook start mode=fast pid=11748 cwd=/private/tmp/fml.Busb3Q/pool/.treehouse/project-1599e3/1/project
+1792141713 02:08:33 hook end mode=fast pid=11748
+1792141721 02:08:41 hook start mode=slowfail:20 pid=17678 cwd=/private/tmp/fml.Busb3Q/pool/.treehouse/project-1599e3/2/project
+1792141743 02:09:03 hook fail pid=17678
+1792141762 02:09:22 hook start mode=fast pid=40078 cwd=/private/tmp/fml.Busb3Q/pool/.treehouse/project-1599e3/1/project
+1792141762 02:09:22 hook end mode=fast pid=40078

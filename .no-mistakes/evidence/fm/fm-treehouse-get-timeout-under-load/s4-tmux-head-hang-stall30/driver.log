@@ -1,0 +1,5 @@
+[00:19:24 +0s] world /private/tmp/fml.JnhdxF code-root /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M51B1HENTJ72NPQ4TPKNB0C4 backend tmux scenario hang hook_secs 100 n 2
+[00:19:24 +0s] FM_TREEHOUSE_GET_STALL_SECS=30 MAX=<default> EXIT_GRACE=<default> START=<default>
+[00:19:24 +0s] spawn fml-hang-54001: start
+[00:19:59 +35s] spawn fml-hang-54001: exit 1 after 35s: warning: /private/tmp/fml.JnhdxF/home/data/fml-hang-54001/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches error: treehouse get made no progress for 30s (waiting on: sleep 86400); inspect window firstmate:fm-fml-hang-54001 
+[00:19:59 +35s] done

@@ -1,0 +1,10 @@
+[02:08:28 +0s] world /private/tmp/fml.Busb3Q code-root /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M51B1HENTJ72NPQ4TPKNB0C4 backend herdr scenario slowfail hook_secs 20 n 2
+[02:08:28 +0s] FM_TREEHOUSE_GET_STALL_SECS=<default> MAX=<default> EXIT_GRACE=<default> START=<default>
+[02:08:29 +1s] provisioned isolated Herdr lab session fm-lab-fm-live-thw-7782-4357 (projected presentation on)
+[02:08:29 +1s] spawn fml-w-7478: start
+[02:08:37 +9s] spawn fml-w-7478: exit 0 after 8s: warning: /private/tmp/fml.Busb3Q/home/data/fml-w-7478/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches warning: herdr presentation parent is absent or ambiguous; using the ordinary flat layout without projection spawned fml-w-7478 harness=sh kind=ship mode=no-mistake
+[02:08:37 +9s] spawn fml-slowfail-7478: start
+[02:09:15 +47s] spawn fml-slowfail-7478: exit 1 after 38s: warning: /private/tmp/fml.Busb3Q/home/data/fml-slowfail-7478/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches error: treehouse get exited without entering a worktree (nothing is running in the pane's shell; read the pane for its error); inspect window fm-lab-fm-live-
+[02:09:26 +58s] teardown fml-w-7478: exit 0 after 11s; meta left: no; worktrees: 3
+[02:09:26 +58s] done
+[02:09:28 +60s] lab session fm-lab-fm-live-thw-7782-4357 torn down; default fleet session unchanged

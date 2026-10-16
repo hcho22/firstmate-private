@@ -1,0 +1,3 @@
+warning: /private/tmp/fml.vbQ5gB/home/data/fml-w-91953/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+warning: herdr presentation parent is absent or ambiguous; using the ordinary flat layout without projection
+spawned fml-w-91953 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-92007-10335:w1:p2 worktree=/private/tmp/fml.vbQ5gB/pool/.treehouse/project-9823c6/1/project

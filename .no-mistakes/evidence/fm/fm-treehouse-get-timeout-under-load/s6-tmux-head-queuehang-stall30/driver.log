@@ -1,0 +1,7 @@
+[00:24:42 +0s] world /private/tmp/fml.IqzuXW code-root /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M51B1HENTJ72NPQ4TPKNB0C4 backend tmux scenario queuehang hook_secs 100 n 2
+[00:24:42 +0s] FM_TREEHOUSE_GET_STALL_SECS=30 MAX=<default> EXIT_GRACE=<default> START=<default>
+[00:24:42 +0s] spawn fml-qh1-6928: start
+[00:24:47 +5s] spawn fml-qh2-6928: start
+[00:25:17 +35s] spawn fml-qh1-6928: exit 1 after 35s: warning: /private/tmp/fml.IqzuXW/home/data/fml-qh1-6928/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches error: treehouse get made no progress for 30s (waiting on: sleep 86400); inspect window firstmate:fm-fml-qh1-6928 
+[00:25:21 +39s] spawn fml-qh2-6928: exit 1 after 34s: warning: /private/tmp/fml.IqzuXW/home/data/fml-qh2-6928/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches error: treehouse get made no progress for 30s (waiting on: treehouse get), and nothing else holding its pool lock (treehouse-state.lock) open advanced either: pid
+[00:25:21 +39s] done

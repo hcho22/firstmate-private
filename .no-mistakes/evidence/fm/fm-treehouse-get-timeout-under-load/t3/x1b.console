@@ -1,0 +1,13 @@
+[02:07:49 +0s] world /private/tmp/fml.vbQ5gB code-root /private/tmp/fml-base.m8aOPH backend herdr scenario order hook_secs 100 n 2
+[02:07:49 +0s] FM_TREEHOUSE_GET_STALL_SECS=<default> MAX=<default> EXIT_GRACE=<default> START=<default>
+[02:07:49 +0s] provisioned isolated Herdr lab session fm-lab-fm-live-thw-92007-10335 (projected presentation on)
+[02:07:49 +0s] spawn fml-w-91953: start
+[02:07:56 +7s] spawn fml-w-91953: exit 0 after 7s: warning: /private/tmp/fml.vbQ5gB/home/data/fml-w-91953/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches warning: herdr presentation parent is absent or ambiguous; using the ordinary flat layout without projection spawned fml-w-91953 harness=sh kind=ship mode=no-mista
+[02:07:56 +7s] spawn fml-ord-91953: start
+[02:08:04 +15s] spawn fml-ord-91953: exit 0 after 8s: warning: /private/tmp/fml.vbQ5gB/home/data/fml-ord-91953/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-ord-91953 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-92007-10335:w2:p2 worktree=/private/tmp/fml.vbQ5gB/pool/.treehouse
+[02:08:16 +27s] teardown fml-w-91953: exit 0 after 12s; meta left: no; worktrees: 3
+[02:08:16 +27s] teardown fml-w-91953 transcript: teardown: reaping leaked worktree process(es) for fml-w-91953: 93107 93952 teardown: force-killing leaked worktree process(es) for fml-w-91953: 93107 A new version of treehouse is available: v3.1.0 → v3.1.4 Run "treehouse update" to update  🌳 Worktree returned to pool. /private/tmp/fml.vbQ5gB/projec
+[02:08:27 +38s] teardown fml-ord-91953: exit 1 after 11s; meta left: yes; worktrees: 3
+[02:08:27 +38s] teardown fml-ord-91953 transcript: teardown: reaping leaked worktree process(es) for fml-ord-91953: 95175 97778 teardown: force-killing leaked worktree process(es) for fml-ord-91953: 95175 A new version of treehouse is available: v3.1.0 → v3.1.4 Run "treehouse update" to update  🌳 Worktree returned to pool. warning: herdr presentation cleanup target is the captain's active tab; refusing a close that cannot preserve focus warning: exact herdr task-pane close could not be confirmed for fml-ord-91953; retaining the presentation journal and attempting no workspace cleanup error: herdr pane fm-lab-fm-live-thw-92007-10335:w2:p2 for f
+[02:08:27 +38s] done
+[02:08:28 +39s] lab session fm-lab-fm-live-thw-92007-10335 torn down; default fleet session unchanged

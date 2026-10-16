@@ -1,0 +1,10 @@
+[00:31:04 +0s] world /private/tmp/fml.EENnVx code-root /tmp/fml-base-dd5a411 backend herdr scenario fail hook_secs 100 n 2
+[00:31:04 +0s] FM_TREEHOUSE_GET_STALL_SECS=<default> MAX=<default> EXIT_GRACE=<default> START=<default>
+[00:31:04 +0s] provisioned isolated Herdr lab session fm-lab-fm-live-thw-44139-22126 (projected presentation on)
+[00:31:04 +0s] spawn fml-w-44000: start
+[00:31:11 +7s] spawn fml-w-44000: exit 0 after 7s: warning: /private/tmp/fml.EENnVx/home/data/fml-w-44000/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches warning: herdr presentation parent is absent or ambiguous; using the ordinary flat layout without projection spawned fml-w-44000 harness=sh kind=ship mode=no-mista
+[00:31:11 +7s] spawn fml-fail-44000: start
+[00:32:25 +81s] spawn fml-fail-44000: exit 1 after 74s: warning: /private/tmp/fml.EENnVx/home/data/fml-fail-44000/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches error: treehouse get did not enter a worktree within 60s; inspect window fm-lab-fm-live-thw-44139-22126:w2:p2 warning: herdr presentation cleanup could not veri
+[00:32:34 +90s] teardown fml-w-44000: exit 0 after 9s; meta left: no; worktrees: 3
+[00:32:34 +90s] done
+[00:32:36 +92s] lab session fm-lab-fm-live-thw-44139-22126 torn down; default fleet session unchanged

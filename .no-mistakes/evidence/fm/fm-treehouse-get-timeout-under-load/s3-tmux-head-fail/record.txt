@@ -1,0 +1,10 @@
+### fml-fail-54000
+rc=1 elapsed=13s
+--- spawn transcript
+warning: /private/tmp/fml.xIWcEC/home/data/fml-fail-54000/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: treehouse get exited without entering a worktree (nothing is running in the pane's shell; read the pane for its error); inspect window firstmate:fm-fml-fail-54000
+--- no state/fml-fail-54000.meta (no task recorded)
+
+--- hook.log
+1792135166 00:19:26 hook start mode=fail pid=56575 cwd=/private/tmp/fml.xIWcEC/pool/.treehouse/project-265c70/1/project
+1792135166 00:19:26 hook fail pid=56575

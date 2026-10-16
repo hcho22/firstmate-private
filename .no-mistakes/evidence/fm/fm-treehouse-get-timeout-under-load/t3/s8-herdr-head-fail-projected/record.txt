@@ -1,0 +1,14 @@
+### fml-fail-12183
+rc=1 elapsed=16s
+--- spawn transcript
+warning: /private/tmp/fml.VwM63h/home/data/fml-fail-12183/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: treehouse get exited without entering a worktree (nothing is running in the pane's shell; read the pane for its error); inspect window fm-lab-fm-live-thw-12372-19536:w2:p2
+--- no state/fml-fail-12183.meta (no task recorded)
+
+--- hook.log
+1792141448 02:04:08 hook start mode=fast pid=16680 cwd=/private/tmp/fml.VwM63h/pool/.treehouse/project-979ce5/1/project
+1792141448 02:04:08 hook end mode=fast pid=16680
+1792141457 02:04:17 hook start mode=fail pid=24078 cwd=/private/tmp/fml.VwM63h/pool/.treehouse/project-979ce5/2/project
+1792141457 02:04:17 hook fail pid=24078
+1792141477 02:04:37 hook start mode=fast pid=35397 cwd=/private/tmp/fml.VwM63h/pool/.treehouse/project-979ce5/1/project
+1792141477 02:04:37 hook end mode=fast pid=35397

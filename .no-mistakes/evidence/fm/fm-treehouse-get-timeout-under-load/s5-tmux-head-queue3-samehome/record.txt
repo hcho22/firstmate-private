@@ -1,0 +1,94 @@
+### fml-q1-6924
+rc=0 elapsed=84s
+--- spawn transcript
+warning: /private/tmp/fml.nIPY1m/home/data/fml-q1-6924/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-q1-6924 harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fml-q1-6924 worktree=/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/1/project
+--- state/fml-q1-6924.meta (worktree and endpoint)
+window=firstmate:fm-fml-q1-6924
+worktree=/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/1/project
+project=/private/tmp/fml.nIPY1m/project
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/1/project
+--- tmux pane_current_path / pane_current_command for firstmate:fm-fml-q1-6924
+/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/1/project sleep
+--- tmux capture-pane firstmate:fm-fml-q1-6924
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s /bin/zsh`.
+For more details, please visit https://support.apple.com/kb/HT208050.
+bash-3.2$ printf '%s\n' "$$" > '/tmp/fm-fml-q1-6924/treehouse-get.shell-pid'
+bash-3.2$ treehouse get
+A new version of treehouse is available: v3.1.0 → v3.1.4
+Run "treehouse update" to update
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/1/
+project. Type 'exit' to return.
+(base) hcho@Chos-iMac-9711 project % export GOTMPDIR=/tmp/fm-fml-q1-6924/gotmp
+(base) hcho@Chos-iMac-9711 project % sh -c 'sleep 600'
+
+### fml-q2-6924
+rc=0 elapsed=157s
+--- spawn transcript
+warning: /private/tmp/fml.nIPY1m/home/data/fml-q2-6924/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-q2-6924 harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fml-q2-6924 worktree=/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/2/project
+--- state/fml-q2-6924.meta (worktree and endpoint)
+window=firstmate:fm-fml-q2-6924
+worktree=/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/2/project
+project=/private/tmp/fml.nIPY1m/project
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/2/project
+--- tmux pane_current_path / pane_current_command for firstmate:fm-fml-q2-6924
+/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/2/project sleep
+--- tmux capture-pane firstmate:fm-fml-q2-6924
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s /bin/zsh`.
+For more details, please visit https://support.apple.com/kb/HT208050.
+bash-3.2$ printf '%s\n' "$$" > '/tmp/fm-fml-q2-6924/treehouse-get.shell-pid'
+bash-3.2$ treehouse get
+A new version of treehouse is available: v3.1.0 → v3.1.4
+Run "treehouse update" to update
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/2/
+project. Type 'exit' to return.
+(base) hcho@Chos-iMac-9711 project % export GOTMPDIR=/tmp/fm-fml-q2-6924/gotmp
+(base) hcho@Chos-iMac-9711 project % sh -c 'sleep 600'
+
+### fml-q3-6924
+rc=0 elapsed=230s
+--- spawn transcript
+warning: /private/tmp/fml.nIPY1m/home/data/fml-q3-6924/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-q3-6924 harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fml-q3-6924 worktree=/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/3/project
+--- state/fml-q3-6924.meta (worktree and endpoint)
+window=firstmate:fm-fml-q3-6924
+worktree=/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/3/project
+project=/private/tmp/fml.nIPY1m/project
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/3/project
+--- tmux pane_current_path / pane_current_command for firstmate:fm-fml-q3-6924
+/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/3/project sleep
+--- tmux capture-pane firstmate:fm-fml-q3-6924
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s /bin/zsh`.
+For more details, please visit https://support.apple.com/kb/HT208050.
+bash-3.2$ printf '%s\n' "$$" > '/tmp/fm-fml-q3-6924/treehouse-get.shell-pid'
+bash-3.2$ treehouse get
+A new version of treehouse is available: v3.1.0 → v3.1.4
+Run "treehouse update" to update
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/3/
+project. Type 'exit' to return.
+(base) hcho@Chos-iMac-9711 project % export GOTMPDIR=/tmp/fm-fml-q3-6924/gotmp
+(base) hcho@Chos-iMac-9711 project % sh -c 'sleep 600'
+
+--- hook.log
+1792135485 00:24:45 hook start mode=slow:70 pid=9201 cwd=/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/1/project
+1792135562 00:26:02 hook end mode=slow:70 pid=9201
+1792135562 00:26:02 hook start mode=slow:70 pid=62993 cwd=/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/2/project
+1792135638 00:27:18 hook end mode=slow:70 pid=62993
+1792135639 00:27:19 hook start mode=slow:70 pid=92694 cwd=/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/3/project
+1792135715 00:28:35 hook end mode=slow:70 pid=92694
+1792135726 00:28:46 hook start mode=fast pid=10958 cwd=/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/1/project
+1792135726 00:28:46 hook end mode=fast pid=10958
+1792135738 00:28:58 hook start mode=fast pid=14759 cwd=/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/2/project
+1792135738 00:28:58 hook end mode=fast pid=14759
+1792135749 00:29:09 hook start mode=fast pid=15755 cwd=/private/tmp/fml.nIPY1m/pool/.treehouse/project-776760/3/project
+1792135749 00:29:09 hook end mode=fast pid=15755

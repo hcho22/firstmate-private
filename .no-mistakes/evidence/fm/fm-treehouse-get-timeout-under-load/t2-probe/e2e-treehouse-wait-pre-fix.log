@@ -1,0 +1,4 @@
+ok - a slow but advancing treehouse get completes the launch on Herdr and records its worktree
+ok - a get that exits without a worktree is refused promptly on Herdr and says so
+not ok - a treehouse get that failed after a hook ran inside its new worktree launched on Herdr: warning: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-herdr-treehouse-wait.CSe0xj/home/data/hthw-hookfail-19500/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned hthw-hookfail-19500 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-herdr-treehou-19517-13294:w1:p4 worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-herdr-treehouse-wait.CSe0xj/pool/slot-24416

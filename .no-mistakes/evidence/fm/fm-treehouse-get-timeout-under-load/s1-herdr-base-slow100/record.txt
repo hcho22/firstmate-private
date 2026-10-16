@@ -1,0 +1,26 @@
+### fml-slow-1447
+rc=0 elapsed=8s
+--- spawn transcript
+warning: /private/tmp/fml.2wVZ4O/home/data/fml-slow-1447/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+warning: herdr presentation parent is absent or ambiguous; using the ordinary flat layout without projection
+spawned fml-slow-1447 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-1516-30716:w1:p2 worktree=/private/tmp/fml.2wVZ4O/pool/.treehouse/project-b62a05/1/project
+--- state/fml-slow-1447.meta (worktree and endpoint)
+window=fm-lab-fm-live-thw-1516-30716:w1:p2
+worktree=/private/tmp/fml.2wVZ4O/pool/.treehouse/project-b62a05/1/project
+project=/private/tmp/fml.2wVZ4O/project
+backend=herdr
+herdr_pane_id=w1:p2
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.2wVZ4O/pool/.treehouse/project-b62a05/1/project
+--- herdr pane process-info w1:p2
+unknown option: w1:p2
+
+--- herdr pane read w1:p2
+.4
+Run "treehouse update" to update
+🌳 Setting up worktree...
+export GOTMPDIR=/tmp/fm-fml-slow-1447/gotmp
+sh -c 'sleep 600'
+
+--- hook.log
+1792135017 00:16:57 hook start mode=slow:100 pid=2985 cwd=/private/tmp/fml.2wVZ4O/pool/.treehouse/project-b62a05/1/project

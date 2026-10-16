@@ -1,0 +1,11 @@
+[02:00:47 +0s] world /private/tmp/fml.EoplkY code-root /private/tmp/fml-base.m8aOPH backend herdr scenario slow hook_secs 100 n 2
+[02:00:47 +0s] FM_TREEHOUSE_GET_STALL_SECS=<default> MAX=<default> EXIT_GRACE=<default> START=<default>
+[02:00:48 +1s] provisioned isolated Herdr lab session fm-lab-fm-live-thw-28820-30123 (projected presentation on)
+[02:00:48 +1s] spawn fml-w-28696: start
+[02:00:56 +9s] spawn fml-w-28696: exit 0 after 8s: warning: /private/tmp/fml.EoplkY/home/data/fml-w-28696/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches warning: herdr presentation parent is absent or ambiguous; using the ordinary flat layout without projection spawned fml-w-28696 harness=sh kind=ship mode=no-mista
+[02:00:56 +9s] spawn fml-slow-28696: start
+[02:01:03 +16s] spawn fml-slow-28696: exit 0 after 7s: warning: /private/tmp/fml.EoplkY/home/data/fml-slow-28696/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-slow-28696 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-28820-30123:w2:p2 worktree=/private/tmp/fml.EoplkY/pool/.treehou
+[02:01:20 +33s] teardown fml-slow-28696: exit 0 after 16s; meta left: no; worktrees: 3
+[02:01:30 +43s] teardown fml-w-28696: exit 0 after 9s; meta left: no; worktrees: 3
+[02:01:30 +43s] done
+[02:01:31 +44s] lab session fm-lab-fm-live-thw-28820-30123 torn down; default fleet session unchanged

@@ -1,0 +1,10 @@
+### fml-slowfail-18495
+rc=1 elapsed=34s
+--- spawn transcript
+warning: /private/tmp/fml.yHNsSP/home/data/fml-slowfail-18495/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: treehouse get exited without entering a worktree (nothing is running in the pane's shell; read the pane for its error); inspect window firstmate:fm-fml-slowfail-18495
+--- no state/fml-slowfail-18495.meta (no task recorded)
+
+--- hook.log
+1792138466 01:14:26 hook start mode=slowfail:20 pid=19409 cwd=/private/tmp/fml.yHNsSP/pool/.treehouse/project-c4746f/1/project
+1792138488 01:14:48 hook fail pid=19409

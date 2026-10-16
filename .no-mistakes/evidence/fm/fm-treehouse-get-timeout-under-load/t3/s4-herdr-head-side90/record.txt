@@ -1,0 +1,69 @@
+### fml-side-62458
+rc=0 elapsed=111s
+--- spawn transcript
+warning: /private/tmp/fml.SPrHuQ/home/data/fml-side-62458/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-side-62458 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-62584-8341:w2:p2 worktree=/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project
+--- state/fml-side-62458.meta (worktree and endpoint)
+window=fm-lab-fm-live-thw-62584-8341:w2:p2
+worktree=/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project
+project=/private/tmp/fml.SPrHuQ/project
+backend=herdr
+herdr_pane_id=w2:p2
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project
+--- herdr pane process-info w2:p2
+unknown option: w2:p2
+
+--- herdr pane read w2:p2
+Run "treehouse update" to update
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.SPrHuQ/pool/.t
+reehouse/project-8ae5b9/2/project. Type 'exit' to retu
+rn.
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ export GOTMPDIR=/tmp/fm-fml-side-62458/gotmp
+bash-3.2$ sh -c 'sleep 600'
+
+### fml-other-62458
+rc=0 elapsed=10s
+--- spawn transcript
+warning: /private/tmp/fml.SPrHuQ/home/data/fml-other-62458/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-other-62458 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-62584-8341:w3:p2 worktree=/private/tmp/fml.SPrHuQ/pool2/.treehouse/project2-ec89dc/1/project2
+--- state/fml-other-62458.meta (worktree and endpoint)
+window=fm-lab-fm-live-thw-62584-8341:w3:p2
+worktree=/private/tmp/fml.SPrHuQ/pool2/.treehouse/project2-ec89dc/1/project2
+project=/private/tmp/fml.SPrHuQ/project2
+backend=herdr
+herdr_pane_id=w3:p2
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.SPrHuQ/pool2/.treehouse/project2-ec89dc/1/project2
+--- herdr pane process-info w3:p2
+unknown option: w3:p2
+
+--- herdr pane read w3:p2
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.SPrHuQ/pool2/.
+treehouse/project2-ec89dc/1/project2. Type 'exit' to r
+eturn.
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ export GOTMPDIR=/tmp/fm-fml-other-62458/gotm
+p
+bash-3.2$ sh -c 'sleep 600'
+
+--- hook.log
+1792141338 02:02:18 hook start mode=fast pid=64279 cwd=/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/1/project
+1792141338 02:02:18 hook end mode=fast pid=64279
+1792141348 02:02:28 hook start mode=slow:90 pid=67887 cwd=/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project
+1792141446 02:04:06 hook end mode=slow:90 pid=67887
+1792141446 02:04:06 hook start mode=fast pid=16172 cwd=/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/1/project
+1792141446 02:04:06 hook end mode=fast pid=16172
+1792141461 02:04:21 hook start mode=fast pid=26100 cwd=/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project
+1792141461 02:04:21 hook end mode=fast pid=26100

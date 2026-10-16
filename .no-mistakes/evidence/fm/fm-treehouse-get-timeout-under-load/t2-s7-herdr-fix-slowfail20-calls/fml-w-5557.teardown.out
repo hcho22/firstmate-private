@@ -1,0 +1,9 @@
+teardown: reaping leaked worktree process(es) for fml-w-5557: 7560 8535
+teardown: force-killing leaked worktree process(es) for fml-w-5557: 7560
+A new version of treehouse is available: v3.1.0 → v3.1.4
+Run "treehouse update" to update
+
+🌳 Worktree returned to pool.
+/private/tmp/fml.lcbnRS/project: already current
+teardown fml-w-5557 complete (window fm-lab-fm-live-thw-5603-10983:w1:p2, worktree /private/tmp/fml.lcbnRS/pool/.treehouse/project-ed53d2/1/project)
+Backlog: fml-w-5557 just finished (this home keeps no backlog at /private/tmp/fml.lcbnRS/home/data/backlog.md). Update /private/tmp/fml.lcbnRS/home/data/backlog.md - move fml-w-5557 to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.

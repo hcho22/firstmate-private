@@ -1,0 +1,7 @@
+A new version of treehouse is available: v3.1.0 → v3.1.4
+Run "treehouse update" to update
+
+🌳 Worktree returned to pool.
+/private/tmp/fml.Ekfo44/project: already current
+teardown fml-slowfail-7480 complete (window fm-lab-fm-live-thw-7784-5265:w2:p2, worktree /private/tmp/fml.Ekfo44/pool/.treehouse/project-98830c/2/project)
+Backlog: fml-slowfail-7480 just finished (this home keeps no backlog at /private/tmp/fml.Ekfo44/home/data/backlog.md). Update /private/tmp/fml.Ekfo44/home/data/backlog.md - move fml-slowfail-7480 to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.

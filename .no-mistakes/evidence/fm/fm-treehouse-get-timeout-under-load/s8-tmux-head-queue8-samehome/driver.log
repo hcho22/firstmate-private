@@ -1,0 +1,27 @@
+[00:36:15 +0s] world /private/tmp/fml.4VGfLm code-root /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M51B1HENTJ72NPQ4TPKNB0C4 backend tmux scenario queue hook_secs 20 n 8
+[00:36:15 +0s] FM_TREEHOUSE_GET_STALL_SECS=<default> MAX=<default> EXIT_GRACE=<default> START=<default>
+[00:36:16 +1s] spawn fml-q1-8563: start
+[00:36:19 +4s] spawn fml-q2-8563: start
+[00:36:22 +7s] spawn fml-q3-8563: start
+[00:36:24 +9s] spawn fml-q4-8563: start
+[00:36:27 +12s] spawn fml-q5-8563: start
+[00:36:30 +15s] spawn fml-q6-8563: start
+[00:36:33 +18s] spawn fml-q7-8563: start
+[00:36:36 +21s] spawn fml-q8-8563: start
+[00:36:45 +30s] spawn fml-q1-8563: exit 0 after 29s: warning: /private/tmp/fml.4VGfLm/home/data/fml-q1-8563/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q1-8563 harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fml-q1-8563 worktree=/private/tmp/fml.4VGfLm/pool/.treehouse/project-4e7e0e/
+[00:37:08 +53s] spawn fml-q2-8563: exit 0 after 49s: warning: /private/tmp/fml.4VGfLm/home/data/fml-q2-8563/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q2-8563 harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fml-q2-8563 worktree=/private/tmp/fml.4VGfLm/pool/.treehouse/project-4e7e0e/
+[00:37:30 +75s] spawn fml-q3-8563: exit 0 after 68s: warning: /private/tmp/fml.4VGfLm/home/data/fml-q3-8563/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q3-8563 harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fml-q3-8563 worktree=/private/tmp/fml.4VGfLm/pool/.treehouse/project-4e7e0e/
+[00:37:52 +97s] spawn fml-q4-8563: exit 0 after 88s: warning: /private/tmp/fml.4VGfLm/home/data/fml-q4-8563/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q4-8563 harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fml-q4-8563 worktree=/private/tmp/fml.4VGfLm/pool/.treehouse/project-4e7e0e/
+[00:38:14 +119s] spawn fml-q5-8563: exit 0 after 107s: warning: /private/tmp/fml.4VGfLm/home/data/fml-q5-8563/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q5-8563 harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fml-q5-8563 worktree=/private/tmp/fml.4VGfLm/pool/.treehouse/project-4e7e0e/
+[00:38:37 +142s] spawn fml-q6-8563: exit 0 after 127s: warning: /private/tmp/fml.4VGfLm/home/data/fml-q6-8563/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q6-8563 harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fml-q6-8563 worktree=/private/tmp/fml.4VGfLm/pool/.treehouse/project-4e7e0e/
+[00:38:58 +163s] spawn fml-q7-8563: exit 0 after 145s: warning: /private/tmp/fml.4VGfLm/home/data/fml-q7-8563/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q7-8563 harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fml-q7-8563 worktree=/private/tmp/fml.4VGfLm/pool/.treehouse/project-4e7e0e/
+[00:39:22 +187s] spawn fml-q8-8563: exit 0 after 166s: warning: /private/tmp/fml.4VGfLm/home/data/fml-q8-8563/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q8-8563 harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fml-q8-8563 worktree=/private/tmp/fml.4VGfLm/pool/.treehouse/project-4e7e0e/
+[00:39:37 +202s] teardown fml-q1-8563: exit 0 after 15s; meta left: no; worktrees: 9
+[00:39:48 +213s] teardown fml-q2-8563: exit 0 after 11s; meta left: no; worktrees: 9
+[00:40:01 +226s] teardown fml-q3-8563: exit 0 after 13s; meta left: no; worktrees: 9
+[00:40:12 +237s] teardown fml-q4-8563: exit 0 after 11s; meta left: no; worktrees: 9
+[00:40:22 +247s] teardown fml-q5-8563: exit 0 after 10s; meta left: no; worktrees: 9
+[00:40:32 +257s] teardown fml-q6-8563: exit 0 after 10s; meta left: no; worktrees: 9
+[00:40:41 +266s] teardown fml-q7-8563: exit 0 after 9s; meta left: no; worktrees: 9
+[00:40:52 +277s] teardown fml-q8-8563: exit 0 after 11s; meta left: no; worktrees: 9
+[00:40:52 +277s] done

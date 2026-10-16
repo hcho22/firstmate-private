@@ -1,0 +1,42 @@
+### fml-q1-53998
+rc=0 elapsed=8s
+--- spawn transcript
+warning: /private/tmp/fml.mW1exC/home1/data/fml-q1-53998/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-q1-53998 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-54192-27798:w3:p2 worktree=/private/tmp/fml.mW1exC/pool/.treehouse/project-802574/3/project
+--- state/fml-q1-53998.meta (worktree and endpoint)
+window=fm-lab-fm-live-thw-54192-27798:w3:p2
+worktree=/private/tmp/fml.mW1exC/pool/.treehouse/project-802574/3/project
+project=/private/tmp/fml.mW1exC/project
+backend=herdr
+herdr_pane_id=w3:p2
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.mW1exC/pool/.treehouse/project-802574/3/project
+--- herdr pane process-info w3:p2
+unknown option: w3:p2
+
+--- herdr pane read w3:p2
+.4
+Run "treehouse update" to update
+🌳 Setting up worktree...
+export GOTMPDIR=/tmp/fm-fml-q1-53998/gotmp
+sh -c 'sleep 600'
+
+### fml-q2-53998
+rc=1 elapsed=78s
+--- spawn transcript
+warning: /private/tmp/fml.mW1exC/home2/data/fml-q2-53998/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: treehouse get did not enter a worktree within 60s; inspect window fm-lab-fm-live-thw-54192-27798:w4:p2
+warning: herdr presentation cleanup could not verify the exact pane; refusing focus-unsafe pane close
+--- no state/fml-q2-53998.meta (no task recorded)
+--- presentation journal state/fml-q2-53998.herdr-presentation still present
+
+--- hook.log
+1792135168 00:19:28 hook start mode=fast pid=57515 cwd=/private/tmp/fml.mW1exC/pool/.treehouse/project-802574/1/project
+1792135168 00:19:28 hook end mode=fast pid=57515
+1792135175 00:19:35 hook start mode=fast pid=62982 cwd=/private/tmp/fml.mW1exC/pool/.treehouse/project-802574/2/project
+1792135175 00:19:35 hook end mode=fast pid=62982
+1792135183 00:19:43 hook start mode=slow:100 pid=67122 cwd=/private/tmp/fml.mW1exC/pool/.treehouse/project-802574/3/project
+1792135287 00:21:27 hook start mode=fast pid=21856 cwd=/private/tmp/fml.mW1exC/pool/.treehouse/project-802574/1/project
+1792135287 00:21:27 hook end mode=fast pid=21856
+1792135297 00:21:37 hook start mode=fast pid=25031 cwd=/private/tmp/fml.mW1exC/pool/.treehouse/project-802574/2/project
+1792135297 00:21:37 hook end mode=fast pid=25031

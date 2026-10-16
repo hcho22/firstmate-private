@@ -1,0 +1,16 @@
+[00:19:24 +0s] world /private/tmp/fml.mW1exC code-root /tmp/fml-base-dd5a411 backend herdr scenario queue hook_secs 100 n 2
+[00:19:24 +0s] FM_TREEHOUSE_GET_STALL_SECS=<default> MAX=<default> EXIT_GRACE=<default> START=<default>
+[00:19:24 +0s] provisioned isolated Herdr lab session fm-lab-fm-live-thw-54192-27798 (projected presentation on)
+[00:19:24 +0s] spawn fml-w1-53998: start
+[00:19:32 +8s] spawn fml-w1-53998: exit 0 after 8s: warning: /private/tmp/fml.mW1exC/home1/data/fml-w1-53998/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches warning: herdr presentation parent is absent or ambiguous; using the ordinary flat layout without projection spawned fml-w1-53998 harness=sh kind=ship mode=no-mi
+[00:19:32 +8s] spawn fml-w2-53998: start
+[00:19:40 +16s] spawn fml-w2-53998: exit 0 after 8s: warning: /private/tmp/fml.mW1exC/home2/data/fml-w2-53998/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-w2-53998 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-54192-27798:w2:p2 worktree=/private/tmp/fml.mW1exC/pool/.treehouse/
+[00:19:40 +16s] spawn fml-q1-53998: start
+[00:19:46 +22s] spawn fml-q2-53998: start
+[00:19:48 +24s] spawn fml-q1-53998: exit 0 after 8s: warning: /private/tmp/fml.mW1exC/home1/data/fml-q1-53998/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q1-53998 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-54192-27798:w3:p2 worktree=/private/tmp/fml.mW1exC/pool/.treehouse/
+[00:21:04 +100s] spawn fml-q2-53998: exit 1 after 78s: warning: /private/tmp/fml.mW1exC/home2/data/fml-q2-53998/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches error: treehouse get did not enter a worktree within 60s; inspect window fm-lab-fm-live-thw-54192-27798:w4:p2 warning: herdr presentation cleanup could not verif
+[00:21:20 +116s] teardown fml-q1-53998: exit 0 after 16s; meta left: no; worktrees: 4
+[00:21:31 +127s] teardown fml-w1-53998: exit 0 after 11s; meta left: no; worktrees: 4
+[00:21:42 +138s] teardown fml-w2-53998: exit 1 after 11s; meta left: yes; worktrees: 4
+[00:21:42 +138s] done
+[00:21:43 +139s] lab session fm-lab-fm-live-thw-54192-27798 torn down; default fleet session unchanged

@@ -1,0 +1,2 @@
+warning: /private/tmp/fml.z86SCC/home/data/fml-q1-8564/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-q1-8564 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-8680-29021:w2:p2 worktree=/private/tmp/fml.z86SCC/pool/.treehouse/project-e9e068/2/project

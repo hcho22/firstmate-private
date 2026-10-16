@@ -1,0 +1,112 @@
+### fml-q1-6926
+rc=0 elapsed=13s
+--- spawn transcript
+warning: /private/tmp/fml.GSRXCy/home/data/fml-q1-6926/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-q1-6926 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-7109-32209:w4:p2 worktree=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/4/project
+--- state/fml-q1-6926.meta (worktree and endpoint)
+window=fm-lab-fm-live-thw-7109-32209:w4:p2
+worktree=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/4/project
+project=/private/tmp/fml.GSRXCy/project
+backend=herdr
+herdr_pane_id=w4:p2
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/4/project
+--- herdr pane process-info w4:p2
+unknown option: w4:p2
+
+--- herdr pane read w4:p2
+🌳 Setting up worktree...
+export GOTMPDIR=/tmp/fm-fml-q1-6926/gotmp
+sh -c 'sleep 600'
+🌳 Entered worktree at /private/tmp/fml.GSRXCy/pool/.t
+reehouse/project-d400eb/4/project. Type 'exit' to retu
+rn.
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ export GOTMPDIR=/tmp/fm-fml-q1-6926/gotmp
+bash-3.2$ sh -c 'sleep 600'
+
+### fml-q2-6926
+rc=0 elapsed=82s
+--- spawn transcript
+warning: /private/tmp/fml.GSRXCy/home/data/fml-q2-6926/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-q2-6926 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-7109-32209:w5:p2 worktree=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/5/project
+--- state/fml-q2-6926.meta (worktree and endpoint)
+window=fm-lab-fm-live-thw-7109-32209:w5:p2
+worktree=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/5/project
+project=/private/tmp/fml.GSRXCy/project
+backend=herdr
+herdr_pane_id=w5:p2
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/5/project
+--- herdr pane process-info w5:p2
+unknown option: w5:p2
+
+--- herdr pane read w5:p2
+🌳 Setting up worktree...
+export GOTMPDIR=/tmp/fm-fml-q2-6926/gotmp
+sh -c 'sleep 600'
+🌳 Entered worktree at /private/tmp/fml.GSRXCy/pool/.t
+reehouse/project-d400eb/5/project. Type 'exit' to retu
+rn.
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ export GOTMPDIR=/tmp/fm-fml-q2-6926/gotmp
+bash-3.2$ sh -c 'sleep 600'
+
+### fml-q3-6926
+rc=0 elapsed=153s
+--- spawn transcript
+warning: /private/tmp/fml.GSRXCy/home/data/fml-q3-6926/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-q3-6926 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-7109-32209:w6:p2 worktree=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/6/project
+--- state/fml-q3-6926.meta (worktree and endpoint)
+window=fm-lab-fm-live-thw-7109-32209:w6:p2
+worktree=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/6/project
+project=/private/tmp/fml.GSRXCy/project
+backend=herdr
+herdr_pane_id=w6:p2
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/6/project
+--- herdr pane process-info w6:p2
+unknown option: w6:p2
+
+--- herdr pane read w6:p2
+bash-3.2$ treehouse get
+A new version of treehouse is available: v3.1.0 → v3.1
+.4
+Run "treehouse update" to update
+🌳 Setting up worktree...
+export GOTMPDIR=/tmp/fm-fml-q3-6926/gotmp
+sh -c 'sleep 600'
+
+--- hook.log
+1792135489 00:24:49 hook start mode=fast pid=13455 cwd=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/1/project
+1792135489 00:24:49 hook end mode=fast pid=13455
+1792135499 00:24:59 hook start mode=fast pid=26968 cwd=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/2/project
+1792135499 00:24:59 hook end mode=fast pid=26968
+1792135508 00:25:08 hook start mode=fast pid=33486 cwd=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/3/project
+1792135508 00:25:08 hook end mode=fast pid=33486
+1792135518 00:25:18 hook start mode=slow:70 pid=40245 cwd=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/4/project
+1792135594 00:26:34 hook end mode=slow:70 pid=40245
+1792135595 00:26:35 hook start mode=slow:70 pid=75027 cwd=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/5/project
+1792135672 00:27:52 hook end mode=slow:70 pid=75027
+1792135672 00:27:52 hook start mode=slow:70 pid=360 cwd=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/6/project
+1792135749 00:29:09 hook end mode=slow:70 pid=360
+1792135749 00:29:09 hook start mode=fast pid=15767 cwd=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/4/project
+1792135749 00:29:09 hook end mode=fast pid=15767
+1792135761 00:29:21 hook start mode=fast pid=23179 cwd=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/5/project
+1792135761 00:29:21 hook end mode=fast pid=23179
+1792135776 00:29:36 hook start mode=fast pid=26337 cwd=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/6/project
+1792135776 00:29:36 hook end mode=fast pid=26337
+1792135788 00:29:48 hook start mode=fast pid=29768 cwd=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/1/project
+1792135788 00:29:48 hook end mode=fast pid=29768
+1792135801 00:30:01 hook start mode=fast pid=33432 cwd=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/2/project
+1792135801 00:30:01 hook end mode=fast pid=33432
+1792135812 00:30:12 hook start mode=fast pid=35086 cwd=/private/tmp/fml.GSRXCy/pool/.treehouse/project-d400eb/3/project
+1792135812 00:30:12 hook end mode=fast pid=35086

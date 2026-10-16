@@ -1,0 +1,2 @@
+warning: /private/tmp/fml.EoplkY/home/data/fml-slow-28696/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-slow-28696 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-28820-30123:w2:p2 worktree=/private/tmp/fml.EoplkY/pool/.treehouse/project-2daec6/2/project

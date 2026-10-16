@@ -1,0 +1,31 @@
+[02:01:31 +0s] world /private/tmp/fml.QY0rwK code-root /private/tmp/fml-base.m8aOPH backend herdr scenario queue hook_secs 20 n 8
+[02:01:31 +0s] FM_TREEHOUSE_GET_STALL_SECS=<default> MAX=<default> EXIT_GRACE=<default> START=<default>
+[02:01:31 +0s] provisioned isolated Herdr lab session fm-lab-fm-live-thw-42560-825 (projected presentation on)
+[02:01:31 +0s] spawn fml-w-42462: start
+[02:01:38 +7s] spawn fml-w-42462: exit 0 after 7s: warning: /private/tmp/fml.QY0rwK/home/data/fml-w-42462/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches warning: herdr presentation parent is absent or ambiguous; using the ordinary flat layout without projection spawned fml-w-42462 harness=sh kind=ship mode=no-mista
+[02:01:38 +7s] spawn fml-q1-42462: start
+[02:01:44 +13s] spawn fml-q2-42462: start
+[02:01:46 +15s] spawn fml-q1-42462: exit 0 after 8s: warning: /private/tmp/fml.QY0rwK/home/data/fml-q1-42462/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q1-42462 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-42560-825:w2:p2 worktree=/private/tmp/fml.QY0rwK/pool/.treehouse/pro
+[02:02:06 +35s] spawn fml-q3-42462: start
+[02:02:08 +37s] spawn fml-q2-42462: exit 0 after 24s: warning: /private/tmp/fml.QY0rwK/home/data/fml-q2-42462/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q2-42462 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-42560-825:w3:p2 worktree=/private/tmp/fml.QY0rwK/pool/.treehouse/pro
+[02:02:27 +56s] spawn fml-q4-42462: start
+[02:02:27 +56s] spawn fml-q4-42462: exit 1 after 0s: error: this home's task set is locked by another operation (a forced teardown is enumerating or removing its tasks); refusing to create task fml-q4-42462 rather than racing it 
+[02:02:31 +60s] spawn fml-q3-42462: exit 0 after 25s: warning: /private/tmp/fml.QY0rwK/home/data/fml-q3-42462/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q3-42462 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-42560-825:w4:p2 worktree=/private/tmp/fml.QY0rwK/pool/.treehouse/pro
+[02:02:50 +79s] spawn fml-q5-42462: start
+[02:02:56 +85s] spawn fml-q6-42462: start
+[02:03:00 +89s] spawn fml-q5-42462: exit 0 after 10s: warning: /private/tmp/fml.QY0rwK/home/data/fml-q5-42462/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q5-42462 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-42560-825:w5:p2 worktree=/private/tmp/fml.QY0rwK/pool/.treehouse/pro
+[02:03:18 +107s] spawn fml-q7-42462: start
+[02:03:23 +112s] spawn fml-q6-42462: exit 0 after 27s: warning: /private/tmp/fml.QY0rwK/home/data/fml-q6-42462/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q6-42462 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-42560-825:w6:p2 worktree=/private/tmp/fml.QY0rwK/pool/.treehouse/pro
+[02:03:41 +130s] spawn fml-q8-42462: start
+[02:03:45 +134s] spawn fml-q7-42462: exit 0 after 27s: warning: /private/tmp/fml.QY0rwK/home/data/fml-q7-42462/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q7-42462 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-42560-825:w7:p2 worktree=/private/tmp/fml.QY0rwK/pool/.treehouse/pro
+[02:04:08 +157s] spawn fml-q8-42462: exit 0 after 27s: warning: /private/tmp/fml.QY0rwK/home/data/fml-q8-42462/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches spawned fml-q8-42462 harness=sh kind=ship mode=no-mistakes yolo=off window=fm-lab-fm-live-thw-42560-825:w8:p2 worktree=/private/tmp/fml.QY0rwK/pool/.treehouse/pro
+[02:04:28 +177s] teardown fml-q1-42462: exit 0 after 19s; meta left: no; worktrees: 9
+[02:04:43 +192s] teardown fml-q2-42462: exit 0 after 15s; meta left: no; worktrees: 9
+[02:04:58 +207s] teardown fml-q3-42462: exit 0 after 15s; meta left: no; worktrees: 9
+[02:05:12 +221s] teardown fml-q5-42462: exit 0 after 14s; meta left: no; worktrees: 9
+[02:05:25 +234s] teardown fml-q6-42462: exit 0 after 13s; meta left: no; worktrees: 9
+[02:05:36 +245s] teardown fml-q7-42462: exit 0 after 11s; meta left: no; worktrees: 9
+[02:05:50 +259s] teardown fml-q8-42462: exit 0 after 14s; meta left: no; worktrees: 9
+[02:06:02 +271s] teardown fml-w-42462: exit 0 after 12s; meta left: no; worktrees: 9
+[02:06:02 +271s] done
+[02:06:03 +272s] lab session fm-lab-fm-live-thw-42560-825 torn down; default fleet session unchanged

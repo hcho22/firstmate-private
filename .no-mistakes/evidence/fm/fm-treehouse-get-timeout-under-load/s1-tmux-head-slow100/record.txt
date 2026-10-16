@@ -1,0 +1,33 @@
+### fml-slow-53690
+rc=0 elapsed=116s
+--- spawn transcript
+warning: /private/tmp/fml.1DDms9/home/data/fml-slow-53690/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned fml-slow-53690 harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fml-slow-53690 worktree=/private/tmp/fml.1DDms9/pool/.treehouse/project-790d0a/1/project
+--- state/fml-slow-53690.meta (worktree and endpoint)
+window=firstmate:fm-fml-slow-53690
+worktree=/private/tmp/fml.1DDms9/pool/.treehouse/project-790d0a/1/project
+project=/private/tmp/fml.1DDms9/project
+--- git worktree toplevel of recorded worktree
+/private/tmp/fml.1DDms9/pool/.treehouse/project-790d0a/1/project
+--- tmux pane_current_path / pane_current_command for firstmate:fm-fml-slow-53690
+/private/tmp/fml.1DDms9/pool/.treehouse/project-790d0a/1/project sleep
+--- tmux capture-pane firstmate:fm-fml-slow-53690
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s /bin/zsh`.
+For more details, please visit https://support.apple.com/kb/HT208050.
+bash-3.2$ printf '%s\n' "$$" > '/tmp/fm-fml-slow-53690/treehouse-get.shell-pid'
+bash-3.2$ treehouse get
+A new version of treehouse is available: v3.1.0 → v3.1.4
+Run "treehouse update" to update
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.1DDms9/pool/.treehouse/project-790d0a/1/
+project. Type 'exit' to return.
+(base) hcho@Chos-iMac-9711 project % export GOTMPDIR=/tmp/fm-fml-slow-53690/gotm
+p
+(base) hcho@Chos-iMac-9711 project % sh -c 'sleep 600'
+
+--- hook.log
+1792134876 00:14:36 hook start mode=slow:100 pid=54824 cwd=/private/tmp/fml.1DDms9/pool/.treehouse/project-790d0a/1/project
+1792134986 00:16:26 hook end mode=slow:100 pid=54824
+1792134996 00:16:36 hook start mode=fast pid=93947 cwd=/private/tmp/fml.1DDms9/pool/.treehouse/project-790d0a/1/project
+1792134996 00:16:36 hook end mode=fast pid=93947

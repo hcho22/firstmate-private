@@ -1,0 +1,1227 @@
+02:02:16 pid=63123 ppid=63121 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:16 pid=63244 ppid=63243 rc=0: herdr session list --json
+  out: {"sessions":[{"default":true,"name":"default","running":true,"session_dir":"/Users/hcho/.config/herdr","socket_path":"/Users/hcho/.config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-31895-22495","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495","socket_path":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-48285-17739","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739","socket_path":
+  err: 
+02:02:16 pid=63305 ppid=63304 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[]}}
+  err: 
+02:02:16 pid=63337 ppid=63336 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:16 pid=63367 ppid=63365 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:16 pid=63382 ppid=63381 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[]}}
+  err: 
+02:02:16 pid=63405 ppid=63404 rc=0: herdr workspace create --cwd /private/tmp/fml.SPrHuQ/project --label firstmate --no-focus
+  out: {"id":"cli:workspace:create","result":{"root_pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":true,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w1:p1","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":24},"tab_id":"w1:t1","terminal_id":"term_65df16bc602101","workspace_id":"w1"},"tab":{"agent_status":"unknown","focused":true,"label":"1","number":1,"pane_count":1,"tab_id":"w1:t1","workspace_id":"w1"},"type":"workspace_created","workspace":{"active_tab_id":"w1:t1","agent_status":"unknown","focused":true,"labe
+  err: 
+02:02:17 pid=63438 ppid=63437 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"1","number":1,"pane_count":1,"tab_id":"w1:t1","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:17 pid=63500 ppid=63499 rc=0: herdr tab create --workspace w1 --cwd /private/tmp/fml.SPrHuQ/project --label fm-fml-w-62458 --no-focus
+  out: {"id":"cli:tab:create","result":{"root_pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w1:p2","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w1:t2","terminal_id":"term_65df16bc9001c2","workspace_id":"w1"},"tab":{"agent_status":"unknown","focused":false,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"},"type":"tab_created"}}
+  err: 
+02:02:17 pid=63593 ppid=63590 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"1","number":1,"pane_count":1,"tab_id":"w1:t1","workspace_id":"w1"},{"agent_status":"unknown","focused":false,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:17 pid=63691 ppid=63689 rc=0: herdr pane list --workspace w1
+  out: {"id":"cli:pane:list","result":{"panes":[{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":true,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w1:p1","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w1:t1","terminal_id":"term_65df16bc602101","workspace_id":"w1"},{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w1:p2","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23
+  err: 
+02:02:17 pid=63779 ppid=63776 rc=1: herdr agent get w1:p1
+  out: 
+  err: {"error":{"code":"agent_not_found","message":"agent target w1:p1 not found"},"id":"cli:agent:get"}
+02:02:17 pid=63839 ppid=63434 rc=0: herdr pane close w1:p1
+  out: {"id":"cli:pane:close","result":{"type":"ok"}}
+  err: 
+02:02:17 pid=63926 ppid=63924 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:17 pid=63952 ppid=62819 rc=0: herdr pane run w1:p2 printf '%s\n' "$$" > '/tmp/fm-fml-w-62458/treehouse-get.shell-pid'
+  out: 
+  err: 
+02:02:17 pid=63981 ppid=63979 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:17 pid=64012 ppid=62819 rc=0: herdr pane run w1:p2 treehouse get
+  out: 
+  err: 
+02:02:17 pid=64055 ppid=64052 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:17 pid=64090 ppid=64085 rc=0: herdr pane process-info --pane w1:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":64027,"foreground_processes":[{"argv":["git","rev-parse","--path-format=absolute","--git-common-dir"],"argv0":"git","cmdline":"git rev-parse --path-format=absolute --git-common-dir","cwd":"/private/tmp/fml.SPrHuQ/project","name":"git","pid":64100},{"argv":["treehouse","get"],"argv0":"treehouse","cmdline":"treehouse get","cwd":"/private/tmp/fml.SPrHuQ/project","name":"treehouse","pid":64027}],"pane_id":"w1:p2","shell_pid":63521},"type":"pane_process_info"}}
+  err: 
+02:02:19 pid=64485 ppid=64483 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:19 pid=64504 ppid=64502 rc=0: herdr pane process-info --pane w1:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":64378,"foreground_processes":[{"argv":["/bin/bash","--noprofile","--norc"],"argv0":"bash","cmdline":"/bin/bash --noprofile --norc","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/1/project","name":"bash","pid":64378}],"pane_id":"w1:p2","shell_pid":63521},"type":"pane_process_info"}}
+  err: 
+02:02:20 pid=64898 ppid=64896 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:20 pid=64916 ppid=64914 rc=0: herdr pane process-info --pane w1:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":64378,"foreground_processes":[{"argv":["/bin/bash","--noprofile","--norc"],"argv0":"bash","cmdline":"/bin/bash --noprofile --norc","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/1/project","name":"bash","pid":64378}],"pane_id":"w1:p2","shell_pid":63521},"type":"pane_process_info"}}
+  err: 
+02:02:21 pid=65272 ppid=65230 rc=0: herdr pane get w1:p2
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":true,"foreground_cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/1/project","pane_id":"w1:p2","revision":0,"scroll":{"max_offset_from_bottom":1,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w1:t2","terminal_id":"term_65df16bc9001c2","workspace_id":"w1"},"type":"pane_info"}}
+  err: 
+02:02:21 pid=65343 ppid=65339 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:21 pid=65365 ppid=65364 rc=0: herdr pane read w1:p2 --source recent --lines 200
+  out: 
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ printf '%s\n' "$$" > '/tmp/fm-fml-w-62458/tr
+eehouse-get.shell-pid'
+bash-3.2$ treehouse get
+A new version of treehouse is available: v3.1.0 → v3.1
+.4
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.SPrHuQ/pool/.t
+reehouse/project-8ae5b9/1/project. Type 'exit' to retu
+rn.
+
+The default interactive shell is now zsh.
+To update your account to use zsh, p
+  err: 
+02:02:21 pid=65389 ppid=65387 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:21 pid=65413 ppid=65409 rc=1: herdr agent get w1:p2
+  out: 
+  err: {"error":{"code":"agent_not_found","message":"agent target w1:p2 not found"},"id":"cli:agent:get"}
+02:02:22 pid=65646 ppid=65644 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:22 pid=65664 ppid=62819 rc=0: herdr pane run w1:p2 export GOTMPDIR=/tmp/fm-fml-w-62458/gotmp
+  out: 
+  err: 
+02:02:22 pid=65753 ppid=65751 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:22 pid=65768 ppid=62819 rc=0: herdr pane send-text w1:p2 sh -c 'sleep 600'
+  out: 
+  err: 
+02:02:23 pid=65879 ppid=65874 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:23 pid=65903 ppid=62819 rc=0: herdr pane send-keys w1:p2 enter
+  out: 
+  err: 
+02:02:24 pid=66280 ppid=66278 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:24 pid=66296 ppid=66295 rc=0: herdr session list --json
+  out: {"sessions":[{"default":true,"name":"default","running":true,"session_dir":"/Users/hcho/.config/herdr","socket_path":"/Users/hcho/.config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-31895-22495","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495","socket_path":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-48285-17739","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739","socket_path":
+  err: 
+02:02:24 pid=66374 ppid=66373 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"}]}}
+  err: 
+02:02:24 pid=66410 ppid=66409 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:24 pid=66443 ppid=66441 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:24 pid=66467 ppid=66466 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"}]}}
+  err: 
+02:02:24 pid=66504 ppid=66503 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:24 pid=66527 ppid=66526 rc=0: herdr workspace create --cwd /private/tmp/fml.SPrHuQ/project --label └ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg --no-focus
+  out: {"id":"cli:workspace:create","result":{"root_pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w2:p1","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w2:t1","terminal_id":"term_65df16c3ca2473","workspace_id":"w2"},"tab":{"agent_status":"unknown","focused":false,"label":"1","number":1,"pane_count":1,"tab_id":"w2:t1","workspace_id":"w2"},"type":"workspace_created","workspace":{"active_tab_id":"w2:t1","agent_status":"unknown","focused":false,"l
+  err: 
+02:02:24 pid=66550 ppid=66549 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t1","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"}]}}
+  err: 
+02:02:24 pid=66566 ppid=66565 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:24 pid=66630 ppid=66629 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t1","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"}]}}
+  err: 
+02:02:25 pid=66666 ppid=66665 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:25 pid=66684 ppid=66683 rc=0: herdr tab create --workspace w2 --cwd /private/tmp/fml.SPrHuQ/project --label fm-fml-side-62458 --no-focus
+  out: {"id":"cli:tab:create","result":{"root_pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w2:p2","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w2:t2","terminal_id":"term_65df16c4343a64","workspace_id":"w2"},"tab":{"agent_status":"unknown","focused":false,"label":"fm-fml-side-62458","number":2,"pane_count":1,"tab_id":"w2:t2","workspace_id":"w2"},"type":"tab_created"}}
+  err: 
+02:02:25 pid=66713 ppid=66712 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t1","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":2,"tab_count":2,"workspace_id":"w2"}]}}
+  err: 
+02:02:25 pid=66756 ppid=66755 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:25 pid=66808 ppid=66806 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t1","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":2,"tab_count":2,"workspace_id":"w2"}]}}
+  err: 
+02:02:25 pid=66847 ppid=66846 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:25 pid=66875 ppid=66874 rc=0: herdr tab list --workspace w2
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":false,"label":"1","number":1,"pane_count":1,"tab_id":"w2:t1","workspace_id":"w2"},{"agent_status":"unknown","focused":false,"label":"fm-fml-side-62458","number":2,"pane_count":1,"tab_id":"w2:t2","workspace_id":"w2"}],"type":"tab_list"}}
+  err: 
+02:02:25 pid=66928 ppid=66927 rc=0: herdr pane list --workspace w2
+  out: {"id":"cli:pane:list","result":{"panes":[{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w2:p1","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w2:t1","terminal_id":"term_65df16c3ca2473","workspace_id":"w2"},{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w2:p2","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":2
+  err: 
+02:02:25 pid=66950 ppid=66949 rc=1: herdr agent get w2:p1
+  out: 
+  err: {"error":{"code":"agent_not_found","message":"agent target w2:p1 not found"},"id":"cli:agent:get"}
+02:02:25 pid=66984 ppid=66983 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t1","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":2,"tab_count":2,"workspace_id":"w2"}]}}
+  err: 
+02:02:25 pid=67004 ppid=67003 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:25 pid=67024 ppid=67023 rc=0: herdr pane get w2:p1
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w2:p1","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w2:t1","terminal_id":"term_65df16c3ca2473","workspace_id":"w2"},"type":"pane_info"}}
+  err: 
+02:02:26 pid=67052 ppid=67051 rc=0: herdr tab list --workspace w2
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":false,"label":"1","number":1,"pane_count":1,"tab_id":"w2:t1","workspace_id":"w2"},{"agent_status":"unknown","focused":false,"label":"fm-fml-side-62458","number":2,"pane_count":1,"tab_id":"w2:t2","workspace_id":"w2"}],"type":"tab_list"}}
+  err: 
+02:02:26 pid=67075 ppid=65978 rc=0: herdr pane close w2:p1
+  out: {"id":"cli:pane:close","result":{"type":"ok"}}
+  err: 
+02:02:26 pid=67098 ppid=67097 rc=1: herdr pane get w2:p1
+  out: 
+  err: {"error":{"code":"pane_not_found","message":"pane w2:p1 not found"},"id":"cli:pane:get"}
+02:02:26 pid=67126 ppid=67125 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"}]}}
+  err: 
+02:02:26 pid=67156 ppid=67151 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:26 pid=67186 ppid=67185 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"}]}}
+  err: 
+02:02:26 pid=67222 ppid=67219 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:26 pid=67259 ppid=67258 rc=0: herdr tab list --workspace w2
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":false,"label":"fm-fml-side-62458","number":2,"pane_count":1,"tab_id":"w2:t2","workspace_id":"w2"}],"type":"tab_list"}}
+  err: 
+02:02:26 pid=67301 ppid=67299 rc=0: herdr pane list --workspace w2
+  out: {"id":"cli:pane:list","result":{"panes":[{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w2:p2","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w2:t2","terminal_id":"term_65df16c4343a64","workspace_id":"w2"}],"type":"pane_list"}}
+  err: 
+02:02:26 pid=67362 ppid=67360 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"}]}}
+  err: 
+02:02:27 pid=67404 ppid=67403 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"}]}}
+  err: 
+02:02:27 pid=67427 ppid=67426 rc=0: herdr tab list --workspace w2
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":false,"label":"fm-fml-side-62458","number":2,"pane_count":1,"tab_id":"w2:t2","workspace_id":"w2"}],"type":"tab_list"}}
+  err: 
+02:02:27 pid=67452 ppid=67451 rc=0: herdr pane list --workspace w2
+  out: {"id":"cli:pane:list","result":{"panes":[{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w2:p2","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w2:t2","terminal_id":"term_65df16c4343a64","workspace_id":"w2"}],"type":"pane_list"}}
+  err: 
+02:02:27 pid=67551 ppid=67549 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:27 pid=67565 ppid=65978 rc=0: herdr pane run w2:p2 printf '%s\n' "$$" > '/tmp/fm-fml-side-62458/treehouse-get.shell-pid'
+  out: 
+  err: 
+02:02:27 pid=67607 ppid=67605 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:27 pid=67632 ppid=65978 rc=0: herdr pane run w2:p2 treehouse get
+  out: 
+  err: 
+02:02:27 pid=67676 ppid=67674 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:27 pid=67713 ppid=67711 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["git","rev-parse","--path-format=absolute","--git-common-dir"],"argv0":"git","cmdline":"git rev-parse --path-format=absolute --git-common-dir","cwd":"/private/tmp/fml.SPrHuQ/project","name":"git","pid":67720},{"argv":["treehouse","get"],"argv0":"treehouse","cmdline":"treehouse get","cwd":"/private/tmp/fml.SPrHuQ/project","name":"treehouse","pid":67650}],"pane_id":"w2:p2","shell_pid":66694},"type":"pane_process_info"}}
+  err: 
+02:02:29 pid=68586 ppid=68584 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:29 pid=68649 ppid=68646 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":67893},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:30 pid=69570 ppid=69566 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:30 pid=69646 ppid=69640 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":69600},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:31 pid=70709 ppid=70704 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:31 pid=70770 ppid=70768 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":70551},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:33 pid=71374 ppid=71371 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:33 pid=71445 ppid=71442 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":71222},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:33 pid=71929 ppid=71927 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:33 pid=71977 ppid=71975 rc=0: herdr session list --json
+  out: {"sessions":[{"default":true,"name":"default","running":true,"session_dir":"/Users/hcho/.config/herdr","socket_path":"/Users/hcho/.config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-31895-22495","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495","socket_path":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-48285-17739","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739","socket_path":
+  err: 
+02:02:33 pid=72133 ppid=72132 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"}]}}
+  err: 
+02:02:33 pid=72211 ppid=72210 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:34 pid=72269 ppid=72267 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:34 pid=72286 ppid=72285 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"}]}}
+  err: 
+02:02:34 pid=72320 ppid=72319 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:34 pid=72344 ppid=72343 rc=0: herdr workspace create --cwd /private/tmp/fml.SPrHuQ/project2 --label └ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA --no-focus
+  out: {"id":"cli:workspace:create","result":{"root_pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project2","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project2","pane_id":"w3:p1","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w3:t1","terminal_id":"term_65df16ccf579a5","workspace_id":"w3"},"tab":{"agent_status":"unknown","focused":false,"label":"1","number":1,"pane_count":1,"tab_id":"w3:t1","workspace_id":"w3"},"type":"workspace_created","workspace":{"active_tab_id":"w3:t1","agent_status":"unknown","focused":false,
+  err: 
+02:02:34 pid=72372 ppid=72371 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t1","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":3,"pane_count":1,"tab_count":1,"workspace_id":"w3"}]}}
+  err: 
+02:02:34 pid=72404 ppid=72403 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:34 pid=72425 ppid=72421 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:34 pid=72463 ppid=72461 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":71822},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:34 pid=72495 ppid=72494 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t1","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":3,"pane_count":1,"tab_count":1,"workspace_id":"w3"}]}}
+  err: 
+02:02:34 pid=72540 ppid=72539 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:34 pid=72587 ppid=72584 rc=0: herdr tab create --workspace w3 --cwd /private/tmp/fml.SPrHuQ/project2 --label fm-fml-other-62458 --no-focus
+  out: {"id":"cli:tab:create","result":{"root_pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project2","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project2","pane_id":"w3:p2","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w3:t2","terminal_id":"term_65df16cd68fe26","workspace_id":"w3"},"tab":{"agent_status":"unknown","focused":false,"label":"fm-fml-other-62458","number":2,"pane_count":1,"tab_id":"w3:t2","workspace_id":"w3"},"type":"tab_created"}}
+  err: 
+02:02:34 pid=72628 ppid=72623 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t1","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":3,"pane_count":2,"tab_count":2,"workspace_id":"w3"}]}}
+  err: 
+02:02:34 pid=72687 ppid=72685 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:35 pid=72784 ppid=72782 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t1","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":3,"pane_count":2,"tab_count":2,"workspace_id":"w3"}]}}
+  err: 
+02:02:35 pid=72836 ppid=72835 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:35 pid=72916 ppid=72914 rc=0: herdr tab list --workspace w3
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":false,"label":"1","number":1,"pane_count":1,"tab_id":"w3:t1","workspace_id":"w3"},{"agent_status":"unknown","focused":false,"label":"fm-fml-other-62458","number":2,"pane_count":1,"tab_id":"w3:t2","workspace_id":"w3"}],"type":"tab_list"}}
+  err: 
+02:02:35 pid=73010 ppid=73009 rc=0: herdr pane list --workspace w3
+  out: {"id":"cli:pane:list","result":{"panes":[{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project2","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project2","pane_id":"w3:p1","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w3:t1","terminal_id":"term_65df16ccf579a5","workspace_id":"w3"},{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project2","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project2","pane_id":"w3:p2","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_row
+  err: 
+02:02:35 pid=73082 ppid=73080 rc=1: herdr agent get w3:p1
+  out: 
+  err: {"error":{"code":"agent_not_found","message":"agent target w3:p1 not found"},"id":"cli:agent:get"}
+02:02:35 pid=73153 ppid=73151 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t1","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":3,"pane_count":2,"tab_count":2,"workspace_id":"w3"}]}}
+  err: 
+02:02:35 pid=73237 ppid=73236 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:35 pid=73293 ppid=73292 rc=0: herdr pane get w3:p1
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project2","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project2","pane_id":"w3:p1","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w3:t1","terminal_id":"term_65df16ccf579a5","workspace_id":"w3"},"type":"pane_info"}}
+  err: 
+02:02:35 pid=73381 ppid=73379 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:35 pid=73409 ppid=73406 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":73322},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+02:02:35 pid=73419 ppid=73415 rc=0: herdr tab list --workspace w3
+  err: 
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":false,"label":"1","number":1,"pane_count":1,"tab_id":"w3:t1","workspace_id":"w3"},{"agent_status":"unknown","focused":false,"label":"fm-fml-other-62458","number":2,"pane_count":1,"tab_id":"w3:t2","workspace_id":"w3"}],"type":"tab_list"}}
+  err: 
+02:02:35 pid=73472 ppid=71470 rc=0: herdr pane close w3:p1
+  out: {"id":"cli:pane:close","result":{"type":"ok"}}
+  err: 
+02:02:35 pid=73496 ppid=73495 rc=1: herdr pane get w3:p1
+  out: 
+  err: {"error":{"code":"pane_not_found","message":"pane w3:p1 not found"},"id":"cli:pane:get"}
+02:02:36 pid=73534 ppid=73530 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t2","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":3,"pane_count":1,"tab_count":1,"workspace_id":"w3"}]}}
+  err: 
+02:02:36 pid=73582 ppid=73581 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:36 pid=73632 ppid=73630 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t2","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":3,"pane_count":1,"tab_count":1,"workspace_id":"w3"}]}}
+  err: 
+02:02:36 pid=73687 ppid=73686 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:02:36 pid=73735 ppid=73733 rc=0: herdr tab list --workspace w3
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":false,"label":"fm-fml-other-62458","number":2,"pane_count":1,"tab_id":"w3:t2","workspace_id":"w3"}],"type":"tab_list"}}
+  err: 
+02:02:36 pid=73783 ppid=73782 rc=0: herdr pane list --workspace w3
+  out: {"id":"cli:pane:list","result":{"panes":[{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project2","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project2","pane_id":"w3:p2","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w3:t2","terminal_id":"term_65df16cd68fe26","workspace_id":"w3"}],"type":"pane_list"}}
+  err: 
+02:02:36 pid=73940 ppid=73939 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t2","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":3,"pane_count":1,"tab_count":1,"workspace_id":"w3"}]}}
+  err: 
+02:02:36 pid=74075 ppid=74072 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t2","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":3,"pane_count":1,"tab_count":1,"workspace_id":"w3"}]}}
+  err: 
+02:02:36 pid=74152 ppid=74150 rc=0: herdr tab list --workspace w3
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":false,"label":"fm-fml-other-62458","number":2,"pane_count":1,"tab_id":"w3:t2","workspace_id":"w3"}],"type":"tab_list"}}
+  err: 
+02:02:36 pid=74217 ppid=74214 rc=0: herdr pane list --workspace w3
+  out: {"id":"cli:pane:list","result":{"panes":[{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project2","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project2","pane_id":"w3:p2","revision":0,"scroll":{"max_offset_from_bottom":0,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w3:t2","terminal_id":"term_65df16cd68fe26","workspace_id":"w3"}],"type":"pane_list"}}
+  err: 
+02:02:37 pid=74312 ppid=74309 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:37 pid=74366 ppid=74362 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":74003},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:37 pid=74418 ppid=74416 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:37 pid=74443 ppid=71470 rc=0: herdr pane run w3:p2 printf '%s\n' "$$" > '/tmp/fm-fml-other-62458/treehouse-get.shell-pid'
+  out: 
+  err: 
+02:02:37 pid=74465 ppid=74463 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:37 pid=74487 ppid=71470 rc=0: herdr pane run w3:p2 treehouse get
+  out: 
+  err: 
+02:02:37 pid=74516 ppid=74514 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:37 pid=74542 ppid=74540 rc=0: herdr pane process-info --pane w3:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":74496,"foreground_processes":[{"argv":["git","rev-parse","--path-format=absolute","--git-common-dir"],"argv0":"git","cmdline":"git rev-parse --path-format=absolute --git-common-dir","cwd":"/private/tmp/fml.SPrHuQ/project2","name":"git","pid":74546},{"argv":["treehouse","get"],"argv0":"treehouse","cmdline":"treehouse get","cwd":"/private/tmp/fml.SPrHuQ/project2","name":"treehouse","pid":74496}],"pane_id":"w3:p2","shell_pid":72597},"type":"pane_process_info"}}
+  err: 
+02:02:38 pid=74910 ppid=74908 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:38 pid=74946 ppid=74941 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":74621},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:38 pid=75031 ppid=75029 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:38 pid=75072 ppid=75070 rc=0: herdr pane process-info --pane w3:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":74721,"foreground_processes":[{"argv":["/bin/bash","--noprofile","--norc"],"argv0":"bash","cmdline":"/bin/bash --noprofile --norc","cwd":"/private/tmp/fml.SPrHuQ/pool2/.treehouse/project2-ec89dc/1/project2","name":"bash","pid":74721}],"pane_id":"w3:p2","shell_pid":72597},"type":"pane_process_info"}}
+  err: 
+02:02:39 pid=75523 ppid=75521 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:39 pid=75537 ppid=75535 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":75518},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:39 pid=75545 ppid=75542 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:39 pid=75570 ppid=75568 rc=0: herdr pane process-info --pane w3:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":74721,"foreground_processes":[{"argv":["/bin/bash","--noprofile","--norc"],"argv0":"bash","cmdline":"/bin/bash --noprofile --norc","cwd":"/private/tmp/fml.SPrHuQ/pool2/.treehouse/project2-ec89dc/1/project2","name":"bash","pid":74721}],"pane_id":"w3:p2","shell_pid":72597},"type":"pane_process_info"}}
+  err: 
+02:02:40 pid=75616 ppid=75615 rc=0: herdr session list --json
+  out: {"sessions":[{"default":true,"name":"default","running":true,"session_dir":"/Users/hcho/.config/herdr","socket_path":"/Users/hcho/.config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-31895-22495","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495","socket_path":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-48285-17739","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739","socket_path":
+  err: 
+02:02:41 pid=76196 ppid=76112 rc=0: herdr pane get w3:p2
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project2","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/pool2/.treehouse/project2-ec89dc/1/project2","pane_id":"w3:p2","revision":0,"scroll":{"max_offset_from_bottom":1,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w3:t2","terminal_id":"term_65df16cd68fe26","workspace_id":"w3"},"type":"pane_info"}}
+02:02:41 pid=76204 ppid=76121 rc=0: herdr pane get w1:p2
+  err: 
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":true,"foreground_cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/1/project","pane_id":"w1:p2","revision":0,"scroll":{"max_offset_from_bottom":3,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w1:t2","terminal_id":"term_65df16bc9001c2","workspace_id":"w1"},"type":"pane_info"}}
+  err: 
+02:02:41 pid=76364 ppid=76361 rc=0: herdr status --json
+02:02:41 pid=76372 ppid=76369 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+  err: 
+02:02:41 pid=76426 ppid=76422 rc=0: herdr status --json
+02:02:41 pid=76429 ppid=76428 rc=0: herdr pane read w3:p2 --source recent --lines 200
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  out: 
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ printf '%s\n' "$$" > '/tmp/fm-fml-other-6245
+8/treehouse-get.shell-pid'
+bash-3.2$ treehouse get
+A new version of treehouse is available: v3.1.0 → v3.1
+.4
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.SPrHuQ/pool2/.
+treehouse/project2-ec89dc/1/project2. Type 'exit' to r
+eturn.
+
+The default interactive shell is now zsh.
+To update your account to use
+02:02:41 pid=76433 ppid=76431 rc=0: herdr pane read w1:p2 --source recent --lines 200
+  err: 
+  err: 
+  out: 
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ printf '%s\n' "$$" > '/tmp/fm-fml-w-62458/tr
+eehouse-get.shell-pid'
+bash-3.2$ treehouse get
+A new version of treehouse is available: v3.1.0 → v3.1
+.4
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.SPrHuQ/pool/.t
+reehouse/project-8ae5b9/1/project. Type 'exit' to retu
+rn.
+
+The default interactive shell is now zsh.
+To update your account to use zsh, p
+  err: 
+02:02:41 pid=76485 ppid=76483 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":76107},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:41 pid=76508 ppid=76505 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+02:02:41 pid=76519 ppid=76516 rc=0: herdr status --json
+  err: 
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:41 pid=76587 ppid=76585 rc=1: herdr agent get w3:p2
+  out: 
+02:02:41 pid=76591 ppid=76589 rc=1: herdr agent get w1:p2
+  err: {"error":{"code":"agent_not_found","message":"agent target w3:p2 not found"},"id":"cli:agent:get"}
+  out: 
+  err: {"error":{"code":"agent_not_found","message":"agent target w1:p2 not found"},"id":"cli:agent:get"}
+02:02:42 pid=77172 ppid=77170 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:42 pid=77186 ppid=71470 rc=0: herdr pane run w3:p2 export GOTMPDIR=/tmp/fm-fml-other-62458/gotmp
+  out: 
+  err: 
+02:02:42 pid=77243 ppid=77240 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:42 pid=77267 ppid=77265 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":76928},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:42 pid=77371 ppid=77369 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:43 pid=77390 ppid=71470 rc=0: herdr pane send-text w3:p2 sh -c 'sleep 600'
+  out: 
+  err: 
+02:02:43 pid=77522 ppid=77520 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:43 pid=77545 ppid=71470 rc=0: herdr pane send-keys w3:p2 enter
+  out: 
+  err: 
+02:02:44 pid=77813 ppid=77810 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:44 pid=77859 ppid=77855 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":77413},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:44 pid=78162 ppid=78161 rc=0: herdr pane get w1:p2
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":true,"foreground_cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/1/project","pane_id":"w1:p2","revision":0,"scroll":{"max_offset_from_bottom":3,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w1:t2","terminal_id":"term_65df16bc9001c2","workspace_id":"w1"},"type":"pane_info"}}
+  err: 
+02:02:44 pid=78221 ppid=78217 rc=0: herdr session list --json
+  out: {"sessions":[{"default":true,"name":"default","running":true,"session_dir":"/Users/hcho/.config/herdr","socket_path":"/Users/hcho/.config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-31895-22495","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495","socket_path":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-48285-17739","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739","socket_path":
+  err: 
+02:02:44 pid=78351 ppid=78348 rc=0: herdr session list --json
+  out: {"sessions":[{"default":true,"name":"default","running":true,"session_dir":"/Users/hcho/.config/herdr","socket_path":"/Users/hcho/.config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-31895-22495","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495","socket_path":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-48285-17739","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739","socket_path":
+  err: 
+02:02:45 pid=78541 ppid=78539 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:45 pid=78554 ppid=78552 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":78525},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:46 pid=78782 ppid=78780 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:46 pid=78813 ppid=78811 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":78728},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:48 pid=79055 ppid=79053 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:48 pid=79073 ppid=79071 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":79014},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:49 pid=79321 ppid=79319 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:49 pid=79344 ppid=79342 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":79176},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:51 pid=80174 ppid=80172 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:51 pid=80219 ppid=80217 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":80241},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:52 pid=81533 ppid=81531 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:52 pid=81579 ppid=81577 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":81385},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:53 pid=82287 ppid=82285 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:53 pid=82326 ppid=82324 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":81961},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:55 pid=83621 ppid=83618 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:55 pid=83662 ppid=83658 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":82699},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:56 pid=84383 ppid=84380 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:56 pid=84438 ppid=84435 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":84295},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:57 pid=85914 ppid=85910 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:57 pid=85986 ppid=85981 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":85562},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:02:59 pid=86645 ppid=86642 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:02:59 pid=86717 ppid=86714 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":86189},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:00 pid=87556 ppid=87554 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:00 pid=87600 ppid=87598 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":87513},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:01 pid=88246 ppid=88243 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:02 pid=88281 ppid=88276 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":88123},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:03 pid=89075 ppid=89072 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:03 pid=89099 ppid=89097 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":88636},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:04 pid=89442 ppid=89440 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:04 pid=89468 ppid=89465 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":89155},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:06 pid=89958 ppid=89956 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:06 pid=90008 ppid=90005 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":89834},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:07 pid=90569 ppid=90567 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:07 pid=90598 ppid=90593 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":90297},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:08 pid=90933 ppid=90931 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:09 pid=90949 ppid=90947 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":90798},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:10 pid=91107 ppid=91105 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:10 pid=91120 ppid=91118 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":91004},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:11 pid=91341 ppid=91339 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:11 pid=91359 ppid=91357 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":91331},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:13 pid=91633 ppid=91631 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:13 pid=91649 ppid=91647 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":91565},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:14 pid=92562 ppid=92560 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:14 pid=92584 ppid=92581 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":92380},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:15 pid=93035 ppid=93033 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:16 pid=93081 ppid=93079 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":92795},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:17 pid=93584 ppid=93582 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:17 pid=93599 ppid=93597 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":93611},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:18 pid=94228 ppid=94225 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:18 pid=94302 ppid=94299 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":94063},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:19 pid=95962 ppid=95958 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:19 pid=96009 ppid=96006 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":95689},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:21 pid=96724 ppid=96722 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:21 pid=96786 ppid=96782 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":96376},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:22 pid=97503 ppid=97500 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:22 pid=97556 ppid=97550 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":97521},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:23 pid=98360 ppid=98358 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:24 pid=98394 ppid=98392 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":98219},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:25 pid=99102 ppid=99100 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:25 pid=99141 ppid=99137 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":98929},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:26 pid=99730 ppid=99728 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:26 pid=99773 ppid=99768 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":99346},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:27 pid=99972 ppid=99970 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:28 pid=99990 ppid=99988 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":99985},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:29 pid=366 ppid=363 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:29 pid=397 ppid=395 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":280},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c0
+  err: 
+02:03:30 pid=860 ppid=857 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:30 pid=888 ppid=882 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":823},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c0
+  err: 
+02:03:32 pid=1074 ppid=1072 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:32 pid=1094 ppid=1092 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":1008},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:33 pid=1257 ppid=1253 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:33 pid=1280 ppid=1277 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":1138},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:34 pid=1453 ppid=1451 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:34 pid=1469 ppid=1467 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":1437},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:36 pid=1841 ppid=1836 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:36 pid=2073 ppid=2068 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":1715},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:37 pid=2781 ppid=2779 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:37 pid=2807 ppid=2804 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":2630},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:39 pid=3199 ppid=3197 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:39 pid=3213 ppid=3211 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":2967},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:40 pid=3404 ppid=3402 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:40 pid=3420 ppid=3418 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":3235},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:41 pid=4457 ppid=4453 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:41 pid=4570 ppid=4564 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":4314},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:43 pid=5706 ppid=5700 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:43 pid=5765 ppid=5762 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":5323},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:44 pid=6430 ppid=6428 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:44 pid=6482 ppid=6478 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":6146},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:45 pid=7219 ppid=7217 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:45 pid=7244 ppid=7241 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":7229},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:46 pid=7992 ppid=7989 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:46 pid=8035 ppid=8032 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":7901},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:48 pid=8708 ppid=8706 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:48 pid=8721 ppid=8719 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":8543},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:49 pid=9229 ppid=9225 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:49 pid=9268 ppid=9264 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":8867},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:50 pid=9479 ppid=9477 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:50 pid=9495 ppid=9493 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":9499},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:52 pid=9582 ppid=9580 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:52 pid=9607 ppid=9605 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":9577},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:53 pid=9750 ppid=9748 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:53 pid=9780 ppid=9777 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":9721},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:54 pid=9917 ppid=9914 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:55 pid=9938 ppid=9936 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":9867},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:56 pid=10063 ppid=10061 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:56 pid=10076 ppid=10074 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":9985},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992c
+  err: 
+02:03:57 pid=10236 ppid=10233 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:57 pid=10257 ppid=10255 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":10260},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:03:58 pid=11242 ppid=11239 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:03:58 pid=11276 ppid=11274 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":11093},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:04:00 pid=11615 ppid=11613 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:00 pid=11631 ppid=11629 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":11490},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:04:01 pid=11932 ppid=11930 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:01 pid=11946 ppid=11944 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":11821},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:04:03 pid=12094 ppid=12092 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:03 pid=12109 ppid=12107 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":12015},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:04:04 pid=13903 ppid=13895 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:04 pid=14052 ppid=14045 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":14084},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:04:05 pid=15340 ppid=15335 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:05 pid=15425 ppid=15423 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":67650,"foreground_processes":[{"argv":["sleep","1"],"argv0":"sleep","cmdline":"sleep 1","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"sleep","pid":15086},{"argv":["/bin/bash","/private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout","0000000000000000000000000000000000000000","8fd5b79ea39c0e75c992c07a960b9b0d2ed0137c","1"],"argv0":"bash","cmdline":"/bin/bash /private/tmp/fml.SPrHuQ/project/.git/hooks/post-checkout 0000000000000000000000000000000000000000 8fd5b79ea39c0e75c992
+  err: 
+02:04:07 pid=16382 ppid=16379 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:07 pid=16427 ppid=16424 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":16139,"foreground_processes":[{"argv":["/bin/bash","--noprofile","--norc"],"argv0":"bash","cmdline":"/bin/bash --noprofile --norc","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"bash","pid":16139}],"pane_id":"w2:p2","shell_pid":66694},"type":"pane_process_info"}}
+  err: 
+02:04:08 pid=16856 ppid=16850 rc=0: herdr session list --json
+  out: {"sessions":[{"default":true,"name":"default","running":true,"session_dir":"/Users/hcho/.config/herdr","socket_path":"/Users/hcho/.config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-31895-22495","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495","socket_path":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-48285-17739","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739","socket_path":
+  err: 
+02:04:08 pid=17040 ppid=17038 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w1:t2","agent_status":"unknown","focused":true,"label":"firstmate","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"},{"active_tab_id":"w2:t2","agent_status":"unknown","focused":false,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t2","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":3,"pane_count":1,"tab_count":1,"workspace_id":"w3"}]}}
+  err: 
+02:04:08 pid=17117 ppid=17115 rc=0: herdr tab list --workspace w1
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-w-62458","number":2,"pane_count":1,"tab_id":"w1:t2","workspace_id":"w1"}],"type":"tab_list"}}
+  err: 
+02:04:08 pid=17159 ppid=17156 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:08 pid=17186 ppid=17183 rc=0: herdr pane get w1:p2
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":true,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w1:p2","revision":0,"scroll":{"max_offset_from_bottom":5,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w1:t2","terminal_id":"term_65df16bc9001c2","workspace_id":"w1"},"type":"pane_info"}}
+  err: 
+02:04:08 pid=17203 ppid=17199 rc=0: herdr pane process-info --pane w2:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":16139,"foreground_processes":[{"argv":["/bin/bash","--noprofile","--norc"],"argv0":"bash","cmdline":"/bin/bash --noprofile --norc","cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","name":"bash","pid":16139}],"pane_id":"w2:p2","shell_pid":66694},"type":"pane_process_info"}}
+  err: 
+02:04:08 pid=17310 ppid=17307 rc=0: herdr session list --json
+  out: {"sessions":[{"default":true,"name":"default","running":true,"session_dir":"/Users/hcho/.config/herdr","socket_path":"/Users/hcho/.config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-31895-22495","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495","socket_path":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-48285-17739","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739","socket_path":
+  err: 
+02:04:08 pid=17335 ppid=77606 rc=0: herdr pane close w1:p2
+  out: {"id":"cli:pane:close","result":{"type":"ok"}}
+  err: 
+02:04:08 pid=17391 ppid=17390 rc=1: herdr pane get w1:p2
+  out: 
+  err: {"error":{"code":"pane_not_found","message":"pane w1:p2 not found"},"id":"cli:pane:get"}
+02:04:08 pid=17489 ppid=17487 rc=1: herdr pane get w1:p2
+  out: 
+  err: {"error":{"code":"pane_not_found","message":"pane w1:p2 not found"},"id":"cli:pane:get"}
+02:04:10 pid=18794 ppid=18714 rc=0: herdr pane get w3:p2
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project2","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/pool2/.treehouse/project2-ec89dc/1/project2","pane_id":"w3:p2","revision":0,"scroll":{"max_offset_from_bottom":4,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w3:t2","terminal_id":"term_65df16cd68fe26","workspace_id":"w3"},"type":"pane_info"}}
+  err: 
+02:04:10 pid=18968 ppid=18966 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:10 pid=19016 ppid=19014 rc=0: herdr pane read w3:p2 --source recent --lines 200
+  out: 
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ printf '%s\n' "$$" > '/tmp/fm-fml-other-6245
+8/treehouse-get.shell-pid'
+bash-3.2$ treehouse get
+A new version of treehouse is available: v3.1.0 → v3.1
+.4
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.SPrHuQ/pool2/.
+treehouse/project2-ec89dc/1/project2. Type 'exit' to r
+eturn.
+
+The default interactive shell is now zsh.
+To update your account to use
+  err: 
+02:04:10 pid=19115 ppid=19113 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:10 pid=19188 ppid=19185 rc=1: herdr agent get w3:p2
+  out: 
+  err: {"error":{"code":"agent_not_found","message":"agent target w3:p2 not found"},"id":"cli:agent:get"}
+02:04:12 pid=20884 ppid=20805 rc=0: herdr pane get w3:p2
+02:04:12 pid=20894 ppid=20811 rc=0: herdr pane get w2:p2
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project2","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/pool2/.treehouse/project2-ec89dc/1/project2","pane_id":"w3:p2","revision":0,"scroll":{"max_offset_from_bottom":4,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w3:t2","terminal_id":"term_65df16cd68fe26","workspace_id":"w3"},"type":"pane_info"}}
+  err: 
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":true,"foreground_cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","pane_id":"w2:p2","revision":0,"scroll":{"max_offset_from_bottom":1,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w2:t2","terminal_id":"term_65df16c4343a64","workspace_id":"w2"},"type":"pane_info"}}
+  err: 
+02:04:12 pid=21003 ppid=21001 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+02:04:12 pid=21008 ppid=21005 rc=0: herdr status --json
+  err: 
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:12 pid=21034 ppid=21033 rc=0: herdr pane read w3:p2 --source recent --lines 200
+  out: 
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ printf '%s\n' "$$" > '/tmp/fm-fml-other-6245
+8/treehouse-get.shell-pid'
+bash-3.2$ treehouse get
+A new version of treehouse is available: v3.1.0 → v3.1
+.4
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.SPrHuQ/pool2/.
+treehouse/project2-ec89dc/1/project2. Type 'exit' to r
+eturn.
+
+The default interactive shell is now zsh.
+To update your account to use
+02:04:12 pid=21036 ppid=21035 rc=0: herdr pane read w2:p2 --source recent --lines 200
+  err: 
+  out: 
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ printf '%s\n' "$$" > '/tmp/fm-fml-side-62458
+/treehouse-get.shell-pid'
+bash-3.2$ treehouse get
+A new version of treehouse is available: v3.1.0 → v3.1
+.4
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.SPrHuQ/pool/.t
+reehouse/project-8ae5b9/2/project. Type 'exit' to retu
+rn.
+
+The default interactive shell is now zsh.
+To update your account to use zsh
+  err: 
+02:04:12 pid=21079 ppid=21076 rc=0: herdr status --json
+02:04:12 pid=21085 ppid=21083 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:12 pid=21132 ppid=21128 rc=1: herdr agent get w3:p2
+  out: 
+02:04:12 pid=21135 ppid=21134 rc=1: herdr agent get w2:p2
+  err: {"error":{"code":"agent_not_found","message":"agent target w3:p2 not found"},"id":"cli:agent:get"}
+  out: 
+  err: {"error":{"code":"agent_not_found","message":"agent target w2:p2 not found"},"id":"cli:agent:get"}
+02:04:13 pid=21958 ppid=21955 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:13 pid=22007 ppid=65978 rc=0: herdr pane run w2:p2 export GOTMPDIR=/tmp/fm-fml-side-62458/gotmp
+  out: 
+  err: 
+02:04:13 pid=22432 ppid=22430 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:14 pid=22466 ppid=65978 rc=0: herdr pane send-text w2:p2 sh -c 'sleep 600'
+  out: 
+  err: 
+02:04:14 pid=22673 ppid=22671 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:14 pid=22694 ppid=65978 rc=0: herdr pane send-keys w2:p2 enter
+  out: 
+  err: 
+02:04:14 pid=22791 ppid=62458 rc=2: herdr pane process-info w2:p2
+  out: 
+  err: unknown option: w2:p2
+02:04:14 pid=22809 ppid=62458 rc=0: herdr pane read w2:p2 --source recent --lines 15
+  out: Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.SPrHuQ/pool/.t
+reehouse/project-8ae5b9/2/project. Type 'exit' to retu
+rn.
+
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ export GOTMPDIR=/tmp/fm-fml-side-62458/gotmp
+bash-3.2$ sh -c 'sleep 600'
+  err: 
+02:04:14 pid=22849 ppid=62458 rc=2: herdr pane process-info w3:p2
+  out: 
+  err: unknown option: w3:p2
+02:04:14 pid=22869 ppid=62458 rc=0: herdr pane read w3:p2 --source recent --lines 15
+  out: 
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.SPrHuQ/pool2/.
+treehouse/project2-ec89dc/1/project2. Type 'exit' to r
+eturn.
+
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ export GOTMPDIR=/tmp/fm-fml-other-62458/gotm
+p
+bash-3.2$ sh -c 'sleep 600'
+  err: 
+02:04:15 pid=23368 ppid=23367 rc=0: herdr pane get w2:p2
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":true,"foreground_cwd":"/private/tmp/fml.SPrHuQ/pool/.treehouse/project-8ae5b9/2/project","pane_id":"w2:p2","revision":0,"scroll":{"max_offset_from_bottom":3,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w2:t2","terminal_id":"term_65df16c4343a64","workspace_id":"w2"},"type":"pane_info"}}
+  err: 
+02:04:15 pid=23429 ppid=23428 rc=0: herdr session list --json
+  out: {"sessions":[{"default":true,"name":"default","running":true,"session_dir":"/Users/hcho/.config/herdr","socket_path":"/Users/hcho/.config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-31895-22495","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495","socket_path":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-48285-17739","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739","socket_path":
+  err: 
+02:04:16 pid=23576 ppid=23574 rc=0: herdr session list --json
+  out: {"sessions":[{"default":true,"name":"default","running":true,"session_dir":"/Users/hcho/.config/herdr","socket_path":"/Users/hcho/.config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-31895-22495","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495","socket_path":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-48285-17739","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739","socket_path":
+  err: 
+02:04:24 pid=26832 ppid=26831 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w2:t2","agent_status":"unknown","focused":true,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t2","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w3"}]}}
+  err: 
+02:04:24 pid=26892 ppid=26891 rc=0: herdr session list --json
+  out: {"sessions":[{"default":true,"name":"default","running":true,"session_dir":"/Users/hcho/.config/herdr","socket_path":"/Users/hcho/.config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-31895-22495","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495","socket_path":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-48285-17739","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739","socket_path":
+  err: 
+02:04:24 pid=26961 ppid=26960 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w2:t2","agent_status":"unknown","focused":true,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t2","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w3"}]}}
+  err: 
+02:04:24 pid=27007 ppid=27006 rc=0: herdr tab list --workspace w2
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-side-62458","number":2,"pane_count":1,"tab_id":"w2:t2","workspace_id":"w2"}],"type":"tab_list"}}
+  err: 
+02:04:24 pid=27041 ppid=27040 rc=0: herdr pane get w2:p2
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":true,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w2:p2","revision":0,"scroll":{"max_offset_from_bottom":5,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w2:t2","terminal_id":"term_65df16c4343a64","workspace_id":"w2"},"type":"pane_info"}}
+  err: 
+02:04:24 pid=27108 ppid=27106 rc=0: herdr pane get w2:p2
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":true,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w2:p2","revision":0,"scroll":{"max_offset_from_bottom":5,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w2:t2","terminal_id":"term_65df16c4343a64","workspace_id":"w2"},"type":"pane_info"}}
+  err: 
+02:04:24 pid=27159 ppid=27157 rc=1: herdr agent get w2:p2
+  out: 
+  err: {"error":{"code":"agent_not_found","message":"agent target w2:p2 not found"},"id":"cli:agent:get"}
+02:04:24 pid=27206 ppid=27205 rc=0: herdr pane get w2:p2
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":true,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w2:p2","revision":0,"scroll":{"max_offset_from_bottom":5,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w2:t2","terminal_id":"term_65df16c4343a64","workspace_id":"w2"},"type":"pane_info"}}
+  err: 
+02:04:25 pid=27794 ppid=27793 rc=0: herdr pane get w3:p2
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project2","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/pool2/.treehouse/project2-ec89dc/1/project2","pane_id":"w3:p2","revision":0,"scroll":{"max_offset_from_bottom":4,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w3:t2","terminal_id":"term_65df16cd68fe26","workspace_id":"w3"},"type":"pane_info"}}
+  err: 
+02:04:25 pid=28265 ppid=28251 rc=0: herdr session list --json
+  out: {"sessions":[{"default":true,"name":"default","running":true,"session_dir":"/Users/hcho/.config/herdr","socket_path":"/Users/hcho/.config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-31895-22495","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495","socket_path":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-48285-17739","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739","socket_path":
+  err: 
+02:04:26 pid=28594 ppid=28591 rc=0: herdr session list --json
+  out: {"sessions":[{"default":true,"name":"default","running":true,"session_dir":"/Users/hcho/.config/herdr","socket_path":"/Users/hcho/.config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-31895-22495","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495","socket_path":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-48285-17739","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739","socket_path":
+  err: 
+02:04:34 pid=33246 ppid=33245 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w2:t2","agent_status":"unknown","focused":true,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t2","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w3"}]}}
+  err: 
+02:04:34 pid=33343 ppid=33342 rc=0: herdr session list --json
+  out: {"sessions":[{"default":true,"name":"default","running":true,"session_dir":"/Users/hcho/.config/herdr","socket_path":"/Users/hcho/.config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-31895-22495","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495","socket_path":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock"},{"default":false,"name":"fm-lab-fm-herdr-present-48285-17739","running":false,"session_dir":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739","socket_path":
+  err: 
+02:04:34 pid=33467 ppid=33464 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w2:t2","agent_status":"unknown","focused":true,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t2","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w3"}]}}
+  err: 
+02:04:34 pid=33555 ppid=33549 rc=0: herdr tab list --workspace w2
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-side-62458","number":2,"pane_count":1,"tab_id":"w2:t2","workspace_id":"w2"}],"type":"tab_list"}}
+  err: 
+02:04:34 pid=33610 ppid=33609 rc=0: herdr pane get w3:p2
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project2","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project2","pane_id":"w3:p2","revision":0,"scroll":{"max_offset_from_bottom":6,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w3:t2","terminal_id":"term_65df16cd68fe26","workspace_id":"w3"},"type":"pane_info"}}
+  err: 
+02:04:34 pid=33739 ppid=33737 rc=0: herdr tab list --workspace w3
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":false,"label":"fm-fml-other-62458","number":2,"pane_count":1,"tab_id":"w3:t2","workspace_id":"w3"}],"type":"tab_list"}}
+  err: 
+02:04:35 pid=33799 ppid=33798 rc=0: herdr pane list --workspace w3
+  out: {"id":"cli:pane:list","result":{"panes":[{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project2","focused":false,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project2","pane_id":"w3:p2","revision":0,"scroll":{"max_offset_from_bottom":6,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w3:t2","terminal_id":"term_65df16cd68fe26","workspace_id":"w3"}],"type":"pane_list"}}
+  err: 
+02:04:35 pid=33854 ppid=33852 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w2:t2","agent_status":"unknown","focused":true,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w2"},{"active_tab_id":"w3:t2","agent_status":"unknown","focused":false,"label":"└ fml-other-62458 · p:WHsLKaPnlq297JSiROUkHA","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w3"}]}}
+  err: 
+02:04:35 pid=33909 ppid=33908 rc=0: herdr pane process-info --pane w3:p2
+  out: {"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":72597,"foreground_processes":[{"argv":["/bin/bash","--noprofile","--norc"],"argv0":"bash","cmdline":"/bin/bash --noprofile --norc","cwd":"/private/tmp/fml.SPrHuQ/project2","name":"bash","pid":72597}],"pane_id":"w3:p2","shell_pid":72597},"type":"pane_process_info"}}
+  err: 
+02:04:35 pid=34007 ppid=34006 rc=1: herdr pane get w3:p2
+  out: 
+  err: {"error":{"code":"pane_not_found","message":"pane w3:p2 not found"},"id":"cli:pane:get"}
+02:04:35 pid=34043 ppid=34042 rc=0: herdr workspace list
+  out: {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w2:t2","agent_status":"unknown","focused":true,"label":"└ fml-side-62458 · p:78pO8mppkgaoUIUJ-nSeVg","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w2"}]}}
+  err: 
+02:04:35 pid=34061 ppid=34060 rc=0: herdr tab list --workspace w2
+  out: {"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"fm-fml-side-62458","number":2,"pane_count":1,"tab_id":"w2:t2","workspace_id":"w2"}],"type":"tab_list"}}
+  err: 
+02:04:35 pid=34092 ppid=34091 rc=1: herdr pane get w3:p2
+  out: 
+  err: {"error":{"code":"pane_not_found","message":"pane w3:p2 not found"},"id":"cli:pane:get"}
+02:04:35 pid=34115 ppid=34114 rc=1: herdr pane get w3:p2
+  out: 
+  err: {"error":{"code":"pane_not_found","message":"pane w3:p2 not found"},"id":"cli:pane:get"}
+02:04:37 pid=35040 ppid=34978 rc=0: herdr pane get w2:p2
+  out: {"id":"cli:pane:get","result":{"pane":{"agent_status":"unknown","cwd":"/private/tmp/fml.SPrHuQ/project","focused":true,"foreground_cwd":"/private/tmp/fml.SPrHuQ/project","pane_id":"w2:p2","revision":0,"scroll":{"max_offset_from_bottom":5,"offset_from_bottom":0,"viewport_rows":23},"tab_id":"w2:t2","terminal_id":"term_65df16c4343a64","workspace_id":"w2"},"type":"pane_info"}}
+  err: 
+02:04:37 pid=35201 ppid=35199 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:37 pid=35241 ppid=35240 rc=0: herdr pane read w2:p2 --source recent --lines 200
+  out: 
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s
+ /bin/zsh`.
+For more details, please visit https://support.apple.c
+om/kb/HT208050.
+bash-3.2$ printf '%s\n' "$$" > '/tmp/fm-fml-side-62458
+/treehouse-get.shell-pid'
+bash-3.2$ treehouse get
+A new version of treehouse is available: v3.1.0 → v3.1
+.4
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Entered worktree at /private/tmp/fml.SPrHuQ/pool/.t
+reehouse/project-8ae5b9/2/project. Type 'exit' to retu
+rn.
+
+The default interactive shell is now zsh.
+To update your account to use zsh
+  err: 
+02:04:37 pid=35299 ppid=35297 rc=0: herdr status --json
+  out: {"client":{"version":"0.7.5","channel":"stable","protocol":17,"binary":"/usr/local/bin/herdr","session":"fm-lab-fm-live-thw-62584-8341"},"server":{"status":"running","running":true,"version":"0.7.5","protocol":17,"capabilities":{"live_handoff":true,"detached_server_daemon":false},"compatible":true,"socket":"/Users/hcho/.config/herdr/sessions/fm-lab-fm-live-thw-62584-8341/herdr.sock","session":"fm-lab-fm-live-thw-62584-8341","restart_needed":false},"update":{"restart_needed":false}}
+  err: 
+02:04:37 pid=35317 ppid=35315 rc=1: herdr agent get w2:p2
+  out: 
+  err: {"error":{"code":"agent_not_found","message":"agent target w2:p2 not found"},"id":"cli:agent:get"}

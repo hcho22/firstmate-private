@@ -1,0 +1,9 @@
+teardown: reaping leaked worktree process(es) for fml-ord-91953: 95175 97778
+teardown: force-killing leaked worktree process(es) for fml-ord-91953: 95175
+A new version of treehouse is available: v3.1.0 → v3.1.4
+Run "treehouse update" to update
+
+🌳 Worktree returned to pool.
+warning: herdr presentation cleanup target is the captain's active tab; refusing a close that cannot preserve focus
+warning: exact herdr task-pane close could not be confirmed for fml-ord-91953; retaining the presentation journal and attempting no workspace cleanup
+error: herdr pane fm-lab-fm-live-thw-92007-10335:w2:p2 for fml-ord-91953 is not confirmed gone after its close was refused, skipped, or failed; retaining every durable task record - rerun teardown once the close can run under the session lock

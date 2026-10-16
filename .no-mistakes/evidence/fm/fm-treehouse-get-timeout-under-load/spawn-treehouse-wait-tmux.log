@@ -1,0 +1,23 @@
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-10-16T07:41:42Z tests/fm-spawn-treehouse-wait.test.sh family=unclassified expected_gate_skip=none
+ok - a slow but advancing treehouse get completes the launch and records its worktree
+ok - a get whose processes stop changing is refused at the stall window, naming what it waits on
+ok - a get that keeps advancing but never settles is refused at the ceiling
+ok - a get that exits without a worktree is refused promptly and says so
+ok - a get that lands in the primary checkout is still refused by the isolation assertion
+ok - an unobservable get is waited on for FM_TREEHOUSE_GET_START_SECS, not a fixed sixty polls
+ok - a failed process-table read restarts nothing and refuses nothing while the get keeps advancing
+ok - a get that can never be observed is refused at FM_TREEHOUSE_GET_START_SECS, saying why
+ok - a get queued on the pool lock behind a peer that keeps working completes the launch, finding that peer once
+ok - a get queued on the pool lock behind a peer that does nothing is refused, naming that peer
+ok - a get follows the pool lock from a peer that closed it but kept working to the peer that holds it now
+ok - a second fresh dispatch in the same home proceeds while the first one's get is still running
+ok - the wait's pid record is removed on success and a refusal strands no temp root
+# all fm-spawn-treehouse-wait tests passed
+FM_TEST_END 2026-10-16T07:42:31Z tests/fm-spawn-treehouse-wait.test.sh exit=0 duration_ms=49088 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=49646
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=49088 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-spawn-treehouse-wait.test.sh duration_ms=49088
+bin/fm-test-run.sh tests/fm-spawn-treehouse-wait.test.sh  29.07s user 34.31s system 127% cpu 49.723 total
+exit=0

@@ -1,0 +1,10 @@
+ok - a slow but advancing treehouse get completes the launch on Herdr and records its worktree
+ok - a get that exits without a worktree is refused promptly on Herdr and says so
+ok - a teardown on the same Herdr session gets past its presentation lock preflight while a projected spawn's get is still running
+ok - a second dispatch in the same home completes, projected, while a get runs and a teardown waits in treehouse return behind it
+ok - the teardown completes its pane close under the presentation lock once its treehouse return gets the pool lock
+ok - the projected spawn whose get was held open completes once the get settles
+ok - a projected spawn waits for a presentation lock still busy after its get and then launches under it
+not ok - abort cleanup of the refused get warned: warning: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-herdr-treehouse-wait.vRmqCD/home/data/hthw-refused-67641/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: treehouse get exited without entering a worktree (nothing is running in the pane's shell; read the pane for its error); inspect window fm-lab-fm-herdr-treehou-67672-13059:w5:p2
+warning: herdr presentation cleanup could not verify the exact pane; refusing focus-unsafe pane close
