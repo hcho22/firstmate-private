@@ -777,7 +777,7 @@ fi
 assert_focus_is "$CAPTAIN_FOCUS" "bounded presentation lock flat fallback"
 assert_raw_presentation_mutations_preserved_since "$LOCK_CONTENTION_FOCUS_START" "bounded presentation lock flat fallback"
 teardown_task lock-contended "$HOME_DIR" > "$TMP_ROOT/lock-contended-teardown.out" 2> "$TMP_ROOT/lock-contended-teardown.err" \
-  || fail "flat lock-contention fixture teardown failed"
+  || fail "flat lock-contention fixture teardown failed: $(cat "$TMP_ROOT/lock-contended-teardown.err")"
 assert_focus_is "$CAPTAIN_FOCUS" "bounded presentation lock flat fallback teardown"
 pass "real Herdr lab: bounded lock contention warns and falls back flat without projection or focus drift"
 PROJECTION_ORDER_START=$(log_line_count)
@@ -949,7 +949,7 @@ finish_concurrent_teardown order-a "$ORDER_A_TEARDOWN_STATUS" "$TMP_ROOT/order-a
 finish_concurrent_teardown order-b "$ORDER_B_TEARDOWN_STATUS" "$TMP_ROOT/order-b-teardown.out" "$TMP_ROOT/order-b-teardown.err"
 assert_focus_is "$CAPTAIN_FOCUS" "concurrent projected teardowns"
 teardown_task order-fail "$HOME_DIR" > "$TMP_ROOT/order-fail-teardown.out" 2> "$TMP_ROOT/order-fail-teardown.err" \
-  || fail "projected ordering failure fixture teardown failed"
+  || fail "projected ordering failure fixture teardown failed: $(cat "$TMP_ROOT/order-fail-teardown.err")"
 assert_focus_is "$CAPTAIN_FOCUS" "failed-order projection teardown"
 pass "real Herdr lab: concurrent projected cleanup is serialized and leaves active workspace/tab unchanged"
 
@@ -1204,7 +1204,7 @@ AFLAT_LABEL=$(lab workspace get "$AFLAT_WSID" | jq -r '.result.workspace.label')
   || fail "cross-home lock contention published a projection journal"
 assert_focus_is "$CAPTAIN_FOCUS" "cross-home lock contention flat fallback"
 teardown_task aflat "$SECOND_HOME_A" > "$TMP_ROOT/aflat-teardown.out" 2> "$TMP_ROOT/aflat-teardown.err" \
-  || fail "flat cross-home contention fixture teardown failed"
+  || fail "flat cross-home contention fixture teardown failed: $(cat "$TMP_ROOT/aflat-teardown.err")"
 pass "real Herdr lab: session lock contention from a secondmate home falls back flat with no journal"
 
 # Same-identity recovery replaces only one exact agent-free husk in its
@@ -1244,7 +1244,7 @@ for RESTART_ID in fm-hibit-resume-r1 wheelhouse-healing-r1; do
   NEW_RESTART_WSID=$(grep '^herdr_workspace_id=' "$RESTART_META" | cut -d= -f2-)
   NEW_RESTART_PANE=$(grep '^herdr_pane_id=' "$RESTART_META" | cut -d= -f2-)
   [ "$NEW_RESTART_WSID" = "$OLD_RESTART_WSID" ] \
-    || fail "$RESTART_ID reclaim flattened into a different workspace"
+    || fail "$RESTART_ID reclaim flattened into a different workspace: $(cat "$TMP_ROOT/$RESTART_ID-reclaim.err")"
   [ "$NEW_RESTART_PANE" != "$OLD_RESTART_PANE" ] \
     || fail "$RESTART_ID reclaim reused the old husk pane"
   [ "$(lab workspace get "$NEW_RESTART_WSID" | jq -r '.result.workspace.label')" = "$OLD_RESTART_LABEL" ] \
@@ -1380,9 +1380,9 @@ if lab pane get "$PRIMARY_WAVE_OLD_PANE" >/dev/null 2>&1 \
 fi
 assert_focus_is "$CONCURRENT_RECOVERY_FOCUS" "concurrent cross-home recovery"
 teardown_task "$PRIMARY_WAVE_ID" "$HOME_DIR" > "$TMP_ROOT/primary-wave-teardown.out" 2> "$TMP_ROOT/primary-wave-teardown.err" \
-  || fail "concurrent primary recovery teardown failed"
+  || fail "concurrent primary recovery teardown failed: $(cat "$TMP_ROOT/primary-wave-teardown.err")"
 teardown_task "$BRAVO_WAVE_ID" "$SECOND_HOME_B" > "$TMP_ROOT/bravo-wave-teardown.out" 2> "$TMP_ROOT/bravo-wave-teardown.err" \
-  || fail "concurrent secondmate recovery teardown failed"
+  || fail "concurrent secondmate recovery teardown failed: $(cat "$TMP_ROOT/bravo-wave-teardown.err")"
 "$REAL_TREEHOUSE" return --force "$PRIMARY_WAVE_OLD_WT" >/dev/null 2>&1 || true
 "$REAL_TREEHOUSE" return --force "$BRAVO_WAVE_OLD_WT" >/dev/null 2>&1 || true
 "$REAL_TREEHOUSE" return --force "$PRIMARY_WAVE_NEW_WT" >/dev/null 2>&1 || true
