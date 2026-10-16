@@ -979,6 +979,7 @@ A copy that is slow but still advancing (a process starts or exits, or any of th
 A get that has exited without a worktree is refused after `FM_TREEHOUSE_GET_EXIT_GRACE_SECS`, saying so.
 A get whose processes stop changing for `FM_TREEHOUSE_GET_STALL_SECS` is refused as stuck, naming the process it was waiting on, and a get that keeps changing without ever settling is refused at `FM_TREEHOUSE_GET_MAX_SECS`.
 A get that is only waiting its turn on its project's pool, because another get or `treehouse return` on the same pool holds treehouse's pool lock (`treehouse-state.lock`, found with `lsof`), counts that operation's progress as its own; when nothing holding that lock advances either, the refusal names those processes beside what the get was waiting on.
+Those processes are looked up again whenever one of them closes the lock, so an operation that finished with the pool but keeps running neither counts as progress nor takes the blame.
 When the get cannot be observed, the wait keeps the original bound: `FM_TREEHOUSE_GET_START_SECS` seconds, or as many polls, without an observation end it.
 The spawn holds neither the home's task-set lock nor the Herdr session presentation lock while the get runs, so a slow copy does not refuse teardowns, pane closes, or other dispatches meanwhile.
 It waits for both again once the get settles, the presentation lock for up to `FM_TREEHOUSE_GET_MAX_SECS`; a presentation lock still busy then refuses the launch, naming its holder.

@@ -70,6 +70,8 @@ trap cleanup_all EXIT
 #   subdir   enters a subdirectory of the primary checkout instead of a worktree
 #   pool     waits, with no progress of its own, for an exclusive flock on the
 #            pool's treehouse-state.lock (as treehouse does), then acquires
+#   queue    opens the pool's treehouse-state.lock and then waits, with no
+#            progress of its own, without ever contending for it
 #   gate     the first get in the world starts short-lived children until
 #            the case creates pool/release; every later get acquires at once
 #   polls    starts short-lived children until the spawn has read the process
@@ -93,6 +95,10 @@ case "\$FMT_MODE" in
     ;;
   polls)
     while [ "\$(cat "\$FMT_PS_COUNT" 2>/dev/null || echo 0)" -lt "\$FMT_SECONDS" ]; do "$REAL_SLEEP" 0.2; done
+    ;;
+  queue)
+    perl -e 'open(my \$f, ">>", \$ARGV[0]) or die "open: \$!"; sleep 3600' "\$FMT_POOL/treehouse-state.lock"
+    exit 1
     ;;
   gate)
     if mkdir "\$FMT_POOL/gate" 2>/dev/null; then
@@ -239,6 +245,50 @@ run_pool_case() {
   spawn_in "$name" "$(case_id "$name")" "$TMP_ROOT/$name" pool 0 "$@"
 }
 
+# run_handoff_case: a get queued on the pool while the lock passes from one
+# peer to another. The first peer holds the lock while working, then, once the
+# get has found both peers, closes it and keeps working, as a get whose copy is
+# done keeps running under the worker it launched. The second peer, queued
+# behind it, takes the lock and does nothing. Their pids are recorded in
+# first.pid and second.pid.
+run_handoff_case() {
+  local case_dir="$TMP_ROOT/peerhandoff" spawn_pid deadline
+  make_world peerhandoff
+  perl -MFcntl=:flock -e '
+    my ($lock, $marker, $release, $sleep) = @ARGV;
+    open(my $f, ">>", $lock) or die "open: $!";
+    flock($f, LOCK_EX) or die "flock: $!";
+    open(my $m, ">", $marker) or die "marker: $!";
+    close($m);
+    system($sleep, "0.2") until -e $release;
+    close($f);
+    system($sleep, "0.2") while 1;
+  ' "$case_dir/pool/treehouse-state.lock" "$case_dir/first.holding" "$case_dir/pool/release-first" "$REAL_SLEEP" \
+    </dev/null >/dev/null 2>&1 &
+  printf '%s\n' "$!" > "$case_dir/first.pid"
+  deadline=$((SECONDS + 30))
+  while [ ! -e "$case_dir/first.holding" ] && [ "$SECONDS" -lt "$deadline" ]; do "$REAL_SLEEP" 0.1; done
+  perl -MFcntl=:flock -e '
+    my ($lock, $marker) = @ARGV;
+    open(my $f, ">>", $lock) or die "open: $!";
+    flock($f, LOCK_EX) or die "flock: $!";
+    open(my $m, ">", $marker) or die "marker: $!";
+    close($m);
+    sleep 3600;
+  ' "$case_dir/pool/treehouse-state.lock" "$case_dir/second.holding" </dev/null >/dev/null 2>&1 &
+  printf '%s\n' "$!" > "$case_dir/second.pid"
+  spawn_in peerhandoff "$(case_id peerhandoff)" "$case_dir" queue 0 \
+    FM_TREEHOUSE_GET_STALL_SECS=4 FM_TREEHOUSE_GET_MAX_SECS=60 &
+  spawn_pid=$!
+  deadline=$((SECONDS + 60))
+  while [ ! -s "$case_dir/lsof-scans" ] && kill -0 "$spawn_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
+    "$REAL_SLEEP" 0.1
+  done
+  "$REAL_SLEEP" 1
+  touch "$case_dir/pool/release-first"
+  wait "$spawn_pid"
+}
+
 # run_concurrent_case: two fresh dispatches in one home. The first one's get is
 # held open until the second has finished, and whether the first was still inside
 # its get at that point (no record yet, spawn still running) is recorded.
@@ -269,7 +319,7 @@ case_rc() { cat "$TMP_ROOT/$1/rc"; }
 case_elapsed() { cat "$TMP_ROOT/$1/elapsed"; }
 case_id() { printf 'thw-%s-%s' "$1" "$$"; }
 
-for c in slow stuck ceiling failed wrongplace blindslow blindflicker blind peerprogress peerstalled concurrent; do declare_case "$c"; done
+for c in slow stuck ceiling failed wrongplace blindslow blindflicker blind peerprogress peerstalled peerhandoff concurrent; do declare_case "$c"; done
 TASK_IDS+=("$(case_id concurrent-a)" "$(case_id concurrent-b)")
 
 # A copy that takes longer than the original bound but is still advancing: the
@@ -313,13 +363,16 @@ if [ "$POOL_CASES" -eq 1 ]; then
   # The same queue behind a peer that holds the lock and does nothing.
   run_pool_case peerstalled stall 120 FM_TREEHOUSE_GET_STALL_SECS=3 &
   PIDS+=("$!")
+  # A queue behind a peer that hands the lock to another and keeps working.
+  run_handoff_case &
+  PIDS+=("$!")
 fi
 run_concurrent_case &
 PIDS+=("$!")
 wait "${PIDS[@]}"
-for c in peerprogress peerstalled; do
-  [ -r "$TMP_ROOT/$c/peer.pid" ] || continue
-  PEER_PIDS+=("$(cat "$TMP_ROOT/$c/peer.pid")")
+for f in peerprogress/peer.pid peerstalled/peer.pid peerhandoff/first.pid peerhandoff/second.pid; do
+  [ -r "$TMP_ROOT/$f" ] || continue
+  PEER_PIDS+=("$(cat "$TMP_ROOT/$f")")
 done
 
 test_slow_but_advancing_get_completes_the_launch() {
@@ -439,6 +492,24 @@ test_get_queued_behind_a_stalled_peer_is_refused_naming_it() {
   pass "a get queued on the pool lock behind a peer that does nothing is refused, naming that peer"
 }
 
+test_get_follows_the_pool_lock_to_its_current_holder() {
+  local c=peerhandoff out rc first second
+  if [ "$POOL_CASES" -ne 1 ]; then echo "skip: perl or lsof not found"; return 0; fi
+  out=$(case_out $c)
+  rc=$(case_rc $c)
+  first=$(cat "$TMP_ROOT/$c/first.pid")
+  second=$(cat "$TMP_ROOT/$c/second.pid")
+  expect_code 1 "$rc" "a get queued behind a stalled holder must be refused"
+  assert_present "$TMP_ROOT/$c/second.holding" "the second peer never took the pool lock, so the case proved nothing"
+  assert_contains "$out" "advanced either: pid $second (" \
+    "the refusal does not name the operation that now holds the pool lock: $out"
+  assert_not_contains "$out" "pid $first (" \
+    "the refusal counts or blames an operation that already closed the pool lock: $out"
+  [ "$(case_elapsed $c)" -lt 40 ] \
+    || fail "a peer that closed the pool lock but kept working still counted as progress"
+  pass "a get follows the pool lock from a peer that closed it but kept working to the peer that holds it now"
+}
+
 test_second_dispatch_proceeds_while_a_slow_get_runs() {
   local dir="$TMP_ROOT/concurrent" first second out
   first=$(case_id concurrent-a)
@@ -461,7 +532,7 @@ test_the_wait_strands_no_temp_root() {
     assert_absent "/tmp/fm-$(case_id $c)/treehouse-get.shell-pid" "the wait left its pid record behind after a successful launch ($c)"
   done
   # A refused launch has made no task, so nothing may be left for teardown to miss.
-  for c in stuck ceiling failed wrongplace blind peerstalled; do
+  for c in stuck ceiling failed wrongplace blind peerstalled peerhandoff; do
     assert_absent "/tmp/fm-$(case_id $c)" "a refused launch stranded a temp root ($c)"
   done
   pass "the wait's pid record is removed on success and a refusal strands no temp root"
@@ -477,6 +548,7 @@ test_one_failed_process_read_does_not_refuse_an_advancing_get
 test_unobservable_get_is_refused_at_the_start_bound
 test_get_queued_behind_a_working_peer_completes_the_launch
 test_get_queued_behind_a_stalled_peer_is_refused_naming_it
+test_get_follows_the_pool_lock_to_its_current_holder
 test_second_dispatch_proceeds_while_a_slow_get_runs
 test_the_wait_strands_no_temp_root
 

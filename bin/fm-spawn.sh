@@ -2095,21 +2095,26 @@ treehouse_process_tree() {  # <get|peers> <pid>[,<pid>...]
     }'
 }
 
-# treehouse_pool_peers <pid>[,<pid>...]: the other live processes that hold open
-# a treehouse pool lock (treehouse-state.lock) one of <pid>... holds open, as one
-# comma-separated pid list. treehouse takes that lock with a blocking flock
-# across its slow work, for a get and for `treehouse return` alike, so a get
-# waiting its turn shows no progress of its own while the operation holding the
-# lock does. Prints nothing when there is no such peer or lsof is unavailable.
-# Finding them scans every process's open files, so the wait keeps the list for
-# as long as all of them run and samples only those (treehouse_process_tree).
-treehouse_pool_peers() {  # <pid>[,<pid>...]
-  local own=$1 locks lock peers pid
-  command -v lsof >/dev/null 2>&1 || return 0
-  locks=$(lsof -n -P -w -Fn -p "$own" 2>/dev/null | sed -n 's/^n\(.*\/treehouse-state\.lock\)$/\1/p' | LC_ALL=C sort -u)
-  [ -n "$locks" ] || return 0
-  peers=
+# treehouse_pool_locks <pid>[,<pid>...]: the treehouse pool locks
+# (treehouse-state.lock) those processes hold open, one path per line; nothing
+# when there is none or lsof is unavailable. treehouse takes that lock with a
+# blocking flock across its slow work, for a get and for `treehouse return`
+# alike, and closes it when that work is done, so a get waiting its turn shows
+# no progress of its own while the operation holding the lock does.
+treehouse_pool_locks() {  # <pid>[,<pid>...]
+  lsof -n -P -w -Fn -p "$1" 2>/dev/null | sed -n 's/^n\(.*\/treehouse-state\.lock\)$/\1/p' | LC_ALL=C sort -u
+}
+
+# treehouse_pool_peers <locks> <own-pid>[,<pid>...]: the other processes holding
+# any of <locks> (one path per line) open, as one comma-separated pid list.
+# This scans every process's open files, so the wait runs it again only when its
+# own pool locks change or one of the processes it found has closed its lock
+# (treehouse_pool_holders), and samples only those in between
+# (treehouse_process_tree).
+treehouse_pool_peers() {  # <locks> <own-pid>[,<pid>...]
+  local locks=$1 own=$2 lock peers='' pid
   while IFS= read -r lock; do
+    [ -n "$lock" ] || continue
     for pid in $(lsof -n -P -w -t -- "$lock" 2>/dev/null); do
       case ",$own,$peers," in *",$pid,"*) ;; *) peers=${peers:+$peers,}$pid ;; esac
     done
@@ -2119,14 +2124,13 @@ EOF
   [ -z "$peers" ] || printf '%s\n' "$peers"
 }
 
-# treehouse_pids_alive <pid>[,<pid>...]: every listed process still runs; false
-# for an empty list.
-treehouse_pids_alive() {  # <pid>[,<pid>...]
-  local pid
-  [ -n "$1" ] || return 1
-  for pid in ${1//,/ }; do
-    kill -0 "$pid" 2>/dev/null || return 1
-  done
+# treehouse_pool_holders <pid>[,<pid>...]: every listed process still holds a
+# treehouse pool lock open, read from those processes alone.
+treehouse_pool_holders() {  # <pid>[,<pid>...]
+  lsof -n -P -w -Fn -p "$1" 2>/dev/null | awk -v pids="$1" '
+    /^p/ { pid = substr($0, 2) }
+    /^n.*\/treehouse-state\.lock$/ { holds[pid] = 1 }
+    END { n = split(pids, want, ","); for (i = 1; i <= n; i++) if (!(want[i] in holds)) exit 1 }'
 }
 
 # A pooled slot whose only deviation is a submodule gitlink is stale, not dirty:
@@ -2758,6 +2762,7 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   th_exit_grace=$(treehouse_wait_seconds FM_TREEHOUSE_GET_EXIT_GRACE_SECS 10)
   th_shell_pid=
   th_fingerprint=
+  th_own_locks=
   th_peer_pids=
   th_peer_fingerprint=
   th_changed_at=$th_start
@@ -2822,26 +2827,34 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
         if [ "$th_processes" != "$th_fingerprint" ]; then
           th_fingerprint=$th_processes
           th_changed_at=$th_now
-          th_peer_pids=
           th_peer_fingerprint=
         else
           # No progress of its own. A get waiting its turn on its pool is not
-          # stuck while another process holding that pool lock open advances;
-          # the first sighting of them is only a baseline, so it cannot reset
-          # the window, and they are looked up again only once one has exited.
-          if ! treehouse_pids_alive "$th_peer_pids"; then
-            th_peer_pids=$(treehouse_pool_peers "$th_shell_pid,$(printf '%s\n' "$th_processes" | awk '{ printf "%s%s", sep, $1; sep = "," }')" || true)
+          # stuck while another process holding that pool lock open advances.
+          # The first sighting of them is only a baseline: it cannot reset the
+          # window, but nothing is refused before they are seen a second time.
+          # They are looked up again only when this get's own pool locks change
+          # or one of them has closed its lock.
+          th_own_pids="$th_shell_pid,$(printf '%s\n' "$th_processes" | awk '{ printf "%s%s", sep, $1; sep = "," }')"
+          th_locks=$(treehouse_pool_locks "$th_own_pids" || true)
+          if [ "$th_locks" != "$th_own_locks" ] \
+             || { [ -n "$th_peer_pids" ] && ! treehouse_pool_holders "$th_peer_pids"; }; then
+            th_own_locks=$th_locks
+            th_peer_pids=
+            [ -z "$th_locks" ] || th_peer_pids=$(treehouse_pool_peers "$th_locks" "$th_own_pids" || true)
           fi
           th_peers=
           [ -z "$th_peer_pids" ] || th_peers=$(treehouse_process_tree peers "$th_peer_pids" || true)
           th_peer_processes=
           case "$th_peers" in *$'\n'*) th_peer_processes=${th_peers#*$'\n'} ;; esac
-          if [ -n "$th_peer_processes" ] && [ -n "$th_peer_fingerprint" ] \
-             && [ "$th_peer_processes" != "$th_peer_fingerprint" ]; then
+          th_peer_first=0
+          if [ -n "$th_peer_processes" ] && [ -z "$th_peer_fingerprint" ]; then
+            th_peer_first=1
+          elif [ -n "$th_peer_processes" ] && [ "$th_peer_processes" != "$th_peer_fingerprint" ]; then
             th_changed_at=$th_now
           fi
           th_peer_fingerprint=$th_peer_processes
-          if [ $((th_now - th_changed_at)) -ge "$th_stall_secs" ]; then
+          if [ "$th_peer_first" -eq 0 ] && [ $((th_now - th_changed_at)) -ge "$th_stall_secs" ]; then
             if [ -n "$th_peer_processes" ]; then
               th_refusal="treehouse get made no progress for ${th_stall_secs}s (waiting on: ${th_waiting_on:-an unnamed process}), and nothing else holding its pool lock (treehouse-state.lock) open advanced either: ${th_peers%%$'\n'*}"
             else
