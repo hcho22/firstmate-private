@@ -918,7 +918,7 @@ FM_TREEHOUSE_RETURN_LOCK_RETRIES=3        # retries after a treehouse return fai
 FM_TREEHOUSE_RETURN_LOCK_RETRY_WAIT_SECS=1 # seconds fm-teardown.sh waits before each retry after that signature
 FM_STALE_WORKTREE_LOCK_RETRY_WAIT_SECS=   # legacy alias for FM_TREEHOUSE_RETURN_LOCK_RETRY_WAIT_SECS when the new variable is unset
 FM_TREEHOUSE_GET_STALL_SECS=120       # seconds a running treehouse get may show no new process and no CPU time before fm-spawn.sh refuses it as stuck
-FM_TREEHOUSE_GET_MAX_SECS=900         # absolute ceiling, in seconds, for a treehouse get that never settles in a worktree
+FM_TREEHOUSE_GET_MAX_SECS=900         # absolute ceiling, in seconds, for a treehouse get that never settles in a worktree, and for how long spawn and teardown wait to take the Herdr presentation lock back after treehouse work
 FM_TREEHOUSE_GET_EXIT_GRACE_SECS=10   # seconds nothing may be running in the pane's shell after the launch line before fm-spawn.sh refuses the get as exited
 FM_TREEHOUSE_GET_START_SECS=60        # seconds fm-spawn.sh waits when the get cannot be observed (the pane's shell never reported its pid, or the process table cannot be read)
 FM_FLEET_SYNC_PACKED_REFS_LOCK_RETRIES=3        # fetch retries after fm-fleet-sync.sh hits the orphaned .git/packed-refs.lock signature
@@ -981,8 +981,9 @@ A get whose processes stop changing for `FM_TREEHOUSE_GET_STALL_SECS` is refused
 A get that is only waiting its turn on its project's pool, because another get or `treehouse return` on the same pool holds treehouse's pool lock (`treehouse-state.lock`, found with `lsof`), counts that operation's progress as its own; when that operation stalls too, the refusal names it.
 When the get cannot be observed, the wait keeps the original bound of `FM_TREEHOUSE_GET_START_SECS` seconds.
 The spawn holds neither the home's task-set lock nor the Herdr session presentation lock while the get runs, so a slow copy does not refuse teardowns, pane closes, or other dispatches meanwhile.
-It takes both back once the get settles: it waits for the task-set lock, and if the presentation lock stays busy it warns and launches without it.
-Secondmate teardown, forced or not, refuses a home while a spawn there still holds its task lock, naming that task.
+It waits for both again once the get settles, the presentation lock for up to `FM_TREEHOUSE_GET_MAX_SECS`; a presentation lock still busy then refuses the launch, naming its holder.
+Teardown likewise runs every `treehouse return` without the presentation lock and waits for it again, for up to the same ceiling, before the next pane close.
+Forced secondmate teardown refuses a home while a spawn there still holds its task lock, naming that task.
 Each variable accepts a nonnegative whole number of seconds, and an unset, blank, or invalid value uses the default.
 A refused launch leaves its endpoint for inspection exactly as before, and the get may still finish there later.
 

@@ -8,8 +8,12 @@
 # one that errors out must be refused promptly, saying it exited.
 # While a projected spawn's get is still running, neither the session-wide
 # presentation lock nor the home's task-set lock may be held, so a teardown on
-# the same Herdr session and a second fresh dispatch in the same home both
-# complete before that get settles.
+# the same Herdr session gets past its lock preflight and a second fresh
+# dispatch in the same home completes, projected, before that get settles. The
+# teardown's `treehouse return` then waits behind the get's pool lock without
+# holding the presentation lock either. After its get, a projected spawn waits
+# for a busy presentation lock instead of launching without it, and refuses,
+# naming the holder and the projection it leaves, only at the get ceiling.
 # Every Herdr call goes through the guarded named-session lab helper, and lab
 # teardown verifies that the default fleet session is unchanged.
 set -u
@@ -71,14 +75,21 @@ printf '#!/bin/bash\nexec /bin/bash --noprofile --norc "$@"\n' > "$TMP_ROOT/bash
 # reads each case's behaviour from control files instead of the environment.
 CONTROL="$TMP_ROOT/control"
 mkdir -p "$CONTROL"
-# In gate mode the first get to start keeps starting short-lived children until
-# the case creates control/release, and every later get acquires at once.
-# Teardown's `treehouse return` has nothing to give back to this pool.
+# In gate mode the first get to start holds the pool's treehouse-state.lock, as
+# treehouse does across its copy, while it starts short-lived children until the
+# case creates control/release; every later get acquires at once. Teardown's
+# `treehouse return` has nothing to give back, but it takes that same pool lock
+# first, as treehouse does, so it waits behind a gated get.
 cat > "$PANEBIN/treehouse" <<SH
 #!/usr/bin/env bash
-[ "\${1:-}" != return ] || exit 0
+FMT_POOL=\$(cat "$CONTROL/pool")
+if [ "\${1:-}" = return ]; then
+  : > "$CONTROL/return-started"
+  exec perl -MFcntl=:flock -e 'open(my \$f, ">>", \$ARGV[0]) or die "open: \$!"; flock(\$f, LOCK_EX) or die "flock: \$!"' \
+    "\$FMT_POOL/treehouse-state.lock"
+fi
 echo "stand-in treehouse get" >&2
-FMT_MODE=\$(cat "$CONTROL/mode"); FMT_SECONDS=\$(cat "$CONTROL/seconds"); FMT_POOL=\$(cat "$CONTROL/pool")
+FMT_MODE=\$(cat "$CONTROL/mode"); FMT_SECONDS=\$(cat "$CONTROL/seconds")
 case "\$FMT_MODE" in
   fail) echo "stand-in: fatal: cannot create worktree" >&2; exit 1 ;;
   advance)
@@ -87,7 +98,14 @@ case "\$FMT_MODE" in
     ;;
   gate)
     if mkdir "$CONTROL/gate" 2>/dev/null; then
-      while [ ! -e "$CONTROL/release" ]; do "$REAL_SLEEP" 0.2; done
+      perl -MFcntl=:flock -e '
+        my (\$lock, \$held, \$release, \$sleep) = @ARGV;
+        open(my \$f, ">>", \$lock) or die "open: \$!";
+        flock(\$f, LOCK_EX) or die "flock: \$!";
+        open(my \$m, ">", \$held) or die "held: \$!";
+        close(\$m);
+        system(\$sleep, "0.2") until -e \$release;
+      ' "\$FMT_POOL/treehouse-state.lock" "$CONTROL/gate/held" "$CONTROL/release" "$REAL_SLEEP" || exit 1
     fi
     ;;
 esac
@@ -107,13 +125,16 @@ herdr_forget_inherited_pane
 HERDR_LAB_SESSION=$(PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" name fm-herdr-treehouse-wait)
 export HERDR_SESSION="$HERDR_LAB_SESSION" HERDR_LAB_SESSION
 LAB_READY=0
+LOCK_HOLDER_PID=
 cleanup_all() {
   local status=$?
+  [ -z "$LOCK_HOLDER_PID" ] || kill "$LOCK_HOLDER_PID" 2>/dev/null || true
   if [ "$LAB_READY" -eq 1 ]; then
     PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" teardown "$HERDR_LAB_SESSION" >/dev/null 2>&1 || status=1
     LAB_READY=0
   fi
-  rm -rf "/tmp/fm-hthw-slow-$$" "/tmp/fm-hthw-fail-$$" "/tmp/fm-hthw-gated-$$" "/tmp/fm-hthw-second-$$" "$TMP_ROOT"
+  rm -rf "/tmp/fm-hthw-slow-$$" "/tmp/fm-hthw-fail-$$" "/tmp/fm-hthw-gated-$$" "/tmp/fm-hthw-second-$$" \
+    "/tmp/fm-hthw-held-$$" "/tmp/fm-hthw-ceiling-$$" "$TMP_ROOT"
   exit "$status"
 }
 trap cleanup_all EXIT
@@ -173,40 +194,124 @@ case "$out" in *"treehouse get exited without entering a worktree"*) ;; *) fail 
 [ ! -e "$HOME_DIR/state/$FAIL_ID.meta" ] || fail "a refused launch recorded a task"
 pass "a get that exits without a worktree is refused promptly on Herdr and says so"
 
-# The gated spawn is projected, so on its own it would hold the session-wide
-# presentation lock from its workspace create through launch handoff.
+# wait_for <path> <pid> <what>: until <path> exists, while <pid> still runs.
+wait_for() {
+  local deadline=$((SECONDS + 120))
+  while [ ! -e "$1" ] && kill -0 "$2" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
+    "$REAL_SLEEP" 0.1
+  done
+  [ -e "$1" ] || fail "$3"
+}
+
+# start_gated <id> <out> [VAR=value ...]: a projected spawn whose get holds the
+# pool lock until control/release exists; returns once that get holds it.
+start_gated() {
+  local id=$1 out=$2
+  shift 2
+  rm -rf "$CONTROL/gate" "$CONTROL/release"
+  spawn_case "$id" gate 0 "$@" > "$out" 2>&1 &
+  GATED_PID=$!
+  wait_for "$CONTROL/gate/held" "$GATED_PID" "the gated spawn $id never started its treehouse get: $(cat "$out")"
+  [ -e "$HOME_DIR/state/$id.herdr-presentation" ] \
+    || fail "the gated spawn $id was not projected, so it does not exercise the presentation lock"
+}
+
+# hold_presentation_lock: hold this lab session's presentation lock from a live
+# process (LOCK_HOLDER_PID) until control/lock-release exists.
+hold_presentation_lock() {
+  local lock
+  lock=$(HERDR_SESSION="$HERDR_LAB_SESSION" bash -c '
+    . "$0/bin/backends/herdr.sh"
+    fm_backend_herdr_presentation_session_lock_path "$1"
+  ' "$ROOT" "$HERDR_LAB_SESSION") || fail "could not resolve the lab session presentation lock"
+  rm -f "$CONTROL/lock-held" "$CONTROL/lock-release"
+  ROOT="$ROOT" LOCK="$lock" CONTROL="$CONTROL" bash -c '
+    . "$ROOT/bin/fm-wake-lib.sh"
+    fm_lock_try_acquire "$LOCK" || exit 1
+    : > "$CONTROL/lock-held"
+    while [ ! -e "$CONTROL/lock-release" ]; do sleep 0.05; done
+    fm_lock_release "$LOCK"
+  ' &
+  LOCK_HOLDER_PID=$!
+  wait_for "$CONTROL/lock-held" "$LOCK_HOLDER_PID" "could not hold the lab session presentation lock"
+}
+
+release_presentation_lock() {
+  : > "$CONTROL/lock-release"
+  wait "$LOCK_HOLDER_PID" || fail "the presentation lock holder failed"
+  LOCK_HOLDER_PID=
+}
+
+# From here on spawns are projected, so each one holds the session-wide
+# presentation lock from its workspace create to just before its get.
 printf 'on\n' > "$HOME_DIR/config/herdr-presentation-spaces"
 GATED_ID="hthw-gated-$$"
 SECOND_ID="hthw-second-$$"
-spawn_case "$GATED_ID" gate 0 > "$TMP_ROOT/gated.out" 2>&1 &
-GATED_PID=$!
-deadline=$((SECONDS + 120))
-while [ ! -d "$CONTROL/gate" ] && kill -0 "$GATED_PID" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
-  "$REAL_SLEEP" 0.2
-done
-[ -d "$CONTROL/gate" ] || fail "the gated spawn never started its treehouse get: $(cat "$TMP_ROOT/gated.out")"
-[ -e "$HOME_DIR/state/$GATED_ID.herdr-presentation" ] \
-  || fail "the gated spawn was not projected, so it does not exercise the presentation lock"
-
-out=$(FM_GATE_REFUSE_BYPASS=1 FM_HOME="$HOME_DIR" FM_ROOT_OVERRIDE="$ROOT" \
-  "$ROOT/bin/fm-teardown.sh" "$SLOW_ID" --force 2>&1) \
-  || fail "a teardown on the same Herdr session did not proceed while a projected get was running: $out"
-[ ! -e "$HOME_DIR/state/$SLOW_ID.meta" ] || fail "the teardown left its task record behind"
-pass "a teardown on the same Herdr session proceeds while a projected spawn's get is still running"
+start_gated "$GATED_ID" "$TMP_ROOT/gated.out"
+FM_GATE_REFUSE_BYPASS=1 FM_HOME="$HOME_DIR" FM_ROOT_OVERRIDE="$ROOT" \
+  "$ROOT/bin/fm-teardown.sh" "$SLOW_ID" --force > "$TMP_ROOT/teardown.out" 2>&1 &
+TEARDOWN_PID=$!
+wait_for "$CONTROL/return-started" "$TEARDOWN_PID" \
+  "a teardown on the same Herdr session did not reach its treehouse return while a projected get was running: $(cat "$TMP_ROOT/teardown.out")"
+pass "a teardown on the same Herdr session gets past its presentation lock preflight while a projected spawn's get is still running"
 
 out=$(spawn_case "$SECOND_ID" gate 0) \
   || fail "a second fresh dispatch in the same home did not proceed while a get was running: $out"
 [ -e "$HOME_DIR/state/$SECOND_ID.meta" ] || fail "the second dispatch recorded no task"
-pass "a second fresh dispatch in the same home proceeds while another spawn's get is still running"
+case "$out" in
+  *"presentation focus lock unavailable"*) fail "the second dispatch could not take the presentation lock while a teardown waited in treehouse return: $out" ;;
+esac
+[ -e "$HOME_DIR/state/$SECOND_ID.herdr-presentation" ] \
+  || fail "the second dispatch was not projected while a teardown waited in treehouse return: $out"
+pass "a second dispatch in the same home completes, projected, while a get runs and a teardown waits in treehouse return behind it"
 
-kill -0 "$GATED_PID" 2>/dev/null && [ ! -e "$HOME_DIR/state/$GATED_ID.meta" ] \
-  || fail "the gated spawn was no longer inside its get, so the cases above proved nothing: $(cat "$TMP_ROOT/gated.out")"
-touch "$CONTROL/release"
+if ! { kill -0 "$GATED_PID" 2>/dev/null && [ ! -e "$HOME_DIR/state/$GATED_ID.meta" ] && kill -0 "$TEARDOWN_PID" 2>/dev/null; }; then
+  fail "the gated get or the teardown waiting behind it was already over, so the cases above proved nothing: $(cat "$TMP_ROOT/gated.out" "$TMP_ROOT/teardown.out")"
+fi
+: > "$CONTROL/release"
+if wait "$TEARDOWN_PID"; then :; else fail "the teardown failed once the pool lock freed: $(cat "$TMP_ROOT/teardown.out")"; fi
+[ ! -e "$HOME_DIR/state/$SLOW_ID.meta" ] || fail "the teardown left its task record behind"
+pass "the teardown completes its pane close under the presentation lock once its treehouse return gets the pool lock"
 if wait "$GATED_PID"; then :; else fail "the gated spawn failed once its get settled: $(cat "$TMP_ROOT/gated.out")"; fi
-grep -F "presentation focus lock unavailable" "$TMP_ROOT/gated.out" >/dev/null 2>&1 \
-  && fail "the gated spawn could not take the presentation lock back after its get: $(cat "$TMP_ROOT/gated.out")"
 wt=$(sed -n 's/^worktree=//p' "$HOME_DIR/state/$GATED_ID.meta")
 case "$wt" in "$POOL_DIR/slot-"*) ;; *) fail "meta recorded '$wt', not the worktree the gated get settled in" ;; esac
 pass "the projected spawn whose get was held open completes once the get settles"
+
+# A presentation lock that is busy when the get settles, for longer than one
+# bounded attempt, is waited for: the spawn neither launches without it nor fails.
+HELD_ID="hthw-held-$$"
+start_gated "$HELD_ID" "$TMP_ROOT/held.out"
+hold_presentation_lock
+: > "$CONTROL/release"
+"$REAL_SLEEP" 20
+if ! { kill -0 "$GATED_PID" 2>/dev/null && [ ! -e "$HOME_DIR/state/$HELD_ID.meta" ]; }; then
+  fail "the spawn did not wait for the busy presentation lock after its get: $(cat "$TMP_ROOT/held.out")"
+fi
+release_presentation_lock
+if wait "$GATED_PID"; then :; else fail "the spawn failed after waiting for the presentation lock: $(cat "$TMP_ROOT/held.out")"; fi
+grep -E "presentation focus lock unavailable|presentation lock stayed held" "$TMP_ROOT/held.out" >/dev/null 2>&1 \
+  && fail "the spawn did not launch under the presentation lock: $(cat "$TMP_ROOT/held.out")"
+[ -e "$HOME_DIR/state/$HELD_ID.meta" ] || fail "the spawn that waited for the presentation lock recorded no task"
+pass "a projected spawn waits for a presentation lock still busy after its get and then launches under it"
+
+# Past the get ceiling the spawn refuses, naming the holder, and abort cleanup,
+# unable to take the lock either, leaves the projection for inspection and says so.
+CEILING_ID="hthw-ceiling-$$"
+start_gated "$CEILING_ID" "$TMP_ROOT/ceiling.out" FM_TREEHOUSE_GET_MAX_SECS=6
+hold_presentation_lock
+: > "$CONTROL/release"
+if wait "$GATED_PID"; then fail "the spawn launched although the presentation lock stayed busy past the ceiling: $(cat "$TMP_ROOT/ceiling.out")"; fi
+out=$(cat "$TMP_ROOT/ceiling.out")
+case "$out" in
+  *"presentation lock stayed held by pid $LOCK_HOLDER_PID ("*"for 6s after treehouse get settled"*) ;;
+  *) fail "the refusal does not name the presentation lock holder and the ceiling: $out" ;;
+esac
+ceiling_pane=$(printf '%s\n' "$out" | sed -n 's/.*leaving projected task pane \([^ ]*\) and its presentation journal in place.*/\1/p')
+[ -n "$ceiling_pane" ] || fail "abort cleanup did not report the projection it left behind: $out"
+herdr pane get "$ceiling_pane" >/dev/null 2>&1 || fail "the reported projected pane $ceiling_pane is not what remains"
+[ -e "$HOME_DIR/state/$CEILING_ID.herdr-presentation" ] || fail "the presentation journal the refusal reported was not left in place"
+[ ! -e "$HOME_DIR/state/$CEILING_ID.meta" ] || fail "a refused launch recorded a task"
+release_presentation_lock
+pass "a presentation lock still busy at the get ceiling refuses the launch, naming its holder and the projection left behind"
 
 echo "# all fm-backend-herdr-treehouse-wait-e2e tests passed"

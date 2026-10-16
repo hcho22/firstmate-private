@@ -1134,6 +1134,17 @@ fm_task_set_lock_path() {  # <state-dir>
   printf '%s/.task-set.lock\n' "$state"
 }
 
+# fm_treehouse_get_max_secs: FM_TREEHOUSE_GET_MAX_SECS, the ceiling on a
+# `treehouse get` that never settles, which also bounds how long spawn and
+# teardown wait to take a Herdr session presentation lock back once their
+# treehouse work is done. An unset, blank, or invalid value uses 900.
+fm_treehouse_get_max_secs() {
+  case "${FM_TREEHOUSE_GET_MAX_SECS:-}" in
+    ''|*[!0-9]*) printf '900\n' ;;
+    *) printf '%s\n' "$FM_TREEHOUSE_GET_MAX_SECS" ;;
+  esac
+}
+
 # fm_lock_holder_label <pid>: "pid <pid> (<command>)", so a refusal names what
 # holds a lock (fm_lock_try_acquire leaves the holder in FM_LOCK_HELD_PID).
 fm_lock_holder_label() {  # <pid>

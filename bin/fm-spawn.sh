@@ -93,9 +93,10 @@
 #   canonical socket, outside any home's state/) through launch handoff. Lock
 #   contention warns and falls back to the ordinary flat layout before any
 #   projection mutation. The lock is not held while `treehouse get` runs: it is
-#   released before the get and taken again after it with one more bounded
-#   attempt, whose contention warns and lets the launch continue (an aborted
-#   launch takes it again before cleaning up its projection).
+#   released before the get and waited for again after it, for up to
+#   FM_TREEHOUSE_GET_MAX_SECS. A lock still busy then refuses the launch, and
+#   abort cleanup removes the projection only if it can take the lock, leaving
+#   it and its journal for inspection otherwise.
 #   The exact response-derived new workspace is inserted
 #   immediately after its owning parent (firstmate or 2ndmate-<id>) contiguous
 #   child block. Ordering never authorizes lifecycle cleanup, and any
@@ -835,7 +836,7 @@ spawn_abort_cleanup() {
   if [ "$HERDR_PROJECTION_ABORT_CLEANUP" = 1 ] \
      && [ "$HERDR_PRESENTATION_ORDER_LOCK_HELD" != 1 ]; then
     if ! spawn_herdr_presentation_order_lock_acquire "${HERDR_PROJECTION_ABORT_SESSION:-}"; then
-      echo "warning: herdr presentation focus lock unavailable; retaining the projection journal and refusing concurrent abort cleanup" >&2
+      echo "warning: herdr presentation focus lock unavailable; leaving projected task pane ${HERDR_PROJECTION_ABORT_TASK_PANE:-} and its presentation journal in place rather than cleaning them up concurrently" >&2
       HERDR_PROJECTION_ABORT_CLEANUP=0
     fi
   fi
@@ -925,7 +926,7 @@ trap spawn_abort_cleanup EXIT
 spawn_herdr_presentation_order_lock_acquire() {
   local session=${1:-} attempt lock_path
   [ -n "$session" ] || session=$(fm_backend_herdr_session)
-  lock_path=$(fm_backend_herdr_presentation_session_lock_path "$session") || return 1
+  lock_path=$(fm_backend_herdr_presentation_session_lock_path "$session") || return 2
   HERDR_PRESENTATION_ORDER_LOCK="$lock_path"
   attempt=0
   while [ "$attempt" -lt 50 ]; do
@@ -2715,7 +2716,7 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   th_polls=0
   th_start_secs=$(treehouse_wait_seconds FM_TREEHOUSE_GET_START_SECS 60)
   th_stall_secs=$(treehouse_wait_seconds FM_TREEHOUSE_GET_STALL_SECS 120)
-  th_max_secs=$(treehouse_wait_seconds FM_TREEHOUSE_GET_MAX_SECS 900)
+  th_max_secs=$(fm_treehouse_get_max_secs)
   th_exit_grace=$(treehouse_wait_seconds FM_TREEHOUSE_GET_EXIT_GRACE_SECS 10)
   th_shell_pid=
   th_fingerprint=
@@ -2815,17 +2816,31 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
     echo "error: $th_refusal; inspect window $T" >&2
     exit 1
   fi
-  # Everything after the get keeps the lock scope it always had. The task-set
-  # lock is waited for rather than refused: its other holders are spawns between
-  # their own short steps and a forced teardown that refuses this home while this
-  # task's spawn lock is held, so contention here is momentary, and refusing now
-  # would strand the endpoint and worktree just made.
+  # Everything after the get keeps the lock scope it always had, so both locks
+  # are waited for rather than refused, task-set first as at the start: their
+  # other holders are short steps of other spawns, teardowns, and pane closes,
+  # and a forced teardown that refuses this home while this task's spawn lock is
+  # held, while refusing now would strand the endpoint and worktree just made.
+  # The presentation wait is bounded by the get ceiling; a lock still busy then
+  # refuses the launch, which abort cleanup handles under that lock if it can.
   if [ -n "$SPAWN_TASK_SET_LOCK" ]; then
     fm_lock_acquire_wait "$SPAWN_TASK_SET_LOCK"
     SPAWN_TASK_SET_LOCK_HELD=1
   fi
-  if [ "${HERDR_PROJECTED:-0}" -eq 1 ] && ! spawn_herdr_presentation_order_lock_acquire "$HERDR_SES"; then
-    echo "warning: herdr presentation focus lock unavailable after treehouse get; continuing the launch without it (an aborted launch takes it again before cleaning up its projection)" >&2
+  if [ "${HERDR_PROJECTED:-0}" -eq 1 ]; then
+    th_lock_deadline=$((SECONDS + th_max_secs))
+    th_lock_status=1
+    while [ "$th_lock_status" -ne 0 ]; do
+      spawn_herdr_presentation_order_lock_acquire "$HERDR_SES" && th_lock_status=0 || th_lock_status=$?
+      if [ "$th_lock_status" -eq 2 ]; then
+        echo "error: the herdr session presentation lock could not be resolved after treehouse get settled in $WT; refusing to launch without it; inspect window $T" >&2
+        exit 1
+      fi
+      if [ "$th_lock_status" -ne 0 ] && [ "$SECONDS" -ge "$th_lock_deadline" ]; then
+        echo "error: the herdr session presentation lock stayed held by $(fm_lock_holder_label "${FM_LOCK_HELD_PID:-}") for ${th_max_secs}s after treehouse get settled in $WT; refusing to launch without it; inspect window $T" >&2
+        exit 1
+      fi
+    done
   fi
 
   validate_spawn_worktree "treehouse get" "$T"

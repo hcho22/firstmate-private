@@ -82,13 +82,13 @@
 # is the approved discard path that prevalidates child removal targets, locks each
 # descendant home's task set before enumeration, and holds those locks through
 # child cleanup. Contention refuses the complete forced teardown before child
-# mutation, naming the holder. Both refuse a home in which a fresh spawn still
-# holds its task lock, because that spawn has no record and no task-set hold
-# while its `treehouse get` runs. Local and remote retirement serialize their
-# destructive phase with that mate's backlog-handoff lock under the registry
-# lock. Pending handoff wake
-# state is retired with the home, and local removal failure restores that state
-# before preserving the route for retry. Teardown then discards child work, kills
+# mutation, naming the holder. It also refuses a home in which a fresh spawn
+# still holds its task lock, because that spawn has no record and no task-set
+# hold while its `treehouse get` runs. Local and remote retirement serialize
+# their destructive phase with that mate's backlog-handoff lock under the
+# registry lock. Pending handoff wake state is retired with the home, and
+# local removal failure restores that state before preserving the route for
+# retry. Teardown then discards child work, kills
 # child runtime endpoints, and removes the retired home. Removing a leased home
 # releases its durable treehouse lease so the pool slot is freed,
 # never left leased forever. If the treehouse return fails, teardown leaves the
@@ -1394,10 +1394,14 @@ cleanup_stale_lock_for_safety_check() {
 
 # Return a worktree/home via `treehouse return --force`, tolerating a transient or
 # stale git index.lock left by a killed crew process. See the script header.
+# The return takes the pool's lock, so it can wait behind a slow `treehouse get`
+# on the same pool for as long as that copy takes; no Herdr session
+# presentation lock is held across it (teardown_herdr_locks_release_for_return).
 teardown_treehouse_return() {
   local dir=$1 cd_dir=$2 label=$3 post_cleanup_check=${4:-}
   local out lock attempt=0 max_retries lock_desc
 
+  teardown_herdr_locks_release_for_return
   # Capture stdout+stderr so non-lock failures stay visible and lock failures can
   # be matched by signature even when the lock file is already gone mid-check.
   if out=$( ( cd "$cd_dir" && treehouse return --force "$dir" ) 2>&1 ); then
@@ -2325,7 +2329,7 @@ preflight_firstmate_home_process_event_tree() {
 # trace of the task it is creating is its task spawn lock, held by a live
 # process from before that release until the spawn exits. A home with one is
 # still having work added to it.
-refuse_home_with_spawn_in_flight() {  # <state-dir> <home-label> <outcome>
+refuse_home_with_spawn_in_flight() {  # <state-dir> <home>
   local state=$1 lock pid id
   for lock in "$state"/.spawn-*.lock; do
     [ -e "$lock" ] || [ -L "$lock" ] || continue
@@ -2333,7 +2337,7 @@ refuse_home_with_spawn_in_flight() {  # <state-dir> <home-label> <outcome>
     fm_pid_alive "$pid" || continue
     id=${lock##*/.spawn-}
     id=${id%.lock}
-    echo "REFUSED: $2 is creating task $id right now ($(fm_lock_holder_label "$pid") holds its spawn lock); $3" >&2
+    echo "REFUSED: secondmate home $2 is creating task $id right now ($(fm_lock_holder_label "$pid") holds its spawn lock); forced teardown changed nothing" >&2
     return 1
   done
 }
@@ -2373,7 +2377,7 @@ collect_descendant_task_locks() {
     return 1
   fi
   DESCENDANT_LOCK_PATHS+=("$task_set_lock")
-  refuse_home_with_spawn_in_flight "$sub_state" "secondmate home $home" "forced teardown changed nothing" || return 1
+  refuse_home_with_spawn_in_flight "$sub_state" "$home" || return 1
   child_ids=()
   for child_meta in "$sub_state"/*.meta; do
     [ -e "$child_meta" ] || continue
@@ -2491,6 +2495,7 @@ validate_firstmate_home_children_removal() {
 }
 
 TEARDOWN_HERDR_LOCK_RECORDS=
+TEARDOWN_HERDR_RELEASED_RECORDS=
 teardown_release_herdr_locks() {
   local lock_session lock_path
   [ -n "$TEARDOWN_HERDR_LOCK_RECORDS" ] || return 0
@@ -2503,8 +2508,58 @@ FMEOF
   TEARDOWN_HERDR_LOCK_RECORDS=
 }
 
+# Every session presentation lock this teardown holds is released for the
+# duration of a `treehouse return` and remembered, so the lock is taken back
+# only where a pane close (or a later preflight of the same session) needs it.
+teardown_herdr_locks_release_for_return() {
+  [ -n "$TEARDOWN_HERDR_LOCK_RECORDS" ] || return 0
+  TEARDOWN_HERDR_RELEASED_RECORDS="${TEARDOWN_HERDR_RELEASED_RECORDS:+$TEARDOWN_HERDR_RELEASED_RECORDS
+}$TEARDOWN_HERDR_LOCK_RECORDS"
+  teardown_release_herdr_locks
+}
+
+# Take back <session>'s lock if a return released it, waiting up to the get
+# ceiling (fm_treehouse_get_max_secs) as the spawn does after its get, and
+# re-proving the session identity the preflight proved. Succeeds when nothing
+# was released for <session>; a lock not taken back is dropped for good, so the
+# caller's refusal stands without a second wait.
+teardown_herdr_retake_released() {  # <session>
+  local session=$1 lock_session lock_path released='' remaining='' deadline verified
+  [ -n "$TEARDOWN_HERDR_RELEASED_RECORDS" ] || return 0
+  while IFS=$'\t' read -r lock_session lock_path; do
+    [ -n "$lock_path" ] || continue
+    if [ "$lock_session" = "$session" ]; then
+      released=$lock_path
+    else
+      remaining="${remaining:+$remaining
+}$lock_session	$lock_path"
+    fi
+  done <<FMEOF
+$TEARDOWN_HERDR_RELEASED_RECORDS
+FMEOF
+  [ -n "$released" ] || return 0
+  TEARDOWN_HERDR_RELEASED_RECORDS=$remaining
+  deadline=$((SECONDS + $(fm_treehouse_get_max_secs)))
+  until fm_lock_try_acquire "$released"; do
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      echo "warning: herdr session presentation lock for $session stayed held by $(fm_lock_holder_label "${FM_LOCK_HELD_PID:-}") after treehouse return; its pane close cannot run" >&2
+      return 1
+    fi
+    sleep 0.1
+  done
+  if ! verified=$(fm_backend_herdr_presentation_session_lock_path "$session") \
+    || [ "$verified" != "$released" ]; then
+    fm_lock_release "$released" || true
+    echo "warning: herdr session presentation lock for $session changed while treehouse return ran; its pane close cannot run" >&2
+    return 1
+  fi
+  TEARDOWN_HERDR_LOCK_RECORDS="${TEARDOWN_HERDR_LOCK_RECORDS:+$TEARDOWN_HERDR_LOCK_RECORDS
+}$session	$released"
+}
+
 teardown_herdr_session_lock_held() {  # <session>
   local session=$1 lock_session lock_path
+  teardown_herdr_retake_released "$session" || return 1
   [ -n "$TEARDOWN_HERDR_LOCK_RECORDS" ] || return 1
   while IFS=$'\t' read -r lock_session lock_path; do
     [ "$lock_session" != "$session" ] || return 0
@@ -2562,6 +2617,10 @@ teardown_herdr_preflight_target() {  # <target> <task-id>
   esac
   if ! lock_path=$(fm_backend_herdr_presentation_session_lock_path "$session"); then
     echo "error: herdr session presentation lock could not be resolved for $task_id; nothing was changed - rerun teardown once the session is reachable and unambiguous" >&2
+    return 1
+  fi
+  if ! teardown_herdr_retake_released "$session"; then
+    echo "error: herdr session presentation lock for $task_id could not be taken back after an earlier treehouse return; retaining its durable records - rerun teardown once the contention clears" >&2
     return 1
   fi
   if [ -n "$TEARDOWN_HERDR_LOCK_RECORDS" ]; then
@@ -2766,7 +2825,6 @@ if [ "$KIND" = secondmate ] && [ "$FORCE" != "--force" ]; then
       echo "Found $(basename "$child_meta"). Let that home finish or explicitly discard with --force." >&2
       exit 1
     done
-    refuse_home_with_spawn_in_flight "$SUB_STATE" "secondmate $ID" "let that launch finish, then rerun teardown" || exit 1
   fi
 fi
 
@@ -2858,13 +2916,15 @@ if [ "$KIND" != secondmate ]; then
   validate_subagent_worktrees_safety || exit 1
 fi
 
-# A Herdr close may reposition shared workspace order, so the whole
-# destructive sequence below (worktree return, pane close, record removal)
-# runs under the named-session presentation lock, acquired BEFORE anything is
-# returned or erased: a contended lock refuses here while the isolated copy,
-# every durable record, and the endpoint are all still intact for a plain
-# rerun. An unresolvable lock path (for example an unreachable server) also
-# refuses before any destructive step.
+# A Herdr close may reposition shared workspace order, so the destructive
+# sequence below (worktree return, pane close, record removal) runs under the
+# named-session presentation lock, acquired BEFORE anything is returned or
+# erased: a contended lock refuses here while the isolated copy, every durable
+# record, and the endpoint are all still intact for a plain rerun. An
+# unresolvable lock path (for example an unreachable server) also refuses
+# before any destructive step. The worktree return alone runs without it,
+# because it can wait behind a slow `treehouse get` on the same pool, and the
+# close takes it back first (teardown_herdr_session_lock_held).
 TEARDOWN_HERDR_SESSION=
 TEARDOWN_HERDR_PANE=
 if [ "$BACKEND" = herdr ]; then
@@ -2985,8 +3045,9 @@ if [ "$BACKEND" = herdr ] \
 fi
 
 if [ "$HERDR_PRESENTATION_RETIRE_CANDIDATE" = 1 ]; then
-  # The presentation lock was acquired before the worktree return above; a
-  # contended lock already refused this teardown while everything was intact.
+  # The presentation lock was acquired before the worktree return above, so a
+  # contended lock already refused this teardown while everything was intact;
+  # the return released it, and this takes it back.
   if teardown_herdr_session_lock_held "$HERDR_PRESENTATION_SESSION"; then
     # stderr is deliberately NOT discarded here. This is the highest-frequency
     # projected-close call site, and the helper's only stderr output is a real

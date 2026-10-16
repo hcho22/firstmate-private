@@ -114,8 +114,8 @@ Firstmate does not retry, adopt, reuse, close, delete, or rename anything in res
 The worker remains on the ordinary flat or Herdr-current-order path.
 
 A projected spawn holds the session presentation lock from its create, order, and restart binding through launch handoff, except while `treehouse get` runs in the new pane.
-The get's duration scales with the host, so the lock is released before it and taken again after it with the same bounded attempt; until then teardowns, pane closes, and other spawns on the session proceed.
-If the lock stays busy after the get, the spawn warns and launches without it, and an aborted launch takes the lock again before its exact projection cleanup, retaining the journal with a warning when it cannot.
+The get's duration scales with the host, so the lock is released before it and waited for again after it, for up to `FM_TREEHOUSE_GET_MAX_SECS`; until then teardowns, pane closes, and other spawns on the session proceed.
+A lock still busy at that bound refuses the launch, naming its holder, and abort cleanup takes the lock with its usual bounded attempt before the exact projection cleanup, leaving the task pane and journal in place with a warning when it cannot.
 
 Normal task metadata remains the sole endpoint authority after creation.
 Cleanup closes only the exact recorded task pane and never calls `workspace close`.
@@ -128,6 +128,8 @@ Any ambiguity, unsupported or failed move, or unproved shell falls back to the p
 Ordinary non-projected task removal serializes through the same session lock, applies the same focus-safe plan when its close would empty a non-focused workspace, keeps the legitimate plain close when the target is the active tab, and refuses an unlocked close if the lock cannot be acquired.
 Task cleanup acquires that session lock before the task's isolated copy is returned, so a contended lock refuses up front while the copy, every durable record, and the endpoint are all intact for a plain rerun.
 Forced secondmate cleanup recursively preflights every Herdr child endpoint and acquires every affected named-session lock before mutating any child, then retains each child's durable identity unless that exact pane returns structured not-found after its close.
+Every `treehouse return`, of a task copy, a child copy, or a home, runs without those locks, because it takes the pool lock and can wait behind a slow `treehouse get` on the same pool.
+The next close on a released session waits for its lock again, for up to `FM_TREEHOUSE_GET_MAX_SECS`, and a lock not taken back skips that close and retains its durable records exactly as a refused close does.
 Durable task records are erased only once the exact pane is confirmed gone through its structured presence: after every close path, only a structured not-found response counts as gone, while a present or unknown result retains every record with a visible, retryable error.
 Missing or malformed endpoint identity and missing confirmation machinery are ambiguity, never proof of a gone pane, and refuse record removal the same way.
 If lock, snapshot, pane identity, or restoration is ambiguous, cleanup warns and preserves the journal for manual inspection.

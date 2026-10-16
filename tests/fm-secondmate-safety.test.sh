@@ -2564,36 +2564,6 @@ EOF
   pass "forced teardown refuses a home while a fresh spawn there is still creating its task"
 }
 
-test_teardown_refuses_while_a_fresh_spawn_is_in_flight() {
-  local home subhome fakebin err log lock rec held holder
-  rec=$(seed_empty_task_set_home spawn-inflight-plain)
-  IFS='|' read -r home subhome <<EOF
-$rec
-EOF
-  mkdir -p "$subhome/state"
-  err="$TMP_ROOT/spawn-inflight-plain.err"
-  held=$(hold_lock "$subhome/state" "$subhome/state/.spawn-newtask.lock") \
-    || fail "could not stage a held task spawn lock"
-  holder=${held%% *}
-  lock=${held#* }
-  fakebin=$(make_fake_tmux "$TMP_ROOT/spawn-inflight-plain-fake")
-  log="$TMP_ROOT/spawn-inflight-plain-fake/tmux.log"
-  if PATH="$fakebin:$PATH" FM_HOME="$home" FM_FAKE_TMUX_LOG="$log" \
-    FM_FAKE_TMUX_CAPTURE="$TMP_ROOT/spawn-inflight-plain-fake/pane.txt" \
-    "$ROOT/bin/fm-teardown.sh" domain >/dev/null 2>"$err"; then
-    fail "teardown proceeded while a fresh spawn was creating a task in the home"
-  fi
-  [ -d "$subhome" ] || fail "teardown removed the home despite refusing"
-  [ -e "$home/state/domain.meta" ] || fail "teardown cleared parent metadata despite refusing"
-  grep -F 'kill-window' "$log" >/dev/null && fail "teardown killed a window despite refusing"
-  [ -e "$lock" ] || fail "teardown removed the spawn's task lock"
-  grep -F 'is creating task newtask right now' "$err" >/dev/null \
-    || fail "the refusal did not name the task being created: $(cat "$err")"
-  kill "$holder" 2>/dev/null || true
-  wait "$holder" 2>/dev/null || true
-  pass "teardown without --force also refuses a home while a fresh spawn there is still creating its task"
-}
-
 test_fresh_spawn_refuses_while_a_forced_teardown_owns_the_task_set() {
   local home subhome err rec held holder lock
   rec=$(seed_task_set_lock_home taskset-spawn)
@@ -3034,7 +3004,6 @@ test_force_teardown_refuses_symlinked_descendant_state
 test_force_teardown_locks_descendant_with_absent_state
 test_force_teardown_refuses_while_a_task_is_being_published
 test_force_teardown_refuses_while_a_fresh_spawn_is_in_flight
-test_teardown_refuses_while_a_fresh_spawn_is_in_flight
 test_fresh_spawn_refuses_while_a_forced_teardown_owns_the_task_set
 test_fresh_remote_secondmate_spawn_refuses_while_task_set_is_owned
 test_secondmate_force_teardown_refuses_child_active_home_descendant
