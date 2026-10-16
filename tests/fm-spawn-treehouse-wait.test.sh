@@ -7,7 +7,9 @@
 # the host, so the wait must not be a fixed poll count: a copy that is slow but
 # still advancing completes the launch, a get that exited or is stuck is refused
 # with a message naming which, and a get that never settles is refused at a
-# ceiling. A get that is only waiting its turn on its pool behind another live
+# ceiling. A get the spawn cannot observe is refused only after the documented
+# bound passes without any observation. A get that is only waiting its turn on
+# its pool behind another live
 # operation is not stuck while that operation advances, and is refused naming
 # it when it does not. Because the wait can be long, it holds no lock another
 # dispatch in the same home needs. Every case drives the public interface
@@ -30,6 +32,7 @@ set -u
 command -v tmux >/dev/null 2>&1 || { echo "skip: tmux not found"; exit 0; }
 REAL_TMUX=$(command -v tmux)
 REAL_SLEEP=$(command -v sleep)
+REAL_PS=$(command -v ps)
 SPAWN="$ROOT/bin/fm-spawn.sh"
 TMP_ROOT=$(fm_test_tmproot fm-spawn-treehouse-wait)
 RUN_TAG="thw$$"
@@ -69,6 +72,8 @@ trap cleanup_all EXIT
 #            pool's treehouse-state.lock (as treehouse does), then acquires
 #   gate     the first get in the world starts short-lived children until
 #            the case creates pool/release; every later get acquires at once
+#   polls    starts short-lived children until the spawn has read the process
+#            table FMT_SECONDS times (counted by the ps stand-in), then acquires
 make_treehouse_stub() {
   local dir=$1
   cat > "$dir/treehouse" <<SH
@@ -85,6 +90,9 @@ case "\$FMT_MODE" in
   pool)
     perl -MFcntl=:flock -e 'open(my \$f, ">>", \$ARGV[0]) or die "open: \$!"; flock(\$f, LOCK_EX) or die "flock: \$!"' \
       "\$FMT_POOL/treehouse-state.lock" || exit 1
+    ;;
+  polls)
+    while [ "\$(cat "\$FMT_PS_COUNT" 2>/dev/null || echo 0)" -lt "\$FMT_SECONDS" ]; do "$REAL_SLEEP" 0.2; done
     ;;
   gate)
     if mkdir "\$FMT_POOL/gate" 2>/dev/null; then
@@ -122,9 +130,29 @@ SH
 if [ "\${1:-}" = 1 ]; then exec "$REAL_SLEEP" 0.05; fi
 exec "$REAL_SLEEP" "\$@"
 SH
+  # FMT_PS_FAIL_EVERY=<n> makes every n-th read of the process table the wait
+  # uses fail, as a fork failure or a failing ps on a loaded host would.
+  cat > "$fakebin/ps" <<SH
+#!/usr/bin/env bash
+if [ -n "\${FMT_PS_FAIL_EVERY:-}" ] && [ "\$*" = "-A -o pid=,ppid=,time=,command=" ]; then
+  n=\$((\$(cat "\$FMT_PS_COUNT" 2>/dev/null || echo 0) + 1))
+  printf '%s\n' "\$n" > "\$FMT_PS_COUNT"
+  [ \$((n % FMT_PS_FAIL_EVERY)) -ne 0 ] || exit 1
+fi
+exec "$REAL_PS" "\$@"
+SH
+  # Every scan for the processes holding a file open is logged to FMT_LSOF_LOG.
+  if [ "$POOL_CASES" -eq 1 ]; then
+    cat > "$fakebin/lsof" <<SH
+#!/usr/bin/env bash
+case " \$* " in *" -t "*) printf 'scan\n' >> "\$FMT_LSOF_LOG" ;; esac
+exec "$(command -v lsof)" "\$@"
+SH
+    chmod +x "$fakebin/lsof"
+  fi
   printf '#!/usr/bin/env bash\nexec "%s" 600\n' "$REAL_SLEEP" > "$fakebin/codex"
   make_treehouse_stub "$fakebin"
-  chmod +x "$fakebin/tmux" "$fakebin/sleep" "$fakebin/codex"
+  chmod +x "$fakebin/tmux" "$fakebin/sleep" "$fakebin/ps" "$fakebin/codex"
   printf 'codex\n' > "$home/config/crew-harness"
   touch "$home/state/.last-watcher-beat"
 }
@@ -156,6 +184,7 @@ EOF
     env -u TMUX -u HERDR_ENV -u HERDR_PANE_ID -u HERDR_SOCKET_PATH -u HERDR_TAB_ID \
       -u HERDR_WORKSPACE_ID -u HERDR_SESSION \
       FMT_MODE="$mode" FMT_SECONDS="$seconds" FMT_POOL="$case_dir/pool" FMT_PROJECT="$proj" \
+      FMT_PS_COUNT="$out_dir/ps.count" FMT_LSOF_LOG="$out_dir/lsof-scans" \
       FM_BACKEND=tmux FM_ROOT_OVERRIDE='' FM_HOME="$home" \
       FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
       FM_PROJECTS_OVERRIDE="$home/projects" FM_CONFIG_OVERRIDE="$home/config" \
@@ -240,7 +269,7 @@ case_rc() { cat "$TMP_ROOT/$1/rc"; }
 case_elapsed() { cat "$TMP_ROOT/$1/elapsed"; }
 case_id() { printf 'thw-%s-%s' "$1" "$$"; }
 
-for c in slow stuck ceiling failed wrongplace peerprogress peerstalled concurrent; do declare_case "$c"; done
+for c in slow stuck ceiling failed wrongplace blindslow blindflicker blind peerprogress peerstalled concurrent; do declare_case "$c"; done
 TASK_IDS+=("$(case_id concurrent-a)" "$(case_id concurrent-b)")
 
 # A copy that takes longer than the original bound but is still advancing: the
@@ -263,6 +292,19 @@ PID_FAILED=$!
 run_case wrongplace subdir 0 &
 PID_WRONG=$!
 PIDS=("$PID_SLOW" "$PID_STUCK" "$PID_CEILING" "$PID_FAILED" "$PID_WRONG")
+# A slow get the spawn can never observe, with a generous unobservable bound:
+# it settles only after a hundred polls, so a bound that is still a fixed sixty
+# polls refuses it.
+run_case blindslow polls 100 FMT_PS_FAIL_EVERY=1 FM_TREEHOUSE_GET_START_SECS=400 &
+PIDS+=("$!")
+# A slow get whose process table read fails once every twenty polls: a failed
+# read after the first sixty polls must not refuse a get that is still advancing.
+run_case blindflicker polls 100 FMT_PS_FAIL_EVERY=20 &
+PIDS+=("$!")
+# A get the spawn can never observe that never settles: refused at the
+# unobservable bound, saying why.
+run_case blind hang 120 FMT_PS_FAIL_EVERY=1 FM_TREEHOUSE_GET_START_SECS=3 &
+PIDS+=("$!")
 if [ "$POOL_CASES" -eq 1 ]; then
   # A get queued behind a peer that holds the pool lock for ten seconds while
   # working: the get itself shows nothing for longer than the stall window.
@@ -337,8 +379,37 @@ test_isolation_assertion_still_refuses_a_primary_checkout() {
   pass "a get that lands in the primary checkout is still refused by the isolation assertion"
 }
 
+test_unobservable_slow_get_honours_the_start_bound() {
+  local c=blindslow out rc
+  out=$(case_out $c)
+  rc=$(case_rc $c)
+  expect_code 0 "$rc" "a slow get must not be refused before FM_TREEHOUSE_GET_START_SECS passes unobserved: $out"
+  assert_contains "$out" "spawned $(case_id $c)" "the spawn did not report success: $out"
+  pass "an unobservable get is waited on for FM_TREEHOUSE_GET_START_SECS, not a fixed sixty polls"
+}
+
+test_one_failed_process_read_does_not_refuse_an_advancing_get() {
+  local c=blindflicker out rc
+  out=$(case_out $c)
+  rc=$(case_rc $c)
+  expect_code 0 "$rc" "an advancing get must not be refused because one process-table read failed: $out"
+  assert_contains "$out" "spawned $(case_id $c)" "the spawn did not report success: $out"
+  pass "a failed process-table read restarts nothing and refuses nothing while the get keeps advancing"
+}
+
+test_unobservable_get_is_refused_at_the_start_bound() {
+  local c=blind out rc
+  out=$(case_out $c)
+  rc=$(case_rc $c)
+  expect_code 1 "$rc" "a get that can never be observed must still be refused"
+  assert_contains "$out" "treehouse get could not be observed for 3s" "the refusal does not say the get could not be observed: $out"
+  [ "$(case_elapsed $c)" -lt 40 ] || fail "the unobservable get was not refused at its bound"
+  assert_absent "$TMP_ROOT/$c/home/state/$(case_id $c).meta" "a refused launch recorded a task"
+  pass "a get that can never be observed is refused at FM_TREEHOUSE_GET_START_SECS, saying why"
+}
+
 test_get_queued_behind_a_working_peer_completes_the_launch() {
-  local c=peerprogress out rc meta wt
+  local c=peerprogress out rc meta wt scans
   if [ "$POOL_CASES" -ne 1 ]; then echo "skip: perl or lsof not found"; return 0; fi
   out=$(case_out $c)
   rc=$(case_rc $c)
@@ -347,7 +418,10 @@ test_get_queued_behind_a_working_peer_completes_the_launch() {
   meta="$TMP_ROOT/$c/home/state/$(case_id $c).meta"
   wt=$(sed -n 's/^worktree=//p' "$meta")
   case "$wt" in "$TMP_ROOT/$c/pool/slot-"*) ;; *) fail "meta recorded '$wt', not the worktree the get settled in" ;; esac
-  pass "a get queued on the pool lock behind a peer that keeps working completes the launch"
+  scans=$(cat "$TMP_ROOT/$c/lsof-scans" 2>/dev/null | wc -l | tr -d ' ')
+  [ "$scans" -le 2 ] \
+    || fail "the wait rescanned every process's open files on each poll while the same peer kept working: $scans scans"
+  pass "a get queued on the pool lock behind a peer that keeps working completes the launch, finding that peer once"
 }
 
 test_get_queued_behind_a_stalled_peer_is_refused_naming_it() {
@@ -357,7 +431,8 @@ test_get_queued_behind_a_stalled_peer_is_refused_naming_it() {
   rc=$(case_rc $c)
   peer=$(cat "$TMP_ROOT/$c/peer.pid")
   expect_code 1 "$rc" "a get queued behind a stalled peer must be refused"
-  assert_contains "$out" "and neither did anything else holding its pool lock (treehouse-state.lock) open: pid $peer (" \
+  assert_contains "$out" "made no progress for 3s (waiting on: " "the refusal does not name what the get was waiting on: $out"
+  assert_contains "$out" "and nothing else holding its pool lock (treehouse-state.lock) open advanced either: pid $peer (" \
     "the refusal does not name the stalled peer holding the pool lock: $out"
   [ "$(case_elapsed $c)" -lt 40 ] || fail "the get queued behind a stalled peer was not refused within the stall window"
   assert_absent "$TMP_ROOT/$c/home/state/$(case_id $c).meta" "a refused launch recorded a task"
@@ -382,11 +457,11 @@ test_second_dispatch_proceeds_while_a_slow_get_runs() {
 
 test_the_wait_strands_no_temp_root() {
   local c
-  for c in slow peerprogress; do
+  for c in slow blindslow blindflicker peerprogress; do
     assert_absent "/tmp/fm-$(case_id $c)/treehouse-get.shell-pid" "the wait left its pid record behind after a successful launch ($c)"
   done
   # A refused launch has made no task, so nothing may be left for teardown to miss.
-  for c in stuck ceiling failed wrongplace peerstalled; do
+  for c in stuck ceiling failed wrongplace blind peerstalled; do
     assert_absent "/tmp/fm-$(case_id $c)" "a refused launch stranded a temp root ($c)"
   done
   pass "the wait's pid record is removed on success and a refusal strands no temp root"
@@ -397,6 +472,9 @@ test_stuck_get_is_refused_at_the_stall_window
 test_endless_get_is_refused_at_the_ceiling
 test_failed_get_is_refused_promptly
 test_isolation_assertion_still_refuses_a_primary_checkout
+test_unobservable_slow_get_honours_the_start_bound
+test_one_failed_process_read_does_not_refuse_an_advancing_get
+test_unobservable_get_is_refused_at_the_start_bound
 test_get_queued_behind_a_working_peer_completes_the_launch
 test_get_queued_behind_a_stalled_peer_is_refused_naming_it
 test_second_dispatch_proceeds_while_a_slow_get_runs

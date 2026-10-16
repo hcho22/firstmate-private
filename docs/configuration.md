@@ -920,7 +920,7 @@ FM_STALE_WORKTREE_LOCK_RETRY_WAIT_SECS=   # legacy alias for FM_TREEHOUSE_RETURN
 FM_TREEHOUSE_GET_STALL_SECS=120       # seconds a running treehouse get may show no new process and no CPU time before fm-spawn.sh refuses it as stuck
 FM_TREEHOUSE_GET_MAX_SECS=900         # absolute ceiling, in seconds, for a treehouse get that never settles in a worktree, and for how long spawn and teardown wait to take the Herdr presentation lock back after treehouse work
 FM_TREEHOUSE_GET_EXIT_GRACE_SECS=10   # seconds nothing may be running in the pane's shell after the launch line before fm-spawn.sh refuses the get as exited
-FM_TREEHOUSE_GET_START_SECS=60        # seconds fm-spawn.sh waits when the get cannot be observed (the pane's shell never reported its pid, or the process table cannot be read)
+FM_TREEHOUSE_GET_START_SECS=60        # seconds (or as many polls) fm-spawn.sh waits without being able to observe the get (the pane's shell never reported its pid, or the process table cannot be read)
 FM_FLEET_SYNC_PACKED_REFS_LOCK_RETRIES=3        # fetch retries after fm-fleet-sync.sh hits the orphaned .git/packed-refs.lock signature
 FM_FLEET_SYNC_PACKED_REFS_LOCK_RETRY_WAIT_SECS=1 # seconds fm-fleet-sync.sh waits before each of those retries
 FM_FLEET_SYNC_PACKED_REFS_LOCK_AGE_SECS=30       # min mtime age before fm-fleet-sync.sh treats a leftover packed-refs.lock as provably stale
@@ -978,8 +978,8 @@ Teardown never removes a lock during the retry window, and after that window it 
 A copy that is slow but still advancing (a process starts or exits, or any of them spends CPU time) completes the launch.
 A get that has exited without a worktree is refused after `FM_TREEHOUSE_GET_EXIT_GRACE_SECS`, saying so.
 A get whose processes stop changing for `FM_TREEHOUSE_GET_STALL_SECS` is refused as stuck, naming the process it was waiting on, and a get that keeps changing without ever settling is refused at `FM_TREEHOUSE_GET_MAX_SECS`.
-A get that is only waiting its turn on its project's pool, because another get or `treehouse return` on the same pool holds treehouse's pool lock (`treehouse-state.lock`, found with `lsof`), counts that operation's progress as its own; when that operation stalls too, the refusal names it.
-When the get cannot be observed, the wait keeps the original bound of `FM_TREEHOUSE_GET_START_SECS` seconds.
+A get that is only waiting its turn on its project's pool, because another get or `treehouse return` on the same pool holds treehouse's pool lock (`treehouse-state.lock`, found with `lsof`), counts that operation's progress as its own; when nothing holding that lock advances either, the refusal names those processes beside what the get was waiting on.
+When the get cannot be observed, the wait keeps the original bound: `FM_TREEHOUSE_GET_START_SECS` seconds, or as many polls, without an observation end it.
 The spawn holds neither the home's task-set lock nor the Herdr session presentation lock while the get runs, so a slow copy does not refuse teardowns, pane closes, or other dispatches meanwhile.
 It waits for both again once the get settles, the presentation lock for up to `FM_TREEHOUSE_GET_MAX_SECS`; a presentation lock still busy then refuses the launch, naming its holder.
 A launch refused or interrupted during the get waits for the presentation lock the same way before removing its Herdr projection.

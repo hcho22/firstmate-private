@@ -2035,14 +2035,15 @@ validate_spawn_worktree() {  # <source> <inspect-target>
 #     children, so it is refused after FM_TREEHOUSE_GET_EXIT_GRACE_SECS;
 #   - a get that is alive but whose process tree stops changing (no new process
 #     and no CPU time on any of them) for FM_TREEHOUSE_GET_STALL_SECS is stuck,
-#     unless it is waiting its turn on its pool (treehouse_pool_peers): then the
-#     operation ahead of it is what must advance, and when that one stalls too
-#     the refusal names it.
+#     unless it may be waiting its turn on its pool (treehouse_pool_peers): then
+#     progress by the other processes holding that pool lock open counts too,
+#     and when none of them advances either the refusal names them beside what
+#     the get waits on.
 # FM_TREEHOUSE_GET_MAX_SECS is the absolute ceiling for a get that never settles.
 # Where the shell never reports its pid, or the process table cannot be read,
-# nothing can be observed and the wait keeps the original bound of
-# FM_TREEHOUSE_GET_START_SECS seconds (or 60 polls), so an unobservable pane is
-# never waited on longer than it was before.
+# nothing can be observed, and FM_TREEHOUSE_GET_START_SECS seconds (or as many
+# polls) without an observation end the wait, so an unobservable pane is never
+# waited on longer than it was before.
 # Because the wait can run for minutes, neither shared lock is held during it
 # (see where the get is sent).
 treehouse_wait_seconds() {  # <env-var-name> <default>
@@ -2095,12 +2096,13 @@ treehouse_process_tree() {  # <get|peers> <pid>[,<pid>...]
 }
 
 # treehouse_pool_peers <pid>[,<pid>...]: the other live processes that hold open
-# a treehouse pool lock (treehouse-state.lock) one of <pid>... holds open, in the
-# treehouse_process_tree peers form. treehouse takes that lock with a blocking
-# flock across its slow work, for a get and for `treehouse return` alike, so a
-# get waiting its turn shows no progress of its own while the operation ahead of
-# it on the same pool does. Prints nothing when there is no such peer or lsof is
-# unavailable.
+# a treehouse pool lock (treehouse-state.lock) one of <pid>... holds open, as one
+# comma-separated pid list. treehouse takes that lock with a blocking flock
+# across its slow work, for a get and for `treehouse return` alike, so a get
+# waiting its turn shows no progress of its own while the operation holding the
+# lock does. Prints nothing when there is no such peer or lsof is unavailable.
+# Finding them scans every process's open files, so the wait keeps the list for
+# as long as all of them run and samples only those (treehouse_process_tree).
 treehouse_pool_peers() {  # <pid>[,<pid>...]
   local own=$1 locks lock peers pid
   command -v lsof >/dev/null 2>&1 || return 0
@@ -2114,8 +2116,17 @@ treehouse_pool_peers() {  # <pid>[,<pid>...]
   done <<EOF
 $locks
 EOF
-  [ -n "$peers" ] || return 0
-  treehouse_process_tree peers "$peers"
+  [ -z "$peers" ] || printf '%s\n' "$peers"
+}
+
+# treehouse_pids_alive <pid>[,<pid>...]: every listed process still runs; false
+# for an empty list.
+treehouse_pids_alive() {  # <pid>[,<pid>...]
+  local pid
+  [ -n "$1" ] || return 1
+  for pid in ${1//,/ }; do
+    kill -0 "$pid" 2>/dev/null || return 1
+  done
 }
 
 # A pooled slot whose only deviation is a submodule gitlink is stale, not dirty:
@@ -2739,13 +2750,15 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   # treehouse_wait_seconds, not by a poll count; the settle rule above is unchanged.
   candidate=""
   th_start=$SECONDS
-  th_polls=0
+  th_blind_polls=0
+  th_blind_since=
   th_start_secs=$(treehouse_wait_seconds FM_TREEHOUSE_GET_START_SECS 60)
   th_stall_secs=$(treehouse_wait_seconds FM_TREEHOUSE_GET_STALL_SECS 120)
   th_max_secs=$(fm_treehouse_get_max_secs)
   th_exit_grace=$(treehouse_wait_seconds FM_TREEHOUSE_GET_EXIT_GRACE_SECS 10)
   th_shell_pid=
   th_fingerprint=
+  th_peer_pids=
   th_peer_fingerprint=
   th_changed_at=$th_start
   th_idle_since=
@@ -2767,7 +2780,6 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
     else
       candidate=""
     fi
-    th_polls=$((th_polls + 1))
     th_now=$SECONDS
     if [ -z "$th_shell_pid" ] && [ -r "$TREEHOUSE_SHELL_PID_FILE" ]; then
       th_shell_pid=$(head -n 1 "$TREEHOUSE_SHELL_PID_FILE" 2>/dev/null || true)
@@ -2777,16 +2789,23 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
       # The pane already left the project and only awaits its confirming read.
       th_changed_at=$th_now
       th_idle_since=
+      th_blind_polls=0
+      th_blind_since=
     elif [ -z "$th_shell_pid" ] || ! th_tree=$(treehouse_process_tree get "$th_shell_pid"); then
-      # Nothing observable about the get: keep the original bound.
-      if [ "$th_polls" -ge 60 ] || [ $((th_now - th_start)) -ge "$th_start_secs" ]; then
-        th_refusal="treehouse get did not enter a worktree within ${th_start_secs}s (the pane's shell never reported starting it, or its processes could not be read)"
+      # Nothing observable about the get: the original bound, counted from the
+      # last poll that could observe it.
+      th_blind_polls=$((th_blind_polls + 1))
+      [ -n "$th_blind_since" ] || th_blind_since=$th_now
+      if [ "$th_blind_polls" -ge "$th_start_secs" ] || [ $((th_now - th_blind_since)) -ge "$th_start_secs" ]; then
+        th_refusal="treehouse get could not be observed for ${th_start_secs}s (the pane's shell never reported starting it, or its processes could not be read)"
         break
       fi
     elif ! kill -0 "$th_shell_pid" 2>/dev/null; then
       th_refusal="the pane's shell exited before treehouse get entered a worktree"
       break
     else
+      th_blind_polls=0
+      th_blind_since=
       th_waiting_on=${th_tree%%$'\n'*}
       th_processes=
       case "$th_tree" in *$'\n'*) th_processes=${th_tree#*$'\n'} ;; esac
@@ -2803,12 +2822,18 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
         if [ "$th_processes" != "$th_fingerprint" ]; then
           th_fingerprint=$th_processes
           th_changed_at=$th_now
+          th_peer_pids=
           th_peer_fingerprint=
         else
           # No progress of its own. A get waiting its turn on its pool is not
-          # stuck while the operation ahead of it advances; the first sighting
-          # of that operation is only a baseline, so it cannot reset the window.
-          th_peers=$(treehouse_pool_peers "$th_shell_pid,$(printf '%s\n' "$th_processes" | awk '{ printf "%s%s", sep, $1; sep = "," }')" || true)
+          # stuck while another process holding that pool lock open advances;
+          # the first sighting of them is only a baseline, so it cannot reset
+          # the window, and they are looked up again only once one has exited.
+          if ! treehouse_pids_alive "$th_peer_pids"; then
+            th_peer_pids=$(treehouse_pool_peers "$th_shell_pid,$(printf '%s\n' "$th_processes" | awk '{ printf "%s%s", sep, $1; sep = "," }')" || true)
+          fi
+          th_peers=
+          [ -z "$th_peer_pids" ] || th_peers=$(treehouse_process_tree peers "$th_peer_pids" || true)
           th_peer_processes=
           case "$th_peers" in *$'\n'*) th_peer_processes=${th_peers#*$'\n'} ;; esac
           if [ -n "$th_peer_processes" ] && [ -n "$th_peer_fingerprint" ] \
@@ -2818,7 +2843,7 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
           th_peer_fingerprint=$th_peer_processes
           if [ $((th_now - th_changed_at)) -ge "$th_stall_secs" ]; then
             if [ -n "$th_peer_processes" ]; then
-              th_refusal="treehouse get made no progress for ${th_stall_secs}s, and neither did anything else holding its pool lock (treehouse-state.lock) open: ${th_peers%%$'\n'*}"
+              th_refusal="treehouse get made no progress for ${th_stall_secs}s (waiting on: ${th_waiting_on:-an unnamed process}), and nothing else holding its pool lock (treehouse-state.lock) open advanced either: ${th_peers%%$'\n'*}"
             else
               th_refusal="treehouse get made no progress for ${th_stall_secs}s (waiting on: ${th_waiting_on:-an unnamed process})"
             fi
