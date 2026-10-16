@@ -982,6 +982,7 @@ A get that is only waiting its turn on its project's pool, because another get o
 When the get cannot be observed, the wait keeps the original bound of `FM_TREEHOUSE_GET_START_SECS` seconds.
 The spawn holds neither the home's task-set lock nor the Herdr session presentation lock while the get runs, so a slow copy does not refuse teardowns, pane closes, or other dispatches meanwhile.
 It waits for both again once the get settles, the presentation lock for up to `FM_TREEHOUSE_GET_MAX_SECS`; a presentation lock still busy then refuses the launch, naming its holder.
+A launch refused or interrupted during the get waits for the presentation lock the same way before removing its Herdr projection.
 Teardown likewise runs every `treehouse return` without the presentation lock and waits for it again, for up to the same ceiling, before the next pane close.
 Forced secondmate teardown refuses a home while a spawn there still holds its task lock, naming that task.
 Each variable accepts a nonnegative whole number of seconds, and an unset, blank, or invalid value uses the default.

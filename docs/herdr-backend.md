@@ -114,8 +114,9 @@ Firstmate does not retry, adopt, reuse, close, delete, or rename anything in res
 The worker remains on the ordinary flat or Herdr-current-order path.
 
 A projected spawn holds the session presentation lock from its create, order, and restart binding through launch handoff, except while `treehouse get` runs in the new pane.
-The get's duration scales with the host, so the lock is released before it and waited for again after it, for up to `FM_TREEHOUSE_GET_MAX_SECS`; until then teardowns, pane closes, and other spawns on the session proceed.
-A lock still busy at that bound refuses the launch, naming its holder, and abort cleanup takes the lock with its usual bounded attempt before the exact projection cleanup, leaving the task pane and journal in place with a warning when it cannot.
+The get's duration scales with the host, so the lock is released before it and waited for again, for up to `FM_TREEHOUSE_GET_MAX_SECS`, once the get settles or the launch aborts before then; until then teardowns, pane closes, and other spawns on the session proceed.
+A refused get therefore still removes its projection under the lock.
+A lock still busy at that bound after the get refuses the launch, naming its holder, and abort cleanup then makes its usual bounded attempt before the exact projection cleanup, leaving the task pane and journal in place with a warning when it cannot.
 
 Normal task metadata remains the sole endpoint authority after creation.
 Cleanup closes only the exact recorded task pane and never calls `workspace close`.
