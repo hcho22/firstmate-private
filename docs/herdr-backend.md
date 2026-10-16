@@ -113,6 +113,10 @@ Ordering failure never fails the task spawn.
 Firstmate does not retry, adopt, reuse, close, delete, or rename anything in response to an unavailable method, lock contention, ambiguous socket, lost response, failed move, or verification mismatch.
 The worker remains on the ordinary flat or Herdr-current-order path.
 
+A projected spawn holds the session presentation lock from its create, order, and restart binding through launch handoff, except while `treehouse get` runs in the new pane.
+The get's duration scales with the host, so the lock is released before it and taken again after it with the same bounded attempt; until then teardowns, pane closes, and other spawns on the session proceed.
+If the lock stays busy after the get, the spawn warns and launches without it, and an aborted launch takes the lock again before its exact projection cleanup, retaining the journal with a warning when it cannot.
+
 Normal task metadata remains the sole endpoint authority after creation.
 Cleanup closes only the exact recorded task pane and never calls `workspace close`.
 Herdr 0.7.5's explicit close moves focus to a neighbor whenever it empties a non-focused workspace, while its pane-death removal preserves the focused workspace whenever the dying workspace sits behind it or the focused workspace is last; both behaviors are fixed in Herdr 0.8.0, and the exact rules live in the adapter header of `bin/backends/herdr.sh`.

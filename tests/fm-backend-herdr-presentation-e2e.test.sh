@@ -428,10 +428,11 @@ spawn_secondmate_task() {
 
 # Concurrent recoveries of existing presentation journals serialize on the
 # shared named-session lock, but the waiter's acquire is bounded while the
-# owner holds the lock through its whole launch, so a slow owner makes the
-# waiter refuse instead of resuming (docs/herdr-backend.md). That refusal is
-# the product contract: accept only its exact wording, prove it mutated
-# nothing, and resume that task only after the lock owner has completed.
+# owner holds the lock through its reclaim and again around its launch handoff,
+# so a slow owner makes the waiter refuse instead of resuming
+# (docs/herdr-backend.md). That refusal is the product contract: accept only
+# its exact wording, prove it mutated nothing, and resume that task only after
+# the lock owner has completed.
 finish_concurrent_recovery() {  # <id> <home> <status> <stdout> <stderr> <old-pane> <meta-sum> <journal-sum>
   local id=$1 home=$2 status=$3 out=$4 err=$5 old_pane=$6 meta_sum=$7 journal_sum=$8
   [ "$status" -ne 0 ] || return 0
@@ -888,10 +889,16 @@ ABORT_SEQUENCE=$(sed -n "$((ABORT_FOCUS_START + 1)),\$p" "$FOCUS_AUDIT_LOG" | aw
   $1 == "pane-close" && $4 == a { print "close-a" }
   $1 == "pane-close" && $4 == b { print "close-b" }
 ')
-case "$ABORT_SEQUENCE" in
-  $'create-a\nclose-a\ncreate-b\nclose-b'|$'create-b\nclose-b\ncreate-a\nclose-a') ;;
-  *) fail "concurrent post-create abort cleanup interleaved outside the presentation lock: $ABORT_SEQUENCE" ;;
-esac
+# Neither spawn holds the presentation lock while its get runs, so the other
+# may create its projection in between; each create and each abort cleanup is
+# still one locked, focus-preserving mutation, which the audits below check.
+[ "$(printf '%s\n' "$ABORT_SEQUENCE" | LC_ALL=C sort | tr '\n' ' ')" = 'close-a close-b create-a create-b ' ] \
+  || fail "concurrent post-create aborts did not each create and clean up exactly one projection: $ABORT_SEQUENCE"
+for ABORT_TASK in a b; do
+  [ "$(printf '%s\n' "$ABORT_SEQUENCE" | grep -n -x "create-$ABORT_TASK" | cut -d: -f1)" -lt \
+    "$(printf '%s\n' "$ABORT_SEQUENCE" | grep -n -x "close-$ABORT_TASK" | cut -d: -f1)" ] \
+    || fail "post-create abort $ABORT_TASK cleaned up before it created its projection: $ABORT_SEQUENCE"
+done
 ABORT_UNRESTORED=$(sed -n "$((ABORT_FOCUS_START + 1)),\$p" "$FOCUS_AUDIT_LOG" | awk -F '\t' -v a="$ABORT_A_PANE" -v b="$ABORT_B_PANE" '
   ($1 == "workspace-create" || $1 == "tab-create" || $1 == "workspace-move" || ($1 == "pane-close" && $4 != a && $4 != b)) && $2 != $3 { print }
 ')

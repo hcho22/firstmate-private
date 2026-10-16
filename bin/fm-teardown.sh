@@ -82,8 +82,11 @@
 # is the approved discard path that prevalidates child removal targets, locks each
 # descendant home's task set before enumeration, and holds those locks through
 # child cleanup. Contention refuses the complete forced teardown before child
-# mutation. Local and remote retirement serialize their destructive phase with
-# that mate's backlog-handoff lock under the registry lock. Pending handoff wake
+# mutation, naming the holder. Both refuse a home in which a fresh spawn still
+# holds its task lock, because that spawn has no record and no task-set hold
+# while its `treehouse get` runs. Local and remote retirement serialize their
+# destructive phase with that mate's backlog-handoff lock under the registry
+# lock. Pending handoff wake
 # state is retired with the home, and local removal failure restores that state
 # before preserving the route for retry. Teardown then discards child work, kills
 # child runtime endpoints, and removes the retired home. Removing a leased home
@@ -2317,6 +2320,24 @@ preflight_firstmate_home_process_event_tree() {
   preflight_firstmate_home_process_events "$home" "$label"
 }
 
+# A fresh spawn has no record yet while `treehouse get` runs, and it does not
+# hold its home's task-set lock then either (bin/fm-spawn.sh), so the only
+# trace of the task it is creating is its task spawn lock, held by a live
+# process from before that release until the spawn exits. A home with one is
+# still having work added to it.
+refuse_home_with_spawn_in_flight() {  # <state-dir> <home-label> <outcome>
+  local state=$1 lock pid id
+  for lock in "$state"/.spawn-*.lock; do
+    [ -e "$lock" ] || [ -L "$lock" ] || continue
+    pid=$(cat "$lock/pid" 2>/dev/null || true)
+    fm_pid_alive "$pid" || continue
+    id=${lock##*/.spawn-}
+    id=${id%.lock}
+    echo "REFUSED: $2 is creating task $id right now ($(fm_lock_holder_label "$pid") holds its spawn lock); $3" >&2
+    return 1
+  done
+}
+
 collect_descendant_task_locks() {
   local home=$1 sub_state child_meta child_id child_kind child_wt child_home task_set_lock
   local -a child_ids
@@ -2348,10 +2369,11 @@ collect_descendant_task_locks() {
     return 1
   }
   if ! fm_lock_try_acquire "$task_set_lock"; then
-    echo "REFUSED: secondmate home $home is publishing a task right now (task-set lock is held); forced teardown changed nothing" >&2
+    echo "REFUSED: secondmate home $home task-set lock is held by $(fm_lock_holder_label "${FM_LOCK_HELD_PID:-}"); forced teardown changed nothing" >&2
     return 1
   fi
   DESCENDANT_LOCK_PATHS+=("$task_set_lock")
+  refuse_home_with_spawn_in_flight "$sub_state" "secondmate home $home" "forced teardown changed nothing" || return 1
   child_ids=()
   for child_meta in "$sub_state"/*.meta; do
     [ -e "$child_meta" ] || continue
@@ -2391,7 +2413,10 @@ preflight_descendant_task_locks() {
   # parent-before-child preorder, sorted by id within each home, each control
   # lock before its matching metadata lock. No child lock holder ever reaches
   # back for a parent lock. bin/fm-spawn.sh takes the same task-set lock before
-  # its own per-task locks when it publishes a fresh record.
+  # its own per-task locks when it starts a fresh record, and waits for it again
+  # while holding them once its `treehouse get` settles; that cannot cycle with
+  # this teardown, which only ever tries its locks and refuses that home anyway
+  # while the spawn's task lock is held.
   for ((i=0; i < ${#DESCENDANT_TASK_IDS[@]}; i++)); do
     state=${DESCENDANT_TASK_STATES[$i]}
     task_id=${DESCENDANT_TASK_IDS[$i]}
@@ -2741,6 +2766,7 @@ if [ "$KIND" = secondmate ] && [ "$FORCE" != "--force" ]; then
       echo "Found $(basename "$child_meta"). Let that home finish or explicitly discard with --force." >&2
       exit 1
     done
+    refuse_home_with_spawn_in_flight "$SUB_STATE" "secondmate $ID" "let that launch finish, then rerun teardown" || exit 1
   fi
 fi
 

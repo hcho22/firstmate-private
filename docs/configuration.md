@@ -978,7 +978,11 @@ Teardown never removes a lock during the retry window, and after that window it 
 A copy that is slow but still advancing (a process starts or exits, or any of them spends CPU time) completes the launch.
 A get that has exited without a worktree is refused after `FM_TREEHOUSE_GET_EXIT_GRACE_SECS`, saying so.
 A get whose processes stop changing for `FM_TREEHOUSE_GET_STALL_SECS` is refused as stuck, naming the process it was waiting on, and a get that keeps changing without ever settling is refused at `FM_TREEHOUSE_GET_MAX_SECS`.
+A get that is only waiting its turn on its project's pool, because another get or `treehouse return` on the same pool holds treehouse's pool lock (`treehouse-state.lock`, found with `lsof`), counts that operation's progress as its own; when that operation stalls too, the refusal names it.
 When the get cannot be observed, the wait keeps the original bound of `FM_TREEHOUSE_GET_START_SECS` seconds.
+The spawn holds neither the home's task-set lock nor the Herdr session presentation lock while the get runs, so a slow copy does not refuse teardowns, pane closes, or other dispatches meanwhile.
+It takes both back once the get settles: it waits for the task-set lock, and if the presentation lock stays busy it warns and launches without it.
+Secondmate teardown, forced or not, refuses a home while a spawn there still holds its task lock, naming that task.
 Each variable accepts a nonnegative whole number of seconds, and an unset, blank, or invalid value uses the default.
 A refused launch leaves its endpoint for inspection exactly as before, and the get may still finish there later.
 

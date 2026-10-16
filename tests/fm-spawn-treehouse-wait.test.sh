@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 # Regression test for the wait fm-spawn.sh makes for `treehouse get` to enter a
 # worktree (bin/fm-spawn.sh, the loop after the launch lines, and the
-# treehouse_get_tree comment that owns the rules).
+# treehouse_wait_seconds comment that owns the rules).
 #
 # Creating the isolated copy is the one launch step whose duration depends on
 # the host, so the wait must not be a fixed poll count: a copy that is slow but
 # still advancing completes the launch, a get that exited or is stuck is refused
 # with a message naming which, and a get that never settles is refused at a
-# ceiling. Every case drives the public interface (bin/fm-spawn.sh) against a
-# REAL tmux server on a private socket whose pane shell is a bare bash, with a
-# `treehouse` stand-in on PATH that behaves as the case asks (works for a while,
-# exits with an error, hangs, or lands in the wrong place).
+# ceiling. A get that is only waiting its turn on its pool behind another live
+# operation is not stuck while that operation advances, and is refused naming
+# it when it does not. Because the wait can be long, it holds no lock another
+# dispatch in the same home needs. Every case drives the public interface
+# (bin/fm-spawn.sh) against a REAL tmux server on a private socket whose pane
+# shell is a bare bash, with a `treehouse` stand-in on PATH that behaves as the
+# case asks (works for a while, exits with an error, hangs, lands in the wrong
+# place, queues on the pool lock, or waits to be released).
 #
 # Time is compressed rather than slept through: a `sleep` shim turns the spawn's
 # one-second poll sleep into a short one, so the original sixty-poll bound is a
@@ -30,9 +34,17 @@ SPAWN="$ROOT/bin/fm-spawn.sh"
 TMP_ROOT=$(fm_test_tmproot fm-spawn-treehouse-wait)
 RUN_TAG="thw$$"
 SOCKETS=()
+PEER_PIDS=()
+# The pool-lock cases need a way to hold a real flock and a way to find who
+# holds it open, which is what the spawn itself uses.
+POOL_CASES=1
+{ command -v perl >/dev/null 2>&1 && command -v lsof >/dev/null 2>&1; } || POOL_CASES=0
 
 cleanup_all() {
-  local sock id
+  local sock id pid
+  for pid in "${PEER_PIDS[@]:-}"; do
+    [ -n "$pid" ] && kill "$pid" 2>/dev/null
+  done
   for sock in "${SOCKETS[@]:-}"; do
     [ -n "$sock" ] || continue
     "$REAL_TMUX" -L "$sock" kill-server >/dev/null 2>&1 || true
@@ -53,6 +65,10 @@ trap cleanup_all EXIT
 #   hang     one child that sleeps and never changes (no progress at all)
 #   fail     prints an error and exits without a worktree
 #   subdir   enters a subdirectory of the primary checkout instead of a worktree
+#   pool     waits, with no progress of its own, for an exclusive flock on the
+#            pool's treehouse-state.lock (as treehouse does), then acquires
+#   gate     the first get in the world starts short-lived children until
+#            the case creates pool/release; every later get acquires at once
 make_treehouse_stub() {
   local dir=$1
   cat > "$dir/treehouse" <<SH
@@ -66,6 +82,15 @@ case "\$FMT_MODE" in
     end=\$((SECONDS + FMT_SECONDS))
     while [ "\$SECONDS" -lt "\$end" ]; do "$REAL_SLEEP" 0.2; done
     ;;
+  pool)
+    perl -MFcntl=:flock -e 'open(my \$f, ">>", \$ARGV[0]) or die "open: \$!"; flock(\$f, LOCK_EX) or die "flock: \$!"' \
+      "\$FMT_POOL/treehouse-state.lock" || exit 1
+    ;;
+  gate)
+    if mkdir "\$FMT_POOL/gate" 2>/dev/null; then
+      while [ ! -e "\$FMT_POOL/release" ]; do "$REAL_SLEEP" 0.2; done
+    fi
+    ;;
 esac
 wt="\$FMT_POOL/slot-\$\$"
 git worktree add -q --detach "\$wt" >&2 || exit 1
@@ -74,19 +99,16 @@ SH
   chmod +x "$dir/treehouse"
 }
 
-# run_case <name> <mode> <seconds> [VAR=value ...]: build a world, run the spawn
-# and leave its output, exit code, elapsed seconds, and recorded state under
-# $TMP_ROOT/<name>. Cases are independent, so the caller runs them together.
-run_case() {
-  local name=$1 mode=$2 seconds=$3 case_dir proj home fakebin sock id start rc kv
-  shift 3
+# make_world <name>: a case's own project, home, private tmux socket, and fakebin
+# under $TMP_ROOT/<name>, which every spawn of that case shares.
+make_world() {
+  local name=$1 case_dir proj home fakebin sock
   case_dir="$TMP_ROOT/$name"
   proj="$case_dir/project"
   home="$case_dir/home"
   fakebin="$case_dir/fakebin"
   sock="$RUN_TAG-$name"
-  id="thw-$name-$$"
-  mkdir -p "$fakebin" "$home/data/$id" "$home/projects" "$home/state" "$home/config" "$case_dir/pool"
+  mkdir -p "$fakebin" "$home/data" "$home/projects" "$home/state" "$home/config" "$case_dir/pool"
   fm_git_identity
   fm_git_init_commit "$proj"
   fm_git_add_origin "$proj" "$case_dir/project.origin.git"
@@ -104,6 +126,19 @@ SH
   make_treehouse_stub "$fakebin"
   chmod +x "$fakebin/tmux" "$fakebin/sleep" "$fakebin/codex"
   printf 'codex\n' > "$home/config/crew-harness"
+  touch "$home/state/.last-watcher-beat"
+}
+
+# spawn_in <name> <id> <out-dir> <mode> <seconds> [VAR=value ...]: run one spawn
+# of task <id> in world <name> and leave its output, exit code, and elapsed
+# seconds under <out-dir>.
+spawn_in() {
+  local name=$1 id=$2 out_dir=$3 mode=$4 seconds=$5 case_dir proj home start rc kv
+  shift 5
+  case_dir="$TMP_ROOT/$name"
+  proj="$case_dir/project"
+  home="$case_dir/home"
+  mkdir -p "$out_dir" "$home/data/$id"
   cat > "$home/data/$id/brief.md" <<EOF
 # Task
 ## Captain's intent
@@ -112,8 +147,6 @@ Exercise the treehouse get wait for $name.
 ## Firstmate spec
 Record the worktree the get settled in.
 EOF
-  touch "$home/state/.last-watcher-beat"
-  printf '%s\n%s\n' "$sock" "$id" > "$case_dir/ids"
   start=$SECONDS
   (
     cd "$proj" || exit 1
@@ -126,17 +159,80 @@ EOF
       FM_BACKEND=tmux FM_ROOT_OVERRIDE='' FM_HOME="$home" \
       FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
       FM_PROJECTS_OVERRIDE="$home/projects" FM_CONFIG_OVERRIDE="$home/config" \
-      FM_SPAWN_NO_GUARD=1 PATH="$fakebin:$PATH" \
+      FM_SPAWN_NO_GUARD=1 PATH="$case_dir/fakebin:$PATH" \
       "$SPAWN" "$id" "$proj" --mode no-mistakes --yolo off --backend tmux
-  ) > "$case_dir/spawn.out" 2>&1
+  ) > "$out_dir/spawn.out" 2>&1
   rc=$?
-  printf '%s\n' "$rc" > "$case_dir/rc"
-  printf '%s\n' "$((SECONDS - start))" > "$case_dir/elapsed"
+  printf '%s\n' "$rc" > "$out_dir/rc"
+  printf '%s\n' "$((SECONDS - start))" > "$out_dir/elapsed"
+}
+
+# run_case <name> <mode> <seconds> [VAR=value ...]: build a world and run its one
+# spawn, leaving the results and recorded state under $TMP_ROOT/<name>. Cases are
+# independent, so the caller runs them together.
+run_case() {
+  local name=$1
+  shift
+  make_world "$name"
+  spawn_in "$name" "$(case_id "$name")" "$TMP_ROOT/$name" "$@"
+}
+
+# start_peer <name> <progress|stall> <seconds>: stand in for another live
+# treehouse operation on the case's pool (a get from another home, or
+# `treehouse return`) that holds the pool lock for <seconds>, either starting
+# short-lived children all along or doing nothing at all. Returns once it holds
+# the lock, and records its pid in $TMP_ROOT/<name>/peer.pid.
+start_peer() {
+  local case_dir="$TMP_ROOT/$1" deadline
+  perl -MFcntl=:flock -e '
+    my ($lock, $marker, $mode, $seconds, $sleep) = @ARGV;
+    open(my $f, ">>", $lock) or die "open: $!";
+    flock($f, LOCK_EX) or die "flock: $!";
+    open(my $m, ">", $marker) or die "marker: $!";
+    close($m);
+    my $end = time + $seconds;
+    if ($mode eq "progress") { system($sleep, "0.2") while time < $end }
+    else { sleep $seconds }
+  ' "$case_dir/pool/treehouse-state.lock" "$case_dir/peer.holding" "$2" "$3" "$REAL_SLEEP" \
+    </dev/null >/dev/null 2>&1 &
+  printf '%s\n' "$!" > "$case_dir/peer.pid"
+  deadline=$((SECONDS + 30))
+  while [ ! -e "$case_dir/peer.holding" ] && [ "$SECONDS" -lt "$deadline" ]; do "$REAL_SLEEP" 0.1; done
+}
+
+# run_pool_case <name> <progress|stall> <peer-seconds> [VAR=value ...]: a get that
+# queues behind a peer holding the pool lock.
+run_pool_case() {
+  local name=$1 peer_mode=$2 peer_seconds=$3
+  shift 3
+  make_world "$name"
+  start_peer "$name" "$peer_mode" "$peer_seconds"
+  spawn_in "$name" "$(case_id "$name")" "$TMP_ROOT/$name" pool 0 "$@"
+}
+
+# run_concurrent_case: two fresh dispatches in one home. The first one's get is
+# held open until the second has finished, and whether the first was still inside
+# its get at that point (no record yet, spawn still running) is recorded.
+run_concurrent_case() {
+  local case_dir="$TMP_ROOT/concurrent" first second first_pid deadline
+  first=$(case_id concurrent-a)
+  second=$(case_id concurrent-b)
+  make_world concurrent
+  spawn_in concurrent "$first" "$case_dir/a" gate 0 &
+  first_pid=$!
+  deadline=$((SECONDS + 60))
+  while [ ! -d "$case_dir/pool/gate" ] && [ "$SECONDS" -lt "$deadline" ]; do "$REAL_SLEEP" 0.1; done
+  spawn_in concurrent "$second" "$case_dir/b" gate 0
+  if [ ! -e "$case_dir/home/state/$first.meta" ] && kill -0 "$first_pid" 2>/dev/null; then
+    touch "$case_dir/first-was-waiting"
+  fi
+  touch "$case_dir/pool/release"
+  wait "$first_pid"
 }
 
 declare_case() {  # <name>: register the case's socket and task id for cleanup
   SOCKETS+=("$RUN_TAG-$1")
-  TASK_IDS+=("thw-$1-$$")
+  TASK_IDS+=("$(case_id "$1")")
 }
 
 case_out() { cat "$TMP_ROOT/$1/spawn.out"; }
@@ -144,7 +240,8 @@ case_rc() { cat "$TMP_ROOT/$1/rc"; }
 case_elapsed() { cat "$TMP_ROOT/$1/elapsed"; }
 case_id() { printf 'thw-%s-%s' "$1" "$$"; }
 
-for c in slow stuck ceiling failed wrongplace; do declare_case "$c"; done
+for c in slow stuck ceiling failed wrongplace peerprogress peerstalled concurrent; do declare_case "$c"; done
+TASK_IDS+=("$(case_id concurrent-a)" "$(case_id concurrent-b)")
 
 # A copy that takes longer than the original bound but is still advancing: the
 # stand-in works for ten seconds (the original loop gives up after sixty
@@ -165,7 +262,23 @@ PID_FAILED=$!
 # assertion still refuses it.
 run_case wrongplace subdir 0 &
 PID_WRONG=$!
-wait "$PID_SLOW" "$PID_STUCK" "$PID_CEILING" "$PID_FAILED" "$PID_WRONG"
+PIDS=("$PID_SLOW" "$PID_STUCK" "$PID_CEILING" "$PID_FAILED" "$PID_WRONG")
+if [ "$POOL_CASES" -eq 1 ]; then
+  # A get queued behind a peer that holds the pool lock for ten seconds while
+  # working: the get itself shows nothing for longer than the stall window.
+  run_pool_case peerprogress progress 10 FM_TREEHOUSE_GET_STALL_SECS=4 &
+  PIDS+=("$!")
+  # The same queue behind a peer that holds the lock and does nothing.
+  run_pool_case peerstalled stall 120 FM_TREEHOUSE_GET_STALL_SECS=3 &
+  PIDS+=("$!")
+fi
+run_concurrent_case &
+PIDS+=("$!")
+wait "${PIDS[@]}"
+for c in peerprogress peerstalled; do
+  [ -r "$TMP_ROOT/$c/peer.pid" ] || continue
+  PEER_PIDS+=("$(cat "$TMP_ROOT/$c/peer.pid")")
+done
 
 test_slow_but_advancing_get_completes_the_launch() {
   local c=slow out rc meta wt
@@ -224,11 +337,56 @@ test_isolation_assertion_still_refuses_a_primary_checkout() {
   pass "a get that lands in the primary checkout is still refused by the isolation assertion"
 }
 
+test_get_queued_behind_a_working_peer_completes_the_launch() {
+  local c=peerprogress out rc meta wt
+  if [ "$POOL_CASES" -ne 1 ]; then echo "skip: perl or lsof not found"; return 0; fi
+  out=$(case_out $c)
+  rc=$(case_rc $c)
+  expect_code 0 "$rc" "a get waiting its turn behind a working peer on its pool must not be refused: $out"
+  assert_contains "$out" "spawned $(case_id $c)" "the spawn did not report success: $out"
+  meta="$TMP_ROOT/$c/home/state/$(case_id $c).meta"
+  wt=$(sed -n 's/^worktree=//p' "$meta")
+  case "$wt" in "$TMP_ROOT/$c/pool/slot-"*) ;; *) fail "meta recorded '$wt', not the worktree the get settled in" ;; esac
+  pass "a get queued on the pool lock behind a peer that keeps working completes the launch"
+}
+
+test_get_queued_behind_a_stalled_peer_is_refused_naming_it() {
+  local c=peerstalled out rc peer
+  if [ "$POOL_CASES" -ne 1 ]; then echo "skip: perl or lsof not found"; return 0; fi
+  out=$(case_out $c)
+  rc=$(case_rc $c)
+  peer=$(cat "$TMP_ROOT/$c/peer.pid")
+  expect_code 1 "$rc" "a get queued behind a stalled peer must be refused"
+  assert_contains "$out" "and neither did anything else holding its pool lock (treehouse-state.lock) open: pid $peer (" \
+    "the refusal does not name the stalled peer holding the pool lock: $out"
+  [ "$(case_elapsed $c)" -lt 40 ] || fail "the get queued behind a stalled peer was not refused within the stall window"
+  assert_absent "$TMP_ROOT/$c/home/state/$(case_id $c).meta" "a refused launch recorded a task"
+  pass "a get queued on the pool lock behind a peer that does nothing is refused, naming that peer"
+}
+
+test_second_dispatch_proceeds_while_a_slow_get_runs() {
+  local dir="$TMP_ROOT/concurrent" first second out
+  first=$(case_id concurrent-a)
+  second=$(case_id concurrent-b)
+  out=$(cat "$dir/b/spawn.out")
+  expect_code 0 "$(cat "$dir/b/rc")" "a second fresh dispatch in the same home must not be refused while another get runs: $out"
+  assert_contains "$out" "spawned $second" "the second dispatch did not report success: $out"
+  assert_present "$dir/first-was-waiting" "the second dispatch did not finish while the first was still inside its get"
+  out=$(cat "$dir/a/spawn.out")
+  expect_code 0 "$(cat "$dir/a/rc")" "the first dispatch must complete once its get settles: $out"
+  assert_contains "$out" "spawned $first" "the first dispatch did not report success: $out"
+  assert_present "$dir/home/state/$first.meta" "the first dispatch recorded no task"
+  assert_present "$dir/home/state/$second.meta" "the second dispatch recorded no task"
+  pass "a second fresh dispatch in the same home proceeds while the first one's get is still running"
+}
+
 test_the_wait_strands_no_temp_root() {
   local c
-  assert_absent "/tmp/fm-$(case_id slow)/treehouse-get.shell-pid" "the wait left its pid record behind after a successful launch"
+  for c in slow peerprogress; do
+    assert_absent "/tmp/fm-$(case_id $c)/treehouse-get.shell-pid" "the wait left its pid record behind after a successful launch ($c)"
+  done
   # A refused launch has made no task, so nothing may be left for teardown to miss.
-  for c in stuck ceiling failed wrongplace; do
+  for c in stuck ceiling failed wrongplace peerstalled; do
     assert_absent "/tmp/fm-$(case_id $c)" "a refused launch stranded a temp root ($c)"
   done
   pass "the wait's pid record is removed on success and a refusal strands no temp root"
@@ -239,6 +397,9 @@ test_stuck_get_is_refused_at_the_stall_window
 test_endless_get_is_refused_at_the_ceiling
 test_failed_get_is_refused_promptly
 test_isolation_assertion_still_refuses_a_primary_checkout
+test_get_queued_behind_a_working_peer_completes_the_launch
+test_get_queued_behind_a_stalled_peer_is_refused_naming_it
+test_second_dispatch_proceeds_while_a_slow_get_runs
 test_the_wait_strands_no_temp_root
 
 echo "# all fm-spawn-treehouse-wait tests passed"

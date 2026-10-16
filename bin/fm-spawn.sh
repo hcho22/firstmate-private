@@ -92,7 +92,11 @@
 #   the one session-scoped presentation-order lock (keyed by named session plus
 #   canonical socket, outside any home's state/) through launch handoff. Lock
 #   contention warns and falls back to the ordinary flat layout before any
-#   projection mutation. The exact response-derived new workspace is inserted
+#   projection mutation. The lock is not held while `treehouse get` runs: it is
+#   released before the get and taken again after it with one more bounded
+#   attempt, whose contention warns and lets the launch continue (an aborted
+#   launch takes it again before cleaning up its projection).
+#   The exact response-derived new workspace is inserted
 #   immediately after its owning parent (firstmate or 2ndmate-<id>) contiguous
 #   child block. Ordering never authorizes lifecycle cleanup, and any
 #   unavailable, ambiguous, or failed move warns while the spawn continues.
@@ -103,8 +107,13 @@
 #   Every single-task invocation holds one task-id-scoped lock across backend
 #   creation through metadata publication, so concurrent same-id spawns serialize
 #   even when they select different backends. A fresh spawn first takes the
-#   per-home task-set lock and refuses rather than waits when forced teardown owns
-#   it; relaunch is exempt because the existing task's control lock covers it.
+#   per-home task-set lock and refuses rather than waits when another operation
+#   owns it, naming that holder; relaunch is exempt because the existing task's
+#   control lock covers it. Neither shared lock is held while `treehouse get`
+#   runs, so a slow copy does not stall teardowns or other dispatches: the
+#   task-set lock is released before the get and waited for again after it,
+#   through publication, while the task-id lock held throughout keeps forced
+#   teardown refusing this home.
 #   With no harness arg, a crewmate/scout spawn resolves the CREW harness only when
 #   config/crew-dispatch.json is absent. When that file exists, crewmate/scout
 #   spawns require an explicit harness so firstmate cannot silently skip dispatch
@@ -1062,7 +1071,9 @@ if [ "$RELAUNCH" -eq 0 ]; then
   # while never lifecycle-locked (bin/fm-wake-lib.sh's fm_task_set_lock_path
   # owns the evidence; bin/fm-teardown.sh holds the same lock from enumeration
   # through cleanup). Taken before this task's own locks, matching the
-  # acquisition order documented there, and held through publication.
+  # acquisition order documented there, and held through publication except
+  # while `treehouse get` runs (see the wait for it below): this task's spawn
+  # lock, taken while this lock is held, keeps a forced teardown out meanwhile.
   #
   # A relaunch is exempt: it republishes a task that already exists, so it is
   # already covered by that task's control lock, which the teardown preflight
@@ -1075,7 +1086,7 @@ if [ "$RELAUNCH" -eq 0 ]; then
     exit 1
   }
   if ! fm_lock_try_acquire "$SPAWN_TASK_SET_LOCK"; then
-    echo "error: this home's task set is locked by another operation (a forced teardown is enumerating or removing its tasks); refusing to create task $ID rather than racing it" >&2
+    echo "error: this home's task set is locked by $(fm_lock_holder_label "${FM_LOCK_HELD_PID:-}"); refusing to create task $ID rather than racing it" >&2
     exit 1
   fi
   SPAWN_TASK_SET_LOCK_HELD=1
@@ -1999,12 +2010,17 @@ validate_spawn_worktree() {  # <source> <inspect-target>
 #   - a get that has exited without entering a worktree leaves that shell with no
 #     children, so it is refused after FM_TREEHOUSE_GET_EXIT_GRACE_SECS;
 #   - a get that is alive but whose process tree stops changing (no new process
-#     and no CPU time on any of them) for FM_TREEHOUSE_GET_STALL_SECS is stuck.
+#     and no CPU time on any of them) for FM_TREEHOUSE_GET_STALL_SECS is stuck,
+#     unless it is waiting its turn on its pool (treehouse_pool_peers): then the
+#     operation ahead of it is what must advance, and when that one stalls too
+#     the refusal names it.
 # FM_TREEHOUSE_GET_MAX_SECS is the absolute ceiling for a get that never settles.
 # Where the shell never reports its pid, or the process table cannot be read,
 # nothing can be observed and the wait keeps the original bound of
 # FM_TREEHOUSE_GET_START_SECS seconds (or 60 polls), so an unobservable pane is
 # never waited on longer than it was before.
+# Because the wait can run for minutes, neither shared lock is held during it
+# (see where the get is sent).
 treehouse_wait_seconds() {  # <env-var-name> <default>
   local value=${!1:-}
   case "$value" in
@@ -2013,20 +2029,26 @@ treehouse_wait_seconds() {  # <env-var-name> <default>
   esac
 }
 
-# treehouse_get_tree <shell-pid>: the processes below <shell-pid> as one line
-# "<command>" (the deepest one, the thing the get is waiting on) followed by one
-# "<pid> <cpu-time>" line per descendant. Whole-output equality between two
-# polls is the progress test: it changes when a process starts, exits, or spends
-# CPU. Fails when the process table cannot be read.
-treehouse_get_tree() {
+# treehouse_process_tree get <shell-pid>: the processes below <shell-pid> as one
+# line "<command>" (the deepest one, the thing the get is waiting on) followed by
+# one "<pid> <cpu-time>" line per descendant.
+# treehouse_process_tree peers <pid>[,<pid>...]: one line naming each of those
+# processes as "pid <pid> (<command>)", followed by one "<pid> <cpu-time>" line
+# for each of them and each of their descendants.
+# Whole-output equality of the "<pid> <cpu-time>" lines between two polls is the
+# progress test: it changes when a process starts, exits, or spends CPU. Fails
+# when the process table cannot be read.
+treehouse_process_tree() {  # <get|peers> <pid>[,<pid>...]
   local table
   table=$(LC_ALL=C ps -A -o pid=,ppid=,time=,command= 2>/dev/null) || return 1
   [ -n "$table" ] || return 1
-  printf '%s\n' "$table" | awk -v root="$1" '
+  printf '%s\n' "$table" | awk -v mode="$1" -v roots="$2" '
     { pid = $1; parent[pid] = $2; cpu[pid] = $3
       $1 = ""; $2 = ""; $3 = ""; sub(/^ +/, ""); cmd[pid] = $0; order[++n] = pid }
     END {
-      depth[root] = 0; changed = 1
+      nroots = split(roots, r, ",")
+      for (i = 1; i <= nroots; i++) { depth[r[i]] = 0; root[r[i]] = 1 }
+      changed = 1
       while (changed) {
         changed = 0
         for (i = 1; i <= n; i++) {
@@ -2034,11 +2056,42 @@ treehouse_get_tree() {
           if (!(p in depth) && (parent[p] in depth)) { depth[p] = depth[parent[p]] + 1; changed = 1 }
         }
       }
-      deepest = ""; best = 0
-      for (i = 1; i <= n; i++) { p = order[i]; if (p != root && (p in depth) && depth[p] >= best) { best = depth[p]; deepest = p } }
-      print (deepest == "" ? "" : substr(cmd[deepest], 1, 100))
-      for (i = 1; i <= n; i++) { p = order[i]; if (p != root && (p in depth)) print p, cpu[p] }
+      if (mode == "get") {
+        deepest = ""; best = 0
+        for (i = 1; i <= n; i++) { p = order[i]; if (!(p in root) && (p in depth) && depth[p] >= best) { best = depth[p]; deepest = p } }
+        print (deepest == "" ? "" : substr(cmd[deepest], 1, 100))
+        for (i = 1; i <= n; i++) { p = order[i]; if (!(p in root) && (p in depth)) print p, cpu[p] }
+      } else {
+        label = ""
+        for (i = 1; i <= nroots; i++) if (r[i] in cmd) label = label (label == "" ? "" : "; ") "pid " r[i] " (" substr(cmd[r[i]], 1, 100) ")"
+        print label
+        for (i = 1; i <= n; i++) { p = order[i]; if (p in depth) print p, cpu[p] }
+      }
     }'
+}
+
+# treehouse_pool_peers <pid>[,<pid>...]: the other live processes that hold open
+# a treehouse pool lock (treehouse-state.lock) one of <pid>... holds open, in the
+# treehouse_process_tree peers form. treehouse takes that lock with a blocking
+# flock across its slow work, for a get and for `treehouse return` alike, so a
+# get waiting its turn shows no progress of its own while the operation ahead of
+# it on the same pool does. Prints nothing when there is no such peer or lsof is
+# unavailable.
+treehouse_pool_peers() {  # <pid>[,<pid>...]
+  local own=$1 locks lock peers pid
+  command -v lsof >/dev/null 2>&1 || return 0
+  locks=$(lsof -n -P -w -Fn -p "$own" 2>/dev/null | sed -n 's/^n\(.*\/treehouse-state\.lock\)$/\1/p' | LC_ALL=C sort -u)
+  [ -n "$locks" ] || return 0
+  peers=
+  while IFS= read -r lock; do
+    for pid in $(lsof -n -P -w -t -- "$lock" 2>/dev/null); do
+      case ",$own,$peers," in *",$pid,"*) ;; *) peers=${peers:+$peers,}$pid ;; esac
+    done
+  done <<EOF
+$locks
+EOF
+  [ -n "$peers" ] || return 0
+  treehouse_process_tree peers "$peers"
 }
 
 # A pooled slot whose only deviation is a submodule gitlink is stale, not dirty:
@@ -2614,9 +2667,21 @@ if [ "$RELAUNCH" -eq 1 ]; then
   fi
   [ "$KIND" = secondmate ] || validate_spawn_worktree "relaunch" "$T"
 elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
+  # Neither shared lock is held across the get, whose duration scales with the
+  # host: the session-wide Herdr presentation lock would refuse every teardown
+  # and pane close on the session and flatten other homes' projections, and the
+  # home's task-set lock would refuse every other fresh dispatch here. Both are
+  # taken again once the get settles. Meanwhile this task's spawn lock keeps a
+  # forced teardown out of the home, and an aborted projected launch takes the
+  # presentation lock again before cleaning up its projection.
+  spawn_herdr_presentation_order_lock_release
+  if [ "$SPAWN_TASK_SET_LOCK_HELD" = 1 ]; then
+    SPAWN_TASK_SET_LOCK_HELD=0
+    fm_lock_release "$SPAWN_TASK_SET_LOCK"
+  fi
   # The launch line records the pane shell's pid where the wait below can read it
-  # (see the treehouse_get_tree comment for what that buys), then `treehouse get`
-  # follows on its own line exactly as before.
+  # (see the treehouse_process_tree comment for what that buys), then
+  # `treehouse get` follows on its own line exactly as before.
   mkdir -p "$TASK_TMP"
   TREEHOUSE_SHELL_PID_FILE="$TASK_TMP/treehouse-get.shell-pid"
   rm -f "$TREEHOUSE_SHELL_PID_FILE"
@@ -2643,8 +2708,8 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   # a mismatch just becomes the new candidate rather than resetting the wait, so a
   # pane that is already settled by the first real read only costs the one existing
   # inter-poll sleep as confirmation, not a whole extra cycle on top.
-  # Waiting is bounded by the process-tree checks described at treehouse_get_tree,
-  # not by a poll count; the settle rule above is unchanged.
+  # Waiting is bounded by the process-tree checks described at
+  # treehouse_wait_seconds, not by a poll count; the settle rule above is unchanged.
   candidate=""
   th_start=$SECONDS
   th_polls=0
@@ -2654,6 +2719,7 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   th_exit_grace=$(treehouse_wait_seconds FM_TREEHOUSE_GET_EXIT_GRACE_SECS 10)
   th_shell_pid=
   th_fingerprint=
+  th_peer_fingerprint=
   th_changed_at=$th_start
   th_idle_since=
   th_waiting_on=
@@ -2684,7 +2750,7 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
       # The pane already left the project and only awaits its confirming read.
       th_changed_at=$th_now
       th_idle_since=
-    elif [ -z "$th_shell_pid" ] || ! th_tree=$(treehouse_get_tree "$th_shell_pid"); then
+    elif [ -z "$th_shell_pid" ] || ! th_tree=$(treehouse_process_tree get "$th_shell_pid"); then
       # Nothing observable about the get: keep the original bound.
       if [ "$th_polls" -ge 60 ] || [ $((th_now - th_start)) -ge "$th_start_secs" ]; then
         th_refusal="treehouse get did not enter a worktree within ${th_start_secs}s (the pane's shell never reported starting it, or its processes could not be read)"
@@ -2710,9 +2776,27 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
         if [ "$th_processes" != "$th_fingerprint" ]; then
           th_fingerprint=$th_processes
           th_changed_at=$th_now
-        elif [ $((th_now - th_changed_at)) -ge "$th_stall_secs" ]; then
-          th_refusal="treehouse get made no progress for ${th_stall_secs}s (waiting on: ${th_waiting_on:-an unnamed process})"
-          break
+          th_peer_fingerprint=
+        else
+          # No progress of its own. A get waiting its turn on its pool is not
+          # stuck while the operation ahead of it advances; the first sighting
+          # of that operation is only a baseline, so it cannot reset the window.
+          th_peers=$(treehouse_pool_peers "$th_shell_pid,$(printf '%s\n' "$th_processes" | awk '{ printf "%s%s", sep, $1; sep = "," }')" || true)
+          th_peer_processes=
+          case "$th_peers" in *$'\n'*) th_peer_processes=${th_peers#*$'\n'} ;; esac
+          if [ -n "$th_peer_processes" ] && [ -n "$th_peer_fingerprint" ] \
+             && [ "$th_peer_processes" != "$th_peer_fingerprint" ]; then
+            th_changed_at=$th_now
+          fi
+          th_peer_fingerprint=$th_peer_processes
+          if [ $((th_now - th_changed_at)) -ge "$th_stall_secs" ]; then
+            if [ -n "$th_peer_processes" ]; then
+              th_refusal="treehouse get made no progress for ${th_stall_secs}s, and neither did anything else holding its pool lock (treehouse-state.lock) open: ${th_peers%%$'\n'*}"
+            else
+              th_refusal="treehouse get made no progress for ${th_stall_secs}s (waiting on: ${th_waiting_on:-an unnamed process})"
+            fi
+            break
+          fi
         fi
       fi
     fi
@@ -2730,6 +2814,18 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   if [ -z "$WT" ]; then
     echo "error: $th_refusal; inspect window $T" >&2
     exit 1
+  fi
+  # Everything after the get keeps the lock scope it always had. The task-set
+  # lock is waited for rather than refused: its other holders are spawns between
+  # their own short steps and a forced teardown that refuses this home while this
+  # task's spawn lock is held, so contention here is momentary, and refusing now
+  # would strand the endpoint and worktree just made.
+  if [ -n "$SPAWN_TASK_SET_LOCK" ]; then
+    fm_lock_acquire_wait "$SPAWN_TASK_SET_LOCK"
+    SPAWN_TASK_SET_LOCK_HELD=1
+  fi
+  if [ "${HERDR_PROJECTED:-0}" -eq 1 ] && ! spawn_herdr_presentation_order_lock_acquire "$HERDR_SES"; then
+    echo "warning: herdr presentation focus lock unavailable after treehouse get; continuing the launch without it (an aborted launch takes it again before cleaning up its projection)" >&2
   fi
 
   validate_spawn_worktree "treehouse get" "$T"

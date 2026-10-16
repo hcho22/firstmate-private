@@ -6,6 +6,10 @@
 # A stand-in `treehouse` that spends longer than the original sixty-poll bound
 # while visibly working must complete the launch and record its worktree, and
 # one that errors out must be refused promptly, saying it exited.
+# While a projected spawn's get is still running, neither the session-wide
+# presentation lock nor the home's task-set lock may be held, so a teardown on
+# the same Herdr session and a second fresh dispatch in the same home both
+# complete before that get settles.
 # Every Herdr call goes through the guarded named-session lab helper, and lab
 # teardown verifies that the default fleet session is unchanged.
 set -u
@@ -67,8 +71,12 @@ printf '#!/bin/bash\nexec /bin/bash --noprofile --norc "$@"\n' > "$TMP_ROOT/bash
 # reads each case's behaviour from control files instead of the environment.
 CONTROL="$TMP_ROOT/control"
 mkdir -p "$CONTROL"
+# In gate mode the first get to start keeps starting short-lived children until
+# the case creates control/release, and every later get acquires at once.
+# Teardown's `treehouse return` has nothing to give back to this pool.
 cat > "$PANEBIN/treehouse" <<SH
 #!/usr/bin/env bash
+[ "\${1:-}" != return ] || exit 0
 echo "stand-in treehouse get" >&2
 FMT_MODE=\$(cat "$CONTROL/mode"); FMT_SECONDS=\$(cat "$CONTROL/seconds"); FMT_POOL=\$(cat "$CONTROL/pool")
 case "\$FMT_MODE" in
@@ -76,6 +84,11 @@ case "\$FMT_MODE" in
   advance)
     end=\$((SECONDS + FMT_SECONDS))
     while [ "\$SECONDS" -lt "\$end" ]; do "$REAL_SLEEP" 0.2; done
+    ;;
+  gate)
+    if mkdir "$CONTROL/gate" 2>/dev/null; then
+      while [ ! -e "$CONTROL/release" ]; do "$REAL_SLEEP" 0.2; done
+    fi
     ;;
 esac
 wt="\$FMT_POOL/slot-\$\$"
@@ -100,7 +113,7 @@ cleanup_all() {
     PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" teardown "$HERDR_LAB_SESSION" >/dev/null 2>&1 || status=1
     LAB_READY=0
   fi
-  rm -rf "/tmp/fm-hthw-slow-$$" "/tmp/fm-hthw-fail-$$" "$TMP_ROOT"
+  rm -rf "/tmp/fm-hthw-slow-$$" "/tmp/fm-hthw-fail-$$" "/tmp/fm-hthw-gated-$$" "/tmp/fm-hthw-second-$$" "$TMP_ROOT"
   exit "$status"
 }
 trap cleanup_all EXIT
@@ -159,5 +172,41 @@ case "$out" in *"treehouse get exited without entering a worktree"*) ;; *) fail 
 [ $((SECONDS - start)) -lt 40 ] || fail "the exited get was not refused promptly on Herdr"
 [ ! -e "$HOME_DIR/state/$FAIL_ID.meta" ] || fail "a refused launch recorded a task"
 pass "a get that exits without a worktree is refused promptly on Herdr and says so"
+
+# The gated spawn is projected, so on its own it would hold the session-wide
+# presentation lock from its workspace create through launch handoff.
+printf 'on\n' > "$HOME_DIR/config/herdr-presentation-spaces"
+GATED_ID="hthw-gated-$$"
+SECOND_ID="hthw-second-$$"
+spawn_case "$GATED_ID" gate 0 > "$TMP_ROOT/gated.out" 2>&1 &
+GATED_PID=$!
+deadline=$((SECONDS + 120))
+while [ ! -d "$CONTROL/gate" ] && kill -0 "$GATED_PID" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
+  "$REAL_SLEEP" 0.2
+done
+[ -d "$CONTROL/gate" ] || fail "the gated spawn never started its treehouse get: $(cat "$TMP_ROOT/gated.out")"
+[ -e "$HOME_DIR/state/$GATED_ID.herdr-presentation" ] \
+  || fail "the gated spawn was not projected, so it does not exercise the presentation lock"
+
+out=$(FM_GATE_REFUSE_BYPASS=1 FM_HOME="$HOME_DIR" FM_ROOT_OVERRIDE="$ROOT" \
+  "$ROOT/bin/fm-teardown.sh" "$SLOW_ID" --force 2>&1) \
+  || fail "a teardown on the same Herdr session did not proceed while a projected get was running: $out"
+[ ! -e "$HOME_DIR/state/$SLOW_ID.meta" ] || fail "the teardown left its task record behind"
+pass "a teardown on the same Herdr session proceeds while a projected spawn's get is still running"
+
+out=$(spawn_case "$SECOND_ID" gate 0) \
+  || fail "a second fresh dispatch in the same home did not proceed while a get was running: $out"
+[ -e "$HOME_DIR/state/$SECOND_ID.meta" ] || fail "the second dispatch recorded no task"
+pass "a second fresh dispatch in the same home proceeds while another spawn's get is still running"
+
+kill -0 "$GATED_PID" 2>/dev/null && [ ! -e "$HOME_DIR/state/$GATED_ID.meta" ] \
+  || fail "the gated spawn was no longer inside its get, so the cases above proved nothing: $(cat "$TMP_ROOT/gated.out")"
+touch "$CONTROL/release"
+if wait "$GATED_PID"; then :; else fail "the gated spawn failed once its get settled: $(cat "$TMP_ROOT/gated.out")"; fi
+grep -F "presentation focus lock unavailable" "$TMP_ROOT/gated.out" >/dev/null 2>&1 \
+  && fail "the gated spawn could not take the presentation lock back after its get: $(cat "$TMP_ROOT/gated.out")"
+wt=$(sed -n 's/^worktree=//p' "$HOME_DIR/state/$GATED_ID.meta")
+case "$wt" in "$POOL_DIR/slot-"*) ;; *) fail "meta recorded '$wt', not the worktree the gated get settled in" ;; esac
+pass "the projected spawn whose get was held open completes once the get settles"
 
 echo "# all fm-backend-herdr-treehouse-wait-e2e tests passed"
