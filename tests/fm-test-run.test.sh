@@ -1953,6 +1953,8 @@ init_worker_leak_fixture() {
     cp "$ROOT/bin/$file" "$repo/bin/$file"
   done
   chmod +x "$repo/bin"/*.sh
+  # The runner sources the shared Git configuration contract before each script.
+  cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
   printf 'fixture\n' >"$repo/AGENTS.md"
   cat >"$repo/tests/fm-worker-leak-fixture.test.sh" <<'SH'
 #!/usr/bin/env bash
