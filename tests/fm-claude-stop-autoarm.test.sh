@@ -1497,12 +1497,23 @@ test_recycled_bridge_claim_stays_open_on_session_id_match() {
     FM_STATE_OVERRIDE="$dir/state" bash -c '
         . "$1/bin/fm-wake-lib.sh"
         . "$1/bin/fm-session-lock-lib.sh"
+        # Read each identity only once its sleeper is running sleep: a pre-exec
+        # read records the forked shell, which never matches the live process.
+        await_sleep() {
+          local deadline=$((SECONDS + 60))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            case "$(ps -p "$1" -o comm= 2>/dev/null)" in *sleep) return 0 ;; esac
+            sleep 0.02
+          done
+          return 1
+        }
         sleep 60 &
         owner=$!
         sleep 60 &
         other=$!
         sleep 61 &
         predecessor=$!
+        await_sleep "$owner" && await_sleep "$other" && await_sleep "$predecessor" || exit 97
         identity=$(fm_pid_identity "$owner") || exit 97
         lock_identity=$(fm_pid_identity "$other") || exit 97
         if [ "$4" != current ]; then
@@ -1555,8 +1566,19 @@ test_claim_without_numeric_session_lock_is_not_open() {
   probe() {
     FM_STATE_OVERRIDE="$dir/state" bash -c '
         . "$1/bin/fm-wake-lib.sh"
+        # Read each identity only once its sleeper is running sleep: a pre-exec
+        # read records the forked shell, which never matches the live process.
+        await_sleep() {
+          local deadline=$((SECONDS + 60))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            case "$(ps -p "$1" -o comm= 2>/dev/null)" in *sleep) return 0 ;; esac
+            sleep 0.02
+          done
+          return 1
+        }
         sleep 60 &
         owner=$!
+        await_sleep "$owner" || exit 97
         identity=$(fm_pid_identity "$owner") || exit 97
         printf "epoch=464 owner_pid=%s outcome=arming updated_at=1\n%s\n" "$owner" "$identity" \
           > "$1/state/.claude-autoarm-epoch"
