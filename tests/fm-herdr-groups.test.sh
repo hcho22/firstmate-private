@@ -331,7 +331,12 @@ test_agent_view_helper_sends_only_the_whitelisted_requests() {
   local dir sock server out status deadline
   command -v python3 >/dev/null 2>&1 || { pass "agent view helper: skipped, python3 not found"; return 0; }
   dir="$TMP_ROOT/view-helper"; mkdir -p "$dir"
-  sock="$dir/s.sock"
+  # The socket lives in a short directory of its own: a Unix socket path is
+  # capped at 104 bytes on macOS (108 on Linux), and the runner's private
+  # TMPDIR alone can exceed that.
+  sock=$(mktemp -d /tmp/fm-hg.XXXXXX) || fail "could not create a short socket directory"
+  fm_test_register_cleanup "$sock"
+  sock="$sock/s.sock"
   for action in set clear; do
     rm -f "$sock" "$dir/request.json"
     python3 - "$sock" "$dir/request.json" "$action" > "$dir/server.log" 2>&1 <<'PY' &
