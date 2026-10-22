@@ -120,9 +120,11 @@ with_blind_ancestry() {  # <fakebin> [VAR=VAL ...]
     PATH="$fakebin:$BASE_PATH" "$HARNESS"
 }
 
+# A bash that runs, and is reported by `ps -o comm=`, under <name>. A symlink,
+# not a copy: macOS kills a copied platform binary such as /bin/bash at exec.
 named_bin() {  # <dir> <name>
   mkdir -p "$1"
-  cp "$(command -v bash)" "$1/$2"
+  ln -sf "$(command -v bash)" "$1/$2"
   printf '%s\n' "$1/$2"
 }
 
