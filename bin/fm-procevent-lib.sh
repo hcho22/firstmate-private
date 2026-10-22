@@ -221,6 +221,15 @@ FM_PROCEVENT_LAUNCH_CONFIRM_DEFAULT_SECONDS=3
 FM_PROCEVENT_LAUNCH_CONFIRM_MIN_SECONDS=1
 FM_PROCEVENT_LAUNCH_CONFIRM_MAX_SECONDS=600
 
+# How long a launch confirmation leaves the source lock free between two
+# observations. The runner it waits for claims the source through
+# fm_lock_acquire_wait (bin/fm-wake-lib.sh), which retries every 0.1s, so a poll
+# that took the lock again sooner could shut that runner out for the whole
+# window: it claimed only once the poll gave up, and the launch read as failed.
+# The gap must stay longer than that retry period.
+# shellcheck disable=SC2034  # read by bin/fm-procevent.sh
+FM_PROCEVENT_CONFIRM_POLL_GAP_SECONDS=0.25
+
 fm_procevent_launch_confirm_seconds() {
   local value=${FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS-}
   if [ -z "$value" ]; then

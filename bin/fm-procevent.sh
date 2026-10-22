@@ -1949,7 +1949,7 @@ confirm_launched_runners() {  # <source-id><TAB><registration-identity><TAB><lau
     pending=("${remaining[@]+"${remaining[@]}"}")
     [ "${#pending[@]}" -gt 0 ] || break
     [ "$SECONDS" -lt "$deadline" ] || break
-    sleep 0.05
+    sleep "$FM_PROCEVENT_CONFIRM_POLL_GAP_SECONDS"
   done
   [ "${#pending[@]}" -eq 0 ] || printf '%s\n' "${pending[@]}"
 }
@@ -2018,7 +2018,7 @@ cmd_ensure_listening() {
       started_once=1
     fi
     [ "$SECONDS" -lt "$deadline" ] || break
-    sleep 0.05
+    sleep "$FM_PROCEVENT_CONFIRM_POLL_GAP_SECONDS"
   done
   [ "$listening" -ne 3 ] || return 3
   printf 'error: listener is not running: %s\n' "$id" >&2
