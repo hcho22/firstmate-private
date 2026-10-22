@@ -547,7 +547,7 @@ write_forgejo_pr_json() {
 # unconfigured-CI shape verified against a real instance (empty state, zero
 # count), regardless of any state= override.
 write_forgejo_status_json() {
-  local file=$1 kv key value
+  local file=$1 kv key value statuses
   local state=success total=1
   shift
   for kv in "$@"; do
@@ -562,8 +562,11 @@ write_forgejo_status_json() {
   if [ "$total" = 0 ]; then
     printf '{"state":"","total_count":0,"statuses":[]}\n' > "$file"
   else
-    printf '{"state":"%s","total_count":%s,"statuses":[%s]}\n' "$state" "$total" \
-      "$(seq "$total" | sed "s/.*/{\"context\":\"ci-&\",\"status\":\"$state\"}/" | paste -sd, -)" \
+    # Built in a plain assignment, not inside a quoted "$(...)": bash 3.2
+    # brace-expands a nested double-quoted {a,b} there, which split the one
+    # status object into two printf arguments and broke the JSON.
+    statuses=$(seq "$total" | sed "s/.*/{\"context\":\"ci-&\",\"status\":\"$state\"}/" | paste -sd, -)
+    printf '{"state":"%s","total_count":%s,"statuses":[%s]}\n' "$state" "$total" "$statuses" \
       > "$file"
   fi
 }
