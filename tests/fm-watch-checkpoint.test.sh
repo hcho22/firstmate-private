@@ -40,6 +40,24 @@ test_quiet_checkpoint_exits_124_cleanly() {
   pass "quiet checkpoint exits 124 with a clean checkpoint line and no live lock"
 }
 
+# A checkpoint launched as a background job of a non-interactive shell (a harness
+# or a suite driver) inherits an ignored SIGINT, which bash can never trap. The
+# checkpoint must still end its watcher through the watcher's own INT cleanup
+# rather than leave the lock to the KILL backstop.
+test_quiet_checkpoint_releases_its_lock_when_started_with_int_ignored() {
+  local home out err status
+  home=$(make_home quiet-int-ignored)
+  out="$home/out.txt"
+  err="$home/err.txt"
+  status=0
+  FM_HOME="$home" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 \
+    bash -c 'trap "" INT; exec "$@"' _ "$CHECKPOINT" --seconds 1 >"$out" 2>"$err" || status=$?
+  expect_code 124 "$status" "quiet checkpoint exit with SIGINT ignored on entry"
+  assert_contains "$(cat "$out")" "checkpoint: no actionable wake within 1s" "quiet checkpoint line missing with SIGINT ignored on entry"
+  assert_absent "$home/state/.watch.lock/pid" "watch lock pid survived a checkpoint started with SIGINT ignored"
+  pass "a checkpoint started with SIGINT ignored still ends its watcher through the watcher's cleanup"
+}
+
 test_startup_timeout_releases_an_acquired_lock() {
   local home fakebin out err status real_ln
   home=$(make_home startup-timeout)
@@ -423,6 +441,7 @@ test_real_host_checkpoint_ends_quietly_at_its_bound() {
 }
 
 test_quiet_checkpoint_exits_124_cleanly
+test_quiet_checkpoint_releases_its_lock_when_started_with_int_ignored
 test_startup_timeout_releases_an_acquired_lock
 test_perl_timeout_fallback_honors_cleanup_bound_before_escalating
 test_perl_fallback_lets_the_watcher_finish_its_cleanup

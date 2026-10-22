@@ -132,6 +132,15 @@ run_bounded() {  # <seconds> <signal> <kill-after-seconds> <command...>
     [ "$cleanup_lock_bound" -gt "$kill_after" ] || cleanup_lock_bound=$kill_after
     kill_after=$cleanup_lock_bound
   fi
+  # The command must be able to act on <signal>. A checkpoint started as a
+  # background job of a non-interactive shell inherits an ignored SIGINT (and one
+  # started under nohup an ignored SIGHUP), and bash can never trap a signal it
+  # inherited ignored, so the watcher would sit out the bound's INT and be KILLed
+  # before its EXIT cleanup released its lock. Restore the default first.
+  if command -v perl >/dev/null 2>&1; then
+    # shellcheck disable=SC2016 # perl, not this shell, expands these.
+    set -- perl -e '$SIG{$ARGV[0]} = "DEFAULT"; shift @ARGV; exec @ARGV or exit 127' "$signal" "$@"
+  fi
   if command -v timeout >/dev/null 2>&1; then
     if [ "$kill_after" -gt 0 ]; then
       timeout --signal="$signal" --kill-after="${kill_after}s" "$seconds" "$@"
