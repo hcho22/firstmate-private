@@ -388,7 +388,7 @@ test_create_task_creates_and_parses_ids() {
 
 test_create_task_refuses_unreadable_inventory() {
   local dir fb status case_name
-  for case_name in workspace-ls-fails workspace-ls-garbage terminal-ls-fails; do
+  for case_name in workspace-ls-fails workspace-ls-garbage workspace-ls-empty terminal-ls-fails terminal-ls-empty; do
     dir="$TMP_ROOT/create-task-$case_name"
     mkdir -p "$dir/responses"
     case "$case_name" in
@@ -400,8 +400,16 @@ test_create_task_refuses_unreadable_inventory() {
       printf '[]' >"$dir/responses/1.out"
       printf 'daemon restarting' >"$dir/responses/2.out"
       ;;
+    workspace-ls-empty)
+      # An empty but successful reply: jq 1.6's -e would accept it as an array.
+      printf '[]' >"$dir/responses/1.out"
+      : >"$dir/responses/2.out"
+      ;;
     terminal-ls-fails)
       printf '1' >"$dir/responses/1.exit"
+      ;;
+    terminal-ls-empty)
+      : >"$dir/responses/1.out"
       ;;
     esac
     fb=$(make_paseo_fakebin "$dir")
@@ -934,7 +942,7 @@ test_kill_retires_workspace_when_tab_already_gone() {
 
 test_kill_retire_holds_back() {
   local dir ws case_name
-  for case_name in sibling-tab human-title agent-in-folder own-workspace; do
+  for case_name in sibling-tab human-title agent-in-folder own-workspace empty-terminal-inventory empty-agent-inventory; do
     dir="$TMP_ROOT/retire-hold-$case_name"
     ws=$(jq -n --arg cwd "$dir/home/projects/demo" --arg name "$([ "$case_name" = human-title ] && echo 'Evidence Room' || echo firstmate)" \
       '[{workspaceId:"wks_ff",name:$name,cwd:$cwd}]')
@@ -942,6 +950,10 @@ test_kill_retire_holds_back() {
     sibling-tab) paseo_retire_case "$dir" "$ws" '[{"id":"sib","workspaceId":"wks_ff","name":"fm-x"}]' '[]' ;;
     agent-in-folder) paseo_retire_case "$dir" "$ws" '[]' "$(jq -n --arg cwd "$dir/home/projects/demo" '[{id:"a1",cwd:$cwd}]')" ;;
     own-workspace) paseo_retire_case "$dir" "$ws" '[]' '[]' wks_ff ;;
+    # An empty but successful reply proves nothing about what still uses the
+    # workspace, and jq 1.6's -e would accept it as an empty array.
+    empty-terminal-inventory) paseo_retire_case "$dir" "$ws" '' '[]' ;;
+    empty-agent-inventory) paseo_retire_case "$dir" "$ws" '[]' '' ;;
     *) paseo_retire_case "$dir" "$ws" '[]' '[]' ;;
     esac
     case "$(cat "$dir/log")" in
@@ -953,7 +965,7 @@ test_kill_retire_holds_back() {
   case "$(cat "$dir/log")" in
   *$'\x1f''archive'* | *$'\x1f''project'*) fail "kill must never archive a workspace or touch a project outside this home's own clones" ;;
   esac
-  pass "fm_backend_paseo_kill: keeps the workspace while a tab, agent, other title, or firstmate itself uses it, and never retires anything outside this home's clones"
+  pass "fm_backend_paseo_kill: keeps the workspace while a tab, agent, other title, or firstmate itself uses it, or an inventory reply is empty, and never retires anything outside this home's clones"
 }
 
 # paseo_hold_workspace_lock: hold <home>'s paseo workspace lock from another

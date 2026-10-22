@@ -263,6 +263,13 @@ fm_backend_paseo_scoped_name() { # <fm-task-label>
   printf 'fm-%s-%s' "$home" "$rest"
 }
 
+# fm_backend_paseo_is_json_array: true only for a CLI reply that is a JSON
+# array. An empty reply is checked before jq sees it, because jq 1.6's -e exits
+# 0 on empty input, which would read an unreadable inventory as an empty one.
+fm_backend_paseo_is_json_array() { # <reply>
+  [ -n "$1" ] && printf '%s' "$1" | jq -e 'type == "array"' >/dev/null 2>&1
+}
+
 # fm_backend_paseo_terminal_id_for_name: the live terminal id whose NAME
 # equals <name>, or empty. Paseo enforces no name uniqueness itself
 # (finding #4's sibling on the terminal layer), so this adopts the first
@@ -272,7 +279,7 @@ fm_backend_paseo_scoped_name() { # <fm-task-label>
 fm_backend_paseo_terminal_id_for_name() { # <name>
   local name=$1 list
   list=$(fm_backend_paseo_cli terminal ls --all --json 2>/dev/null) || return 1
-  printf '%s' "$list" | jq -e 'type == "array"' >/dev/null 2>&1 || return 1
+  fm_backend_paseo_is_json_array "$list" || return 1
   printf '%s' "$list" | jq -r --arg want "$name" '.[] | select(.name == $want) | .id' | head -1
 }
 
@@ -324,7 +331,7 @@ fm_backend_paseo_workspace_ensure() { # <cwd>
   # allows duplicate workspaces, so creating on a failed lookup would split
   # the project across two.
   if ! list=$(fm_backend_paseo_cli workspace ls --json 2>/dev/null) ||
-    ! printf '%s' "$list" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    ! fm_backend_paseo_is_json_array "$list"; then
     echo "error: could not read the paseo workspace inventory; refusing to create a workspace for '$cwd'" >&2
     return 1
   fi
@@ -633,7 +640,7 @@ fm_backend_paseo_retire_workspace_locked() { # <workspace_id>
   local wsid=$1 label list cwd terminals agents projects pid logical real
   label=$(fm_backend_paseo_workspace_label)
   list=$(fm_backend_paseo_cli workspace ls --json 2>/dev/null) || return 0
-  printf '%s' "$list" | jq -e 'type == "array"' >/dev/null 2>&1 || return 0
+  fm_backend_paseo_is_json_array "$list" || return 0
   [ "$(fm_backend_paseo_own_workspace "$list")" != "$wsid" ] || return 0
   cwd=$(printf '%s' "$list" | jq -r --arg id "$wsid" --arg label "$label" \
     '.[] | select(.workspaceId == $id and .name == $label) | .cwd' | head -1)
@@ -645,8 +652,10 @@ fm_backend_paseo_retire_workspace_locked() { # <workspace_id>
   *) return 0 ;;
   esac
   terminals=$(fm_backend_paseo_cli terminal ls --all --json 2>/dev/null) || return 0
+  [ -n "$terminals" ] || return 0
   printf '%s' "$terminals" | jq -e --arg id "$wsid" 'type == "array" and all(.[]; .workspaceId != $id)' >/dev/null 2>&1 || return 0
   agents=$(fm_backend_paseo_cli ls --json 2>/dev/null) || return 0
+  [ -n "$agents" ] || return 0
   printf '%s' "$agents" | jq -e --arg cwd "$cwd" --arg home "$HOME" \
     'type == "array" and all(.[]; ((.cwd // "") | sub("^~"; $home)) != $cwd)' >/dev/null 2>&1 || return 0
   fm_backend_paseo_cli workspace archive "$wsid" >/dev/null 2>&1 || return 0
