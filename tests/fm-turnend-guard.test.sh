@@ -2431,21 +2431,47 @@ test_hook_lock_holder_session_still_blocks() {
 }
 
 test_hook_displaced_session_is_told_once_that_its_lock_was_taken_over() {
-  local dir foreign i
+  local dir foreign reanchored i out
   dir=$(make_primary_dir "$TMP_ROOT/hook-displaced")
   foreign=$(start_foreign_session "$dir")
-  # No supervision need at all: the news that this session lost the fleet is not
-  # conditional on a blind turn.
-  GUARD_FOREIGN_PID=$foreign GUARD_STOP_ACTIVE=false run_guard_in_harness "$dir" claude sess-displaced displaced --claude
-  expect_code 2 "$GUARD_RC" "a displaced session must be told once, by a bounded block the model reads"
-  assert_contains "$GUARD_OUT" 'THIS SESSION NO LONGER OWNS THE FLEET' "displaced banner missing"
-  assert_contains "$GUARD_OUT" "pid $foreign" "the displaced banner must name the new lock holder"
-  assert_contains "$GUARD_OUT" 'now read-only' "the displaced banner must say the session is read-only"
-  assert_contains "$GUARD_OUT" 'must stop acting on the fleet now' "the displaced banner must tell the session to stop acting on the fleet"
-  for i in 1 2 3; do
-    GUARD_FOREIGN_PID=$foreign GUARD_STOP_ACTIVE=false run_guard_in_harness "$dir" claude sess-displaced displaced --claude
-    [ "$GUARD_RC" = 0 ] || { stop_foreign_session "$foreign"; fail "the displaced notice repeated on stop $i instead of being bounded to one"; }
+  reanchored=$(start_foreign_session "$dir")
+  # One displaced session stopping four times: one harness process, the one
+  # takeover record that names it (bin/fm-lock.sh appends it once), and the
+  # guard run beneath that process at each stop. Between the second and third
+  # stops the taker re-anchors its lock onto a new pid, as a /clear does
+  # (bin/fm-lock.sh), which rewrites line 1 and the session sidecar but never
+  # the takeover record. No supervision need at all: the news that this session
+  # lost the fleet is not conditional on a blind turn.
+  # shellcheck disable=SC2016 # the inner shell expands its own variables
+  run_in_harness "$dir" claude none bash -c '
+    printf "%s\n" "$2" > "$FM_HOME/state/.lock"
+    printf "at=2026-10-01T20:00:00Z\tnew_pid=%s\tnew_session=sess-taker\tnew_command=claude\tprev_pid=%s\tprev_session=\tprev_holder=command: codex\n" \
+      "$2" "$PPID" > "$FM_HOME/state/.lock-takeovers"
+    for i in 1 2 3 4; do
+      if [ "$i" = 3 ]; then
+        printf "sess-taker\n" > "$FM_HOME/state/.lock-session"
+        printf "%s\n" "$3" > "$FM_HOME/state/.lock"
+      fi
+      printf "{\"stop_hook_active\":false,\"session_id\":\"sess-displaced\"}" \
+        | "$1" --claude > "$4/stop$i.out" 2>&1
+      printf "%s\n" "$?" > "$4/stop$i.rc"
+    done' _ "$dir/bin/fm-turnend-guard.sh" "$foreign" "$reanchored" "$dir/tmp" < /dev/null
+  stop_foreign_session "$reanchored"
+  out=$(cat "$dir/tmp/stop1.out")
+  expect_code 2 "$(cat "$dir/tmp/stop1.rc")" "a displaced session must be told once, by a bounded block the model reads: $out"
+  assert_contains "$out" 'THIS SESSION NO LONGER OWNS THE FLEET' "displaced banner missing"
+  assert_contains "$out" "pid $foreign" "the displaced banner must name the new lock holder"
+  assert_contains "$out" 'now read-only' "the displaced banner must say the session is read-only"
+  assert_contains "$out" 'must stop acting on the fleet now' "the displaced banner must tell the session to stop acting on the fleet"
+  for i in 2 3 4; do
+    [ "$(cat "$dir/tmp/stop$i.rc")" = 0 ] || { stop_foreign_session "$foreign"; fail "the displaced notice repeated on stop $i instead of being bounded to one: $(cat "$dir/tmp/stop$i.out")"; }
+    case "$(cat "$dir/tmp/stop$i.out")" in
+      *'NO LONGER OWNS'*) stop_foreign_session "$foreign"; fail "the displaced banner came back on stop $i" ;;
+    esac
   done
+  # Back to the taker's original pid, the takeover record still in place.
+  printf '%s\n' "$foreign" > "$dir/state/.lock"
+  rm -f "$dir/state/.lock-session"
   # A session that merely observes a foreign lock was not displaced and gets no
   # takeover banner.
   GUARD_STOP_ACTIVE=false run_guard_in_harness "$dir" claude sess-observer none --claude
