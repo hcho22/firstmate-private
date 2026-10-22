@@ -579,6 +579,7 @@ if [ "\${1:-}" = pane ] && [ "\${2:-}" = get ]; then
 fi
 exit 1
 SH
+  chmod +x "$fakebin/herdr"
 }
 
 # run_session_start <home> <root> <path> [pi-harness] [NAME=value...]
