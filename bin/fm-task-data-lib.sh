@@ -10,8 +10,11 @@
 #   _secondmates   persistent secondmate charter briefs
 #   _unassigned    work with no project, or whose name cannot be a folder
 # Fleet-wide files (backlog.md, projects.md, secondmates.md, captain.md,
-# captain-shared.md, learnings.md, archives, charter.md) stay at the data/ root,
-# as do the non-task root folders handoff/, extensions/ and remote-secondmates/.
+# captain-shared.md, learnings.md, archives such as memory-archive.md,
+# status-report-<date>.md, pipeline-spend.jsonl, charter.md) stay at the data/
+# root, as do the non-task root folders handoff/, extensions/ and
+# remote-secondmates/. Only directories are ever task or project folders, so a
+# root file can never be mistaken for either.
 #
 # Every script that builds a per-task data path goes through this library:
 #   fm_task_data_dir <data> <id>                 locate an existing task folder
@@ -48,15 +51,21 @@
 # set -u / set -e safe.
 
 _FM_TASK_DATA_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=bin/fm-pr-lib.sh
-. "$_FM_TASK_DATA_LIB_DIR/fm-pr-lib.sh"
+# fm-pr-lib.sh owns task-id validation. Sourcing it again would reset a
+# caller's parsed FM_PR_* identity, so it is sourced only when absent.
+if ! declare -F fm_task_id_path_safe >/dev/null 2>&1; then
+  # shellcheck source=bin/fm-pr-lib.sh
+  . "$_FM_TASK_DATA_LIB_DIR/fm-pr-lib.sh"
+fi
 
 FM_TASK_DATA_SECONDMATES=_secondmates
 FM_TASK_DATA_UNASSIGNED=_unassigned
 
 # A legacy flat task folder holds at least one of these at its top level; a
 # project folder never does, which is how the two are told apart.
-FM_TASK_DATA_MARKERS="brief.md report.md launch-brief.md ship-instructions.md"
+# contributions.json is bin/fm-contributions.sh's per-task record, which a
+# backlog row with no brief may be the only file to carry.
+FM_TASK_DATA_MARKERS="brief.md report.md launch-brief.md ship-instructions.md contributions.json"
 
 # Strip every trailing slash so a data directory spelled with several still
 # yields one canonical path prefix.

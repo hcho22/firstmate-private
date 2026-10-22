@@ -14,8 +14,12 @@
 # fleet snapshot's backlog/tasks pair; --all adds rows for supervisor inspection.
 # URLs accepted by canonical_url in fm-contributions.jq and explicitly linked
 # by a structured backlog row or a task's pr= are owned.
-# Previously observed URLs remain in data/<task>/contributions.json after
-# endpoint teardown. Repository-wide PR discovery never establishes ownership.
+# Previously observed URLs remain in the task's data folder, as
+# data/<Project>/<task>/contributions.json (or a legacy flat
+# data/<task>/contributions.json), after endpoint teardown;
+# bin/fm-task-data-lib.sh owns that layout. A task with no folder yet gets one
+# in the project its backlog row names. Repository-wide PR discovery never
+# establishes ownership.
 # Only canonical PR and issue URLs on the exact github.com host are supported;
 # other accepted URLs remain visibly unmeasured.
 # poll skips unsupported URLs without forge calls, unavailable output, wakes or
@@ -122,6 +126,8 @@ export FM_HOME FM_STATE_OVERRIDE="$STATE"
 . "$SCRIPT_DIR/fm-timeout-lib.sh"
 # shellcheck source=bin/fm-path-lib.sh
 . "$SCRIPT_DIR/fm-path-lib.sh"
+# shellcheck source=bin/fm-task-data-lib.sh
+. "$SCRIPT_DIR/fm-task-data-lib.sh"
 
 fail() { printf 'fm-contributions: %s\n' "$*" >&2; exit 1; }
 usage() { sed -n '2,/^set -eu$/s/^# \{0,1\}//p' "$0"; }
@@ -154,28 +160,42 @@ jq_lib() { # jq options/program via final argument
   jq -L "$SCRIPT_DIR" "$@" "include \"fm-contributions\"; $program"
 }
 
+read_saved_file() { # contributions.json path
+  local file=$1 dir task
+  [ -e "$file" ] || [ -L "$file" ] || return 0
+  fm_dirname_to dir "$file"
+  fm_basename_to task "$dir"
+  if [ -L "$file" ] || [ -L "$dir" ] || [ ! -f "$file" ] \
+    || [ "$(wc -c < "$file")" -gt 1048576 ] \
+    || ! jq_lib -ne --slurpfile record "$file" '($record | length) == 1 and ($record[0] | valid_record)' >/dev/null 2>&1; then
+    ERRORS=$((ERRORS + 1))
+    return 0
+  fi
+  # A file's task identity must match its durable directory, not arbitrary JSON.
+  if ! jq -e --arg task "$task" '.task == $task' "$file" >/dev/null; then
+    ERRORS=$((ERRORS + 1)); return 0
+  fi
+  jq -c . "$file" >> "$TMP/saved.jsonl"
+}
+
 read_saved() {
-  local file dir task
+  local file project name
   : > "$TMP/saved.jsonl"
   ERRORS=0
   if [ -L "$DATA" ]; then
     ERRORS=1; printf '[]\n' > "$TMP/saved.json"; return 0
   fi
+  # A record sits in a task folder: a legacy flat one directly under data/, or
+  # one inside a project folder (bin/fm-task-data-lib.sh tells them apart).
   for file in "$DATA"/*/contributions.json; do
-    [ -e "$file" ] || [ -L "$file" ] || continue
-    fm_dirname_to dir "$file"
-    fm_basename_to task "$dir"
-    if [ -L "$file" ] || [ -L "$dir" ] || [ ! -f "$file" ] \
-      || [ "$(wc -c < "$file")" -gt 1048576 ] \
-      || ! jq_lib -ne --slurpfile record "$file" '($record | length) == 1 and ($record[0] | valid_record)' >/dev/null 2>&1; then
-      ERRORS=$((ERRORS + 1))
-      continue
-    fi
-    # A file's task identity must match its durable directory, not arbitrary JSON.
-    if ! jq -e --arg task "$task" '.task == $task' "$file" >/dev/null; then
-      ERRORS=$((ERRORS + 1)); continue
-    fi
-    jq -c . "$file" >> "$TMP/saved.jsonl"
+    read_saved_file "$file"
+  done
+  for project in "$DATA"/*/; do
+    fm_basename_to name "$project"
+    fm_task_data_is_project_folder "$DATA" "$name" || continue
+    for file in "$project"*/contributions.json; do
+      read_saved_file "$file"
+    done
   done
   jq -s . "$TMP/saved.jsonl" > "$TMP/saved.json"
 }
@@ -209,10 +229,28 @@ acquire() {
   LOCK_HELD=1
 }
 
+# The task's data folder: wherever the layout already put it, or a new one in
+# the project this poll's backlog row names (no project files it under
+# _unassigned). An id found under two project folders is refused.
+contribution_task_dir() { # task
+  local task=$1 dir rc=0 project=
+  dir=$(fm_task_data_dir "$DATA" "$task") || rc=$?
+  case "$rc" in
+    0) printf '%s\n' "$dir"; return 0 ;;
+    1) ;;
+    *) return 1 ;;
+  esac
+  if [ -f "$TMP/input.json" ]; then
+    project=$(jq -r --arg task "$task" '[(.backlog.records // [])[] | select(.id == $task)
+      | .repo | select(type == "string" and . != "")] | .[0] // empty' "$TMP/input.json" 2>/dev/null) || project=
+  fi
+  fm_task_data_dir_for_new "$DATA" "$task" "$project"
+}
+
 write_record() { # task record-json-file
   local task=$1 file dir device staged
   fm_pr_task_id_valid "$task" || fail 'invalid contribution task'
-  dir="$DATA/$task"
+  dir=$(contribution_task_dir "$task") || fail 'contribution task folder cannot be placed in the data layout'
   [ ! -L "$dir" ] || fail 'contribution directory is a symlink'
   mkdir -p "$dir"
   file="$dir/contributions.json"

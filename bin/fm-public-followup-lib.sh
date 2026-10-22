@@ -247,7 +247,7 @@ fm_pf_bound_bytes() {
 fm_pf_deliverable_format() {
   case "$1" in
     pr_url) printf '%s\n' 'a canonical pull request URL: https://github.com/<owner>/<repo>/pull/<n> (GitHub) or https://<host>/<owner>/<repo>/pulls/<n> (Forgejo), with <n> a positive number without leading zeros and no trailing slash, query, fragment, credentials, or port' ;;
-    report_path) printf '%s\n' 'data/<task-id>/report.md, relative to the work home, never an absolute path' ;;
+    report_path) printf '%s\n' 'data/<task-id>/report.md, relative to the work home, never an absolute path (the identifier tasks-axi accepts, even when the report itself sits in a per-project folder)' ;;
     commit_sha) printf '%s\n' 'a lowercase hex commit SHA of 7 to 64 characters' ;;
     error_code) printf '%s\n' 'a lowercase code of at most 64 characters: a letter, then letters, digits, ".", "_", or "-"' ;;
     *) return 1 ;;

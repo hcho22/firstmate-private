@@ -765,6 +765,104 @@ test_migrate_revert_restores_the_original_layout() {
   pass "revert restores the flat layout and every recorded link exactly"
 }
 
+# A captain-held row keeps its structured report link at cleanup only when the
+# link names this task's report in the layout (bin/fm-backlog-transition-lib.sh).
+test_backlog_report_link_follows_the_layout() {
+  local link
+  for link in data/sample-task/report.md data/RepToday/sample-task/report.md data/_secondmates/sample-task/report.md; do
+    ( . "$ROOT/bin/fm-tasks-axi-lib.sh"; . "$ROOT/bin/fm-backlog-transition-lib.sh"
+      fm_backlog_row_artifact_supported sample-task --report "$link" ) \
+      || fail "a report link in the task data layout was not supported: $link"
+  done
+  for link in data/RepToday/other-task/report.md data/a/b/sample-task/report.md data/../sample-task/report.md \
+      ../data/sample-task/report.md relocated/data/sample-task/report.md data/.hidden/sample-task/report.md; do
+    ( . "$ROOT/bin/fm-tasks-axi-lib.sh"; . "$ROOT/bin/fm-backlog-transition-lib.sh"
+      fm_backlog_row_artifact_supported sample-task --report "$link" ) \
+      && fail "a report link outside the task data layout was supported: $link"
+  done
+  pass "a retained row's report link is supported for project, reserved, and legacy flat folders only"
+}
+
+# bin/fm-contributions.sh keeps each task's contribution record in its task
+# folder: it reads records from project folders and legacy flat folders alike,
+# and updates a record where it already lives instead of planting a flat folder.
+test_contribution_records_follow_the_layout() {
+  local home data out
+  home="$TMP_ROOT/contributions/fmhome"
+  data="$home/data"
+  mkdir -p "$data/Sample/t-one" "$data/Sample/t-three" "$data/t-two" "$home/state" "$home/config"
+  printf '%s\n' '- Sample [no-mistakes] - sample project (added 2026-10-01)' > "$data/projects.md"
+  printf 'b\n' > "$data/Sample/t-one/brief.md"
+  write_contribution "$data/Sample/t-one" t-one 1 tok-1
+  write_contribution "$data/t-two" t-two 2 tok-2
+  write_contribution "$data/Sample/t-three" t-three 3 ''
+  out=$(contributions "$home" pending) || fail "pending could not read the records: $out"
+  [ "$(printf '%s' "$out" | jq -c '[.[].task] | sort')" = '["t-one","t-two"]' ] \
+    || fail "pending did not read both the project-folder and the flat record: $out"
+  contributions "$home" retire t-three https://github.com/o/r/pull/3 captain 'repository deleted' >/dev/null \
+    || fail "retire of a project-folder record failed"
+  jq -e '.records[0].retired.actor == "captain"' "$data/Sample/t-three/contributions.json" >/dev/null \
+    || fail "retire did not update the record in its project folder"
+  [ ! -e "$data/t-three" ] || fail "a record update planted a flat task folder"
+  pass "contribution records are read and updated wherever the task folder lives"
+}
+
+write_contribution() {  # <dir> <task> <pr-number> <pending-token or empty>
+  jq -n --arg task "$2" --arg url "https://github.com/o/r/pull/$3" --arg token "$4" '
+    {schema:"fm-contributions.v1",task:$task,records:[{url:$url,kind:"pr",checked_at:null,error:null,
+      pending:(if $token == "" then [] else [{token:$token}] end),seen:[],verdict:null,observation:null}]}' \
+    > "$1/contributions.json"
+}
+
+contributions() {  # <home> <args...>
+  local home=$1
+  shift
+  FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
+    FM_CONFIG_OVERRIDE="$home/config" FM_CONTRIBUTIONS_NOW=2026-10-01T00:00:00Z \
+    "$ROOT/bin/fm-contributions.sh" "$@"
+}
+
+test_migrate_places_a_contributions_only_folder() {
+  local home data out
+  home="$TMP_ROOT/contributions-only/fmhome"
+  data="$home/data"
+  mkdir -p "$data/contrib-only" "$home/state"
+  write_contribution "$data/contrib-only" contrib-only 9 ''
+  printf '%s\n' '# Backlog' '' '## Queued' '' \
+    '- [ ] contrib-only - Filed https://github.com/o/r/pull/9 (repo: Purvia) (kind: ship)' > "$data/backlog.md"
+  [ "$(lib fm_task_data_dir "$data" contrib-only)" = "$data/contrib-only" ] \
+    || fail "a flat folder holding only a contribution record was not read as a task folder"
+  out=$(run_migrate "$home" --apply) || fail "apply failed: $out"
+  assert_contains "$out" "move: contrib-only -> Purvia/contrib-only (backlog repo)" "the contribution-only folder was not placed"
+  assert_present "$data/Purvia/contrib-only/contributions.json" "the contribution record did not move with its folder"
+  pass "a flat folder holding only a contribution record migrates into its backlog row's project"
+}
+
+test_migrate_refuses_while_a_cleanup_is_pending() {
+  local home before out rc
+  home=$(make_home pending-close)
+  printf 'id=rt-alpha\n' > "$home/state/rt-alpha.backlog-close"
+  before=$(tree_sig "$home")
+  rc=0; out=$(run_migrate "$home" --apply "${ASSIGN_ARGS[@]}") || rc=$?
+  [ "$rc" = 3 ] || fail "apply with a pending cleanup exited $rc, expected 3: $out"
+  assert_contains "$out" "blocked: an interrupted cleanup of rt-alpha" "the pending cleanup was not named"
+  [ "$(tree_sig "$home")" = "$before" ] || fail "a refused run changed the home"
+  pass "an interrupted cleanup still owing its backlog close refuses the migration"
+}
+
+test_migrate_notes_a_non_markdown_backlog() {
+  local home out
+  home=$(make_home beads-backlog)
+  out=$(TASKS_AXI_BACKEND=beads FM_HOME="$home" "$MIGRATE" --dry-run "${ASSIGN_ARGS[@]}" 2>&1) \
+    || fail "dry run failed: $out"
+  assert_contains "$out" "note: the backlog uses the beads tasks-axi backend" \
+    "a backlog whose rows live outside data/ was not reported as left unrewritten"
+  out=$(TASKS_AXI_BACKEND=markdown FM_HOME="$home" "$MIGRATE" --dry-run "${ASSIGN_ARGS[@]}" 2>&1) \
+    || fail "markdown dry run failed: $out"
+  assert_not_contains "$out" "tasks-axi backend" "a markdown backlog was reported as unrewritten"
+  pass "a non-markdown backlog is named as one whose links the migration does not rewrite"
+}
+
 test_project_dirname_mapping
 test_project_dirname_adopts_an_existing_folder_spelling
 test_for_new_places_in_the_project_folder
@@ -794,5 +892,10 @@ test_migrate_orders_a_case_insensitive_chain
 test_migrate_refuses_a_cycle_before_moving_anything
 test_migrate_assign_and_unresolved
 test_migrate_revert_restores_the_original_layout
+test_backlog_report_link_follows_the_layout
+test_contribution_records_follow_the_layout
+test_migrate_places_a_contributions_only_folder
+test_migrate_refuses_while_a_cleanup_is_pending
+test_migrate_notes_a_non_markdown_backlog
 
 printf '# all fm-task-data tests passed\n'

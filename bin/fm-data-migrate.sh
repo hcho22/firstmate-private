@@ -42,13 +42,18 @@
 #     run rewrites after its moves and --revert before them, so a run stopped
 #     midway is finished by repeating it
 # It never moves or edits any other fleet-wide root file (projects.md,
-# secondmates.md, captain*.md, learnings.md, ...); legacy links still present in
-# those, or inside task documents, are counted and reported, never rewritten.
+# secondmates.md, captain*.md, learnings.md, memory-archive.md, ...); legacy
+# links still present in those, or inside task documents, are counted and
+# reported, never rewritten. A backlog kept by a non-markdown tasks-axi backend
+# (Beads) holds its links outside data/, so they are not rewritten either and a
+# note says so.
 #
 # REFUSES (exit 3, nothing changed) while any non-secondmate task has a
-# state/<id>.meta, or any process-event source or condition watch is registered,
-# because those hold paths into task folders. A registered secondmate does not
-# block: its charter folder is found by lookup wherever it lives.
+# state/<id>.meta, an interrupted cleanup still has a state/<id>.backlog-close
+# record to replay, or any process-event source or condition watch is
+# registered, because those hold paths into task folders. A registered
+# secondmate does not block: its charter folder is found by lookup wherever it
+# lives.
 # Exit codes: 0 done (or nothing to do), 2 usage, 3 refused, 4 conflict, 1 failure.
 # Output lines: mode, blocked, move, revert, skip, unresolved, rewrite, note,
 # summary. Re-running is idempotent: a migrated home reports nothing to move.
@@ -74,6 +79,8 @@ usage() {
 . "$SCRIPT_DIR/fm-task-data-lib.sh"
 # shellcheck source=bin/fm-secondmate-registry-lib.sh
 . "$SCRIPT_DIR/fm-secondmate-registry-lib.sh"
+# shellcheck source=bin/fm-tasks-axi-lib.sh
+. "$SCRIPT_DIR/fm-tasks-axi-lib.sh"
 
 APPLY=0
 REVERT=0
@@ -143,6 +150,12 @@ check_live() {
     kind=$(sed -n 's/^kind=//p' "$meta" | head -1)
     [ "$kind" != secondmate ] || continue
     echo "blocked: task $id is live (state/$id.meta); finish or tear it down first"
+    BLOCKED=1
+  done
+  for entry in "$STATE"/*.backlog-close; do
+    [ -e "$entry" ] || [ -L "$entry" ] || continue
+    id=$(basename "$entry" .backlog-close)
+    echo "blocked: an interrupted cleanup of $id still has its backlog close to replay (state/$id.backlog-close); start a session to finish it first"
     BLOCKED=1
   done
   for entry in "$STATE/procevent" "$STATE/when"; do
@@ -452,6 +465,12 @@ REWRITE_FILES=()
 for name in backlog.md done-archive.md note-archive.md; do
   [ -f "$DATA/$name" ] && [ ! -L "$DATA/$name" ] && REWRITE_FILES+=("$DATA/$name")
 done
+# tasks-axi addresses this backlog from the data directory's parent
+# (bin/fm-backlog-transition-lib.sh); another backend keeps its rows there.
+BACKLOG_BACKEND=$(fm_tasks_axi_backend_resolve "$(dirname "$DATA")" 2>/dev/null) || BACKLOG_BACKEND=markdown
+if [ "$BACKLOG_BACKEND" != markdown ]; then
+  echo "note: the backlog uses the $BACKLOG_BACKEND tasks-axi backend, whose rows live outside data/; links recorded there are not rewritten"
+fi
 
 if [ "$BLOCKED" -eq 1 ]; then
   echo "summary: refused move=$MOVES blocked=1"

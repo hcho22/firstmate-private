@@ -61,9 +61,11 @@
 #                    home), launched by bin/fm-spawn.sh --secondmate.
 #   worker           --worker: a lab project notes with a lab-private origin
 #                    (local-only +yolo), a scaffolded brief, a backlog item, and
-#                    a real bin/fm-spawn.sh worker that parks on
-#                    <lab-root>/home/data/<worker-id>/gate until that file
-#                    exists; touch the gate and message the worker to resume.
+#                    a real bin/fm-spawn.sh worker that parks on a gate file
+#                    in its task folder (<lab-root>/home/data/notes/<worker-id>/gate,
+#                    wherever bin/fm-task-data-lib.sh finds the scaffolded
+#                    brief) until that file exists; touch the gate and
+#                    message the worker to resume.
 #   primary          window main: claude --setting-sources project,local
 #                    (default sonnet, medium, permission mode auto) or pi
 #                    (default openai-codex/gpt-6-luna, medium), launched
@@ -111,6 +113,8 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 BUILDER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 LAB_HOME_HELPER="$SCRIPT_DIR/fm-lab-home.sh"
+# shellcheck source=bin/fm-task-data-lib.sh
+. "$SCRIPT_DIR/fm-task-data-lib.sh"
 CLAUDE_TRUST="$SCRIPT_DIR/fm-claude-trust.sh"
 RECORD_NAME=.fm-live-lab
 RECORD_TOKEN='fm-live-lab v1'
@@ -428,9 +432,14 @@ MD
 }
 
 spawn_worker() {
-  local brief="$LAB/data/$WORKER_ID/brief.md" gate="$GATE"
+  local brief gate
   make_notes_project || return 1
   (cd "$LAB" && lab_run FM_HOME="$LAB" "$LAB/bin/fm-brief.sh" "$WORKER_ID" notes --mode local-only) >/dev/null || return 1
+  # The gate sits in the worker's own task folder, wherever the scaffold put it.
+  brief=$(fm_task_data_file "$LAB/data" "$WORKER_ID" brief.md) && [ -f "$brief" ] || return 1
+  GATE="${brief%/*}/gate"
+  gate=$GATE
+  printf 'gate=%s\n' "$GATE" >> "$ROOT/$RECORD_NAME"
   TASK_TEXT="Lab gated worker for a live supervision lab. Add count_notes(), which returns how many notes are stored, to notes/__init__.py with a unit test, but only after the gate file $gate exists and you receive a message to resume." \
   SPEC_TEXT="Right after setup, append one paused status line naming the gate file $gate and end your turn. Do not poll or sleep in a foreground command. When a later message resumes you, check that $gate exists before implementing count_notes() in notes/__init__.py and a test in tests/test_notes.py; if it is absent, remain paused and end your turn again. Once the gate exists, run python3 -m unittest discover -s tests, commit, and report done. Nothing else is in scope." \
     python3 - "$brief" <<'PY' || return 1
@@ -499,7 +508,7 @@ cmd_up() {
   HARNESS=$harness EXPECT_HOST=$expect_host WANT_MATE=$mate WANT_WORKER=$worker
   NONCE=$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')
   MATE_ID="lab${NONCE:0:12}-mate" WORKER_ID="lab${NONCE:0:12}-worker"
-  GATE="$LAB/data/$WORKER_ID/gate"
+  GATE=
   PI_TRUST_BEFORE=$(digest "$PI_TRUST_STORE")
   treehouse_listing | sort > "$ROOT/.treehouse-before"
   {
@@ -513,7 +522,6 @@ cmd_up() {
     echo "nonce=$NONCE"
     echo "mate_id=$MATE_ID"
     echo "worker_id=$WORKER_ID"
-    echo "gate=$GATE"
     echo "pi_trust=$PI_TRUST_BEFORE"
     echo "claude_config_dir=$CLAUDE_DIR"
     echo "claude_store=$CLAUDE_STORE"

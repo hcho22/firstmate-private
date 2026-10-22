@@ -21,9 +21,11 @@ pass() { printf 'ok - %s\n' "$1"; }
 untimed_status() { sed -E 's/ \[at=[0-9]+\]//g' "$1" 2>/dev/null; }
 
 cleanup() {
+  local report
   [ "$SPAWNED" -eq 0 ] || {
-    mkdir -p "$LAB/data/$TASK"
-    : > "$LAB/data/$TASK/report.md"
+    report=$(task_data_path "$LAB" "$TASK" report.md)
+    mkdir -p "${report%/*}"
+    : > "$report"
     if untimed_status "$LAB/state/$TASK.status" | grep -q '^needs-decision \[key=probe-decision\]' \
       && ! untimed_status "$LAB/state/$TASK.status" | grep -q '^resolved \[key=probe-decision\]'; then
       printf '%s\n' 'resolved [key=probe-decision]: live guard cleanup' >> "$LAB/state/$TASK.status"
@@ -40,7 +42,7 @@ cmux ping >/dev/null 2>&1 || fail "FM_CMUX_CLAUDE_COMPOSER_LIVE=1 but the cmux s
 
 LAB=$(mktemp -d "${TMPDIR:-/tmp}/fm-cmux-claude-composer.XXXXXX") || fail "could not create an isolated cmux Claude lab"
 trap cleanup EXIT
-mkdir -p "$LAB/config" "$LAB/data/$TASK" "$LAB/projects/comms" "$LAB/state"
+mkdir -p "$LAB/config" "$LAB/data" "$LAB/projects/comms" "$LAB/state"
 printf 'cmux\n' > "$LAB/config/backend"
 
 git -C "$LAB/projects/comms" init -q -b main || fail "could not initialize the isolated probe repository"
@@ -52,7 +54,7 @@ git -C "$LAB/projects/comms" commit -qm 'fixture: initialize cmux Claude compose
 
 STATUS="$LAB/state/$TASK.status"
 FM_HOME="$LAB" "$ROOT/bin/fm-brief.sh" "$TASK" comms --scout || fail "could not scaffold the Claude probe brief"
-python3 - "$LAB/data/$TASK/brief.md" "$STATUS" <<'PY'
+python3 - "$(task_data_path "$LAB" "$TASK" brief.md)" "$STATUS" <<'PY'
 from pathlib import Path
 import sys
 

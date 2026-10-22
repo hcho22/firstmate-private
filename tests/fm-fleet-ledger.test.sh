@@ -177,14 +177,16 @@ EOF
 # Optional arguments are the scaffold's state and config overrides; the
 # scaffold runs from the home, so a relative config override names its config/.
 worker_status_command() {  # <state> <note> [<state-dir> [<config-dir>]]
-  local cmd
-  rm -rf "${HOME_DIR:?}/data/$TASK"
+  local cmd brief
+  # The task folder sits wherever the data layout put it (bin/fm-task-data-lib.sh).
+  brief=$(task_data_path "${HOME_DIR:?}" "$TASK" brief.md)
+  rm -rf "${brief%/brief.md}"
   (cd "$HOME_DIR" && in_home env FM_STATE_OVERRIDE="${3:-$HOME_DIR/state}" \
     FM_CONFIG_OVERRIDE="${4:-$HOME_DIR/config}" \
     "$ROOT/bin/fm-brief.sh" "$TASK" sample --mode no-mistakes >/dev/null) \
     || fail "brief scaffold failed"
   # shellcheck disable=SC2016 # Match literal backticks in the generated brief.
-  cmd=$(sed -n '/`echo "{state}/s/.*`\(echo .*\)`.*/\1/p' "$HOME_DIR/data/$TASK/brief.md" | head -1)
+  cmd=$(sed -n '/`echo "{state}/s/.*`\(echo .*\)`.*/\1/p' "$(task_data_path "$HOME_DIR" "$TASK" brief.md)" | head -1)
   [ -n "$cmd" ] || fail "the brief carries no status command"
   cmd=${cmd//\{state\}/$1}
   cmd=${cmd//<epoch>/1790000000}

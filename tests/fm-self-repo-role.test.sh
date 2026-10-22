@@ -511,7 +511,6 @@ test_dod_block_renders_and_bounds_consent() {
 test_brief_consent_flag_bounds() {
   local home out rc brief
   home=$(make_role_home brief-user)
-  brief="$home/data/brief-consent-ok/brief.md"
 
   out=$(FM_HOME="$home" FM_CONFIG_OVERRIDE="$home/config" FM_DATA_OVERRIDE="$home/data" \
     "$BRIEF" brief-consent-bad some-proj --mode direct-PR --upstream-consent 'not a scope' 2>&1); rc=$?
@@ -531,6 +530,7 @@ test_brief_consent_flag_bounds() {
   out=$(FM_HOME="$home" FM_CONFIG_OVERRIDE="$home/config" FM_DATA_OVERRIDE="$home/data" \
     "$BRIEF" brief-consent-ok some-proj --mode direct-PR --upstream-consent GitHub.COM/KunChenGuid/FirstMate 2>&1); rc=$?
   expect_code 0 "$rc" "a valid consent must scaffold (got: $out)"
+  brief=$(task_data_path "$home" brief-consent-ok brief.md)
   assert_grep "upstream-consent=github.com/kunchenguid/firstmate" "$brief" \
     "the scaffolded brief must carry the normalized consent token"
   pass "fm-brief.sh: --upstream-consent validates, scopes to ship tasks, and renders normalized"
@@ -550,7 +550,7 @@ test_brief_self_repo_pre_gate() {
       "$BRIEF" brief-selfconsent some-proj --mode direct-PR --project "$ROOT" \
       --upstream-consent "$PUB_TARGET" 2>&1); rc=$?
     expect_code 0 "$rc" "recorded consent must let the same scaffold through (got: $out)"
-    assert_grep "upstream-consent=$PUB_TARGET" "$home/data/brief-selfconsent/brief.md" \
+    assert_grep "upstream-consent=$PUB_TARGET" "$(task_data_path "$home" brief-selfconsent brief.md)" \
       "the consented scaffold must record the consent"
   fi
 

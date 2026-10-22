@@ -53,7 +53,9 @@
 #       binding is copied into a brief instead of hand-assembled. The
 #       --deliverable flags name the obligation's actual required keys, with
 #       every value the binding determines already filled in (report_path is
-#       data/<work-id>/report.md) and every other one left as a named
+#       data/<work-id>/report.md, the single-level identifier tasks-axi
+#       accepts, even when bin/fm-task-data-lib.sh keeps the report itself in
+#       data/<Project>/<work-id>/) and every other one left as a named
 #       placeholder followed by the format tasks-axi accepts. The same keys are
 #       repeated as --require-deliverable, so an emit that drops one is refused
 #       where it runs rather than quarantined here. For work

@@ -546,11 +546,25 @@ fm_backlog_done() {  # <data-dir> <id> [flag...]
   fm_backlog_mutate "$data" "done" "$id" "${done_args[@]+"${done_args[@]}"}"
 }
 
+# A report link is supported when it names this task's report in a layout
+# bin/fm-task-data-lib.sh places or reads: data/<ProjectDir>/<id>/report.md, or
+# the legacy flat data/<id>/report.md. A relocated data directory's link is not.
 fm_backlog_row_artifact_supported() {
-  local id=$1 flag=${2:-} value=${3:-}
+  local id=$1 flag=${2:-} value=${3:-} project
   case "$flag" in
     --pr) ! fm_backlog_pr_note_label "$value" >/dev/null ;;
-    --report) [ "$value" = "data/$id/report.md" ] ;;
+    --report)
+      [ "$value" = "data/$id/report.md" ] && return 0
+      case "$value" in
+        data/?*/"$id"/report.md) ;;
+        *) return 1 ;;
+      esac
+      project=${value#data/}
+      project=${project%/"$id"/report.md}
+      case "$project" in
+        */*|.*|*[!A-Za-z0-9._-]*) return 1 ;;
+      esac
+      ;;
     *) return 1 ;;
   esac
 }
