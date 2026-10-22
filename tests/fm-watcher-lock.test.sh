@@ -63,6 +63,10 @@ import sys
 
 script = r'''
 . "$1"
+# This case is about the cleanup after the deadline, so it takes its own
+# two-tick deadline instead of the shared 60 s hang-guard floor every
+# ordinary wait gets.
+FM_TEST_HANG_GUARD_TICKS=0
 bash -c 'trap "" TERM; kill -STOP "$$"; exec sleep 300' &
 pid=$!
 deadline=$((SECONDS + 60))
