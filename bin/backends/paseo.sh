@@ -98,6 +98,10 @@ FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 # shellcheck source=bin/fm-composer-lib.sh
 . "$FM_BACKEND_PASEO_ROOT/bin/fm-composer-lib.sh"
 
+# What a long-lived server must not inherit (fm_backend_paseo_ensure_running).
+# shellcheck source=bin/fm-server-env-lib.sh
+. "$FM_BACKEND_PASEO_ROOT/bin/fm-server-env-lib.sh"
+
 # Verified minimum: the version the live pass ran against
 # (docs/paseo-backend.md).
 FM_BACKEND_PASEO_MIN_MAJOR=0
@@ -206,12 +210,15 @@ fm_backend_paseo_daemon_state() {
 # fm_backend_paseo_ensure_running: start the daemon via `paseo start` only
 # when it is simply not up yet, mirroring the CLI's own start path. A daemon
 # that starts but never becomes reachable fails fast with a pointer to
-# docs/paseo-backend.md instead of retry-looping.
+# docs/paseo-backend.md instead of retry-looping. The daemon outlives this
+# call and hosts every later task terminal, so `paseo start` runs from
+# fm_server_env_scrub's environment (bin/fm-server-env-lib.sh); an
+# already-reachable daemon is reused unchanged.
 fm_backend_paseo_ensure_running() {
   local state i
   state=$(fm_backend_paseo_daemon_state)
   [ "$state" = ok ] && return 0
-  fm_backend_paseo_cli start >/dev/null 2>&1 || {
+  ( fm_server_env_scrub; fm_backend_paseo_cli start ) >/dev/null 2>&1 || {
     echo "error: 'paseo start' failed; is the Paseo app installed? See docs/paseo-backend.md 'Setup'." >&2
     return 1
   }

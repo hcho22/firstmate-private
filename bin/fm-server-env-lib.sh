@@ -7,19 +7,26 @@
 #
 # A tmux, Herdr, or Zellij server outlives the process that starts it and hands
 # the environment it started with to every pane it creates afterwards: the
-# captain's own panes, every crewmate, and every secondmate relaunch. A value
-# that belonged only to the starting process therefore becomes a default for
-# unrelated sessions until that server next starts. Two groups never belong there:
+# captain's own panes, every crewmate, and every secondmate relaunch. A Paseo
+# daemon that Firstmate starts likewise outlives that spawn and creates every
+# later task terminal, so it starts the same way. A value that belonged only to
+# the starting process therefore becomes a default for unrelated sessions until
+# that server next starts. Two groups never belong there:
 #
 #   - Firstmate's internal handoff settings (FM_INTERNAL_ENV_NAMES). Each is
 #     private input one process hands to exactly one child: session start's stage
-#     file, the crew-state snapshot overrides, the home-summary worker settings,
-#     the tasks-axi verdict, bootstrap's phase, lock, detect-only, verbosity, and
-#     parallel-run settings, the batch spawn's guard skip, and the startup timing
-#     record. Each owner also withdraws its own value once read, but a process
+#     file, the crew-state snapshot overrides and forge skip, the home-summary
+#     worker settings, the tasks-axi verdict, bootstrap's phase, lock,
+#     detect-only, verbosity, and parallel-run settings, the batch spawn's guard
+#     skip, the startup timing record, the supervision host's owner handoff
+#     (auto-arm generation, owner pid, and primary), the branch actor, lease
+#     holder, report turn, and primary-harness pins the host gives one engine
+#     turn, and the predecessor arm pid an owner gives its successor watch arm.
+#     Owners withdraw their own value once read where they can, but a process
 #     whose owner never runs passes an inherited value straight through. A session
 #     started from a pane of a server that already carries them is exactly that
-#     process, so a relaunch it performs would copy them into the next server.
+#     process, so a relaunch it performs would copy them into the next server,
+#     and a spawn a branch turn makes would start one carrying the branch pins.
 #   - The starting process's own identity: its Firstmate home and directory
 #     overrides, harness identity markers, and supervision-model override. A
 #     launch that needs a home or harness sets it explicitly, so a server-wide
@@ -41,13 +48,16 @@
 
 FM_INTERNAL_ENV_NAMES=(
   FM_SESSION_START_STAGE_FILE
-  FM_CREW_STATE_META_OVERRIDE FM_CREW_STATE_STATUS_OVERRIDE
+  FM_CREW_STATE_META_OVERRIDE FM_CREW_STATE_STATUS_OVERRIDE FM_CREW_STATE_NO_FORGE
   FM_HOME_SUMMARY_IF_IDLE FM_HOME_SUMMARY_WORKER_BEST_EFFORT
   FM_TASKS_AXI_COMPATIBLE
   FM_BOOTSTRAP_NETWORK FM_BOOTSTRAP_NETWORK_LOCK_PID FM_BOOTSTRAP_DETECT_ONLY
   FM_BOOTSTRAP_LOCKED FM_BOOTSTRAP_VERBOSE_FACTS FM_BOOTSTRAP_PARALLEL_DIR
   FM_SPAWN_NO_GUARD
   FM_TIMING_LOG FM_TIMING_EPOCH_MS
+  FM_SUPERVISION_HOST_AUTOARM_GEN FM_SUPERVISION_HOST_OWNER_PID FM_SUPERVISION_HOST_PRIMARY
+  FM_SUPERVISION_ACTOR FM_LEASE_HOLDER_PID FM_BRANCH_REPORT_TURN FM_SUPERVISION_PRIMARY_HARNESS
+  FM_WATCH_PREDECESSOR_ARM_PID
 )
 
 fm_internal_env_withdraw() {

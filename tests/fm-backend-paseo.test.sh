@@ -293,6 +293,54 @@ SH
   pass "fm_backend_paseo_ensure_running: returns immediately when paseo is already reachable"
 }
 
+# The daemon `paseo start` launches outlives the spawn and hosts every later
+# task terminal, so the launcher's home, harness identity, and Firstmate's
+# internal handoff settings must not reach it while an ordinary variable does.
+test_ensure_running_starts_daemon_from_scrubbed_environment() {
+  local dir fb env_file status name
+  local -a inherited=()
+  dir="$TMP_ROOT/ensure-start-env"
+  fb="$dir/fakebin"
+  env_file="$dir/start.env"
+  mkdir -p "$fb"
+  cat >"$fb/paseo" <<SH
+#!/usr/bin/env bash
+case "\${1:-}" in
+  status)
+    if [ -e "$env_file" ]; then
+      printf '%s\n' '{"localDaemon":"running","connectedDaemon":"reachable"}'
+    else
+      printf '%s\n' '{"localDaemon":"stopped","connectedDaemon":"unreachable"}'
+    fi
+    ;;
+  start)
+    env > "$env_file.tmp" && mv "$env_file.tmp" "$env_file"
+    ;;
+esac
+exit 0
+SH
+  chmod +x "$fb/paseo"
+  # shellcheck source=bin/fm-server-env-lib.sh
+  . "$ROOT/bin/fm-server-env-lib.sh"
+  for name in "${FM_INTERNAL_ENV_NAMES[@]}"; do inherited+=("$name=stale-$name"); done
+  (
+    export "${inherited[@]}"
+    PATH="$fb:$PATH" FM_HOME="$dir/launcher-home" FM_STATE_OVERRIDE="$dir/state" \
+      CLAUDECODE=1 FM_SUPERVISION_ACTOR=branch FM_CREW_STATE_NO_FORGE=1 PASEO_SCRUB_SENTINEL=kept \
+      bash -c '. "$0/bin/backends/paseo.sh"; fm_backend_paseo_ensure_running' "$ROOT"
+  )
+  status=$?
+  expect_code 0 "$status" "ensure_running should start an unreachable daemon"
+  [ -s "$env_file" ] || fail "ensure_running never ran 'paseo start', so the environment check proved nothing"
+  for name in "${FM_INTERNAL_ENV_NAMES[@]}" FM_HOME FM_STATE_OVERRIDE CLAUDECODE FM_SUPERVISION_ACTOR FM_CREW_STATE_NO_FORGE; do
+    ! grep -q "^$name=" "$env_file" \
+      || fail "'paseo start' launched the daemon every later task terminal shares with $name: $(cat "$env_file")"
+  done
+  grep -Fqx 'PASEO_SCRUB_SENTINEL=kept' "$env_file" \
+    || fail "'paseo start' lost an ordinary variable: $(cat "$env_file")"
+  pass "fm_backend_paseo_ensure_running: starts the daemon without the launcher's home, harness marker, or internal settings"
+}
+
 # --- create_task: duplicate refusal, id resolution ---------------------------
 
 test_create_task_refuses_duplicate_name() {
@@ -1063,6 +1111,7 @@ test_dispatch_composer_state_routes_paseo
 test_daemon_state_ok
 test_daemon_state_down_on_unreachable
 test_ensure_running_returns_immediately_when_already_ok
+test_ensure_running_starts_daemon_from_scrubbed_environment
 test_create_task_refuses_duplicate_name
 test_create_task_creates_and_parses_ids
 test_create_task_refuses_unreadable_inventory

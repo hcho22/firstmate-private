@@ -21,6 +21,7 @@ The adapter prefers `command -v paseo` and otherwise uses `/Applications/Paseo.a
 No socket-access configuration is needed.
 The daemon listens on `127.0.0.1:6767` by default, and `paseo status` reports its reachability.
 The adapter starts the daemon with `paseo start` only when it is simply not up yet, and fails fast with a pointer here when a started daemon does not become reachable.
+A daemon the adapter starts outlives that spawn and creates every later task terminal, so `paseo start` runs from the environment [Runtime backend](configuration.md#runtime-backend-configbackend--fm_backend) describes, as tmux, Herdr, and Zellij servers do; an already-reachable daemon is reused unchanged.
 
 Select Paseo with local `config/backend` containing `paseo`, `FM_BACKEND=paseo` for one launch, or an explicit request to Firstmate.
 It is never runtime auto-detected; see "Selection is explicit" below.
