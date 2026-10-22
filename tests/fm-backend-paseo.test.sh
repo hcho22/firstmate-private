@@ -296,6 +296,8 @@ SH
 # The daemon `paseo start` launches outlives the spawn and hosts every later
 # task terminal, so the launcher's home, harness identity, and Firstmate's
 # internal handoff settings must not reach it while an ordinary variable does.
+# A watcher that relaunches a secondmate is such a launcher, so its own
+# handling-successor and foreground-checkpoint markers must stay out too.
 test_ensure_running_starts_daemon_from_scrubbed_environment() {
   local dir fb env_file status name
   local -a inherited=()
@@ -327,12 +329,14 @@ SH
     export "${inherited[@]}"
     PATH="$fb:$PATH" FM_HOME="$dir/launcher-home" FM_STATE_OVERRIDE="$dir/state" \
       CLAUDECODE=1 FM_SUPERVISION_ACTOR=branch FM_CREW_STATE_NO_FORGE=1 PASEO_SCRUB_SENTINEL=kept \
+      FM_WATCH_HANDLING_SUCCESSOR=1 FM_WATCH_FOREGROUND_CHECKPOINT=1 \
       bash -c '. "$0/bin/backends/paseo.sh"; fm_backend_paseo_ensure_running' "$ROOT"
   )
   status=$?
   expect_code 0 "$status" "ensure_running should start an unreachable daemon"
   [ -s "$env_file" ] || fail "ensure_running never ran 'paseo start', so the environment check proved nothing"
-  for name in "${FM_INTERNAL_ENV_NAMES[@]}" FM_HOME FM_STATE_OVERRIDE CLAUDECODE FM_SUPERVISION_ACTOR FM_CREW_STATE_NO_FORGE; do
+  for name in "${FM_INTERNAL_ENV_NAMES[@]}" FM_HOME FM_STATE_OVERRIDE CLAUDECODE FM_SUPERVISION_ACTOR FM_CREW_STATE_NO_FORGE \
+    FM_WATCH_HANDLING_SUCCESSOR FM_WATCH_FOREGROUND_CHECKPOINT; do
     ! grep -q "^$name=" "$env_file" \
       || fail "'paseo start' launched the daemon every later task terminal shares with $name: $(cat "$env_file")"
   done

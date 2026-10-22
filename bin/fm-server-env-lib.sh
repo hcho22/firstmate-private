@@ -21,7 +21,9 @@
 #     skip, the startup timing record, the supervision host's owner handoff
 #     (auto-arm generation, owner pid, and primary), the branch actor, lease
 #     holder, report turn, and primary-harness pins the host gives one engine
-#     turn, and the predecessor arm pid an owner gives its successor watch arm.
+#     turn, the predecessor arm pid an owner gives its successor watch arm, and
+#     the handling-successor and foreground-checkpoint markers a watch arm or
+#     checkpoint gives its watcher.
 #     Owners withdraw their own value once read where they can, but a process
 #     whose owner never runs passes an inherited value straight through. A session
 #     started from a pane of a server that already carries them is exactly that
@@ -57,7 +59,7 @@ FM_INTERNAL_ENV_NAMES=(
   FM_TIMING_LOG FM_TIMING_EPOCH_MS
   FM_SUPERVISION_HOST_AUTOARM_GEN FM_SUPERVISION_HOST_OWNER_PID FM_SUPERVISION_HOST_PRIMARY
   FM_SUPERVISION_ACTOR FM_LEASE_HOLDER_PID FM_BRANCH_REPORT_TURN FM_SUPERVISION_PRIMARY_HARNESS
-  FM_WATCH_PREDECESSOR_ARM_PID
+  FM_WATCH_PREDECESSOR_ARM_PID FM_WATCH_HANDLING_SUCCESSOR FM_WATCH_FOREGROUND_CHECKPOINT
 )
 
 fm_internal_env_withdraw() {
