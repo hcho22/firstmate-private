@@ -83,8 +83,25 @@ printf '9999999\n' > "$HOME_DIR/state/.lock"
 # Rapid-death arm fixture: started plus an immediate actionable reason, the
 # exact spent-Stop edge shape. Runs 1-2 close actionable; run 3 closes clean so
 # a misbehaving session can never loop forever.
+# Before a rewake hands main its close, a handling successor covers the
+# handling turn: the Stop hook starts one on the watcher path, and the
+# supervision host (on by default for a Claude primary) leaves one for a close it
+# keeps main-only. Either names the closed arm in FM_WATCH_PREDECESSOR_ARM_PID.
+# A successor stands in for that covering watcher: it confirms it started, closes
+# nothing, and stays up until the fleet need ends, so the host can record it and
+# take it over; the rapid closes come only from the hook-owned cycle arms counted
+# below. Which of those paths a run takes depends on the host default and on
+# whether this host's node can compute the branch offer, and the counts below
+# hold on every one of them.
 cat > "$PROJECT/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
+if [ -n "${FM_WATCH_PREDECESSOR_ARM_PID:-}" ] && [ "${1:-}" != --take-over ]; then
+  echo "successor-run predecessor=$FM_WATCH_PREDECESSOR_ARM_PID pid=$$" >> "$FM_HOME/state/successor-ran"
+  printf 'watcher: started pid=%s (beacon fresh)\n' "$$"
+  deadline=$((SECONDS + 120))
+  while [ -e "$FM_HOME/state/task.meta" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.2; done
+  exit 0
+fi
 N=$(cat "$FM_HOME/state/arm-count" 2>/dev/null || echo 0); N=$((N+1)); echo "$N" > "$FM_HOME/state/arm-count"
 echo "arm-run=$N pid=$$" >> "$FM_HOME/state/arm-ran"
 if [ "$N" -ge 3 ]; then
@@ -170,6 +187,13 @@ fi
 [ "$(sed -n 's/^.*outcome=\([a-z][a-z]*\) .*$/\1/p' "$HOME_DIR/state/.claude-autoarm-epoch" 2>/dev/null)" = rewake ] \
   || fail "auto-arm epoch ledger must record the rewake outcome"
 [ ! -e "$HOME_DIR/state/.claude-autoarm.lock" ] || fail "auto-arm owner lock was left behind"
+# Every successor stand-in ends with the fleet need it covered.
+deadline=$((SECONDS + 30))
+while IFS= read -r successor; do
+  [ -n "$successor" ] || continue
+  while kill -0 "$successor" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.2; done
+  ! kill -0 "$successor" 2>/dev/null || fail "a handling successor outlived the fleet need: pid $successor"
+done < <(sed -n 's/^successor-run .* pid=\([0-9][0-9]*\)$/\1/p' "$HOME_DIR/state/successor-ran" 2>/dev/null)
 
 # Live-owner negative control: a separate supported-harness process owns a
 # second isolated home while another Stop hook fires from the same primary
