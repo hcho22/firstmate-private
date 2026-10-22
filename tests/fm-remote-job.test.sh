@@ -1303,13 +1303,18 @@ quiet_wait_ready() { # <state> <label>
   assert_present "$1/worker.ready" "the $2 worker did not become ready"
 }
 # Startup counts as activity, so wait out its short fast-poll window (slowed by
-# the shims themselves) before measuring the idle steady state.
+# the shims themselves) before measuring the idle steady state. Settled means a
+# window that saw the worker sleep at all, but no faster than the idle cadence:
+# a startup still running its setup sleeps not once, and on a host where every
+# shimmed command costs tens of milliseconds (macOS) that setup alone outlasts a
+# window, so an empty window must not read as idle.
 quiet_settle() { # <max-sleeps-per-window>
-  local deadline=$((SECONDS + 30))
+  local deadline=$((SECONDS + 30)) sleeps
   while [ "$SECONDS" -lt "$deadline" ]; do
     : > "$QUIET_EXEC_LOG"
     sleep 1.5
-    [ "$(grep -cx sleep "$QUIET_EXEC_LOG" || true)" -gt "$1" ] || break
+    sleeps=$(grep -cx sleep "$QUIET_EXEC_LOG" || true)
+    [ "$sleeps" -ge 1 ] && [ "$sleeps" -le "$1" ] && break
   done
   : > "$QUIET_EXEC_LOG"
 }
