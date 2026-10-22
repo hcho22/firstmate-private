@@ -1507,7 +1507,7 @@ families_for_unmapped_bin() {
 # Conservative path → family map. Over-selects rather than under-selects.
 # Never expands to the complete suite.
 families_for_changed_path() {
-  local path=$1 fixture_ref
+  local path=$1 fixture_ref fixture_dir
   case "$path" in
     tests/fm-backend-herdr-eventwait.test.py)
       printf '%s\n' real-herdr-gated
@@ -1799,6 +1799,11 @@ families_for_changed_path() {
       printf '%s\n' "__script__:fm-documentation-audiences.test.sh"
       printf '%s\n' "__script__:fm-structural-review-guidance-live-e2e.test.sh"
       ;;
+    GROK_BOT.md|VISION.md)
+      # No suite names these, but the audience check owns their
+      # classification and validates their local links and anchors.
+      printf '%s\n' "__script__:fm-documentation-audiences.test.sh"
+      ;;
     docs/fm-test-portable-shards.md|docs/fm-test-isolation-proof.md|\
     docs/fm-test-isolation-proof.json)
       printf '%s\n' pure-contract-unit
@@ -1813,15 +1818,17 @@ families_for_changed_path() {
       families_for_test_reference git-config-helpers.sh lib.sh herdr-test-safety.sh \
         || printf '%s\n' "__unmapped__:$path"
       ;;
-    tests/fixtures/*/*)
-      # A fixture belongs to whichever suite reads its directory, found by the
-      # same reference scan used for shared helpers. Keyed on the directory
-      # rather than the file so adding a fixture selects the same suite.
-      # A removed fixture directory has no consuming suite left to select.
-      fixture_ref=${path#tests/fixtures/}
-      fixture_ref=${fixture_ref%%/*}
-      if [ -d "tests/fixtures/$fixture_ref" ]; then
-        families_for_test_reference "fixtures/$fixture_ref" \
+    tests/fixtures/*/*|tests/captures/*/*)
+      # A fixture or recorded capture belongs to whichever suite reads its
+      # directory, found by the same reference scan used for shared helpers.
+      # Keyed on the directory rather than the file so adding a file selects
+      # the same suite, and so a reader that names files through a variable is
+      # still found. A removed directory has no consuming suite left to select.
+      fixture_ref=${path#tests/}
+      fixture_dir=${fixture_ref#*/}
+      fixture_ref="${fixture_ref%%/*}/${fixture_dir%%/*}"
+      if [ -d "tests/$fixture_ref" ]; then
+        families_for_test_reference "$fixture_ref" \
           || printf '%s\n' "__unmapped__:$path"
       fi
       ;;
@@ -1844,7 +1851,16 @@ families_for_changed_path() {
       fi
       ;;
     tests/*)
-      printf '%s\n' "__unmapped__:$path"
+      # Any other test-support file (a harness asset, a helper program)
+      # belongs to the suites that name it by its path under tests/. One that
+      # nothing names still refuses, and a removed one selects only a suite
+      # that still names it, as the fallback below does for source paths.
+      if [ -e "$path" ]; then
+        families_for_test_reference "${path#tests/}" \
+          || printf '%s\n' "__unmapped__:$path"
+      else
+        families_for_test_reference "${path#tests/}" || true
+      fi
       ;;
     README.md|LICENSE|assets/*|docs/*|.gitignore)
       ;;

@@ -409,6 +409,33 @@ test_changed_context_selects_documentation_and_guidance_checks() {
   pass "CONTEXT.md changes select documentation and guidance checks"
 }
 
+test_changed_root_prose_selects_documentation_audiences() {
+  local tmp repo listed doc rc
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-root-prose.XXXXXX")
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+  # No suite names these files, so the reference scan alone cannot place them.
+  # The audience check still validates their classification and local links.
+  for doc in GROK_BOT.md VISION.md; do
+    : >"$repo/$doc"
+    git -C "$repo" add "$doc"
+  done
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm root-prose
+
+  for doc in GROK_BOT.md VISION.md; do
+    printf '[link](AGENTS.md#anchor)\n' >>"$repo/$doc"
+    rc=0
+    listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD 2>&1) || rc=$?
+    [ "$rc" -eq 0 ] || fail "$doc change did not select its tests (rc=$rc): $listed"
+    [ "$listed" = "tests/fm-documentation-audiences.test.sh" ] \
+      || fail "$doc change should select only the audience check: $listed"
+    git -C "$repo" checkout -q -- "$doc"
+  done
+
+  rm -rf "$tmp"
+  pass "root prose with no naming suite selects the documentation audience check"
+}
+
 test_shell_line_ending_policy_selects_runner_contract() {
   local tmp repo listed
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-attributes.XXXXXX")
@@ -1783,6 +1810,68 @@ test_changed_shared_fixture_selects_its_readers() {
   pass "a changed shared test fixture selects its readers while an unread tests/ path still refuses"
 }
 
+test_changed_test_support_files_select_their_readers() {
+  local tmp repo listed rc
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-support.XXXXXX")
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+  # A recorded capture directory whose reader names each file only through a
+  # variable, a browser harness asset, and a top-level helper program, each
+  # read by one suite, beside an asset nothing reads.
+  mkdir -p "$repo/tests/captures/demo-v1" "$repo/tests/assets"
+  : >"$repo/tests/captures/demo-v1/parked.toon"
+  : >"$repo/tests/captures/demo-v1/README.md"
+  : >"$repo/tests/assets/demo-harness.mjs"
+  : >"$repo/tests/assets/unread-harness.mjs"
+  : >"$repo/tests/demo-repro.py"
+  # shellcheck disable=SC2016  # literal reader text the reference scan must find.
+  printf '# "$ROOT/tests/captures/demo-v1/$1.toon"\n' >>"$repo/tests/fm-afk-return.test.sh"
+  printf '# HARNESS="$ROOT/tests/assets/demo-harness.mjs"\n' >>"$repo/tests/fm-bearings-snapshot.test.sh"
+  # shellcheck disable=SC2016  # literal reader text the reference scan must find.
+  printf '# python3 "$(dirname "${BASH_SOURCE[0]}")/demo-repro.py"\n' >>"$repo/tests/fm-quota-choose.test.sh"
+  git -C "$repo" add -A
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm support-files
+
+  printf 'x\n' >>"$repo/tests/captures/demo-v1/parked.toon"
+  printf 'x\n' >>"$repo/tests/captures/demo-v1/README.md"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD 2>&1) \
+    || fail "a changed capture did not select its reader: $listed"
+  assert_contains "$listed" "tests/fm-afk-return.test.sh" \
+    "a changed capture selects the suite that reads its directory"
+  git -C "$repo" checkout -q -- tests/captures
+
+  printf 'x\n' >>"$repo/tests/assets/demo-harness.mjs"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD 2>&1) \
+    || fail "a changed test asset did not select its reader: $listed"
+  assert_contains "$listed" "tests/fm-bearings-snapshot.test.sh" \
+    "a changed test asset selects the suite that names it"
+  git -C "$repo" checkout -q -- tests/assets
+
+  printf 'x\n' >>"$repo/tests/demo-repro.py"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD 2>&1) \
+    || fail "a changed test helper program did not select its reader: $listed"
+  assert_contains "$listed" "tests/fm-quota-choose.test.sh" \
+    "a changed test helper program selects the suite that runs it"
+  git -C "$repo" checkout -q -- tests/demo-repro.py
+
+  printf 'x\n' >>"$repo/tests/assets/unread-harness.mjs"
+  rc=0
+  (cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) >"$tmp/out" 2>"$tmp/err" || rc=$?
+  [ "$rc" -eq 2 ] || fail "an unread test asset must still fail with exit 2, got $rc"
+  grep -Fq 'no changed-test mapping for source path: tests/assets/unread-harness.mjs' "$tmp/err" \
+    || fail "the refusal did not name the unread test asset: $(cat "$tmp/err")"
+  git -C "$repo" checkout -q -- tests/assets
+
+  # A retired capture directory has no reader left to select.
+  git -C "$repo" rm -rq tests/captures/demo-v1
+  rc=0
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD 2>&1) || rc=$?
+  [ "$rc" -eq 0 ] || fail "a removed capture directory refused selection ($rc): $listed"
+
+  rm -rf "$tmp"
+  pass "changed captures, assets, and helper programs select the suites that read them"
+}
+
 # Workers are handed scripts in order, so the slowest script must start first or
 # it runs alone at the tail and throws away most of the concurrency.
 test_concurrent_runs_are_ordered_longest_first() {
@@ -2661,6 +2750,7 @@ fm_test_run_cases \
   test_task_marker_refuses_the_primary_checkout \
   test_changed_runner_surfaces_select_their_family \
   test_changed_context_selects_documentation_and_guidance_checks \
+  test_changed_root_prose_selects_documentation_audiences \
   test_shell_line_ending_policy_selects_runner_contract \
   test_changed_dependency_selection_and_unmapped_failure \
   test_changed_bin_reference_selects_per_script_not_per_family \
@@ -2692,6 +2782,7 @@ fm_test_run_cases \
   test_jobs_admits_a_concurrent_safe_family \
   test_unmapped_new_test_never_inherits_family_concurrency \
   test_changed_shared_fixture_selects_its_readers \
+  test_changed_test_support_files_select_their_readers \
   test_concurrent_runs_are_ordered_longest_first \
   test_per_script_timeout_bounds_a_hang \
   test_changed_bound_gives_slow_watcher_suites_headroom \
