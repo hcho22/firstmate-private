@@ -801,7 +801,7 @@ test_changed_mode_hides_cross_file_codes_that_ci_still_sees() {
   mkdir -p "$test_root/bin/backends" "$test_root/tests" "$test_root/.github/workflows"
   lint="$test_root/bin/fm-lint.sh"
   cp "$LINT" "$lint"
-  cp "$ROOT/bin/fm-lint-workflows.sh" "$test_root/bin/"
+  cp "$ROOT/bin/fm-lint-workflows.sh" "$ROOT/bin/fm-lint-waits.sh" "$test_root/bin/"
   cp "$ROOT"/.github/workflows/* "$test_root/.github/workflows/"
   printf '#!/usr/bin/env bash\nexit 0\n' > "$test_root/bin/backends/noop.sh"
   fixture="$test_root/tests/fm-lint-local-exclude-fixture.test.sh"
@@ -1161,6 +1161,7 @@ test_rejects_direct_beads_cli_invocations() {
 #!/usr/bin/env bash
 exit 0
 SH
+  cp "$tmp/repo/bin/fm-lint-workflows.sh" "$tmp/repo/bin/fm-lint-waits.sh"
   cat > "$tmp/repo/bin/backends/noop.sh" <<'SH'
 #!/usr/bin/env bash
 exit 0
@@ -1169,7 +1170,7 @@ SH
 #!/usr/bin/env bash
 exit 0
 SH
-  chmod +x "$lint_copy" "$tmp/repo/bin/fm-lint-workflows.sh"
+  chmod +x "$lint_copy" "$tmp/repo/bin/fm-lint-workflows.sh" "$tmp/repo/bin/fm-lint-waits.sh"
   fm_lint_stub_shellcheck "$fakebin" "$log"
 
   for invocation in \
@@ -1269,14 +1270,17 @@ SH
   pass "fm-lint.sh passes a clean fixture"
 }
 
-test_default_full_analysis_is_serially_sharded() {
-  local tmp fakebin log invocation_log telemetry out expected actual i fixture
+# Full analysis must never pack several roots into one ShellCheck process: that
+# is what outgrew the CI runner's memory. Every root is analyzed exactly once,
+# alone in its own invocation (bin/fm-lint.sh's header owns that per-root
+# process and its bounds).
+test_default_full_analysis_runs_one_root_per_invocation() {
+  local tmp fakebin log invocation_log out expected actual i fixture
   local -a roots
-  tmp=$(fm_test_tmproot fm-lint-default-shards)
+  tmp=$(fm_test_tmproot fm-lint-default-roots)
   fakebin=$(fm_fakebin "$tmp")
   log="$tmp/shellcheck.log"
   invocation_log="$tmp/invocations.log"
-  telemetry="$tmp/telemetry.tsv"
   roots=()
   i=1
   while [ "$i" -le 16 ]; do
@@ -1292,19 +1296,16 @@ SH
   : > "$invocation_log"
 
   out=$(PATH="$fakebin:$PATH" GITHUB_ACTIONS='' CI='' \
-    FM_TEST_INVOCATION_LOG="$invocation_log" FM_LINT_TELEMETRY="$telemetry" \
+    FM_TEST_INVOCATION_LOG="$invocation_log" \
     "$LINT" "${roots[@]}" 2>&1) \
-    || fail "default serially sharded lint failed"$'\n'"$out"
+    || fail "default full-analysis lint failed"$'\n'"$out"
   awk '$1 != 1 { bad=1 } END { exit !bad && NR == 16 ? 0 : 1 }' "$invocation_log" \
-    || fail "default lint did not divide sixteen equal roots into sixteen bounded invocations"
+    || fail "default lint did not analyze sixteen roots in sixteen single-root invocations"
   expected=$(printf '%s\n' "${roots[@]}" | LC_ALL=C sort)
   actual=$(LC_ALL=C sort "$log")
   [ "$actual" = "$expected" ] \
-    || fail "serial sharding did not analyze every requested root exactly once"
-  assert_grep $'jobs\t1' "$telemetry" "default lint did not use one bounded worker"
-  awk -F '\t' '$1 ~ /^shard_[0-9]+_weight_bytes$/ && $2 > 0 { count++ } END { exit count == 16 ? 0 : 1 }' \
-    "$telemetry" || fail "telemetry did not report sixteen nonempty stable shards"
-  pass "default lint analyzes each root once across sixteen serial resource-bounded shards"
+    || fail "default lint did not analyze every requested root exactly once"
+  pass "default lint analyzes each of sixteen roots once, each in its own ShellCheck invocation"
 }
 
 test_jobs_are_deterministic_and_complete() {
@@ -1932,6 +1933,7 @@ test_sidecar_result_exit_reflects_final_status() {
 #!/usr/bin/env bash
 exit 0
 SH
+  cp "$tmp/repo/bin/fm-lint-workflows.sh" "$tmp/repo/bin/fm-lint-waits.sh"
   cat > "$tmp/repo/bin/backends/noop.sh" <<'SH'
 #!/usr/bin/env bash
 exit 0
@@ -1941,7 +1943,7 @@ SH
 exit 0
 SH
   printf '#!/usr/bin/env bash\nbd close fm-example\n' > "$tmp/repo/bin/direct-beads.sh"
-  chmod +x "$tmp/repo/bin/fm-lint.sh" "$tmp/repo/bin/fm-lint-workflows.sh"
+  chmod +x "$tmp/repo/bin/fm-lint.sh" "$tmp/repo/bin/fm-lint-workflows.sh" "$tmp/repo/bin/fm-lint-waits.sh"
   fm_lint_stub_shellcheck "$fakebin" "$log"
 
   # Every ShellCheck root passes, then the backend-purity check fails the run:
@@ -2086,7 +2088,7 @@ test_rejects_direct_beads_cli_invocations
 test_rejects_direct_beads_cli_in_explicit_core_path
 test_ignores_ambient_shellcheck_opts
 test_clean_fixture_passes
-test_default_full_analysis_is_serially_sharded
+test_default_full_analysis_runs_one_root_per_invocation
 test_jobs_are_deterministic_and_complete
 test_worker_trees_stop_on_signal
 test_root_deadline_names_the_root_and_reaps_the_tree
