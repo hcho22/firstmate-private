@@ -242,12 +242,24 @@ write_gate() {  # <evidence-file> <blockers-file>
   mv "$pending" "$GATE"
 }
 
+# print_evidence: publish the catch-up evidence lines and report whether they
+# were delivered. The lines are composed first and written by one external cat
+# whose status is the result: on bash 3.2 a builtin write that fails keeps its
+# bytes in the shell's stdout buffer, and the next subshell flushes them into
+# whatever it captures (a gate file, a counter), so stdout that may be broken
+# is never written by a builtin here.
 print_evidence() {  # <file>
-  local file=$1 kind text
-  while IFS="$(printf '\t')" read -r tag kind text; do
-    [ "$tag" = evidence ] || continue
-    printf 'catch-up %s: %s\n' "$kind" "$text"
-  done < "$file"
+  local file=$1 lines
+  lines=$(
+    while IFS="$(printf '\t')" read -r tag kind text; do
+      [ "$tag" = evidence ] || continue
+      printf 'catch-up %s: %s\n' "$kind" "$text"
+    done < "$file"
+  )
+  [ -n "$lines" ] || return 0
+  cat <<EOF
+$lines
+EOF
 }
 
 print_blockers() {  # <file>
@@ -699,11 +711,12 @@ EOF
 }
 
 return_reconcile() {
-  local evidence blockers drain_err drained drain_ok=1 wake_ack_line wake_ack_through wake_ack_generation wedge escalations lifecycle_ok=1 since contract_since superseded_record retained_record
+  local evidence blockers drain_err brief drained drain_ok=1 wake_ack_line wake_ack_through wake_ack_generation wedge escalations lifecycle_ok=1 since contract_since superseded_record retained_record
   local archived_contract tag kind text retained_live restored_epoch
   evidence=$(mktemp "$STATE/.afk-return-evidence.XXXXXX") || return 1
   blockers=$(mktemp "$STATE/.afk-return-blockers.XXXXXX") || { rm -f "$evidence"; return 1; }
   drain_err=$(mktemp "$STATE/.afk-return-drain.XXXXXX") || { rm -f "$evidence" "$blockers"; return 1; }
+  brief=$(mktemp "$STATE/.afk-return-brief.XXXXXX") || { rm -f "$evidence" "$blockers" "$drain_err"; return 1; }
   preserve_evidence "$evidence"
   since=$(gate_window_epoch)
   contract_since=$(gate_contract_epoch)
@@ -849,7 +862,13 @@ EOF
     append_evidence lifecycle "status file unreadable: $STATUS_SCAN_ERROR; catch-up stays gated" "$evidence"
     lifecycle_ok=0
   fi
-  render_return_brief "$evidence" "$blockers" "$since" "$drain_ok"
+  # The brief is reporting, not the delivery the gate checks (the evidence
+  # publication below is), so its write status is not checked. It is rendered
+  # to a file and sent by one external cat for the same reason print_evidence
+  # is: a failed builtin write must not leave bytes for a later capture.
+  render_return_brief "$evidence" "$blockers" "$since" "$drain_ok" > "$brief"
+  cat "$brief" || true
+  rm -f "$brief"
   if [ "$HELD_READ_FAILED" -eq 1 ]; then
     append_evidence lifecycle "held set unreadable: $HELD_READ_PATH; catch-up stays gated" "$evidence"
     lifecycle_ok=0
