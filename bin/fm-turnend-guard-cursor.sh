@@ -28,7 +28,8 @@
 #   2. the bounded repair instruction when supervision could not be established.
 # A session that does not own the lock never parks; its only possible follow-up
 # is the shared guard's one-time displaced-session notice, when a
-# captain-confirmed takeover moved the lock away from this very session.
+# captain-confirmed takeover moved the lock away from this very session. A park
+# displaced during its last arm attempt ends with that same notice.
 #
 # SUPERVISION HOST. A home opted in with config/supervision-host
 # (docs/configuration.md "Supervision host" owns the gate;
@@ -245,6 +246,18 @@ run_shared_guard() {
   rm -f "$err" 2>/dev/null || true
 }
 
+# Emit the shared guard's one-time displaced-session notice (exit 3) and stop.
+# The session no longer owns the lock, so this bypasses emit_followup's
+# ownership commit.
+emit_displaced_notice() {
+  local encoded response
+  [ "$GUARD_RC" -eq 3 ] && [ -n "$GUARD_REASON" ] || exit 0
+  fm_operational_input_encode turn-end-guard "$GUARD_REASON" encoded || exit 0
+  response=$(jq -n --arg m "$encoded" '{followup_message:$m}' 2>/dev/null) || exit 0
+  printf '%s\n' "$response" || true
+  exit 0
+}
+
 # --- park ownership ----------------------------------------------------------
 # Last arrival wins. The short owner lock serializes publication with only the
 # final ownership, away-mode, output, and repair-budget commit.
@@ -287,12 +300,7 @@ if ! fm_session_lock_owned_by_self "$STATE"; then
   case "$LOCK_PID" in ''|*[!0-9]*) exit 0 ;; esac
   if fm_harness_pid_alive "$LOCK_PID"; then
     run_shared_guard || exit 0
-    [ "$GUARD_RC" -eq 3 ] || exit 0
-    [ -n "$GUARD_REASON" ] || exit 0
-    fm_operational_input_encode turn-end-guard "$GUARD_REASON" DISPLACED_NOTICE || exit 0
-    DISPLACED_RESPONSE=$(jq -n --arg m "$DISPLACED_NOTICE" '{followup_message:$m}' 2>/dev/null) || exit 0
-    printf '%s\n' "$DISPLACED_RESPONSE" || true
-    exit 0
+    emit_displaced_notice
   fi
   "$SCRIPT_DIR/fm-lock.sh" >/dev/null 2>&1 || exit 0
   fm_session_lock_owned_by_self "$STATE" || exit 0
@@ -450,6 +458,7 @@ fi
 # time: bin/fm-turnend-guard.sh owns the block decision and its banner for every
 # harness.
 run_shared_guard || exit 0
+[ "$GUARD_RC" -ne 3 ] || emit_displaced_notice
 [ "$GUARD_RC" -eq 2 ] || exit 0
 REASON=$GUARD_REASON
 

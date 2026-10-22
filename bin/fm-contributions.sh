@@ -18,7 +18,8 @@
 # data/<Project>/<task>/contributions.json (or a legacy flat
 # data/<task>/contributions.json), after endpoint teardown;
 # bin/fm-task-data-lib.sh owns that layout. A task with no folder yet gets one
-# in the project its backlog row names. Repository-wide PR discovery never
+# in the project its backlog row names; poll skips and counts a record whose
+# folder that layout refuses. Repository-wide PR discovery never
 # establishes ownership.
 # Only canonical PR and issue URLs on the exact github.com host are supported;
 # other accepted URLs remain visibly unmeasured.
@@ -247,6 +248,16 @@ contribution_task_dir() { # task
   fm_task_data_dir_for_new "$DATA" "$task" "$project"
 }
 
+poll_task_storable() { # task
+  if ! fm_pr_task_id_valid "$1"; then
+    printf 'contributions: invalid durable task id\n'
+    return 1
+  fi
+  contribution_task_dir "$1" >/dev/null && return 0
+  UNPLACEABLE=$((UNPLACEABLE + 1))
+  return 1
+}
+
 write_record() { # task record-json-file
   local task=$1 file dir device staged
   fm_pr_task_id_valid "$task" || fail 'invalid contribution task'
@@ -436,14 +447,14 @@ observe() { # canonical GitHub URL -> normalized JSON
     wait_forges "$comments_pid" "$events_pid" || return 1
     jq -e 'type == "array" and all(.[]; type == "array")' "$TMP/comments.json" >/dev/null \
       || unobserved 'comment pages returned an unexpected shape' || return 1
-    jq -n --slurpfile timeline "$TMP/issue-events.json" --arg label "$label" --slurpfile core "$TMP/core.json" --slurpfile comments "$TMP/comments.json" '
+    jq -n --slurpfile timeline "$TMP/issue-events.json" --arg ready_label "$label" --slurpfile core "$TMP/core.json" --slurpfile comments "$TMP/comments.json" '
       $core[0] as $c | {state:$c.state,head:null,
-        ready:any($c.labels[]; (.name | ascii_downcase) == ($label | ascii_downcase)),
+        ready:any($c.labels[]; (.name | ascii_downcase) == ($ready_label | ascii_downcase)),
         checks:[],reviews:[],events:($comments[0] | add // []
           | map(select(.user.login != $c.user.login and (.author_association | IN("OWNER","MEMBER","COLLABORATOR")))
             | {token:("comment:" + (.id|tostring) + ":" + (.updated_at // "")),type:"comment",source:.html_url,
                head:null,author:.user.login,body:(.body // "" | .[:500])})
-          + [$timeline[0][] | .[] | select(.event == "labeled" and (.label.name | ascii_downcase) == ($label | ascii_downcase))
+          + [$timeline[0][] | .[] | select(.event == "labeled" and (.label.name | ascii_downcase) == ($ready_label | ascii_downcase))
              | {token:("ready-for-pr:" + (.id | tostring)),type:"ready-for-pr",source:$c.html_url,head:null,body:"filed issue reached ready-for-pr"}])}' > "$TMP/observation.json" \
       || unobserved 'observation could not be assembled' || return 1
   fi
@@ -484,7 +495,7 @@ settle_final() { # canonical-url task... : copy the URL's final observation to e
       and (.observation.state | IN("merged","closed")))] as $final
     | $final | sort_by([.retired != null, .error != null]) | first' > "$TMP/final.json"
   for task in "$@"; do
-    fm_pr_task_id_valid "$task" || { printf 'contributions: invalid durable task id\n'; continue; }
+    poll_task_storable "$task" || continue
     jq -n --slurpfile saved "$TMP/saved.json" --arg task "$task" --arg url "$url" '
       [$saved[0][] | select(.task == $task) | .records[] | select(.url == $url)] | first' > "$TMP/old.json"
     if jq -e '. == null' "$TMP/old.json" >/dev/null; then
@@ -502,7 +513,7 @@ settle_final() { # canonical-url task... : copy the URL's final observation to e
 clear_unsupported_errors() {
   local task url
   while IFS=$'\t' read -r task url; do
-    fm_pr_task_id_valid "$task" || { printf 'contributions: invalid durable task id\n'; continue; }
+    poll_task_storable "$task" || continue
     jq -n --slurpfile saved "$TMP/saved.json" --arg task "$task" --arg url "$url" '
       $saved[0][] | select(.task == $task) | .records[] | select(.url == $url)
       | .error=null' > "$TMP/row.json"
@@ -519,6 +530,7 @@ poll() {
   get_input
   read_saved
   [ "$ERRORS" -eq 0 ] || printf 'contributions: %s unreadable durable record(s)\n' "$ERRORS"
+  UNPLACEABLE=0
   clear_unsupported_errors
   # Only supported URLs enter final settlement and the forge-read rotation.
   # One line per distinct URL: the URL, then every owning task.
@@ -560,7 +572,7 @@ poll() {
     fi
     case "$url" in */issues/*) kind=issue ;; *) kind="pr" ;; esac
     for task in "${row[@]:1}"; do
-      fm_pr_task_id_valid "$task" || { printf 'contributions: invalid durable task id\n'; continue; }
+      poll_task_storable "$task" || continue
       old="$TMP/old.json"
       jq -n --slurpfile saved "$TMP/saved.json" --arg task "$task" --arg url "$url" --arg kind "$kind" '
         ([$saved[0][] | select(.task == $task) | .records[] | select(.url == $url)] | first)
@@ -583,6 +595,8 @@ poll() {
       publish_pending "$task" "$url" "$TMP/row.json"
     done
   done < "$TMP/known.tsv"
+  [ "$UNPLACEABLE" -eq 0 ] \
+    || printf 'contributions: %s record(s) skipped: task folder cannot be placed in the data layout\n' "$UNPLACEABLE"
 }
 
 arm() {

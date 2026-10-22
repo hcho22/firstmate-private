@@ -762,6 +762,43 @@ test_park_delivers_displaced_notice_once_without_repair_wording() {
   pass "cursor park: a displaced session gets the stop-acting notice once, as a plain follow-up"
 }
 
+# A takeover that lands during the park's last arm attempt, after its ownership
+# poll and before the arm exits, is first seen by the park's final shared-guard
+# call. That call claims the once-per-takeover notice, so the park must deliver
+# it there: a later stop would find the notice already given.
+test_park_delivers_displaced_notice_when_taken_over_during_its_last_attempt() {
+  local dir foreign out body
+  dir=$(make_primary_dir "$TMP_ROOT/park-displaced-last-attempt")
+  : > "$dir/state/task1.meta"
+  mkdir -p "$dir/tmp"
+  cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$$" >> "$FM_HOME/state/arm-ran"
+sleep 2
+foreign=$(cat "$FM_HOME/foreign.pid")
+printf 'at=2026-10-01T20:00:00Z\tnew_pid=%s\tnew_command=claude\tprev_pid=%s\tprev_holder=command: cursor-agent\n' \
+  "$foreign" "$(cat "$FM_HOME/state/.lock")" > "$FM_HOME/state/.lock-takeovers"
+printf '%s\n' "$foreign" > "$FM_HOME/state/.lock"
+printf 'watcher: FAILED - no live watcher with a fresh beacon\n'
+exit 1
+SH
+  chmod +x "$dir/bin/fm-watch-arm.sh"
+  "$FAKE_CURSOR" -c 'while kill -0 "$PPID" 2>/dev/null; do sleep 1; done' >/dev/null 2>&1 &
+  foreign=$!
+  printf '%s\n' "$foreign" > "$dir/foreign.pid"
+  out=$(printf '%s' "$CURSOR_PAYLOAD" | env -u PI_CODING_AGENT FM_HOME="$dir" TMPDIR="$dir/tmp" \
+    FM_CURSOR_PARK_ATTEMPTS=1 FM_CURSOR_PARK_POLL=5 "$FAKE_CURSOR" -c "$PARK_CHILD" 2>/dev/null)
+  kill "$foreign" 2>/dev/null || true
+  wait "$foreign" 2>/dev/null || true
+  [ -s "$dir/state/arm-ran" ] || fail "the park never armed before the takeover"
+  [ "$(kind_of_followup "$out")" = turn-end-guard ] \
+    || fail "a session displaced during its last arm attempt got no turn-end-guard follow-up: $out"
+  body=$(followup_of "$out")
+  assert_contains "$body" 'THIS SESSION NO LONGER OWNS THE FLEET' "the late displaced follow-up did not say the lock was taken over"
+  assert_not_contains "$body" 'could not establish a live cycle' "the late displaced follow-up reused the repair nag"
+  pass "cursor park: a takeover during the last arm attempt still delivers the displaced notice"
+}
+
 test_park_inert_in_child_worktree() {
   local base child out
   base=$(make_primary_dir "$TMP_ROOT/park-base")
@@ -887,6 +924,7 @@ test_park_stands_down_when_away_mode_activates_before_commit
 test_park_inert_without_session_lock
 test_park_stands_down_after_session_takeover
 test_park_delivers_displaced_notice_once_without_repair_wording
+test_park_delivers_displaced_notice_when_taken_over_during_its_last_attempt
 test_park_inert_in_child_worktree
 test_park_ignores_malformed_payload
 test_sessionstart_emits_additional_context

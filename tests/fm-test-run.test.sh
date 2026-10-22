@@ -537,6 +537,24 @@ test_changed_dependency_selection_and_unmapped_failure() {
   git -C "$repo" add bin/fm-timeout-lib.sh
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm timeout-lib-change
 
+  # The definition-of-done library has no curated family: a suite that names it
+  # and a consumer whose own family is curated both carry its blast radius.
+  : >"$repo/bin/fm-dod-lib.sh"
+  printf '#!/usr/bin/env bash\n# fm-dod-lib.sh\n' >"$repo/tests/fm-self-repo-role.test.sh"
+  chmod +x "$repo/tests/fm-self-repo-role.test.sh"
+  # shellcheck disable=SC2016  # literal fixture text: the consumer names the lib verbatim.
+  printf '. "$ROOT/bin/fm-dod-lib.sh"\n' >"$repo/bin/fm-pr-check.sh"
+  git -C "$repo" add bin/fm-dod-lib.sh bin/fm-pr-check.sh tests/fm-self-repo-role.test.sh
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm dod-lib-consumers
+  printf '\n' >>"$repo/bin/fm-dod-lib.sh"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
+  assert_contains "$listed" "tests/fm-self-repo-role.test.sh" \
+    "definition-of-done library selects the suites that name it"
+  assert_contains "$listed" "tests/fm-pr-merge.test.sh" \
+    "definition-of-done library selects its consumers' curated families"
+  git -C "$repo" add bin/fm-dod-lib.sh
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm dod-lib-change
+
   printf '\n' >>"$repo/src/unmapped.ts"
   set +e
   (cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) >"$tmp/out" 2>"$tmp/err"

@@ -48,13 +48,6 @@ umask 022
 # strips this to verify real refusal.
 export FM_GATE_REFUSE_BYPASS=1
 
-# Keep every orphaned-worker sweep a test triggers (each fm-teardown.sh runs one)
-# inside this test's own TMPDIR instead of the whole host, so parallel scripts
-# and other suite runs cannot stop each other's stand-in workers and a test run
-# never stops a real process. bin/fm-remote-job-reap-orphans.sh owns the scope
-# rule; tests/fm-remote-job-orphan-reap.test.sh covers both scoped and host-wide.
-export FM_REMOTE_JOB_REAP_SCOPE="${TMPDIR:-/tmp}"
-
 # Firstmate hands its internal settings to one child at a time and withdraws
 # them once read. A shell that inherited them from a pane of a server started
 # before that was true would otherwise point every fm-crew-state.sh read here at
@@ -197,6 +190,13 @@ fm_test_tmpdir() {
 }
 
 FM_TEST_TMPDIR=$(fm_test_tmpdir) || return 1
+
+# Keep every orphaned-worker sweep a test triggers (each fm-teardown.sh runs one)
+# inside this test's own TMPDIR instead of the whole host, so parallel scripts
+# and other suite runs cannot stop each other's stand-in workers and a test run
+# never stops a real process. bin/fm-remote-job-reap-orphans.sh owns the scope
+# rule; tests/fm-remote-job-orphan-reap.test.sh covers both scoped and host-wide.
+export FM_REMOTE_JOB_REAP_SCOPE="$FM_TEST_TMPDIR"
 
 FM_TEST_CLEANUP_DIRS=()
 FM_TEST_CLEANUP_REGISTRY=$(mktemp "$FM_TEST_TMPDIR/.fm-test-cleanup.$$.XXXXXX") || return 1
@@ -723,7 +723,7 @@ SH
 # every case. The store lives in the test's TMPDIR, keyed by the test process
 # ($$ names it in subshells too), and is removed with the other temp roots.
 fm_shared_stub_store() {
-  local store="${TMPDIR:-/tmp}/fm-shared-stubs.$$"
+  local store="$FM_TEST_TMPDIR/fm-shared-stubs.$$"
   if mkdir -m 0700 "$store" 2>/dev/null; then
     printf '%s\n%s\n' "$$" "$FM_TEST_OWNER_IDENTITY" > "$store/.fm-test-fixture"
     printf '%s\n' "$store" >> "$FM_TEST_CLEANUP_REGISTRY"

@@ -206,6 +206,47 @@ test_registries_avoid_git_worktree_root() {
   pass "test registries and fixture roots stay out of a git worktree TMPDIR"
 }
 
+# Shared stubs and the orphaned-worker sweep scope resolve through the same
+# temp directory as fixture roots. A relative TMPDIR used to leave every shared
+# stub a dangling relative link and hand the sweep a scope it refuses; a TMPDIR
+# at a git worktree root used to put the read-only stub store in that worktree.
+test_shared_stubs_and_reap_scope_follow_the_resolved_tmpdir() {
+  local harness repo out path
+  harness=$(fm_test_tmproot fm-test-cleanup-shared-stubs-harness)
+  mkdir -p "$harness/rel"
+  out=$(cd "$harness" && TMPDIR=rel bash -c '
+    # shellcheck source=tests/lib.sh
+    . "$1"
+    d=$(fm_test_tmproot fm-test-cleanup-relative)
+    fm_shared_stub_exit0 "$d/bin" probe-tool
+    cd / && "$d/bin/probe-tool" || exit 1
+    printf "%s\n" "$FM_REMOTE_JOB_REAP_SCOPE"
+  ' _ "$LIB") || fail "a shared stub made under a relative TMPDIR did not run: $out"
+  [ "$out" = "$(cd "$harness/rel" && pwd -P)" ] \
+    || fail "a relative TMPDIR left the orphaned-worker sweep scope unresolved: $out"
+
+  repo="$harness/repo"
+  mkdir -p "$repo"
+  git -C "$repo" init -q
+  out=$(TMPDIR="$repo" bash -c '
+    # shellcheck source=tests/lib.sh
+    . "$1"
+    d=$(fm_test_tmproot fm-test-cleanup-gitroot-stubs)
+    fm_shared_stub_exit0 "$d/bin" probe-tool
+    "$d/bin/probe-tool" || exit 1
+    fm_shared_stub_store
+    printf "%s\n" "$FM_REMOTE_JOB_REAP_SCOPE"
+  ' _ "$LIB") || fail "a shared stub made under a git-root TMPDIR did not run: $out"
+  [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 2 ] \
+    || fail "the git-root TMPDIR child did not report its stub store and sweep scope: $out"
+  while IFS= read -r path; do
+    case "$path" in
+      "$repo"|"$repo"/*) fail "the shared stub store or the sweep scope landed in the git worktree root: $path" ;;
+    esac
+  done <<< "$out"
+  pass "shared stubs and the orphaned-worker sweep scope follow the resolved test TMPDIR"
+}
+
 test_fixture_root_gone_after_normal_exit
 test_fixture_root_gone_after_sigterm
 test_cleanup_registry_resists_precreation
@@ -213,3 +254,4 @@ test_fixture_registration_failure_rolls_back_root
 test_orphan_sweep_respects_fixture_ownership
 test_orphan_sweep_reaps_read_only_package_tree
 test_registries_avoid_git_worktree_root
+test_shared_stubs_and_reap_scope_follow_the_resolved_tmpdir

@@ -516,6 +516,7 @@ Those nags are capped by `FM_CURSOR_TURNEND_BLOCK_BUDGET` (default 3) consecutiv
 A delivered wake resets that budget because it is productive work.
 A session that does not own the lock never parks, nags, or touches that budget.
 When a live holder took the lock over from this very session, the park asks the same guard at its ownership gate and forwards the one-time displaced-session notice (exit 3) as a plain `turn-end-guard` follow-up.
+A takeover that lands during the park's last arm attempt is first seen by the park's closing guard call, which forwards the same notice the same way.
 
 The follow-up loop is bounded TWICE, because either bound alone is insufficient:
 

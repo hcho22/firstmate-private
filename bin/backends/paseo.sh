@@ -642,8 +642,8 @@ fm_backend_paseo_retire_workspace_locked() { # <workspace_id>
   list=$(fm_backend_paseo_cli workspace ls --json 2>/dev/null) || return 0
   fm_backend_paseo_is_json_array "$list" || return 0
   [ "$(fm_backend_paseo_own_workspace "$list")" != "$wsid" ] || return 0
-  cwd=$(printf '%s' "$list" | jq -r --arg id "$wsid" --arg label "$label" \
-    '.[] | select(.workspaceId == $id and .name == $label) | .cwd' | head -1)
+  cwd=$(printf '%s' "$list" | jq -r --arg id "$wsid" --arg name "$label" \
+    '.[] | select(.workspaceId == $id and .name == $name) | .cwd' | head -1)
   [ -n "$cwd" ] || return 0
   logical=$(cd "$FM_HOME" 2>/dev/null && pwd) || logical=$FM_HOME
   real=$(cd "$FM_HOME" 2>/dev/null && pwd -P) || real=$FM_HOME
