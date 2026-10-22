@@ -328,19 +328,19 @@ fm_exec_timed() {  # <seconds> <grace-seconds> <command...>
 }
 
 fm_run_progress_bounded() {  # <idle-seconds> <backstop-seconds> <watch-file> <reason-file> <command...>
-  local idle=$1 backstop=$2 watch=$3 reason=$4 rc
+  local idle=$1 backstop=$2 watch=$3 reason=$4 fallback_rc
   shift 4
   rm -f "$reason" 2>/dev/null || true
   if ! command -v perl >/dev/null 2>&1; then
     if [ "$idle" -gt 0 ]; then
       fm_run_timed "$idle" "$@"
-      rc=$?
-      [ "$rc" -ne 124 ] || printf 'idle\n' > "$reason" 2>/dev/null || true
+      fallback_rc=$?
+      [ "$fallback_rc" -ne 124 ] || printf 'idle\n' > "$reason" 2>/dev/null || true
     else
       (unset FM_TIMEOUT_GROUP_FILE; "$@")
-      rc=$?
+      fallback_rc=$?
     fi
-    return "$rc"
+    return "$fallback_rc"
   fi
   perl -e '
     use strict;
