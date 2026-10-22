@@ -3277,6 +3277,9 @@ CASES=(
   test_a_persistent_secondmate_is_never_a_backlog_item
 )
 
+# Sourced from the absolute ROOT: the file runs from $TMP_ROOT (see the cd
+# above), so a path relative to how the runner named this script no longer
+# resolves.
 # shellcheck source=tests/case-lanes-helpers.sh
-. "$(dirname "${BASH_SOURCE[0]}")/case-lanes-helpers.sh"
+. "$ROOT/tests/case-lanes-helpers.sh"
 fm_test_run_cases "${CASES[@]}"
