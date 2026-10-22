@@ -31,7 +31,7 @@ The host was under heavy external load throughout (load averages 150 to 250 on 2
 - Both captain-hold files passed in both pools, each time running concurrently with each other and with the other candidates (portable: 388956 ms and 476434 ms; family: 453960 ms and 547520 ms).
 - Every failure was the harness refusing a gate-skipped candidate, not an isolation failure: this host has neither `tsc` nor the installed `@earendil-works/pi-coding-agent` package, so `tests/fm-pi-primary-types.test.sh` (both pools) and `tests/fm-calm-pi-extension.test.sh` (family pool) skip; their isolation evidence remains the proofs recorded here.
 
-The durations from these load-distorted runs are not used for lane balance: `docs/fm-test-isolation-proof.json` stays the 2026-08-20 artifact, and the two halves share the slot that file measured as one (`docs/fm-test-portable-shards.md`).
+The durations from these load-distorted runs are not used for lane balance, which packs from CI duration hints; the two halves share the slot the one file held there (`docs/fm-test-portable-shards.md`).
 
 ## Candidate set
 
@@ -94,6 +94,7 @@ The durations from these load-distorted runs are not used for lane balance: `doc
 
 `bin/fm-test-isolation-proof.sh --pool <family>` runs the same concurrent proof over a whole `bin/fm-test-run.sh` family, for a stateful family that stays serial on CI but can earn bounded local concurrency.
 A family is admitted to `list_concurrent_safe_families` in `bin/fm-test-run.sh` only by a passing proof recorded here.
+Admission is by family rather than by script, so a script that joins an admitted family afterwards runs concurrently on that family's recorded result without appearing in it.
 
 ### watcher-wake-lock: admitted
 
@@ -137,10 +138,10 @@ Re-run on 2026-10-03 for the captain-hold split (36 candidates by then): both ha
 
 Re-run on 2026-10-05 with `tests/fm-case-lanes.test.sh` in the family and in-file case lanes active; see "In-file case lanes" below.
 
-This family is what a change to `bin/fm-test-run.sh` itself selects, so it decides that selection's wall clock.
-Before admission, 14 of its scripts fell to the serial tail and the 33-script selection measured 327.3s against a 300s budget: the concurrent group was 19 scripts totalling 273.4s while the tail alone was 215.7s, dominated by `fm-calm-pi-extension` (77.5s), `fm-vendor-auth-probe` (51.0s), and `fm-muse-harness` (39.7s).
+The current runner-change selection is owned by [`bin/fm-test-run.sh`](../bin/fm-test-run.sh)'s changed-file map.
+Before admission, 14 of the family's scripts fell to the serial tail and the 33-script selection measured 327.3s against a 300s budget: the concurrent group was 19 scripts totalling 273.4s while the tail alone was 215.7s, dominated by `fm-calm-pi-extension` (77.5s), `fm-vendor-auth-probe` (51.0s), and `fm-muse-harness` (39.7s).
 Admitting the family moves that tail into the bounded concurrent group.
-Current runner-file selection was verified on 2026-08-28 with the runner and its tests bound to each measured Bash version.
+The then-current runner-file selection was verified on 2026-08-28 with the runner and its tests bound to each measured Bash version.
 Because the runner uses `#!/usr/bin/env bash` and invokes each test with `bash` from `PATH`, the stock macOS measurement used `PATH=/bin:$PATH bin/fm-test-run.sh --changed --max-wall-ms 300000` so both resolved to `/bin/bash` 3.2.57.
 Two runs selected all 33 scripts, passed the five-minute result check in 153.5s and 166.8s, and reported the same two failures as `main`: `tests/fm-muse-harness.test.sh` and `tests/fm-composer-lib.test.sh`.
 With Bash 5.3.9 on `PATH`, three runs of `bin/fm-test-run.sh --changed --max-wall-ms 300000` selected the same 33 scripts, completed with 0 failures, and reported 163.8s, 172.0s, and 166.9s.
@@ -161,7 +162,26 @@ The production runner measured the same family at `--family pr-forge --jobs 1` i
 That is close to the family's ceiling rather than a scheduling loss: its longest script runs 198.5s, so no partition of these six can finish faster than about 2.1x.
 The family's clock is two long scripts that do not contend: `fm-pr-check-security` (198.5s) and `fm-teardown` (194.1s) each own a worker for nearly the whole run, and `fm-pr-merge` (118.5s) plus `fm-x-mode` (79.4s) fill the other two.
 `bin/fm-test-isolation-proof.sh`'s own `--list-exclusions` keeps `fm-pr-check-security` and `fm-teardown` out of the mixed PORTABLE pool, where they would share a machine with unrelated lock and forge stress.
-Admitting them inside their own family is a different question and this proof answers it: the family's six scripts are safe with each other at four workers.
+Admitting them inside their own family is a different question and this proof answers it: the six members present on that date are safe with each other at four workers.
+
+`tests/fm-pr-state.test.sh` and `tests/fm-pr-reviewers.test.sh` joined this family after the date above, so that result does not cover them.
+`script_allows_concurrency` in `bin/fm-test-run.sh` grants concurrency by family membership alone, so the family was re-proved at its full eight-member membership.
+
+- Date: 2026-09-12
+- Command: `bin/fm-test-isolation-proof.sh --pool pr-forge --jobs 4`
+- Result: two consecutive runs, 8 candidates, 0 failures.
+
+| Run | Summary |
+|---|---|
+| 1 | `FM_ISOLATION_SUMMARY total=8 failed=0 concurrency=4 duration_ms=367947` |
+| 2 | `FM_ISOLATION_SUMMARY total=8 failed=0 concurrency=4 duration_ms=352910` |
+
+Both recorded runs began with the machine's one-minute load average below 6.0, at 5.55 and 5.76, so they measure isolation rather than contention.
+A third run taken between them also reported `total=8 failed=0 concurrency=4 duration_ms=357804`, but it started at a load average of 9.20 while the previous run's workers were still decaying, so it is disclosed here rather than recorded as a measurement.
+That its duration landed within 3% of the two clean runs is evidence the elevated figure was a lagging load average rather than real competition for the machine.
+
+These durations are not comparable with the six-member run above: that measurement was taken on a different machine state, and the gap is far larger than two short scripts can account for, so it is not evidence about the two new members.
+For the same reason the 1.72x four-worker figure recorded above is left as a statement about that measurement rather than restated as current.
 
 ### secondmate: admitted
 

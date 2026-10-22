@@ -1,9 +1,7 @@
 ---
 name: risk-recovery
 description: >-
-  Assess new or revised ship briefs and promoted scouts, hand off behavioral
-  validation, and coordinate release obligations before implementation completion
-  and on release observations or restart. Owns risk, evidence, and release policy.
+  Load before filling or revising a ship assessment, promoting a scout, or handing off validation, and when implementation closes with release obligations, on a release observation, or on restart with an open release.
 user-invocable: false
 metadata:
   internal: true

@@ -7,10 +7,10 @@
 # that took the lock would silence the guard for the real lock holder.
 set -u
 
-if [ "${FM_CODEX_LIVE_E2E:-0}" != 1 ]; then
-  echo "skip: set FM_CODEX_LIVE_E2E=1 to run the Codex continuity regression"
-  exit 0
-fi
+# shellcheck source=tests/lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+fm_live_gate opt-in FM_CODEX_LIVE_E2E codex
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -18,8 +18,6 @@ fail() {
   printf 'not ok - %s\n' "$1" >&2
   exit 1
 }
-
-command -v codex >/dev/null 2>&1 || fail "codex not found"
 
 LAB="$ROOT/.codex-live-e2e.$$"
 PROJECT="$LAB/project"

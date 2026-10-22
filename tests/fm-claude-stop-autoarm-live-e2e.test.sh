@@ -3,21 +3,23 @@
 # (bin/fm-claude-stop-autoarm.sh + bin/fm-turnend-guard.sh --claude).
 # Proves, against the real installed Claude Code and the real tracked hook
 # registration: a fresh session with in-flight work, no watcher, and a stale
-# session lock can run fm-session-start.sh first; session start reclaims the
-# dead owner; at least two tokenless auto-arm and rewake cycles then complete
-# with zero model-issued arm commands; the cooperative guard consumes no
-# forced continuation while the hook's launch is healthy; and a session refused
-# the lock by another live session ends its turn after at most one notice instead
-# of being blocked turn after turn for a repair it may not perform.
+# session lock receives the full session-start digest through the tracked
+# SessionStart hook; session start reclaims the dead owner; at least two
+# tokenless auto-arm and rewake cycles then complete with zero model-issued arm
+# commands; the cooperative guard consumes no forced continuation while the
+# hook's launch is healthy; and a session refused the lock by another live
+# session gets the named-holder refusal with the explicit takeover command and
+# then ends its turns instead of being blocked turn after turn for a repair it
+# may not perform.
 # The project and FM_HOME are isolated; Claude keeps using its existing managed
 # authentication. No live fleet home, worktree, or session is touched.
 # shellcheck disable=SC2016 # the model, not this test shell, reads the prompt text
 set -u
 
-if [ "${FM_CLAUDE_LIVE_E2E:-0}" != 1 ]; then
-  echo "skip: set FM_CLAUDE_LIVE_E2E=1 to run the Claude Stop auto-arm regression"
-  exit 0
-fi
+# shellcheck source=tests/lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+fm_live_gate opt-in FM_CLAUDE_LIVE_E2E claude
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -25,8 +27,6 @@ fail() {
   printf 'not ok - %s\n' "$1" >&2
   exit 1
 }
-
-command -v claude >/dev/null 2>&1 || fail "claude not found"
 
 LAB="$ROOT/.claude-autoarm-live-e2e.$$"
 PROJECT="$LAB/project"
@@ -47,7 +47,7 @@ mkdir -p "$LAB"
 git clone -q "$ROOT" "$PROJECT"
 cp -R "$ROOT/bin/." "$PROJECT/bin/"
 cp "$ROOT/.claude/settings.json" "$PROJECT/.claude/settings.json"
-# The lab keeps the real tracked .claude/settings.json SessionStart nudge,
+# The lab keeps the real tracked .claude/settings.json SessionStart run hook,
 # Stop guard, and asyncRewake auto-arm registration.
 # The only local hook records model-issued Bash calls without acquiring the
 # session lock or otherwise changing lifecycle behavior.
@@ -92,16 +92,18 @@ if [ "$N" -ge 3 ]; then
   printf 'watcher: attached pid=%s (beacon 2s)\n' "$$"
   exit 0
 fi
+printf 'pending:downtime:fixture-generation-%s\n' "$N" > "$FM_HOME/state/.watcher-down"
+touch "$FM_HOME/state/.last-watcher-beat"
 printf 'watcher: started pid=%s (beacon fresh)\n' "$$"
 printf 'stale: fixture-rapid-%s\n' "$N"
 exit 0
 SH
-# Drain fixture: every session start drains once, and the model drains once per
-# rewake. Newer Claude Code builds also run the registered SessionStart hook in
-# headless mode, so the number of session-start drains is not fixed (the hook's
-# start plus the model's explicit one); only the model-issued drains, recorded by
-# the PreToolUse logger above, count toward ending the in-flight need after two
-# complete Stop-owned cycles.
+# Drain fixture: every session start drains once (here the tracked SessionStart
+# hook runs the only one), and the model drains once per rewake. Only the
+# model-issued drains, recorded by the PreToolUse logger above, count toward
+# ending the in-flight need after two complete Stop-owned cycles, so an extra
+# session-start drain can never end the need early and is caught by the exact
+# drain count below instead.
 cat > "$PROJECT/bin/fm-wake-drain.sh" <<'SH'
 #!/usr/bin/env bash
 N=$(cat "$FM_HOME/state/drain-count" 2>/dev/null || echo 0); N=$((N+1)); echo "$N" > "$FM_HOME/state/drain-count"
@@ -114,7 +116,7 @@ printf 'stale: fixture-rapid drained\n'
 SH
 chmod +x "$PROJECT/bin/fm-watch-arm.sh" "$PROJECT/bin/fm-wake-drain.sh"
 
-PROMPT='Run exactly `bin/fm-session-start.sh` with Bash as your first tool call. After reading its complete digest, reply with exactly CYCLE0 and stop. Whenever a Stop hook feedback message wakes you, run exactly `bin/fm-wake-drain.sh` once with Bash, then reply with exactly ACK and stop. Never run bin/fm-watch-arm.sh or any other arm command, and never use any other tool.'
+PROMPT='After reading the complete session-start digest, reply with exactly CYCLE0 and stop. Whenever a Stop hook feedback message wakes you, run exactly `bin/fm-wake-drain.sh` once with Bash, then reply with exactly ACK and stop. Never run bin/fm-watch-arm.sh or any other arm command, and never use any other tool.'
 
 (
   cd "$PROJECT" || exit 1
@@ -128,13 +130,33 @@ ARM_RUNS=$(wc -l < "$HOME_DIR/state/arm-ran" 2>/dev/null | tr -d ' ')
 DRAIN_RUNS=$(wc -l < "$HOME_DIR/state/drain-ran" 2>/dev/null | tr -d ' ')
 MODEL_DRAIN_RUNS=$(grep -c 'fm-wake-drain.sh' "$HOME_DIR/state/tool-calls.log" 2>/dev/null || true)
 [ "$MODEL_DRAIN_RUNS" = 2 ] || fail "expected exactly two model wake drains, got $MODEL_DRAIN_RUNS: $(cat "$HOME_DIR/state/tool-calls.log" 2>/dev/null)"
-[ "$DRAIN_RUNS" -ge 3 ] || fail "expected at least one session-start drain plus the two model wake drains, got $DRAIN_RUNS drains"
-REWAKES=$(grep -c 'Stop hook feedback' "$TRANSCRIPT" 2>/dev/null || true)
+[ "$DRAIN_RUNS" = 3 ] || fail "expected one session-start drain plus two model wake drains, got $DRAIN_RUNS drains"
+REWAKES=$(jq -r '
+  select(.type == "user")
+  | .message.content[]?
+  | select(.type == "text")
+  | .text
+' "$TRANSCRIPT" 2>/dev/null | awk '/^Stop hook feedback:/{count++} END{print count+0}')
 [ "$REWAKES" -ge 2 ] || fail "expected at least 2 exit-2 rewake deliveries, got $REWAKES"
 grep -q 'stale: fixture-rapid-1' "$TRANSCRIPT" || fail "first rapid rewake reason missing from the transcript"
 grep -q 'stale: fixture-rapid-2' "$TRANSCRIPT" || fail "second rapid rewake reason missing from the transcript"
-[ "$(sed -n '1p' "$HOME_DIR/state/tool-calls.log" 2>/dev/null)" = 'bin/fm-session-start.sh' ] \
-  || fail "fresh Claude session did not run session start first: $(cat "$HOME_DIR/state/tool-calls.log" 2>/dev/null)"
+[ -s "$HOME_DIR/state/tool-calls.log" ] \
+  || fail "Claude emitted no logged Bash tool calls"
+! grep -q 'fm-session-start.sh' "$HOME_DIR/state/tool-calls.log" \
+  || fail "model issued a redundant session-start command: $(cat "$HOME_DIR/state/tool-calls.log")"
+DIGEST_EVENTS=$(jq -c --arg heading "SESSION START - $HOME_DIR" '
+  select(.type == "system" and .subtype == "hook_response" and .hook_event == "SessionStart")
+  | select(.stdout | contains($heading))
+' "$TRANSCRIPT" 2>/dev/null)
+[ "$(printf '%s' "$DIGEST_EVENTS" | jq -s 'length')" = 1 ] \
+  || fail "expected exactly one SessionStart hook_response carrying the session-start digest"
+DIGEST=$(printf '%s' "$DIGEST_EVENTS" | jq -r '.stdout')
+printf '%s' "$DIGEST" | grep -q '^lock acquired: harness pid [0-9][0-9]*$' \
+  || fail "SessionStart hook digest lacks the stale-lock reclaim"
+! printf '%s' "$DIGEST" | grep -q '^●  STARTUP TRUNCATED - ' \
+  || fail "SessionStart hook digest was truncated"
+printf '%s' "$DIGEST" | grep -q '^The digest above is complete for this session start\.' \
+  || fail "SessionStart hook digest lacks its completion marker"
 [ "$(cat "$HOME_DIR/state/.lock" 2>/dev/null)" != 9999999 ] \
   || fail "session start did not reclaim the stale dead-owner lock"
 if [ -f "$HOME_DIR/state/tool-calls.log" ]; then
@@ -173,10 +195,11 @@ wait "$LIVE_OWNER_PID"
 
 # Lock-refused session: a real Claude session starts in a home whose lock another
 # live harness process (an idle daemon named like Codex) holds, with work in
-# flight and no watcher. Session start must leave it read-only, and every Stop
-# after that must end the turn: before the guard stood down, each stop was blocked
-# with TURN WOULD END BLIND for a repair this session is forbidden to perform, and
-# the block budget never ran out.
+# flight and no watcher. The tracked SessionStart hook's session start must leave
+# it read-only with the named-holder refusal and the takeover command, and every
+# Stop after that must end the turn: before the guard stood down, each stop was
+# blocked with TURN WOULD END BLIND for a repair this session is forbidden to
+# perform, and the block budget never ran out.
 mkdir -p "$READONLY_HOME/state" "$READONLY_HOME/config" "$READONLY_HOME/data" "$LAB/ro-tmp"
 printf 'project=fixture\nwindow=fixture\nbackend=tmux\n' > "$READONLY_HOME/state/task.meta"
 FAKE_CODEX="$LAB/codex"
@@ -185,7 +208,7 @@ ln -s /bin/bash "$FAKE_CODEX"
 IDLE_DAEMON_PID=$!
 printf '%s\n' "$IDLE_DAEMON_PID" > "$READONLY_HOME/state/.lock"
 RO_TRANSCRIPT="$LAB/claude-readonly.jsonl"
-RO_PROMPT='Run exactly `bin/fm-session-start.sh` with Bash as your first tool call. After reading its digest, reply with exactly READONLY and stop. Never run any other command and never use any other tool.'
+RO_PROMPT='After reading the session-start digest, reply with exactly READONLY and stop. Never run any command and never use any tool.'
 (
   cd "$PROJECT" || exit 1
   TMPDIR="$LAB/ro-tmp" FM_HOME="$READONLY_HOME" CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false CLAUDE_CODE_SEND_FEEDBACK=0 \
