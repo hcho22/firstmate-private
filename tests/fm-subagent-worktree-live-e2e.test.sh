@@ -18,13 +18,10 @@
 # shellcheck disable=SC2016 # the model, not this test shell, reads the prompt text
 set -u
 
-if [ "${FM_SUBAGENT_WORKTREE_LIVE_E2E:-0}" != 1 ]; then
-  echo "skip: set FM_SUBAGENT_WORKTREE_LIVE_E2E=1 to run the live Claude subagent worktree placement guard"
-  exit 0
-fi
-
 # shellcheck source=tests/fixtures.sh
 . "$(dirname "${BASH_SOURCE[0]}")/fixtures.sh"
+# Opt-in: it submits prompts to the real Claude Code.
+fm_live_gate opt-in FM_SUBAGENT_WORKTREE_LIVE_E2E claude jq
 # shellcheck source=bin/fm-timeout-lib.sh
 . "$ROOT/bin/fm-timeout-lib.sh"
 
