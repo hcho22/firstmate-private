@@ -704,6 +704,25 @@ DISPLACED_PARK_CHILD='
   "$FM_HOME/bin/fm-turnend-guard-cursor.sh"
 '
 
+# Two stops of one displaced session: one agent process, one takeover record
+# naming it, and the park run once per stop beneath it, as Cursor runs its stop
+# hook. Each stop's output and status land in $FM_HOME/tmp/stop<n>.out and .rc.
+DISPLACED_TWICE_PARK_CHILD='
+  printf "%s\n" "$FOREIGN_PID" > "$FM_HOME/state/.lock"
+  printf "at=2026-10-01T20:00:00Z\tnew_pid=%s\tnew_command=claude\tprev_pid=%s\tprev_holder=command: cursor-agent\n" "$FOREIGN_PID" "$$" > "$FM_HOME/state/.lock-takeovers"
+  for n in 1 2; do
+    printf "%s" "$PARK_PAYLOAD" | "$FM_HOME/bin/fm-turnend-guard-cursor.sh" > "$FM_HOME/tmp/stop$n.out" 2>/dev/null
+    printf "%s\n" "$?" > "$FM_HOME/tmp/stop$n.rc"
+  done
+'
+
+run_displaced_park_twice() {  # <dir> <foreign-pid> <session-id>
+  local dir=$1 foreign=$2 session=$3 payload
+  payload=$(printf '{"session_id":"%s","generation_id":"gen-0","loop_count":0,"status":"completed","hook_event_name":"stop","cursor_version":"2026.08.11-e8db854"}' "$session")
+  env -u PI_CODING_AGENT FM_HOME="$dir" TMPDIR="$dir/tmp" FOREIGN_PID="$foreign" PARK_PAYLOAD="$payload" \
+    FM_CURSOR_PARK_POLL=1 "$FAKE_CURSOR" -c "$DISPLACED_TWICE_PARK_CHILD" </dev/null >/dev/null 2>&1
+}
+
 run_displaced_park() {  # <dir> <foreign-pid> <session-id> <displaced:0|1>
   local dir=$1 foreign=$2 session=$3 displaced=$4 payload
   payload=$(printf '{"session_id":"%s","generation_id":"gen-0","loop_count":0,"status":"completed","hook_event_name":"stop","cursor_version":"2026.08.11-e8db854"}' "$session")
@@ -719,8 +738,9 @@ test_park_delivers_displaced_notice_once_without_repair_wording() {
   write_arm_fixture "$dir" actionable
   "$FAKE_CURSOR" -c 'while kill -0 "$PPID" 2>/dev/null; do sleep 1; done' >/dev/null 2>&1 &
   foreign=$!
-  first=$(run_displaced_park "$dir" "$foreign" sess-displaced 1); first_rc=$?
-  second=$(run_displaced_park "$dir" "$foreign" sess-displaced 1); second_rc=$?
+  run_displaced_park_twice "$dir" "$foreign" sess-displaced
+  first=$(cat "$dir/tmp/stop1.out"); first_rc=$(cat "$dir/tmp/stop1.rc")
+  second=$(cat "$dir/tmp/stop2.out"); second_rc=$(cat "$dir/tmp/stop2.rc")
   rm -f "$dir/state/.lock-takeovers"
   observer=$(run_displaced_park "$dir" "$foreign" sess-observer 0)
   kill "$foreign" 2>/dev/null || true
