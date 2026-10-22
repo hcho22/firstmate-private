@@ -2103,21 +2103,31 @@ test_projection_cleanup_exact_treats_not_found_panes_as_gone() {
   [ -z "$out" ] || fail "abort cleanup warned about panes that are already gone: $out"
   assert_not_contains "$(cat "$log")" $'pane\x1fclose' "abort cleanup closed a pane that was already gone"
 
-  # A seeded pane that still exists in the captain's active tab is still refused,
-  # and cleanup reports it as not done.
+  # A seeded pane that still exists in the tab a live client is viewing is still
+  # refused, and cleanup reports it as not done. The calls are, in order: the
+  # presence get, the close's focus snapshot (workspace list, tab list), its
+  # exact pane get, the emptying-close plan's tab list (two tabs, so a plain
+  # close), the mutation guard's fresh focus snapshot after the foreground probe
+  # reports a live viewer, and the presence get after the refused close.
   dir="$TMP_ROOT/projection-cleanup-active"; mkdir -p "$dir/responses"
   log="$dir/log"; resp="$dir/responses"; : > "$log"
   printf '%s\n' '{"result":{"pane":{"pane_id":"w9:p1","tab_id":"w9:t1","workspace_id":"w9"}}}' > "$resp/1.out"
   printf '%s\n' '{"result":{"workspaces":[{"workspace_id":"w9","active_tab_id":"w9:t1","focused":true}]}}' > "$resp/2.out"
   printf '%s\n' '{"result":{"tabs":[{"tab_id":"w9:t1","focused":true}]}}' > "$resp/3.out"
   printf '%s\n' '{"result":{"pane":{"pane_id":"w9:p1","tab_id":"w9:t1","workspace_id":"w9"}}}' > "$resp/4.out"
-  printf '%s\n' '{"result":{"pane":{"pane_id":"w9:p1","tab_id":"w9:t1","workspace_id":"w9"}}}' > "$resp/5.out"
+  printf '%s\n' '{"result":{"tabs":[{"tab_id":"w9:t1","workspace_id":"w9"},{"tab_id":"w9:t2","workspace_id":"w9"}]}}' > "$resp/5.out"
+  cp "$resp/2.out" "$resp/6.out"
+  cp "$resp/3.out" "$resp/7.out"
+  printf '%s\n' '{"result":{"pane":{"pane_id":"w9:p1","tab_id":"w9:t1","workspace_id":"w9"}}}' > "$resp/8.out"
   fb=$(make_herdr_fakebin "$dir")
   out=$(PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
+    FM_FAKE_HERDR_FOREGROUND_REASON=cleared \
     bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_projection_cleanup_exact fmtest "" w9:p1' "$ROOT" 2>&1)
   status=$?
   [ "$status" -ne 0 ] || fail "abort cleanup reported success while an exact pane still exists: $out"
   assert_contains "$out" "target is the captain's active tab" "abort cleanup did not keep refusing the focus-unsafe close"
+  assert_contains "$(cat "$log")" $'terminal\x1ftitle\x1fclear' \
+    "abort cleanup refused the active-tab close without probing for a live viewer"
   assert_not_contains "$(cat "$log")" $'pane\x1fclose' "abort cleanup closed the captain's active tab"
   pass "herdr presentation abort cleanup: an exact pane already gone needs no close and no warning, and an existing focus-unsafe pane is still refused"
 }
