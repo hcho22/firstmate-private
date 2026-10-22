@@ -102,10 +102,16 @@ EOF
 }
 
 test_return_gate_owns_remediation_and_reports_catchup_to_bearings() {
-  local dir out rc gate wake_count i toon gate_header
+  local dir out rc gate wake_count i toon gate_header fb
   dir="$TMP_ROOT/ordering"
   install_runner "$dir"
   seed_live_blocker "$dir" herdr synthetic-dependency
+  # Bearings reads the blocked worker's Herdr endpoint, which this fixture does
+  # not stand up: a herdr with no panes answers that read without reaching the
+  # installed CLI, which would start a server for the synthetic session.
+  fb="$dir/fakebin"
+  mkdir -p "$fb"
+  fm_fake_herdr_without_pane "$fb"
   {
     printf '## In flight\n\n## Queued\n'
     i=1
@@ -146,7 +152,7 @@ test_return_gate_owns_remediation_and_reports_catchup_to_bearings() {
   # catch-up posture as content rather than refusing. The blocked worker still
   # projects as its own Underway row, and the catch-up posture is a separate
   # action-free Charted Next gate row that never becomes a Captain's Call entry.
-  out=$(FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-bearings-snapshot.sh" --json 2>&1) \
+  out=$(PATH="$fb:$PATH" FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-bearings-snapshot.sh" --json 2>&1) \
     || fail "Bearings should render behind the return catch-up gate: $out"
   # The live projected state of the blocked worker follows its endpoint, which
   # this fixture deliberately does not stand up; what the gate must no longer
@@ -162,7 +168,7 @@ test_return_gate_owns_remediation_and_reports_catchup_to_bearings() {
                       and (.title | test("^1 blocker"))))
     and ([.decisions_open[].id] | index("(return-catchup)") | not)' >/dev/null \
     || fail "Bearings did not reserve the catch-up posture outside bounded action-free gate rows: $out"
-  toon=$(FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-bearings-snapshot.sh" 2>&1) \
+  toon=$(PATH="$fb:$PATH" FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-bearings-snapshot.sh" 2>&1) \
     || fail "default Bearings should render behind the return catch-up gate: $toon"
   gate_header=$(printf '%s\n' "$toon" | awk '/^gates\[[0-9]+\]\{/ { print; exit }')
   assert_contains "$gate_header" '{id,title,blocked_by,reason,owner,filed}' "catch-up removed filed from the TOON gate schema"
@@ -192,7 +198,7 @@ test_return_gate_owns_remediation_and_reports_catchup_to_bearings() {
 
   printf 'resolved [key=synthetic-dependency]: refreshed the synthetic token and resumed the task\n' >> "$dir/home/state/repair-task.status"
   out=$(run_return "$dir" check) || fail "resolved blocker did not clear return catch-up: $out"
-  FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-bearings-snapshot.sh" --json \
+  PATH="$fb:$PATH" FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-bearings-snapshot.sh" --json \
     | jq -e '[.gates[].id] | index("(return-catchup)") | not' >/dev/null \
     || fail "the cleared gate left the catch-up posture row in Bearings"
   assert_contains "$out" 'catch-up clear' "successful check did not announce that ordinary work may proceed"
