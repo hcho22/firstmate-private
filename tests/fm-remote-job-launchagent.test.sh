@@ -66,7 +66,8 @@ cat > "$STUB_BIN/mv" <<'SH'
 last=${!#}
 if [ "$last" = "$FM_TEST_STATE/worker.lock/pid" ] && [ -f "$FM_TEST_OWNER_GATE" ]; then
   : > "$FM_TEST_OWNER_GATE.observed"
-  for _ in $(seq 1 400); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -f "$FM_TEST_OWNER_GATE.release" ] && break
     /bin/sleep 0.05
   done
@@ -84,10 +85,11 @@ tracked_pid() {
   printf '%s\n' "$pid"
 }
 stop_tracked() {
-  local pid
+  local pid deadline
   pid=$(tracked_pid) || { rm -f "$FM_TEST_TRACKED"; return 0; }
   kill -TERM "$pid" 2>/dev/null || true
-  for _ in $(seq 1 200); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     kill -0 "$pid" 2>/dev/null || break
     /bin/sleep 0.05
   done
@@ -206,7 +208,8 @@ printf '99999999\n' > "$STATE_ROOT/worker.ready"
 chmod 600 "$STATE_ROOT/worker.identity" "$STATE_ROOT/worker.ready"
 : > "$FM_TEST_OWNER_GATE"
 launchctl bootstrap "gui/$(id -u)" "$FM_TEST_PLIST" || fail 'could not start the replacement'
-for _ in $(seq 1 200); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ -f "$FM_TEST_OWNER_GATE.observed" ] && break
   /bin/sleep 0.05
 done
@@ -234,7 +237,8 @@ mkdir -p "$STATE_ROOT/.seq-claims/1"
 touch -t 200001010000 "$STATE_ROOT/.seq-claims/1"
 launchctl bootstrap "gui/$(id -u)" "$FM_TEST_PLIST" || fail 'the stub launchd did not load the agent'
 SWEEP_PID=$(tracked)
-for _ in $(seq 1 200); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ -f "$SWEEP_GATE" ] && break
   /bin/sleep 0.05
 done
@@ -243,7 +247,8 @@ done
 # Remove readiness under a live worker blocked in its sweep: only the
 # independent heartbeat can restore it before the sweep is released.
 rm -f "$STATE_ROOT/worker.ready"
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ -f "$STATE_ROOT/worker.ready" ] && break
   /bin/sleep 0.05
 done
@@ -293,7 +298,8 @@ pass 'concurrent Darwin ensures serialize one reload and adopt its fresh worker'
 fm_remote_job_launchagent_owner_current "$REMOTE_ROOT" "$ACCOUNT_HOME" "$(id -u)" \
   || fail 'the stale-readiness fixture is not a verified launchd-tracked current owner'
 : > "$FM_TEST_STALE_GATE"
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ -f "$FM_TEST_STALE_GATE.observed" ] && break
   /bin/sleep 0.05
 done

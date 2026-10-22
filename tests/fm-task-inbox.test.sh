@@ -1033,7 +1033,7 @@ test_watcher_surfaces_unwritable_ladder() {
 }
 
 test_watcher_pays_fire_and_forget_retry_once() {
-  local dir state out log pid fire rings i=0
+  local dir state out log pid fire rings deadline
   dir=$(setup_watch_case faf-retry)
   mkdir -p "$dir/config"
   : > "$dir/config/wait-no-turns"
@@ -1047,11 +1047,11 @@ test_watcher_pays_fire_and_forget_retry_once() {
     FM_SEND_LOG="$log" FM_FAKE_TMUX_CAPTURE="$(idle_capture "$dir")" \
     FM_TASK_INBOX_RING_MAX=1
   pid=$!
-  while [ "$i" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -qF 'Firstmate instruction waiting' "$log" 2>/dev/null && break
     kill -0 "$pid" 2>/dev/null || break
     sleep 0.1
-    i=$((i + 1))
   done
   sleep 3
   kill -0 "$pid" 2>/dev/null \

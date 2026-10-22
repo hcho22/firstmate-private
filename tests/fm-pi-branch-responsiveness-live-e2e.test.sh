@@ -155,13 +155,13 @@ console.log(`ALL_MS=${delays.map((delay) => delay.toFixed(0)).join(",")}`);
 JS
 
 wait_for_pane_text() {
-  local expected=$1 attempts=${2:-120} i=0
-  while [ "$i" -lt "$attempts" ]; do
+  local expected=$1 deadline
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     if "$TMUX" -L "$SOCKET" capture-pane -p -t "$SESSION" 2>/dev/null | grep -Fq "$expected"; then
       return 0
     fi
     sleep 0.25
-    i=$((i + 1))
   done
   return 1
 }
@@ -184,7 +184,7 @@ run_arm() {
      FM_ROOT_OVERRIDE='$ROOT' LAB_PROJECT='$PROJECT' '$LAB/launch.sh' ${pi_args[*]@Q}"
   # The lab project path in Pi's own status line is the readiness signal: it
   # appears only once the TUI has drawn, unlike any prompt character.
-  wait_for_pane_text "$PROJECT" 240 \
+  wait_for_pane_text "$PROJECT" \
     || { "$TMUX" -L "$SOCKET" capture-pane -p -t "$SESSION" >&2; fail "Pi $PI_VERSION never drew its TUI in the $label arm"; }
   sleep 2
 

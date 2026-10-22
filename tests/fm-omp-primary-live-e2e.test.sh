@@ -300,6 +300,7 @@ pass "omp $OMP_VERSION: session_stop compelled the guard continuation (guard rc=
 # Firstmate's supervision contract, and cleanup reaps the lab either way.
 exec 3>&-
 i=0
+# fm-lint-waits: allow 30s shutdown observation reported as a note, not asserted; cleanup terminates the lab after it
 while [ "$i" -lt 60 ]; do
   kill -0 "$OMP_PID" 2>/dev/null || break
   sleep 0.5

@@ -352,7 +352,7 @@ test_build_injects_binds_then_arms() {
 }
 
 test_registration_cannot_consume_before_any_origin_binding() {
-  local home data origin key hold board sid show
+  local home data origin key hold board sid show deadline
   home=$(make_home order-proof)
   data="$home/payload.json"
   origin=order-proof-review
@@ -410,7 +410,8 @@ SH
 
   # Arm starts the listener, which captures the answer and closes the hold on
   # its own schedule after build returns.
-  for _ in $(seq 1 100); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     show=$(cd "$home" && tasks-axi show "$hold" --full) \
       || fail "the order-proof captain hold disappeared"
     case "$show" in *"state: done"*) break ;; esac
@@ -515,7 +516,7 @@ test_charted_kind_is_optional_and_accepts_both_values() {
 # --- part 1: never arm a poll on an ended session ---------------------------
 
 test_build_reopens_a_session_the_captain_ended() {
-  local home data board out sid claim old_pid old_token new_pid new_token
+  local home data board out sid claim old_pid old_token new_pid new_token deadline
   home=$(make_home ended-session)
   data="$home/payload.json"
   board="$home/.lavish/bearings-board.html"
@@ -531,7 +532,8 @@ test_build_reopens_a_session_the_captain_ended() {
   # that trusts the exit status arms a poll nothing can ever attach to.
   : > "$home/lavish-state/hold-after-terminal"
   : > "$home/lavish-state/poll-trigger"
-  for _ in $(seq 1 100); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -e "$home/lavish-state/terminal-emitted" ] && break
     sleep 0.05
   done

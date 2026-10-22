@@ -427,14 +427,14 @@ commandcode_screen() {  # <composer-row-kind idle|typed>
   printf '%s[38;2;138;148;168m%s\n%s[39m  ? for shortcuts\n\n\n' "$e" "$rule" "$e"
 }
 open_commandcode_pane() {  # <window> <binary> <idle|typed>
-  local window=$1 binary=$2 kind=$3 i=0
+  local window=$1 binary=$2 kind=$3 deadline
   new_window "$window" bash -c "$(declare -f commandcode_screen); commandcode_screen '$kind'; exec '$binary' 900"
-  while [ "$i" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     case "$("$REAL_TMUX" -L "$SOCKET" capture-pane -p -t "$SESSION:$window" 2>/dev/null)" in
       *'? for shortcuts'*) return 0 ;;
     esac
     sleep 0.1
-    i=$((i + 1))
   done
   fail "pane $window never rendered its composer"
 }

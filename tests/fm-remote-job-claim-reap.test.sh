@@ -98,7 +98,8 @@ HOME="$ACCOUNT_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$
   > "$TMP_ROOT/worker.out" 2> "$TMP_ROOT/worker.err" &
 WORKER_PID=$!
 
-for _ in $(seq 1 200); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ -f "$STATE_ROOT/worker.ready" ] && break
   sleep 0.05
 done

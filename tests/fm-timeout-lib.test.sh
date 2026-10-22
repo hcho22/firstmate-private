@@ -47,10 +47,9 @@ run_timed() {
 }
 
 wait_for_file() {  # <path>
-  local i=0
+  local deadline=$((SECONDS + 60))
   while [ ! -s "$1" ]; do
-    i=$((i + 1))
-    [ "$i" -lt 500 ] || fail "timed out waiting for $1"
+    [ "$SECONDS" -lt "$deadline" ] || fail "timed out waiting for $1"
     sleep 0.02
   done
 }

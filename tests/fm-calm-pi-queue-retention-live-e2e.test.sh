@@ -121,18 +121,16 @@ TS
 tmux -L "$SOCKET" new-session -d -s "$SESSION" -x 160 -y 36 \
   "cd '$PROJECT' && env FM_HOME='$TMP_ROOT/home' PI_CODING_AGENT_DIR='$TMP_ROOT/agent' QUEUE_RETENTION_PROBE_OUT='$PROBE_OUT' PI_OFFLINE=1 pi --approve --no-context-files --no-skills --no-prompt-templates --no-extensions -e ./queue-retention-probe.ts --session-dir '$TMP_ROOT/sessions'; sleep 30"
 
-i=0
+deadline=$((SECONDS + 60))
 until tmux -L "$SOCKET" capture-pane -p -t "$SESSION" 2>/dev/null | grep -Fq 'queue-retention-probe.ts'; do
-  i=$((i + 1))
-  [ "$i" -lt 200 ] || fail "Pi $PI_VERSION did not reach its composer: $(tmux -L "$SOCKET" capture-pane -p -t "$SESSION" 2>/dev/null)"
+  [ "$SECONDS" -lt "$deadline" ] || fail "Pi $PI_VERSION did not reach its composer: $(tmux -L "$SOCKET" capture-pane -p -t "$SESSION" 2>/dev/null)"
   sleep 0.05
 done
 tmux -L "$SOCKET" send-keys -t "$SESSION" -l '/queue-retention-probe'
 tmux -L "$SOCKET" send-keys -t "$SESSION" Enter
-i=0
+deadline=$((SECONDS + 60))
 until [ -s "$PROBE_OUT" ]; do
-  i=$((i + 1))
-  [ "$i" -lt 200 ] || fail "Pi $PI_VERSION never redrew its queued listing for a queued follow-up: $(tmux -L "$SOCKET" capture-pane -p -t "$SESSION" 2>/dev/null)"
+  [ "$SECONDS" -lt "$deadline" ] || fail "Pi $PI_VERSION never redrew its queued listing for a queued follow-up: $(tmux -L "$SOCKET" capture-pane -p -t "$SESSION" 2>/dev/null)"
   sleep 0.05
 done
 tmux -L "$SOCKET" send-keys -t "$SESSION" Escape

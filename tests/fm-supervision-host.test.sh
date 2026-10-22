@@ -127,10 +127,9 @@ case "$mode" in
     case "$mode" in captain-close-before-return)
       watcher=$(cat "$STATE/.watch.lock/pid" 2>/dev/null || true)
       [ -z "$watcher" ] || kill -TERM "$watcher" 2>/dev/null || true
-      i=0
-      while [ -n "$watcher" ] && kill -0 "$watcher" 2>/dev/null && [ "$i" -lt 100 ]; do
+      deadline=$((SECONDS + 60))
+      while [ -n "$watcher" ] && kill -0 "$watcher" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
         sleep 0.05
-        i=$((i + 1))
       done
       ;;
     esac
@@ -167,6 +166,7 @@ stop_home_processes() {  # <home>
     arms=$(awk -F '\t' '$1 == "arm" { print $2 }' "$home/state/.supervision-host")
     pid=$(awk -F '\t' '$1 == "host" { print $2; exit }' "$home/state/.supervision-host")
     [ -z "$pid" ] || kill -TERM "$pid" 2>/dev/null || true
+    # fm-lint-waits: allow suite-cleanup grace for the host to exit before its arms are signalled; cleanup proceeds either way and asserts nothing
     while [ "$i" -lt 50 ] && [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; do
       sleep 0.1
       i=$((i + 1))
@@ -1820,14 +1820,13 @@ SH
 # watcher it owns. Attaching instead would not observe the exit until the
 # beacon went stale, and this fixture's turn budget would already be gone.
 quiet_pass_through_successor() {  # <home>
-  local home=$1 pid i gen
+  local home=$1 pid deadline gen
   pid=$(cat "$home/state/.watch.lock/pid" 2>/dev/null || true)
   if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
     kill -TERM "$pid" 2>/dev/null || true
-    i=0
-    while [ "$i" -lt 50 ] && kill -0 "$pid" 2>/dev/null; do
+    deadline=$((SECONDS + 60))
+    while [ "$SECONDS" -lt "$deadline" ] && kill -0 "$pid" 2>/dev/null; do
       sleep 0.1
-      i=$((i + 1))
     done
     kill -0 "$pid" 2>/dev/null && fail "fixture: the pass-through successor did not stop"
   fi

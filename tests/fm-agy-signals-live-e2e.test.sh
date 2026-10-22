@@ -159,7 +159,8 @@ fi
   || fail "could not type the long agy prompt"
 "$REAL_TMUX" -L "$SOCKET" send-keys -t "$TARGET" Enter \
   || fail "could not submit the long agy prompt"
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   screen=$(capture)
   printf '%s' "$screen" | fm_busy_agy_tail_busy && break
   sleep 0.5
@@ -182,7 +183,8 @@ pass "a single Escape cancels the real agy turn"
 "$REAL_TMUX" -L "$SOCKET" send-keys -t "$TARGET" Enter \
   || fail "could not submit the agy exit command"
 gone=
-for _ in $(seq 1 60); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   current=$("$REAL_TMUX" -L "$SOCKET" display-message -p -t "$TARGET" '#{pane_current_command}' 2>/dev/null || true)
   case "$current" in *agy*) sleep 0.5 ;; *) gone=1; break ;; esac
 done

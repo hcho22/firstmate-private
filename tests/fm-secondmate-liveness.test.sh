@@ -455,7 +455,7 @@ test_sweep_serializes_distinct_secondmate_relaunches() {
 }
 
 test_sweep_skips_mate_whose_liveness_lock_is_held() {
-  local w fb tmuxfb log out holder i=0
+  local w fb tmuxfb log out holder deadline
   w=$(new_world sweep-lock-held)
   add_sm_home "$w" sm1 firstmate:fm-sm1
   fb=$(make_toolchain "$w"); tmuxfb=$(make_liveness_tmux "$w")
@@ -467,9 +467,9 @@ test_sweep_skips_mate_whose_liveness_lock_is_held() {
       '. "$1" && fm_lock_acquire_wait "$2" && sleep 30' \
       _ "$ROOT/bin/fm-wake-lib.sh" "$w/home/state/.secondmate-liveness-sm1.lock" ) &
   holder=$!
-  while [ ! -d "$w/home/state/.secondmate-liveness-sm1.lock" ] && [ "$i" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while [ ! -d "$w/home/state/.secondmate-liveness-sm1.lock" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -d "$w/home/state/.secondmate-liveness-sm1.lock" ] || fail "the fixture never acquired the liveness lock"
 
@@ -484,7 +484,7 @@ test_sweep_skips_mate_whose_liveness_lock_is_held() {
 }
 
 test_relaunch_waits_for_other_mates_relaunch_lock() {
-  local w fb tmuxfb log out holder i=0 lock
+  local w fb tmuxfb log out holder deadline lock
   w=$(new_world sweep-relaunch-lock-held)
   add_sm_home "$w" sm1 firstmate:fm-sm1
   fb=$(make_toolchain "$w"); tmuxfb=$(make_liveness_tmux "$w")
@@ -495,9 +495,9 @@ test_relaunch_waits_for_other_mates_relaunch_lock() {
       '. "$1" && fm_lock_try_acquire "$2" && trap '\''fm_lock_release "$2"'\'' EXIT && sleep 5' \
       _ "$ROOT/bin/fm-wake-lib.sh" "$lock" ) &
   holder=$!
-  while [ ! -e "$lock" ] && [ "$i" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while [ ! -e "$lock" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -e "$lock" ] || fail "the fixture never acquired the per-home relaunch lock"
 

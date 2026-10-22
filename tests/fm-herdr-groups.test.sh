@@ -323,7 +323,7 @@ test_sidebar_config_apply_backs_up_and_refuses_twice() {
 }
 
 test_agent_view_helper_sends_only_the_whitelisted_requests() {
-  local dir sock server out status
+  local dir sock server out status deadline
   command -v python3 >/dev/null 2>&1 || { pass "agent view helper: skipped, python3 not found"; return 0; }
   dir="$TMP_ROOT/view-helper"; mkdir -p "$dir"
   sock="$dir/s.sock"
@@ -344,7 +344,9 @@ conn.sendall((json.dumps({"id": "fm-agent-view", "result": result}) + "\n").enco
 conn.close()
 PY
     server=$!
-    for _ in 1 2 3 4 5 6 7 8 9 10; do [ -S "$sock" ] && break; sleep 0.2; done
+    deadline=$((SECONDS + 60))
+    while [ ! -S "$sock" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.2; done
+    [ -S "$sock" ] || { kill "$server" 2>/dev/null; fail "agent view fake server never opened its socket: $(cat "$dir/server.log")"; }
     out=$("$ROOT/bin/backends/herdr-agent-view.py" "$sock" "$action" 2>&1)
     status=$?
     wait "$server" || true

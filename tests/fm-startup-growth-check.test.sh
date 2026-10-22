@@ -490,7 +490,7 @@ test_failed_rearm_keeps_the_previously_armed_shim_and_trust() {
 }
 
 test_interrupted_evaluation_abandons_its_partial_record() {
-  local rec root home bin ready pid status=0 waited=0 first leftover result out
+  local rec root home bin ready pid status=0 deadline first leftover result out
   rec=$(make_world interrupted)
   root=${rec%%|*}
   home=${rec#*|}
@@ -515,9 +515,9 @@ STUB
   FM_ROOT_OVERRIDE="$root" FM_HOME="$home" FM_STARTUP_GROWTH_NOW=87401 \
     "$bin/fm-startup-growth-check.sh" check >/dev/null 2>&1 &
   pid=$!
+  deadline=$((SECONDS + 60))
   while [ ! -f "$ready" ]; do
-    [ "$waited" -lt 200 ] || fail "the check never reached its budget call"
-    waited=$((waited + 1))
+    [ "$SECONDS" -lt "$deadline" ] || fail "the check never reached its budget call"
     sleep 0.05
   done
   kill -TERM "$pid" || fail "could not signal the running check"

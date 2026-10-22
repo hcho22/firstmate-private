@@ -379,7 +379,7 @@ test_harness_at_namespace_pid1_is_examined() {
 # vantage a real session occupies, and this case pins that it reaches strictly
 # further than the top-of-session probe does.
 test_descent_probe_reaches_a_strength_the_top_of_session_cannot() {
-  local dir node native hold entry ready shim_pid got waited
+  local dir node native hold entry ready shim_pid got deadline
   dir="$TMP_ROOT/descent-vantage"
   node=$(named_bin "$dir" node)
   native=$(named_bin "$dir/vendor" codex)
@@ -406,10 +406,9 @@ SH
     "$node" "$entry" &
   shim_pid=$!
 
-  waited=0
-  while [ ! -e "$ready" ] && [ "$waited" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while [ ! -e "$ready" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
-    waited=$((waited + 1))
   done
   [ -e "$ready" ] || { rm -f "$ready"; kill "$shim_pid" 2>/dev/null; fail "the shim fixture never reached its native child"; }
 
@@ -451,7 +450,7 @@ EOF
 # detection itself can reach.
 test_descent_probe_ignores_a_sibling_branch_the_walk_cannot_reach() {
   local dir node native worker mcp_script block hold entry ready fifo
-  local shim_pid mcp_pid got waited
+  local shim_pid mcp_pid got deadline
   dir="$TMP_ROOT/descent-sibling"
   node=$(named_bin "$dir" node)
   native=$(named_bin "$dir/vendor" codex)
@@ -498,11 +497,10 @@ SH
     "$node" "$entry" &
   shim_pid=$!
 
-  waited=0
+  deadline=$((SECONDS + 60))
   while { [ ! -e "$ready" ] || [ ! -s "$dir/mcp.pid" ] || [ ! -s "$dir/worker.pid" ]; } \
-    && [ "$waited" -lt 200 ]; do
+    && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
-    waited=$((waited + 1))
   done
   release_sibling_fixture() {
     kill "$(cat "$dir/worker.pid" 2>/dev/null)" "$(cat "$dir/mcp.pid" 2>/dev/null)" \
@@ -551,7 +549,7 @@ EOF
 # args strength would have rejected.
 test_descent_probe_tolerates_an_args_only_foreign_verdict_at_the_deepest_vantage() {
   local dir node native mcp_script hold entry ready fifo
-  local shim_pid mcp_pid got waited saw_comm
+  local shim_pid mcp_pid got deadline saw_comm
   dir="$TMP_ROOT/descent-deep-mcp"
   node=$(named_bin "$dir" node)
   native=$(named_bin "$dir/vendor" codex)
@@ -589,10 +587,9 @@ SH
     "$node" "$entry" &
   shim_pid=$!
 
-  waited=0
-  while { [ ! -e "$ready" ] || [ ! -s "$dir/mcp.pid" ]; } && [ "$waited" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while { [ ! -e "$ready" ] || [ ! -s "$dir/mcp.pid" ]; } && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
-    waited=$((waited + 1))
   done
   release_deep_mcp_fixture() {
     kill "$(cat "$dir/mcp.pid" 2>/dev/null)" "$(cat "$dir/native.pid" 2>/dev/null)" \
@@ -640,7 +637,7 @@ EOF
 # the native leaf while the single-path shape remains intact.
 test_descent_probe_prefers_comm_strength_when_deepest_leaves_tie() {
   local order dir node native mcp_script block entry ready fifo
-  local shim_pid mcp_pid native_pid got waited
+  local shim_pid mcp_pid native_pid got deadline
   for order in mcp-first native-first; do
     dir="$TMP_ROOT/descent-equal-$order"
     node=$(named_bin "$dir" node)
@@ -680,11 +677,10 @@ SH
       FM_TEST_READY="$ready" FM_TEST_FIFO="$fifo" "$node" "$entry" &
     shim_pid=$!
 
-    waited=0
+    deadline=$((SECONDS + 60))
     while { [ ! -e "$ready" ] || [ ! -s "$dir/mcp.pid" ] || [ ! -s "$dir/native.pid" ]; } \
-      && [ "$waited" -lt 200 ]; do
+      && [ "$SECONDS" -lt "$deadline" ]; do
       sleep 0.05
-      waited=$((waited + 1))
     done
     mcp_pid=$(cat "$dir/mcp.pid" 2>/dev/null || true)
     native_pid=$(cat "$dir/native.pid" 2>/dev/null || true)

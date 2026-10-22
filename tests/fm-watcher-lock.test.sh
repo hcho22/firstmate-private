@@ -65,7 +65,8 @@ script = r'''
 . "$1"
 bash -c 'trap "" TERM; kill -STOP "$$"; exec sleep 300' &
 pid=$!
-for i in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   state=$(ps -p "$pid" -o stat=)
   case "$state" in *T*) break ;; esac
   sleep 0.01
@@ -192,7 +193,7 @@ test_live_stalled_watch_lock_is_replaced_past_hard_bound() {
   # a beacon stale past the hard bound evicts that holder (identity-verified
   # TERM) and the arm starts in its place - the deadlock where every re-arm
   # died against a live-but-stalled watcher while nothing polled the home.
-  local dir state fakebin out err status holder identity pid i lock_pid
+  local dir state fakebin out err status holder identity pid deadline lock_pid
   dir=$(make_case live-stalled-lock)
   state="$dir/state"
   fakebin="$dir/fakebin"
@@ -216,13 +217,12 @@ test_live_stalled_watch_lock_is_replaced_past_hard_bound() {
   # Same holder and beacon, a bound it is past -> evicted and replaced.
   PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$state" FM_GUARD_GRACE=1 FM_WATCHER_STALL_BOUND=3 FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" 2> "$err" &
   pid=$!
-  i=0
   lock_pid=
-  while [ "$i" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     lock_pid=$(cat "$state/.watch.lock/pid" 2>/dev/null || true)
     [ "$lock_pid" = "$pid" ] && break
     sleep 0.1
-    i=$((i + 1))
   done
   is_live_non_zombie "$pid" || fail "replacement watcher did not stay alive: $(cat "$err")"
   [ "$lock_pid" = "$pid" ] || fail "replacement watcher did not take the lock (holder=$lock_pid)"
@@ -230,11 +230,10 @@ test_live_stalled_watch_lock_is_replaced_past_hard_bound() {
   # The lock pid is written inside fm_lock_try_acquire; the replacement message
   # is echoed just after, so poll for the message rather than grep once and race
   # the acquire/echo gap.
-  i=0
-  while [ "$i" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -E "^watcher: replaced stalled pid $holder \(beacon [0-9]+s past hard bound 3s\)\$" "$out" >/dev/null && break
     sleep 0.1
-    i=$((i + 1))
   done
   grep -E "^watcher: replaced stalled pid $holder \(beacon [0-9]+s past hard bound 3s\)\$" "$out" >/dev/null \
     || fail "watcher did not report the replacement: $(cat "$out" "$err")"
@@ -374,7 +373,7 @@ test_lock_steals_dead_pid_lock() {
 # Start a process that claims each given link lock, then SIGKILL it so every
 # claim is left behind with a dead owner - an acquirer TERMed mid-steal.
 leave_dead_link_locks() {  # <state> <lock>...
-  local state=$1 holder i last
+  local state=$1 holder deadline last
   shift
   last=${!#}
   FM_STATE_OVERRIDE="$state" bash -c '
@@ -384,10 +383,9 @@ leave_dead_link_locks() {  # <state> <lock>...
     exec sleep 30
   ' _ "$LIB" "$@" >/dev/null 2>&1 &
   holder=$!
-  i=0
-  while [ "$i" -lt 50 ] && [ ! -s "$last/pid" ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$last/pid" ]; do
     sleep 0.02
-    i=$((i + 1))
   done
   [ -s "$last/pid" ] || fail "dead link-lock owner did not publish its pid"
   kill -KILL "$holder" 2>/dev/null || true
@@ -530,10 +528,9 @@ if [ "$last" = "$FM_TEST_RACE_PATH" ] && mkdir "$FM_TEST_RACE_ONCE" 2>/dev/null;
     fi
     printf "lost\n" > "$3"
   ' _ "$FM_TEST_LIB" "$last" "$FM_TEST_RACE_OUT" >/dev/null 2>&1 &
-  i=0
-  while [ "$i" -lt 100 ] && [ ! -s "$FM_TEST_RACE_OUT" ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$FM_TEST_RACE_OUT" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
 fi
 exec /bin/rm "$@"
@@ -973,7 +970,7 @@ test_attached_arm_signal_is_recorded_in_cycle_ledger() {
 }
 
 test_arm_term_during_steal_waits_for_watcher_cleanup_trap() {
-  local dir state fakebin armout armpid i dead pidfile status
+  local dir state fakebin armout armpid deadline dead pidfile status
   dir=$(make_case arm-term-mid-steal)
   state="$dir/state"
   fakebin="$dir/fakebin"
@@ -1002,11 +999,10 @@ SH
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH_ARM" > "$armout" 2>&1 &
   armpid=$!
   printf '%s\n' "$armpid" > "$pidfile"
-  i=0
-  while [ "$i" -lt 100 ] && is_live_non_zombie "$armpid"; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && is_live_non_zombie "$armpid"; do
     [ -e "$state/.watch.lock.steal" ] && break
     sleep 0.02
-    i=$((i + 1))
   done
   status=0
   wait_for_exit "$armpid" 150 || status=$?
@@ -1017,7 +1013,7 @@ SH
 }
 
 test_arm_term_bounds_wait_for_stalled_startup() {
-  local dir state fakebin armout pidfile release armpid i status
+  local dir state fakebin armout pidfile release armpid deadline status
   dir=$(make_case arm-term-stalled-startup)
   state="$dir/state"
   fakebin="$dir/fakebin"
@@ -1030,10 +1026,9 @@ last=
 for arg do last=$arg; done
 case "$last" in
   */.watch.lock)
-    i=0
-    while [ "$i" -lt 100 ] && [ ! -s "$FM_TEST_ARM_PID_FILE" ]; do
+    deadline=$((SECONDS + 60))
+    while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$FM_TEST_ARM_PID_FILE" ]; do
       sleep 0.02
-      i=$((i + 1))
     done
     kill -TERM "$(cat "$FM_TEST_ARM_PID_FILE")" 2>/dev/null || true
     while [ ! -e "$FM_TEST_RELEASE" ]; do sleep 0.05; done
@@ -1048,10 +1043,9 @@ SH
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH_ARM" > "$armout" 2>&1 &
   armpid=$!
   printf '%s\n' "$armpid" > "$pidfile"
-  i=0
-  while [ "$i" -lt 100 ] && is_live_non_zombie "$armpid"; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && is_live_non_zombie "$armpid"; do
     sleep 0.1
-    i=$((i + 1))
   done
   if is_live_non_zombie "$armpid"; then
     : > "$release"

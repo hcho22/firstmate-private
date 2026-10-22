@@ -90,27 +90,26 @@ classify_cursorless() {  # <styled-screen>
   printf '%s' "$verdict"
 }
 
-budget=${FM_COMPOSER_CODEX_IDLE_LIVE_POLLS:-45}
-i=0
+deadline=$((SECONDS + 60))
+dismiss_at=$((SECONDS + 20))
 tmux_verdict=''
 cursorless_verdict=''
 styled=''
 dismissed=0
-while [ "$i" -lt "$budget" ]; do
+while [ "$SECONDS" -lt "$deadline" ]; do
   tmux_verdict=$(fm_tmux_composer_state "$SESSION:$WIN")
   styled=$(tmux capture-pane -e -p -t "$SESSION:$WIN" 2>/dev/null | tail -n "$FM_COMPOSER_CAPTURE_LINES")
   cursorless_verdict=$(classify_cursorless "$styled")
   if [ "$tmux_verdict" = empty ] && [ "$cursorless_verdict" = empty ]; then
     break
   fi
-  i=$((i + 1))
   # A fresh codex may park on a vendor update-available modal (observed live
   # on codex 0.146.0), which the strict classifier correctly refuses to call a
-  # composer. Dismiss it once, mid-budget, with a single Escape - the one key
-  # that submits nothing. Never Enter: on codex's dialog Enter would RUN the
-  # upgrade. A trust prompt also accepts Escape, but there it exits codex and
+  # composer. Dismiss it once, a third of the way into the wait, with a single
+  # Escape - the one key that submits nothing. Never Enter: on codex's dialog
+  # Enter would RUN the upgrade. A trust prompt also accepts Escape, but there it exits codex and
   # erases the actionable failure surface, so it is left alone.
-  if [ "$dismissed" -eq 0 ] && [ "$i" -ge $((budget / 3)) ]; then
+  if [ "$dismissed" -eq 0 ] && [ "$SECONDS" -ge "$dismiss_at" ]; then
     if ! tmux capture-pane -p -t "$SESSION:$WIN" 2>/dev/null | grep -qi 'trust'; then
       tmux send-keys -t "$SESSION:$WIN" Escape 2>/dev/null || true
     fi

@@ -509,7 +509,7 @@ test_version_1_record_is_replaced_by_a_version_2_record() {
 # and change nothing, so no publication, replacement, or archive can land inside
 # the window between that read and the action it authorized.
 test_record_changes_refuse_while_a_reader_holds_the_lock() {
-  local home lock holder_pid i rc out before
+  local home lock holder_pid deadline rc out before
   home=$(make_home lock-contended)
   contract "$home" enter --words 'standing words' >/dev/null 2>&1 || fail "lock-contended: entry failed"
   before=$(cat "$home/state/.afk-contract")
@@ -523,10 +523,9 @@ test_record_changes_refuse_while_a_reader_holds_the_lock() {
     fm_lock_release "$2"
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$lock" "$home/holder.ready" "$home/release" &
   holder_pid=$!
-  i=0
-  while [ "$i" -lt 100 ] && [ ! -s "$home/holder.ready" ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$home/holder.ready" ]; do
     sleep 0.05
-    i=$((i + 1))
   done
   [ -s "$home/holder.ready" ] \
     || { kill "$holder_pid" 2>/dev/null || true; fail "lock-contended: the fixture never took the lock"; }

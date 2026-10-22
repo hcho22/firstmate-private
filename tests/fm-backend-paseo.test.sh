@@ -974,8 +974,8 @@ paseo_hold_workspace_lock() { # <home>
   local home=$1
   mkdir -p "$home/state"
   FM_HOME="$home" bash -c '. "$0/bin/fm-wake-lib.sh"; fm_lock_try_acquire "$FM_HOME/state/.paseo-workspace.lock" || exit 1; printf "%s" "$$" >"$FM_HOME/state/.holder-pid"; touch "$FM_HOME/state/.held"; sleep 30' "$ROOT" >/dev/null 2>&1 &
-  local i=0
-  while [ ! -e "$home/state/.held" ] && [ "$i" -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+  local deadline=$((SECONDS + 60))
+  while [ ! -e "$home/state/.held" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   [ -e "$home/state/.held" ] || fail "could not take the paseo workspace lock for the test"
   cat "$home/state/.holder-pid"
 }

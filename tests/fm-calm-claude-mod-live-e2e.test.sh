@@ -46,6 +46,7 @@ cleanup() {
   local i=0
   tmux -L "$SOCKET" kill-server 2>/dev/null || true
   # Claude's debug logger may still be flushing into the lab for a moment.
+  # fm-lint-waits: allow best-effort cleanup grace for Claude's debug logger; the lab is removed either way
   while [ "$i" -lt 20 ] && pgrep -f "debug-file '$LAB/" >/dev/null 2>&1; do
     sleep 0.25
     i=$((i + 1))
@@ -151,17 +152,19 @@ wait_idle() {  # wait for the composer prompt with no dialog over it
 }
 
 # Type a slash command prefix without submitting and report whether the typeahead
-# lists the mod's command; then clear the composer.
-command_listed() {  # <command>
-  local listed=0 i=0 shot
+# lists the mod's command within <window> seconds; then clear the composer. The
+# default 60 s only guards a hang while the listing is expected; a check that the
+# command is NOT listed passes its own short observation window.
+command_listed() {  # <command> [window-seconds]
+  local listed=0 deadline shot
   send "/$1"
-  while [ "$i" -lt 40 ]; do
+  deadline=$((SECONDS + ${2:-60}))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     shot=$(screen)
     case "$shot" in
       *"Toggle Firstmate's Calm"*) listed=1; break ;;
     esac
     sleep 0.1
-    i=$((i + 1))
   done
   tmux -L "$SOCKET" send-keys -t "$SESSION" C-u
   sleep 0.3
@@ -222,7 +225,8 @@ grep -q 'hooks modules not loaded' "$DEBUG_LOG_OFF" \
 if grep -Eq "$MODULE_LOADED" "$DEBUG_LOG_OFF"; then
   fail "Claude Code $CLAUDE_VERSION loaded the Calm hooks module although the flag was unset"
 fi
-if command_listed calm; then
+# A 4-second observation window: the typeahead lists a registered command at once.
+if command_listed calm 4; then
   fail "Claude Code $CLAUDE_VERSION lists /calm although the flag is unset"
 fi
 send "$PROMPT"
@@ -271,10 +275,9 @@ pass "Claude Code $CLAUDE_VERSION with the flag unset: no hooks module, no /calm
 # --- 2. Flag on: the boat, the hidden rows, the toggle, the persisted choice -------
 launch "$DEBUG_LOG_ON" 1
 wait_idle
-i=0
-while [ "$i" -lt 100 ] && ! grep -Eq "$MODULE_LOADED" "$DEBUG_LOG_ON"; do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ] && ! grep -Eq "$MODULE_LOADED" "$DEBUG_LOG_ON"; do
   sleep 0.1
-  i=$((i + 1))
 done
 grep -Eq "$MODULE_LOADED" "$DEBUG_LOG_ON" \
   || fail "Claude Code $CLAUDE_VERSION did not load the Calm hooks module from the project's .claude/skills path with the flag on"
@@ -297,15 +300,14 @@ case "$boat_one" in
 esac
 column_one=$(hull_column "$boat_one")
 column_two=$column_one
-i=0
-while [ "$i" -lt 120 ]; do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   boat_two=$(screen)
   column_two=$(hull_column "$boat_two")
   if [ -n "$column_two" ] && [ "$column_two" != "$column_one" ]; then
     break
   fi
   sleep 0.1
-  i=$((i + 1))
 done
 [ -n "$column_two" ] && [ "$column_two" != "$column_one" ] \
   || fail "the working ship never moved (hull stayed at column $column_one)"
@@ -336,6 +338,7 @@ enter
 # A long line typed in one burst can leave Claude Code's first Enter inside its paste
 # handling; like Firstmate's own submit primitive, retry Enter only, never retype.
 i=0
+# fm-lint-waits: allow bounded count of Enter retries, not an event wait; wait_screen below waits for the answer
 while [ "$i" -lt 4 ]; do
   sleep 2
   case "$(screen)" in
@@ -376,15 +379,14 @@ case "$restored" in
     fail "/calm off showed no Calm off notice"
     ;;
 esac
-i=0
-while [ "$i" -lt 60 ]; do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   restored=$(screen)
   case "$restored" in
     *'fm: Calm'*|*'Calm off'*) ;;
     *) break ;;
   esac
   sleep 0.25
-  i=$((i + 1))
 done
 case "$restored" in
   *'fm: Calm'*|*'Calm off'*)
@@ -396,15 +398,14 @@ esac
 # /calm on: rows hide again, the preference persists on.
 send '/calm'
 enter
-i=0
-while [ "$i" -lt 200 ]; do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   hidden_again=$(screen)
   case "$hidden_again" in
     *'Bash('*|*'shell command'*|*"$DOORBELL_TEXT"*) ;;
     *) break ;;
   esac
   sleep 0.1
-  i=$((i + 1))
 done
 case "$hidden_again" in
   *'Bash('*|*'shell command'*|*"$DOORBELL_TEXT"*)

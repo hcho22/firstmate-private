@@ -915,8 +915,8 @@ if [ "\${1:-}" = kill-window ] && [ ! -e '$CASE_DIR/holder.pid' ]; then
     '$ROOT/bin/fm-wake-lib.sh' '$HOME_DIR/state/.spawn-$id.lock' '$CASE_DIR/holder.ready' \\
     >/dev/null 2>&1 &
   printf '%s\n' "\$!" > '$CASE_DIR/holder.pid'
-  n=0
-  while [ ! -e '$CASE_DIR/holder.ready' ] && [ "\$n" -lt 100 ]; do /bin/sleep 0.05; n=\$((n + 1)); done
+  deadline=\$((SECONDS + 60))
+  while [ ! -e '$CASE_DIR/holder.ready' ] && [ "\$SECONDS" -lt "\$deadline" ]; do /bin/sleep 0.05; done
 fi
 exec '$FAKEBIN_DIR/tmux.world' "\$@"
 SH

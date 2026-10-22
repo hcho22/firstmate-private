@@ -689,10 +689,9 @@ PY
   : > "$dir/port"
   PTFAKE_STUB_PORT_FILE="$dir/port" python3 "$dir/stub.py" &
   local pid=$!
-  local i=0
-  while [ ! -s "$dir/port" ] && [ "$i" -lt 50 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ ! -s "$dir/port" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    i=$((i + 1))
   done
   [ -s "$dir/port" ] || fail "the REST stub never reported its port"
   printf '%s %s\n' "$(cat "$dir/port")" "$pid"

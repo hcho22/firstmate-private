@@ -88,8 +88,8 @@ case "$1 $2" in
       case "$*" in
         */launch.*)
           touch "$DIR/text-delivered"
-          i=0
-          while [ ! -e "$DIR/release" ] && [ "$i" -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
+          deadline=$((SECONDS + 60))
+          while [ ! -e "$DIR/release" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
           ;;
       esac
     fi
@@ -571,7 +571,7 @@ EOF
 # source text has been delivered but Enter has not. The copy taken before the
 # signal stands in for a pane that opened the file just before the reclaim.
 test_orca_interrupted_spawn_reclaims_launch_file() {
-  local phase sig id case_dir home fb pid status staged i want delivered result
+  local phase sig id case_dir home fb pid status staged deadline want delivered result
   for phase in consume enter; do
     for sig in TERM HUP INT; do
       id="orca-env-interrupt-$phase-$sig"
@@ -606,7 +606,8 @@ EOF
         "$SPAWN" "$id" "$case_dir/project" --mode direct-PR --yolo off --backend orca \
         --harness "touch '$case_dir/worker-ran'" > "$case_dir/spawn.log" 2>&1 &
       pid=$!
-      for ((i = 0; i < 300; i++)); do
+      deadline=$((SECONDS + 60))
+      while [ "$SECONDS" -lt "$deadline" ]; do
         if [ "$phase" = enter ]; then
           [ ! -e "$case_dir/text-delivered" ] || break
         elif [ -f "$case_dir/terminal.log" ] &&
@@ -657,7 +658,7 @@ EOF
 # an interrupt before the launch command is sent must still remove it. A fake
 # sleep holds the spawn in the pause right after publishing.
 test_orca_interrupted_spawn_before_send_removes_launch_file() {
-  local sig id case_dir home fb pid status staged i want
+  local sig id case_dir home fb pid status staged deadline want
   for sig in TERM HUP INT; do
     id="orca-env-interrupt-publish-$sig"
     case_dir="$TMP_ROOT/$id"
@@ -684,8 +685,8 @@ if [ "\$1" = 0.3 ] && [ ! -e '$case_dir/published' ]; then
   for f in /tmp/fm-$id+*/launch.*.sh; do
     [ -f "\$f" ] || continue
     printf '%s\n' "\$f" > '$case_dir/published'
-    i=0
-    while [ ! -e '$case_dir/release' ] && [ "\$i" -lt 100 ]; do /bin/sleep 0.1; i=\$((i + 1)); done
+    deadline=\$((\$(date +%s) + 60))
+    while [ ! -e '$case_dir/release' ] && [ "\$(date +%s)" -lt "\$deadline" ]; do /bin/sleep 0.1; done
   done
 fi
 exec /bin/sleep "\$@"
@@ -700,7 +701,8 @@ SH
       "$SPAWN" "$id" "$case_dir/project" --mode direct-PR --yolo off --backend orca \
       --harness "touch '$case_dir/worker-ran'" > "$case_dir/spawn.log" 2>&1 &
     pid=$!
-    for ((i = 0; i < 300; i++)); do
+    deadline=$((SECONDS + 60))
+    while [ "$SECONDS" -lt "$deadline" ]; do
       [ ! -s "$case_dir/published" ] || break
       kill -0 "$pid" 2>/dev/null || break
       /bin/sleep 0.1

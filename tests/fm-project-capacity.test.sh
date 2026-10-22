@@ -84,10 +84,9 @@ case "$*" in
     # while it still holds the project lock, until the test releases it.
     if [ -n "${FM_FAKE_HOLD:-}" ]; then
       : > "$FM_FAKE_HOLD.reached"
-      i=0
+      deadline=$((SECONDS + 60))
       while [ ! -f "$FM_FAKE_HOLD.release" ]; do
-        i=$((i + 1))
-        [ "$i" -lt 400 ] || exit 1
+        [ "$SECONDS" -lt "$deadline" ] || exit 1
         sleep 0.05
       done
     fi
@@ -494,17 +493,16 @@ test_unreadable_holders_refuse_admission() {
 # Two spawns racing for the last place: the one holding the project lock
 # publishes, the other cannot publish while it waits and is deferred afterwards.
 test_concurrent_spawns_cannot_both_take_the_last_place() {
-  local case_dir home out rc=0 hold i wt
+  local case_dir home out rc=0 hold deadline wt
   case_dir=$(make_case concurrent task-a task-b)
   home="$case_dir/home"
   declare_capacity "$home" "project 1"
   hold="$case_dir/hold"
   wt=$(new_worktree "$case_dir" task-a)
   FM_FAKE_HOLD="$hold" spawn_ship "$case_dir" task-a "$wt" > "$case_dir/a.out" 2>&1 &
-  i=0
+  deadline=$((SECONDS + 60))
   while [ ! -f "$hold.reached" ]; do
-    i=$((i + 1))
-    [ "$i" -lt 400 ] || fail "the first spawn never reached its launch: $(cat "$case_dir/a.out")"
+    [ "$SECONDS" -lt "$deadline" ] || fail "the first spawn never reached its launch: $(cat "$case_dir/a.out")"
     sleep 0.05
   done
   out=$(spawn_ship "$case_dir" task-b "$case_dir/unused") || rc=$?
@@ -587,7 +585,7 @@ test_batch_reports_a_deferred_pair() {
 # place: it refuses while another holder has it, and defers at capacity before
 # asking Orca for anything but its runtime status.
 test_orca_spawn_is_admitted_under_the_shared_project_lock() {
-  local case_dir home out out2 rc=0 rc2 holder i
+  local case_dir home out out2 rc=0 rc2 holder deadline
   command -v node >/dev/null 2>&1 || {
     printf 'ok - skipped the Orca capacity case (node, which the Orca status check needs, is not installed)\n'
     return 0
@@ -617,10 +615,9 @@ SH
     fm_lock_release "$lock"
   ' _ "$ROOT" "$case_dir/project" "$case_dir/holder" &
   holder=$!
-  i=0
+  deadline=$((SECONDS + 60))
   while [ ! -f "$case_dir/holder.held" ]; do
-    i=$((i + 1))
-    [ "$i" -lt 200 ] || fail "the lock holder never took the project lock"
+    [ "$SECONDS" -lt "$deadline" ] || fail "the lock holder never took the project lock"
     sleep 0.05
   done
   out=$(run_spawn "$case_dir" "$home" "$case_dir/unused" task-o "$case_dir/project" \

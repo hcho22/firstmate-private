@@ -158,7 +158,7 @@ test_control_lock_contention_refuses_before_mutation() {
 }
 
 test_non_pool_teardown_ignores_task_set_lock() {
-  local dir id=non-pool-task lock ready holder i=0
+  local dir id=non-pool-task lock ready holder deadline
   dir=$(make_case non-pool-task-set-lock)
   fm_write_meta "$dir/home/state/$id.meta" \
     "window=isolated:fm-$id" "endpoint_task_id=$id" \
@@ -174,9 +174,9 @@ test_non_pool_teardown_ignores_task_set_lock() {
     sleep 30
   ) &
   holder=$!
-  while [ ! -e "$ready" ] && [ "$i" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while [ ! -e "$ready" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    i=$((i + 1))
   done
   [ -e "$ready" ] || {
     kill "$holder" 2>/dev/null || true
@@ -832,7 +832,7 @@ test_remote_seeded_home_still_refuses_a_slot_its_child_holds() {
 }
 
 test_remote_layout_homes_serialize_on_one_project_lock() {
-  local dir id=remote-serialize child_home child_project lock holder rc waited=0
+  local dir id=remote-serialize child_home child_project lock holder rc deadline
   dir=$(make_case remote-lock-exclusion)
   mark_case_as_treehouse_pool "$dir"
   write_remote_parent_record "$dir/home"
@@ -856,10 +856,10 @@ test_remote_layout_homes_serialize_on_one_project_lock() {
     '. "$1"; fm_lock_try_acquire "$2" || exit 1; : > "$3"; exec sleep 30' _ \
     "$ROOT/bin/fm-wake-lib.sh" "$lock" "$dir/lock-held" &
   holder=$!
-  while [ ! -e "$dir/lock-held" ] && [ "$waited" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while [ ! -e "$dir/lock-held" ] && [ "$SECONDS" -lt "$deadline" ]; do
     kill -0 "$holder" 2>/dev/null || break
     sleep 0.1
-    waited=$((waited + 1))
   done
   [ -e "$dir/lock-held" ] || fail "the local child never took the shared project lock"
 

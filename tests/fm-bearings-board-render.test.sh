@@ -67,9 +67,9 @@ SH
 # Lavish session. Wait until the stub poll is entered or the source is no longer
 # live, and require both: a claim that dies in the gap is the flake.
 require_listener_reached_poll() {  # <home>
-  local home=$1 i=0 owner=''
-  while [ "$i" -lt 40 ]; do
-    i=$((i + 1))
+  local home=$1 deadline owner=''
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     owner=$(PATH="$home/fakebin:$PATH" FM_HOME="$home" \
       FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
       FM_PROCEVENT_CLAIM_ROOT="$home/procevent-claims" \

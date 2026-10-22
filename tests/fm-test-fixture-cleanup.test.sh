@@ -167,7 +167,7 @@ test_registries_avoid_git_worktree_root() {
   # registries beside tracked files. A concurrent git add during a suite then
   # committed them (observed on the claim-walk CI fix round). The helper must
   # keep registries and fixture roots outside that root for the whole run.
-  local harness repo dirfile child_dir pid tries entry
+  local harness repo dirfile child_dir pid deadline entry
   harness=$(fm_test_tmproot fm-test-cleanup-gitroot-harness)
   repo="$harness/repo"
   dirfile="$harness/child-dir"
@@ -183,11 +183,10 @@ test_registries_avoid_git_worktree_root() {
     while :; do sleep 0.1; done
   ' _ "$repo" "$LIB" "$dirfile" &
   pid=$!
-  tries=0
-  while [ "$tries" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -s "$dirfile" ] && break
     sleep 0.05
-    tries=$((tries + 1))
   done
   [ -s "$dirfile" ] || fail "the git-root TMPDIR child never published its fixture root"
   child_dir=$(cat "$dirfile")

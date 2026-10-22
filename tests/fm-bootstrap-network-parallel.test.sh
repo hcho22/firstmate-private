@@ -705,7 +705,7 @@ test_parallel_unknown_completion_overrides_known_failure() {
 # runs in its own timed process group, so the stage dies while that call is
 # still in flight and may yet change the home.
 test_kill_during_remote_call_keeps_the_reread_owed() {
-  local script pid marker waited started pg own_pg
+  local script pid marker deadline started pg own_pg
   for script in fm-bootstrap.sh fm-config-push.sh; do
     convergence_fixture "$TMP_ROOT/kill-$script" sm:host-sm
     marker="$CF_HOME/state/.secondmate-nudge-pending/sm.pending"
@@ -731,10 +731,9 @@ SH
       "$ROOT/bin/$script" >/dev/null 2>&1 &
     pid=$!
     set +m
-    waited=0
-    while ! grep -q "$started" "$CF_LOG" && [ "$waited" -lt 200 ]; do
+    deadline=$((SECONDS + 60))
+    while ! grep -q "$started" "$CF_LOG" && [ "$SECONDS" -lt "$deadline" ]; do
       sleep 0.05
-      waited=$((waited + 1))
     done
     grep -q "$started" "$CF_LOG" \
       || fail "$script never started a remote mutation"$'\n'"$(cat "$CF_LOG")"

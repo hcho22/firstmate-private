@@ -1429,7 +1429,7 @@ test_tick_skips_terminal_and_reuses_target_observation() {
 # live foreign process holds, and it still does the work the selected records need.
 test_tick_leaves_settled_records_alone() {
   local home state settled closed open_esc awaiting rec i copy holder tick_pid ticked=0 open lib
-  local sums_before sums_after holder_lock_pid
+  local sums_before sums_after holder_lock_pid deadline
   home=$(setup_parent settled-store)
   state="$home/state"
   # Reset the fixture clock after isolated subshell tests.
@@ -1485,7 +1485,8 @@ test_tick_leaves_settled_records_alone() {
   # The background PID is captured immediately in this shell.
   # shellcheck disable=SC2031
   holder=$!
-  for _ in $(seq 1 100); do [ -e "$home/held" ] && break; sleep 0.1; done
+  deadline=$((SECONDS + 60))
+  while [ ! -e "$home/held" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   [ -e "$home/held" ] || { kill "$holder" 2>/dev/null; fail "foreign holder never took the lock"; }
 
   fm_pending_reply_tick "$state" &

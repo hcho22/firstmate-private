@@ -253,8 +253,8 @@ test_lab_home_private_tmux_socket_survives_deep_paths() {
     /bin/sh -c 'printf started > "$1"; exec sleep 60' sh "$ready" \
     || fail "tmux could not start the fake primary through the lab socket"
   [ -S "$socket_path" ] || fail "tmux did not create its socket in the private short directory"
-  local attempts=0
-  while [ ! -f "$ready" ] && [ "$attempts" -lt 20 ]; do sleep 0.05; attempts=$((attempts + 1)); done
+  local deadline=$((SECONDS + 60))
+  while [ ! -f "$ready" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.05; done
   [ -f "$ready" ] || fail "fake primary did not start"
   env TMUX_TMPDIR="$socket_dir" "$real_tmux" -L fm-lab has-session -t primary \
     || fail "primary session is not reachable through the lab's TMUX_TMPDIR"

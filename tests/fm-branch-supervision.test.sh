@@ -972,8 +972,8 @@ test_unmarked_guard_with_a_lease_file_holds_exclusivity_through_mutation() {
       fm_lease_guard task-race "probe"
       trap "fm_lease_guard_release" EXIT
       : > "$FM_TEST_READY"
-      i=0
-      while [ ! -e "$FM_TEST_RELEASE" ] && [ "$i" -lt 1500 ]; do sleep 0.01; i=$((i + 1)); done
+      deadline=$((SECONDS + 60))
+      while [ ! -e "$FM_TEST_RELEASE" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.01; done
     ' _ "$ROOT/bin/fm-lease-lib.sh" >/dev/null 2>&1 &
   operation_pid=$!
   while [ ! -e "$home/operation-ready" ]; do sleep 0.01; done
@@ -1040,8 +1040,8 @@ test_host_home_unmarked_guard_excludes_the_first_claim() {
       fm_lease_guard task-first "probe"
       trap "fm_lease_guard_release" EXIT
       : > "$FM_TEST_READY"
-      i=0
-      while [ ! -e "$FM_TEST_RELEASE" ] && [ "$i" -lt 1500 ]; do sleep 0.01; i=$((i + 1)); done
+      deadline=$((SECONDS + 60))
+      while [ ! -e "$FM_TEST_RELEASE" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.01; done
     ' _ "$ROOT/bin/fm-lease-lib.sh" >/dev/null 2>&1 &
   operation_pid=$!
   while [ ! -e "$home/operation-ready" ]; do sleep 0.01; done
@@ -1557,7 +1557,7 @@ test_quiet_record_never_caps_a_present_captains_spawn() {
 }
 
 test_away_spend_cap_is_rechecked_under_the_task_set_lock() {
-  local home root out i
+  local home root out deadline
   home="$TMP_ROOT/away-cap-lock-home"
   root="$TMP_ROOT/away-cap-lock-root"
   mkdir -p "$home/state" "$home/data" "$home/config" "$root/bin"
@@ -1579,10 +1579,9 @@ if [ "\${1:-}" = field ]; then
   printf '%s\n' "\$n" > "\$COUNT"
   if [ "\$n" -eq 1 ]; then
     : > "$home/early-cap-passed"
-    i=0
+    deadline=\$((SECONDS + 60))
     while [ ! -f "$home/competitor-published" ]; do
-      i=\$((i + 1))
-      [ "\$i" -lt 200 ] || exit 1
+      [ "\$SECONDS" -lt "\$deadline" ] || exit 1
       sleep 0.05
     done
   fi
@@ -1595,10 +1594,9 @@ WRAPPER
   FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
     "$root/bin/fm-spawn.sh" task-q1 --mode no-mistakes --yolo off \
     > "$home/q1.out" 2>&1 &
-  i=0
+  deadline=$((SECONDS + 60))
   while [ ! -f "$home/early-cap-passed" ]; do
-    i=$((i + 1))
-    [ "$i" -lt 200 ] || fail "spawn never reached the early spend-cap check: $(cat "$home/q1.out" 2>/dev/null || true)"
+    [ "$SECONDS" -lt "$deadline" ] || fail "spawn never reached the early spend-cap check: $(cat "$home/q1.out" 2>/dev/null || true)"
     sleep 0.05
   done
   fm_write_meta "$home/state/task-live.meta" "window=fm-task-live" "kind=ship"

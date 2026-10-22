@@ -465,8 +465,8 @@ SH
 start_group bash "$TMP_ROOT/late-rewriter.sh" "$HOME/.claude.json" "$LATE/home" "$TMP_ROOT/late-child"
 LATE_ROOT=$!
 printf '%s\n' "$LATE_ROOT" >> "$TMP_ROOT/pids"
-for ((attempt=0; attempt<50; attempt++)); do
-  [ -s "$TMP_ROOT/late-child.ready" ] && break
+deadline=$((SECONDS + 60))
+while [ ! -s "$TMP_ROOT/late-child.ready" ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.1
 done
 assert_present "$TMP_ROOT/late-child.ready" "TERM fixture installed its handler before down"
@@ -640,7 +640,8 @@ cat > "$WORKSRC/bin/fm-spawn.sh" <<'SH'
 id=$1
 tmux new-window -d -t firstmate: -n "fm-$id" -c "$FM_HOME" 'exec sleep 45 >/dev/null 2>&1' || exit 1
 # A missing =name can silently resolve to the current window: verify the name.
-for (( n=0; n<30; n++ )); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   if tmux list-windows -t firstmate -F '#{window_name}' | grep -Fxq "fm-$id"; then
     pid=$(tmux display-message -p -t "firstmate:=fm-$id" '#{pane_pid}')
     [ -z "$pid" ] || break

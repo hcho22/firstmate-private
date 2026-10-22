@@ -116,7 +116,7 @@ spawn_mate() {  # <case> <id> <harness> <sleeper-dir> <shim-dir>
 real_harness_stays_up() {  # <harness> <version> <case> <id> <bin>
   local harness=$1 version=$2 case_dir=$3 id=$4 bin=$5
   local sm="$case_dir/sm" state="$case_dir/primary/state" target="firstmate:live-$harness"
-  local pane_dead="" i=0 tail
+  local pane_dead="" deadline tail
   case "$harness" in
     pi|pi-signed)
       "$REAL_TMUX" -L "$SOCKET" new-window -d -t firstmate: -n "live-$harness" -c "$sm" -- \
@@ -146,11 +146,11 @@ real_harness_stays_up() {  # <harness> <version> <case> <id> <bin>
       fail "$harness: no token-free real launch is defined"
       ;;
   esac
-  while [ "$i" -lt 40 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     pane_dead=$("$REAL_TMUX" -L "$SOCKET" display-message -p -t "$target" '#{pane_dead}' 2>/dev/null || true)
     [ "$pane_dead" = 0 ] && break
     sleep 0.5
-    i=$((i + 1))
   done
   # A process that exits in the first seconds must not pass on the race
   # between new-window and the crash.

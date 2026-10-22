@@ -89,11 +89,12 @@ reply_owner() {
 }
 
 stop_reply_listener() {
-  local pid _
+  local pid deadline
   pid=$(sed -n '2p' "$CLAIMS/$SID.claim" 2>/dev/null || true)
   case "$pid" in ''|*[!0-9]*) return 0 ;; esac
   kill -TERM -- -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-  for _ in $(seq 1 80); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     kill -0 "$pid" 2>/dev/null || return 0
     sleep 0.05
   done
@@ -103,11 +104,12 @@ stop_reply_listener() {
 # Block until this generation's capture has been applied. A live listener keeps
 # its claim across polls, so start is only launched when nothing owns the source.
 await_reply_result() { # <result-path>
-  local result=$1 handled=${1%.result}.handled _
+  local result=$1 handled=${1%.result}.handled deadline
   if [ "$(reply_owner)" != live ]; then
     remote_env "$ROOT/bin/fm-procevent.sh" start "$SID" >/dev/null 2>&1 &
   fi
-  for _ in $(seq 1 800); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -s "$result" ] && [ -f "$handled" ] && return 0
     sleep 0.05
   done
@@ -162,7 +164,8 @@ wait_for "$CLAIMS/$SID.claim" || fail "process-event runner never claimed the re
 printf 'done [corr=0123456789abcdef] [at=1700000000]: build verified report=data/reply/report.md\n' \
   >> "$REMOTE/state/parent-replies.status"
 RESULT=
-for _ in $(seq 1 800); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   RESULT=$(find "$PARENT/state/procevent-inbox" -name "$SID.1.result" -print -quit 2>/dev/null || true)
   [ -n "$RESULT" ] && [ -f "${RESULT%.result}.handled" ] && break
   sleep 0.05
@@ -798,7 +801,8 @@ FM_REMOTE_REPLY_POLL_LOG="$TMP_ROOT/reply-polls" \
 wait_for "$CLAIMS/$SID.claim" || fail "continuous reply listener never claimed the source"
 HELD_PID=$(sed -n '2p' "$CLAIMS/$SID.claim")
 polls=0
-for _ in $(seq 1 120); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   polls=$(wc -l < "$TMP_ROOT/reply-polls" | tr -d ' ')
   [ "$polls" -ge 2 ] && break
   sleep 0.25
@@ -809,7 +813,8 @@ done
   || fail "an empty wait replaced the reply listener"
 printf 'working [corr=abcdefabcdefabcd]: held across an empty wait\n' \
   >> "$REMOTE/state/parent-replies.status"
-for _ in $(seq 1 80); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   grep -q 'held across an empty wait' "$PARENT/state/ios.status" && break
   sleep 0.1
 done
@@ -819,7 +824,8 @@ GEN=$((GEN + 1))
 [ "$(sed -n '2p' "$CLAIMS/$SID.claim")" = "$HELD_PID" ] \
   || fail "a delta replaced the reply listener"
 polls_after_delta=$(wc -l < "$TMP_ROOT/reply-polls" | tr -d ' ')
-for _ in $(seq 1 120); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   polls=$(wc -l < "$TMP_ROOT/reply-polls" | tr -d ' ')
   [ "$polls" -gt "$polls_after_delta" ] && break
   sleep 0.25
@@ -911,7 +917,8 @@ PREEMPTED_RUNNER=$!
 wait_for "$CLAIMS/$SID.claim" || fail "the preempted-listener case never claimed the source"
 HELD_PID=$(sed -n '2p' "$CLAIMS/$SID.claim")
 running_poll=''
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   for job in "$TMP_ROOT"/remote-jobs/jobs/job-*; do
     [ -d "$job" ] || continue
     if [ "$(fm_remote_job_read_state "$job" 2>/dev/null || true)" = running ]; then
@@ -924,7 +931,8 @@ done
 [ -n "$running_poll" ] || fail "the listener's poll did not begin running before preemption"
 remote_env "$ROOT/bin/fm-on.sh" ios fm-remote-file.sh get data/reply/report.md 262144 >/dev/null
 polls=0
-for _ in $(seq 1 120); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   polls=$(wc -l < "$TMP_ROOT/preempted-polls" | tr -d ' ')
   [ "$polls" -ge 2 ] && break
   sleep 0.25

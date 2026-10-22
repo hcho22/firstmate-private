@@ -243,6 +243,7 @@ watcher_cycle() {
   # startup alone, and every second here is a second of the horizon the silence
   # probes must fit inside.
   local beat="$STATE/.last-watcher-beat" i=0
+  # fm-lint-waits: allow deliberately tight first-poll bound; every second spends the cap horizon the silence probes must fit inside
   while [ "$i" -lt 200 ]; do
     kill -0 "$pid" 2>/dev/null || break
     [ -s "$beat" ] && break

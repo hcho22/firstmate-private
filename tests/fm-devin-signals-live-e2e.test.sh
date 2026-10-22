@@ -126,6 +126,7 @@ sleep 1.5
 # The hazard is real on this version: a raw fast pair opens the picker. Exit
 # must refuse to type into it and interrupt must close it with no revert.
 picker=0
+# fm-lint-waits: allow bounded retries of a fast Escape-pair probe that sends keys each attempt, not an event wait
 for _ in 1 2 3; do
   tmux send-keys -t "$TARGET" Escape
   tmux send-keys -t "$TARGET" Escape
@@ -156,7 +157,8 @@ done
 "$ROOT/bin/fm-control.sh" "$ID" interrupt > "$LAB/interrupt.log" 2>&1 || fail "interrupt failed: $(cat "$LAB/interrupt.log")"
 grep -q 'cancel=unconfirmed' "$LAB/interrupt.log" || fail "busy interrupt was not armed: $(cat "$LAB/interrupt.log")"
 [ "$(fm_busy_classify tmux "$TARGET" devin "$ID" "$H/state")" = 'unknown fm-interrupt' ] || fail 'interrupt did not conservatively invalidate state'
-for _ in $(seq 1 60); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   capture | grep -q 'Canceled. What should Devin do?' && break
   sleep 0.5
 done

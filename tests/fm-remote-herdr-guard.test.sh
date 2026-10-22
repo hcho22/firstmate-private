@@ -125,8 +125,8 @@ hold_under() {
     exec -a "$argv0" bash -c 'env -i FM_HOLDER=1 "$FM_HOLDER_JQ" . "$FM_HOLDER_FIFO" & printf "%s\n" "$!" > "$FM_HOLDER_PIDFILE"; wait' "$@" ) &
   HOLDER_PIDS+=("$!")
   HOLDER_FD=$((HOLDER_FD + 1))
-  local i=0
-  while [ ! -s "$pidfile" ] && [ "$i" -lt 100 ]; do sleep 0.05; i=$((i + 1)); done
+  local deadline=$((SECONDS + 60))
+  while [ ! -s "$pidfile" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.05; done
   [ -s "$pidfile" ] || fail "holder under $argv0 did not report its pid"
   HOLDER_PID=$(cat "$pidfile")
   HOLDER_PIDS+=("$HOLDER_PID")

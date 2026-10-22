@@ -128,7 +128,7 @@ git -C "$REMOTE_ROOT" commit -qm 'remote job fixture'
 # top-level command lane, and the dispatcher. Re-source the public library as
 # callers may do; its own dispatcher default must not become a legacy override.
 poll_cadence_case() (
-  local label=$1 legacy=$2 active=$3 expected=$4 dispatch=$5 poll_dir pid='' i
+  local label=$1 legacy=$2 active=$3 expected=$4 dispatch=$5 poll_dir pid='' deadline
   poll_dir="$TMP_ROOT/poll-$label"
   mkdir -p "$poll_dir/bin"
   cat > "$poll_dir/bin/sleep" <<'SH'
@@ -188,7 +188,8 @@ SH
   : > "$FM_POLL_SLEEP_LOG"
   HOME="$ACCOUNT_HOME" "$BASH" "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" > "$poll_dir/worker.log" 2>&1 &
   pid=$!
-  for ((i = 0; i < 200; i++)); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -qx 1 "$FM_POLL_SLEEP_LOG" && break
     /bin/sleep 0.05
   done
@@ -953,14 +954,16 @@ HOME="$LOST_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$LOS
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" --serve \
   > "$TMP_ROOT/lost-term.out" 2> "$TMP_ROOT/lost-term.err" &
 LOST_TERM_PID=$!
-for _ in $(seq 1 300); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ -f "$LOST_STATE/worker.ready" ] && break
   sleep 0.05
 done
 assert_present "$LOST_STATE/worker.ready" "the ownership-loss worker did not become ready"
 assert_present "$LOST_STATE/worker.lock" "the ownership-loss worker did not publish its lock"
 kill -STOP "$LOST_TERM_PID"
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ "$(ps -o state= -p "$LOST_TERM_PID" 2>/dev/null | cut -c1)" = T ] && break
   sleep 0.05
 done
@@ -971,7 +974,8 @@ kill -CONT "$LOST_TERM_PID"
 # The independent heartbeat may already have verified ownership before the
 # lock was removed. Let that in-flight refresh expire through the public
 # probe's 10-second freshness window instead of racing it with a backdated file.
-for _ in $(seq 1 80); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   ( FM_REMOTE_JOB_STATE_ROOT="$LOST_STATE"; fm_remote_job_probe "$LOST_HOME" ) || break
   sleep 0.25
 done
@@ -979,7 +983,8 @@ done
   || fail "a worker without its ownership lock kept readiness fresh"
 assert_absent "$LOST_STATE/worker.lock" "the ownership lock reappeared before TERM"
 kill -TERM "$LOST_TERM_PID"
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$LOST_TERM_PID" 2>/dev/null || break
   sleep 0.05
 done
@@ -1005,7 +1010,8 @@ HOME="$LOST_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$LOS
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" --serve \
   > "$TMP_ROOT/lost-cleanup.out" 2> "$TMP_ROOT/lost-cleanup.err" &
 LOST_TERM_PID=$!
-for _ in $(seq 1 300); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ -f "$LOST_STATE/worker.ready" ] && break
   sleep 0.05
 done
@@ -1013,20 +1019,25 @@ assert_present "$LOST_STATE/worker.ready" "the cleanup worker did not become rea
 FM_REMOTE_JOB_STATE_ROOT="$LOST_STATE" FM_REMOTE_JOB_TIMEOUT=20 \
   fm_remote_job_stage "$LOST_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
   fm-hold-job.sh "$HOLD_STARTED" "$HOLD_SIDE_EFFECT" < /dev/null > /dev/null
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ -f "$HOLD_STARTED" ] && break
   sleep 0.05
 done
 assert_present "$HOLD_STARTED" "the held command did not start before ownership loss"
 kill -STOP "$LOST_TERM_PID"
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ "$(ps -o state= -p "$LOST_TERM_PID" 2>/dev/null | cut -c1)" = T ] && break
   sleep 0.05
 done
+[ "$(ps -o state= -p "$LOST_TERM_PID" 2>/dev/null | cut -c1)" = T ] \
+  || fail "the cleanup worker did not stop"
 rm -rf -- "$LOST_STATE/worker.lock"
 kill -TERM "$LOST_TERM_PID"
 kill -CONT "$LOST_TERM_PID"
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$LOST_TERM_PID" 2>/dev/null || break
   sleep 0.05
 done
@@ -1049,22 +1060,27 @@ HOME="$OWNER_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$OW
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" --serve \
   > "$TMP_ROOT/replacement-lost.out" 2> "$TMP_ROOT/replacement-lost.err" &
 LOST_TERM_PID=$!
-for _ in $(seq 1 300); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ -f "$OWNER_STATE/worker.ready" ] && break
   sleep 0.05
 done
 assert_present "$OWNER_STATE/worker.ready" "the worker that will lose ownership did not become ready"
 kill -STOP "$LOST_TERM_PID"
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ "$(ps -o state= -p "$LOST_TERM_PID" 2>/dev/null | cut -c1)" = T ] && break
   sleep 0.05
 done
+[ "$(ps -o state= -p "$LOST_TERM_PID" 2>/dev/null | cut -c1)" = T ] \
+  || fail "the worker that will lose ownership did not stop"
 rm -rf -- "$OWNER_STATE/worker.lock"
 HOME="$OWNER_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$OWNER_STATE" \
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" --serve \
   > "$TMP_ROOT/replacement-owner.out" 2> "$TMP_ROOT/replacement-owner.err" &
 REPLACEMENT_OWNER_PID=$!
-for _ in $(seq 1 300); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ -f "$OWNER_STATE/worker.lock/pid" ] && [ "$(cat "$OWNER_STATE/worker.lock/pid")" = "$REPLACEMENT_OWNER_PID" ] && break
   sleep 0.05
 done
@@ -1073,7 +1089,8 @@ done
 FM_REMOTE_JOB_STATE_ROOT="$OWNER_STATE" FM_REMOTE_JOB_TIMEOUT=20 \
   fm_remote_job_stage "$OWNER_HOME" "$REMOTE_ROOT" "$REMOTE_HOME" \
   fm-hold-job.sh "$OWNER_STARTED" "$OWNER_SIDE_EFFECT" < /dev/null > /dev/null
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ -f "$OWNER_STARTED" ] && break
   sleep 0.05
 done
@@ -1087,7 +1104,8 @@ while [ "$LATE_BURST" -lt 10 ]; do
   LATE_BURST=$((LATE_BURST + 1))
 done
 kill -CONT "$LOST_TERM_PID"
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$LOST_TERM_PID" 2>/dev/null || break
   sleep 0.05
 done
@@ -1110,7 +1128,8 @@ kill -0 "$OWNER_JOB_SUPERVISOR" 2>/dev/null \
 rm -f -- "$OWNER_STATE/worker.lock/quarantine"
 assert_absent "$OWNER_SIDE_EFFECT" "the replacement command finished during the ownership handoff"
 kill -TERM "$REPLACEMENT_OWNER_PID"
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   kill -0 "$REPLACEMENT_OWNER_PID" 2>/dev/null || break
   sleep 0.05
 done
@@ -1276,7 +1295,8 @@ HOME="$QUIET_HOME" PATH="$QUIET_SHIM:/usr/bin:/bin:/usr/sbin:/sbin" FM_TEST_EXEC
   "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" --serve > "$TMP_ROOT/quiet-worker.out" 2> "$TMP_ROOT/quiet-worker.err" &
 QUIET_WORKER_PID=$!
 quiet_wait_ready() { # <state> <label>
-  for _ in $(seq 1 200); do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -f "$1/worker.ready" ] && break
     sleep 0.05
   done
@@ -1338,7 +1358,8 @@ quiet_stage_completes() { # <state> <account-home> <touched> <label>
 }
 quiet_stop() { # <pid>
   kill -TERM "$1"
-  for _ in $(seq 1 100); do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     kill -0 "$1" 2>/dev/null || break
     sleep 0.05
   done
@@ -1362,7 +1383,8 @@ pass "an idle worker claims and publishes a staged job within a few seconds"
 # queue directories' 0700 modes: the periodic sweep still re-applies them with
 # no staging to trigger it.
 chmod 755 "$QUIET_STATE/jobs" "$QUIET_STATE/.seq-claims" "$QUIET_STATE/logs"
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ "$(file_mode "$QUIET_STATE/jobs")" = 700 ] && [ "$(file_mode "$QUIET_STATE/.seq-claims")" = 700 ] \
     && [ "$(file_mode "$QUIET_STATE/logs")" = 700 ] && break
   sleep 0.1
@@ -1508,7 +1530,8 @@ HOME="$SCAN_ACCOUNT" PATH="$QUIET_SHIM:/usr/bin:/bin:/usr/sbin:/sbin" \
   "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" --lane "$SCAN_POLL_ID" \
   > "$TMP_ROOT/scan-lane.out" 2> "$TMP_ROOT/scan-lane.err" &
 SCAN_LANE_PID=$!
-for _ in $(seq 1 200); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ "$(fm_remote_job_read_state "$SCAN_STATE/jobs/$SCAN_POLL_ID" 2>/dev/null || true)" = running ] && break
   sleep 0.05
 done
@@ -1532,7 +1555,8 @@ pass "the lane scan reads staged records without execs and honors home isolation
 
 SCAN_WAITER_ID=$(scan_stage "$REMOTE_HOME" fm-touch-job.sh "$TMP_ROOT/scan-touched")
 [ -n "$SCAN_WAITER_ID" ] || fail "the same-home waiter did not stage"
-for _ in $(seq 1 200); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ "$(fm_remote_job_read_state "$SCAN_STATE/jobs/$SCAN_POLL_ID" 2>/dev/null || true)" = 'done' ] && break
   sleep 0.05
 done
@@ -1566,7 +1590,8 @@ HOME="$SCAN_ACCOUNT" PATH="$QUIET_SHIM:/usr/bin:/bin:/usr/sbin:/sbin" \
   "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" --lane "$SCAN_BOUND_POLL_ID" \
   > "$TMP_ROOT/scan-bound-lane.out" 2> "$TMP_ROOT/scan-bound-lane.err" &
 SCAN_LANE_PID=$!
-for _ in $(seq 1 200); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ "$(fm_remote_job_read_state "$SCAN_STATE/jobs/$SCAN_BOUND_POLL_ID" 2>/dev/null || true)" = 'done' ] && break
   sleep 0.05
 done

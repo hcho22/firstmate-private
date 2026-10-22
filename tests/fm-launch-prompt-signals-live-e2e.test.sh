@@ -103,7 +103,7 @@ watcher_gate_not_busy() {  # <lab> <state> <target> <harness> <tail>
 # swallowed there instead of failing the guard.
 check_harness() {  # <harness> <session> <extra-path> <extra-content> <expect-regex> <tail-out> <cmd...>
   local harness=$1 session=$2 extra_path=$3 extra_content=$4 expect=$5 tail_out=$6
-  local target="$session:w" lab state tail out
+  local target="$session:w" lab state tail out deadline
   shift 6
   lab=$(mktemp -d "${TMPDIR:-/tmp}/fm-launch-prompt-$harness.XXXXXX") || fail "$harness: could not create the isolated lab"
   LABS+=("$lab")
@@ -118,14 +118,15 @@ check_harness() {  # <harness> <session> <extra-path> <extra-content> <expect-re
     || fail "$harness: could not launch the real binary"
 
   tail=''
-  for _ in $(seq 1 75); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     tail=$("$REAL_TMUX" -L "$SOCKET" capture-pane -p -t "$target" -S -40 2>/dev/null) || true
     printf '%s' "$tail" | grep -qiE "$expect" && break
     sleep 0.2
   done
   if ! printf '%s' "$tail" | grep -qiE "$expect"; then
     "$REAL_TMUX" -L "$SOCKET" kill-session -t "$session" >/dev/null 2>&1 || true
-    fail "$harness: the real launch never rendered its expected prompt ('$expect') within 15s - captured tail:
+    fail "$harness: the real launch never rendered its expected prompt ('$expect') within 60s - captured tail:
 $tail"
   fi
 

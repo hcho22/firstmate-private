@@ -92,8 +92,9 @@ wait_idle() {
   fail "run_end did not produce semantic idle: $(classify)"
 }
 wait_composer_empty() {
-  local i verdict=
-  for i in $(seq 1 40); do
+  local deadline verdict=
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     verdict=$(fm_backend_composer_state tmux "$TARGET" 2>/dev/null)
     [ "$verdict" = empty ] && return 0
     sleep 0.5
@@ -141,6 +142,7 @@ sleep 1.5
 picker=0
 # Two back-to-back presses parse as one Alt+Escape key, so space them inside
 # the picker's double-tap window (it opened at 0.3 s and not at 0.6 s).
+# fm-lint-waits: allow bounded retries of a timed Escape-pair probe that sends keys each attempt, not an event wait
 for _ in 1 2 3; do
   tmux send-keys -t "$TARGET" Escape
   sleep 0.2
@@ -171,7 +173,8 @@ done
 [ "$seen_busy" = 1 ] || fail 'no semantic and rendered busy during interrupt probe'
 sleep 2
 "$ROOT/bin/fm-control.sh" "$ID" interrupt > "$LAB/interrupt.log" 2>&1 || fail "interrupt failed: $(cat "$LAB/interrupt.log")"
-for _ in $(seq 1 60); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   screen_text | grep -q 'Interrupted · What should Command Code do instead?' && break
   sleep 0.5
 done

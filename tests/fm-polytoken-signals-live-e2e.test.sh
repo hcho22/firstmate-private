@@ -196,7 +196,8 @@ grep -q 'cancel=cancelled' "$LAB/interrupt.log" \
   || fail "fm-control interrupt did not report a settled cancel: $(cat "$LAB/interrupt.log")"
 case "$(record)" in "idle "*) ;; *) fail "the interrupt did not close the busy record (got '$(record)')" ;; esac
 canceled_row=
-for _ in $(seq 1 60); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   case "$(capture)" in *"Canceled after"*) canceled_row=1; break ;; esac
   sleep 0.5
 done

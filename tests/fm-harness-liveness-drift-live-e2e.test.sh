@@ -186,7 +186,8 @@ for harness in claude codex opencode pi pi-signed grok kimi cursor muse; do
   # The native binary can take a moment to appear, so poll for it.
   pane_tty=$("$REAL_TMUX" -L "$SOCKET" display-message -p -t "$target" '#{pane_tty}' 2>/dev/null | tr -d ' ')
   verdicts=
-  for _ in $(seq 1 150); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     fg_pids=
     if [ -n "$pane_tty" ]; then
       fg_pids=$(LC_ALL=C ps -t "${pane_tty#/dev/}" -o pid=,pgid=,tpgid= 2>/dev/null \
