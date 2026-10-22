@@ -459,10 +459,13 @@ async function claimSessionstartMessage(
 
 // The shared guard reads stop_hook_active exactly as it does from Claude's
 // payload: a true value allows the stop, which is what bounds omp to one
-// forced continuation per turn.
+// forced continuation per turn. --followup is the renderer contract
+// docs/turnend-guard.md owns: exit 2 is the blind-turn alarm framed below with
+// the repair heading, and exit 3 is the one-time displaced-session notice,
+// forwarded unchanged.
 function runGuard(stopHookActive: boolean): Promise<{ code: number; stderr: string }> {
   return new Promise((resolveResult) => {
-    const child = spawn(`${root}/bin/fm-turnend-guard.sh`, {
+    const child = spawn(`${root}/bin/fm-turnend-guard.sh`, ["--followup"], {
       stdio: ["pipe", "ignore", "pipe"],
     });
     let stderr = "";
@@ -599,19 +602,17 @@ export default function (pi: ExtensionAPI) {
   pi.on?.("session_stop", async (event) => {
     const stopHookActive = Boolean(event && (event as { stop_hook_active?: unknown }).stop_hook_active === true);
     const result = await runGuard(stopHookActive);
-    if (result.code !== 2) return undefined;
-    let content: string;
-    try {
-      content = encodeFirstmateOperationalInput(
-        "turn-end-guard",
-        "TURN WOULD END BLIND - supervision is off. " +
-          "The watcher cycle is missing, failed, or unhealthy. Follow the harness recovery instruction below before ending the turn.\n\n" +
-          result.stderr,
-      );
-    } catch {
-      content = "TURN WOULD END BLIND - supervision is off. " +
+    if (result.code !== 2 && result.code !== 3) return undefined;
+    const notice = result.code === 3
+      ? result.stderr
+      : "TURN WOULD END BLIND - supervision is off. " +
         "The watcher cycle is missing, failed, or unhealthy. Follow the harness recovery instruction below before ending the turn.\n\n" +
         result.stderr;
+    let content: string;
+    try {
+      content = encodeFirstmateOperationalInput("turn-end-guard", notice);
+    } catch {
+      content = notice;
     }
     return { continue: true, additionalContext: content };
   });

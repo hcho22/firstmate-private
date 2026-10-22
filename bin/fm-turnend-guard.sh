@@ -15,15 +15,22 @@
 # follow-up because their turn-end events are passive. Grok delegates native
 # blocking when its running Stop payload advertises that capability, with one
 # bounded resume fallback for payloads from pre-native processes. The
-# follow-up renderers (OpenCode, pi, Grok's resume fallback, and the Cursor
-# park) pass --followup: exit 2 is then the blind-turn alarm they prefix with their own
-# repair heading, and exit 3 is the one-time displaced-session notice they
-# forward unchanged, so a session that lost the lock is never told to repair
-# supervision. Cursor calls this guard back with --cursor from
+# follow-up renderers (OpenCode, pi, omp, Grok's resume fallback, and the
+# Cursor park) pass --followup: exit 2 is then the blind-turn alarm they prefix
+# with their own repair heading, and exit 3 is the one-time displaced-session
+# notice they forward unchanged, so a session that lost the lock is never told
+# to repair supervision. Cursor calls this guard back with --cursor from
 # bin/fm-turnend-guard-cursor.sh and renders exit 2 as one bounded follow-up,
 # because exit 2 is a silent no-op on Cursor's stop step; without that flag a
 # Cursor-shaped payload is the Claude-settings
 # duplicate Cursor also loads, and this guard stands down.
+#
+# Lock-refused (read-only) sessions, in every mode: when another verified live
+# session owns the home lock (fm_session_lock_foreign_owner_live in
+# bin/fm-session-lock-lib.sh), this session may not arm, drain, or repair
+# supervision, so the guard never blocks it and never writes to this home's
+# state/, before any other predicate runs. docs/turnend-guard.md "Foreign
+# session-lock owner" owns the notices that session gets.
 # See docs/turnend-guard.md for the per-harness mechanics, validation evidence,
 # and fail-open tradeoffs.
 #
@@ -71,10 +78,10 @@
 # auto-arm (bin/fm-claude-stop-autoarm.sh), which fires on the same Stop event:
 #   1. a live identity-matched watcher with a fresh beacon - or, in away mode, a
 #      live identity-matched daemon with a fresh beacon - allows immediately;
-#   2. an unhealthy session with a verified live session-lock owner it does not
-#      own under the shared ancestry-or-trusted-id verdict exits with a read-only
-#      diagnostic instead of blocking a session that cannot repair supervision
-#      without stealing ownership;
+#   2. (the lock-refused stand-down above has already let a session with a
+#      verified live session-lock owner it does not own end its turn with a
+#      read-only diagnostic, instead of blocking a session that cannot repair
+#      supervision without stealing ownership);
 #   3. otherwise wait briefly (FM_CLAUDE_AUTOARM_SYNC_WAIT_MS, default 800ms)
 #      for the auto-arm to claim this home (a live OPEN generation claim in the
 #      state/.claude-autoarm-epoch ledger - fm_autoarm_claim_open - or a legacy
@@ -207,10 +214,6 @@ fm_primary_scope_matches "$FM_ROOT" "$STATE" || exit 0
 # --- the actual predicate ----------------------------------------------------
 # shellcheck source=bin/fm-wake-lib.sh
 . "$SCRIPT_DIR/fm-wake-lib.sh"
-if [ "$CLAUDE_MODE" -eq 1 ]; then
-  # shellcheck source=bin/fm-session-lock-lib.sh
-  . "$SCRIPT_DIR/fm-session-lock-lib.sh"
-fi
 
 BUDGET_FILE="$STATE/.turnend-claude-blocks"
 BUDGET_LOCK="$STATE/.turnend-claude-blocks.lock"
@@ -231,44 +234,52 @@ budget_reset() {
 # that loop either, because it counts auto-arm event epochs and a lock-refused
 # session never advances one. Recovery belongs to the lock holder or to a
 # captain-confirmed takeover, so this session neither blocks nor touches any
-# state/ file, and says so at most once per session, naming the holder exactly as
-# the session-start refusal does and asking the captain, who is the one who reads
-# this notice, to have firstmate in this session run the takeover. It says so only
-# once the watcher beat is stale beyond grace: a fresh beat with no live watcher
+# state/ file. In --claude mode, while supervision is needed and not proven,
+# every stop carries one non-blocking ownership diagnostic. The first such stop
+# of each session whose watcher beat is stale beyond grace also names the holder
+# exactly as the session-start refusal does and asks the captain, who is the one
+# who reads this notice, to have firstmate in this session run the takeover.
+# Over a fresh beat that guidance is held back: a fresh beat with no live watcher
 # process is the Stop auto-arm's healthy between-turns state, and the takeover
 # itself refuses while the beat is fresh. The once-only markers live in the temp
-# directory, keyed by home and session id, precisely so a read-only session
-# writes nothing into the fleet's state.
-notice_once() {  # <kind>: succeed only the first time this session asks
+# directory, keyed by home, session id, and an optional discriminator, precisely
+# so a read-only session writes nothing into the fleet's state.
+notice_once() {  # <kind> [<discriminator>]: succeed only the first time this session asks
   local marker
   marker="${TMPDIR:-/tmp}/.fm-$1-guard-notice.$(printf '%s' "$STATE" | cksum | cut -d' ' -f1).$(printf '%s' "$SESSION_ID" | tr -c 'A-Za-z0-9_.-' '_')"
+  [ -z "${2:-}" ] || marker="$marker.$(printf '%s' "$2" | cksum | cut -d' ' -f1)"
   (set -C; : > "$marker") 2>/dev/null
 }
 
-readonly_session_notice() {
-  local holder need
+readonly_session_notice() {  # <holder-pid>
+  local holder=$1 need message
   [ "$CLAUDE_MODE" -eq 1 ] || return 0
-  holder=$(fm_session_lock_holder_pid "$STATE") || return 0
-  notice_once readonly || return 0
-  if [ "$FM_SUP_IN_FLIGHT" -gt 0 ]; then
-    need="$FM_SUP_IN_FLIGHT task(s) in flight"
-  elif [ "$FM_SUP_SOURCES" -gt 0 ]; then
-    need="$FM_SUP_SOURCES process-event source(s) registered"
-  else
-    need="X-mode relay polling active"
+  message="FIRSTMATE SUPERVISION IS OWNED BY ANOTHER LIVE SESSION: this read-only session cannot and should not arm or repair the watcher (lock owner pid $holder). Allowing this turn to end safely; the owning session must restore supervision."
+  if [ "$FM_SUP_WATCHER_FRESH" = false ] && notice_once readonly; then
+    if [ "$FM_SUP_IN_FLIGHT" -gt 0 ]; then
+      need="$FM_SUP_IN_FLIGHT task(s) in flight"
+    elif [ "$FM_SUP_SOURCES" -gt 0 ]; then
+      need="$FM_SUP_SOURCES process-event source(s) registered"
+    elif [ "$FM_SUP_CHECKS" -gt 0 ]; then
+      need="$FM_SUP_CHECKS registered custom check(s)"
+    else
+      need="X-mode relay polling active"
+    fi
+    message="$message
+FIRSTMATE SUPERVISION IS OFF in this home ($need, last watcher beat: $FM_SUP_BEACON_DESC), and this session is read-only: another live process holds the fleet lock, so this session will not arm or repair supervision and its turn may end. Supervision stays off for as long as that holder keeps the lock.
+$(fm_session_lock_takeover_guidance captain "$STATE" "$holder")"
   fi
-  jq -cn --arg m "FIRSTMATE SUPERVISION IS OFF in this home ($need, last watcher beat: $FM_SUP_BEACON_DESC), and this session is read-only: another live process holds the fleet lock, so this session will not arm or repair supervision and its turn may end. Supervision stays off for as long as that holder keeps the lock.
-$(fm_session_lock_takeover_guidance captain "$STATE" "$holder")" '{systemMessage: $m}'
+  jq -cn --arg m "$message" '{systemMessage: $m}'
 }
 
 # The one lock-refused case that must reach the MODEL, not just the captain: this
 # session held the lock and an explicit takeover (bin/fm-lock.sh takeover) moved
 # it away, so a session that is still running would otherwise keep mutating the
-# fleet. One bounded notice per session carries the news; the stop is allowed
-# after it.
+# fleet. One bounded notice per session and takeover record carries the news;
+# the stop is allowed after it.
 displaced_session_notice() {  # <takeover record>
   local record=$1 at new_pid rule
-  notice_once displaced || return 0
+  notice_once displaced "$record" || return 0
   at=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^at=//p')
   new_pid=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^new_pid=//p')
   rule='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
@@ -284,31 +295,11 @@ displaced_session_notice() {  # <takeover record>
 }
 
 fm_supervision_status "$STATE" "$GRACE"
-if fm_session_lock_held_by_other "$STATE"; then
-  if displaced_record=$(fm_session_lock_displaced_record "$STATE"); then
-    displaced_session_notice "$displaced_record"
-  fi
-  if [ "$FM_SUP_NEEDED" = true ] && [ "$FM_SUP_WATCHER_FRESH" = false ]; then
-    readonly_session_notice
-  fi
-  exit 0
-fi
-if [ "$FM_SUP_NEEDED" = false ]; then
-  [ -e "$FAILURE_NOTICE" ] || budget_reset
-  exit 0
-fi
-# One owner of the "supervision is on, let this turn end" exit contract, shared
-# by every proof of supervision below.
-allow_supervised_stop() {
-  [ "$CLAUDE_MODE" -eq 1 ] || exit 0
-  fm_failure_episode_reset "$STATE" && exit 0
-  exit 2
-}
 
-if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME"; then
-  allow_supervised_stop
-fi
-
+# The proofs that supervision is on right now, shared by the lock-refused
+# stand-down below (which only reports) and the allow path after it (which lets
+# the turn end).
+#
 # Away mode transfers supervision ownership from the watcher to the away-mode
 # daemon, which runs the watcher one-shot and starts its replacement after every
 # wake (bin/fm-supervise-daemon.sh). A turn boundary regularly lands in that
@@ -322,8 +313,41 @@ fi
 # every other check on this page uses, so a daemon that is genuinely still
 # cycling - just slower than a fixed 300s window - is not misread as down.
 AFK_GRACE=${FM_GUARD_GRACE:-$(fm_poll_derived_grace)}
-if [ "$(fm_path_age "$STATE/.last-watcher-beat")" -lt "$AFK_GRACE" ] \
-  && fm_afk_daemon_owns_supervision "$STATE"; then
+supervision_proven() {
+  fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME" && return 0
+  [ "$(fm_path_age "$STATE/.last-watcher-beat")" -lt "$AFK_GRACE" ] \
+    && fm_afk_daemon_owns_supervision "$STATE"
+}
+
+# Another verified live session owns the home lock under the shared
+# ancestry-or-trusted-id verdict, and it is not an ancestor of this process.
+# This session is read-only and cannot arm or repair supervision without
+# stealing ownership, so blocking its stop would create an impossible loop; the
+# owning session remains responsible for restoring the watcher. This runs before
+# every other predicate so that no mode blocks it and nothing below writes state.
+if fm_session_lock_foreign_owner_live "$STATE"; then
+  LOCK_HOLDER=$FM_SESSION_LOCK_FOREIGN_OWNER_PID
+  if displaced_record=$(fm_session_lock_displaced_record "$STATE"); then
+    displaced_session_notice "$displaced_record"
+  fi
+  if [ "$FM_SUP_NEEDED" = true ] && ! supervision_proven; then
+    readonly_session_notice "$LOCK_HOLDER"
+  fi
+  exit 0
+fi
+if [ "$FM_SUP_NEEDED" = false ]; then
+  [ -e "$FAILURE_NOTICE" ] || budget_reset
+  exit 0
+fi
+# One owner of the "supervision is on, let this turn end" exit contract, shared
+# by every proof of supervision above.
+allow_supervised_stop() {
+  [ "$CLAUDE_MODE" -eq 1 ] || exit 0
+  fm_failure_episode_reset "$STATE" && exit 0
+  exit 2
+}
+
+if supervision_proven; then
   allow_supervised_stop
 fi
 
@@ -356,18 +380,6 @@ block_stop() {
   } >&2
   exit 2
 }
-
-# Another verified live session owns the home lock under the shared
-# ancestry-or-trusted-id verdict. This session is read-only and cannot arm or
-# repair supervision without
-# stealing ownership, so blocking its Stop would create an impossible loop.
-# Report the ownership conflict as a diagnostic and let this turn end safely;
-# the owning session remains responsible for restoring the watcher.
-if [ "$CLAUDE_MODE" -eq 1 ] && fm_session_lock_foreign_owner_live "$STATE"; then
-  printf '{"systemMessage":"FIRSTMATE SUPERVISION IS OWNED BY ANOTHER LIVE SESSION: this read-only session cannot and should not arm or repair the watcher (lock owner pid %s). Allowing this turn to end safely; the owning session must restore supervision."}\n' \
-    "$FM_SESSION_LOCK_FOREIGN_OWNER_PID"
-  exit 0
-fi
 
 if [ "$CLAUDE_MODE" -eq 0 ]; then
   block_stop
