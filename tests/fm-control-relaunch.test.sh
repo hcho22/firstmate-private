@@ -2478,13 +2478,15 @@ case "${1:-} ${2:-}" in
     exit 0 ;;
   'pane process-info')
     # A retained registration with a shell-only pane models an exited agent
-    # whose Herdr status authority still belongs to its previous session.
+    # whose Herdr status authority still belongs to its previous session. The
+    # foreground group leader carries the pane's working directory, which is
+    # where the spawn's worktree discovery reads it (Herdr 0.7.5's shape).
     if [ -f "$D/herdr-agent-registration" ]; then
-      printf '{"result":{"type":"pane_process_info","process_info":{"pane_id":"%s","shell_pid":4242,"foreground_processes":[]}}}\n' \
-        "$(cat "$D/herdr-pane")"
+      printf '{"result":{"type":"pane_process_info","process_info":{"pane_id":"%s","shell_pid":4242,"foreground_process_group_id":4242,"foreground_processes":[{"pid":4242,"name":"bash","argv0":"bash","cwd":"%s"}]}}}\n' \
+        "$(cat "$D/herdr-pane")" "$(cat "$D/cwd")"
     else
-      printf '{"result":{"type":"pane_process_info","process_info":{"pane_id":"%s","shell_pid":4242,"foreground_processes":[{"pid":4243,"name":"claude","argv":["claude"],"cmdline":"claude"}]}}}\n' \
-        "$(cat "$D/herdr-pane")"
+      printf '{"result":{"type":"pane_process_info","process_info":{"pane_id":"%s","shell_pid":4242,"foreground_process_group_id":4243,"foreground_processes":[{"pid":4243,"name":"claude","argv":["claude"],"cmdline":"claude","cwd":"%s"}]}}}\n' \
+        "$(cat "$D/herdr-pane")" "$(cat "$D/cwd")"
     fi
     exit 0 ;;
   'pane send-text')
