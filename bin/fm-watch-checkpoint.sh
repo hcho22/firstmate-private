@@ -93,7 +93,7 @@ run_with_perl_timeout() {  # <seconds> <signal> <kill-after-seconds> <command...
     die "fork failed\n" unless defined $pid;
     if (!$pid) {
       setpgrp(0, 0);
-      exec @ARGV;
+      exec { $ARGV[0] } @ARGV;
       die "exec failed: $!\n";
     }
     my $timed_out = 0;
@@ -139,7 +139,7 @@ run_bounded() {  # <seconds> <signal> <kill-after-seconds> <command...>
   # before its EXIT cleanup released its lock. Restore the default first.
   if command -v perl >/dev/null 2>&1; then
     # shellcheck disable=SC2016 # perl, not this shell, expands these.
-    set -- perl -e '$SIG{$ARGV[0]} = "DEFAULT"; shift @ARGV; exec @ARGV or exit 127' "$signal" "$@"
+    set -- perl -e '$SIG{$ARGV[0]} = "DEFAULT"; shift @ARGV; exec { $ARGV[0] } @ARGV or exit 127' "$signal" "$@"
   fi
   if command -v timeout >/dev/null 2>&1; then
     if [ "$kill_after" -gt 0 ]; then

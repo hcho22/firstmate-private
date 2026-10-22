@@ -325,6 +325,42 @@ SH
   pass "the perl fallback lets the watcher finish its exit cleanup under the default cleanup bound"
 }
 
+# Perl splits a one-element exec list on whitespace, so a watcher path in a
+# checkout whose path contains a space must still reach exec as one argument,
+# both on the host's own PATH and on the perl fallback.
+test_checkpoint_runs_from_a_checkout_path_with_a_space() {
+  local home root toolbin tool real mode status out
+  home=$(make_home spaced-checkout)
+  root="$home/fm checkout"
+  toolbin="$home/toolbin"
+  out="$home/out.txt"
+  mkdir -p "$root/bin" "$toolbin"
+  cp "$CHECKPOINT" "$root/bin/fm-watch-checkpoint.sh"
+  cp "$ROOT/bin/fm-supervision-engine-lib.sh" "$root/bin/fm-supervision-engine-lib.sh"
+  cat > "$root/bin/fm-watch.sh" <<'SH'
+#!/usr/bin/env bash
+printf 'signal: spaced-checkout.status\n'
+SH
+  chmod +x "$root/bin/fm-watch-checkpoint.sh" "$root/bin/fm-watch.sh"
+  for tool in bash env mktemp grep cat rm dirname perl; do
+    real=$(command -v "$tool" || true)
+    [ -n "$real" ] || fail "missing tool for the spaced-checkout perl-fallback path: $tool"
+    ln -s "$real" "$toolbin/$tool"
+  done
+  for mode in host fallback; do
+    status=0
+    if [ "$mode" = host ]; then
+      FM_HOME="$home" "$root/bin/fm-watch-checkpoint.sh" --seconds 60 >"$out" 2>"$home/err.txt" || status=$?
+    else
+      PATH="$toolbin" FM_HOME="$home" "$root/bin/fm-watch-checkpoint.sh" --seconds 60 >"$out" 2>"$home/err.txt" || status=$?
+    fi
+    expect_code 0 "$status" "$mode checkpoint from a spaced checkout: $(cat "$out" "$home/err.txt")"
+    assert_contains "$(cat "$out")" "signal: spaced-checkout.status" \
+      "the $mode checkpoint did not run the watcher from a checkout path with a space"
+  done
+  pass "a checkpoint runs its watcher from a checkout path that contains a space"
+}
+
 # A home opted into the supervision host whose checkpoint runs a stub host in
 # a fixture code root: the stub records the bound it was given, then closes
 # the way $FM_HOME/host-kind says.
@@ -445,6 +481,7 @@ test_quiet_checkpoint_releases_its_lock_when_started_with_int_ignored
 test_startup_timeout_releases_an_acquired_lock
 test_perl_timeout_fallback_honors_cleanup_bound_before_escalating
 test_perl_fallback_lets_the_watcher_finish_its_cleanup
+test_checkpoint_runs_from_a_checkout_path_with_a_space
 test_announced_recovery_is_not_reannounced_by_next_checkpoint
 test_never_announced_recovery_is_announced_once
 test_queue_append_during_checkpoint_still_resurfaces
