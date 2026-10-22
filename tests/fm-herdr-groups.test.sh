@@ -386,12 +386,16 @@ test_watcher_poll_tags_tasks() {
   touch "$HOME_DIR/state/.last-watcher-beat"
   add_task web-run ship /p/storefront w2 'working: go'
   write_live_lists 0
+  # The checkpoint ends at the first actionable wake, the signal for the task's
+  # status line, and every poll cycle runs the groups sync before it can exit on
+  # a wake, so the ceiling is only a hang guard. A fixed 2s window instead raced
+  # the first cycle, which a loaded host can push past it.
   out=$(env FM_ROOT_OVERRIDE='' FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$HOME_DIR/state" \
     FM_CONFIG_OVERRIDE="$HOME_DIR/config" FM_DATA_OVERRIDE="$HOME_DIR/data" \
     PATH="$FAKEBIN:$PATH" FAKE_DIR="$FAKE_DIR" FAKE_HERDR_LOG="$FAKE_HERDR_LOG" \
     FAKE_VIEW_LOG="$FAKE_VIEW_LOG" FM_HERDR_GROUPS_AGENT_VIEW="$FAKEBIN/agent-view" \
     FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 \
-    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 2 2>&1)
+    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 60 2>&1)
   case "$out" in *"checkpoint:"*|*"signal:"*|*"stale:"*) ;; *) fail "watcher checkpoint did not run: $out" ;; esac
   assert_contains "$(reports pane)" "pane report-metadata w2:p2 --source firstmate --token fm_group=storefront" \
     "the watcher poll tagged the task pane"
