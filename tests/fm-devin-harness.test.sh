@@ -51,7 +51,10 @@ state="$TMP_ROOT/hook state"
 mkdir -p "$state"
 gen=$("$ROOT/bin/fm-busy-event.sh" arm "$state" worker)
 printf '%s\n' '{"agent":{"model":"swe-2-high"},"hooks":{"Stop":[{"hooks":[{"type":"command","command":"true"}]}]}}' > "$TMP_ROOT/user.json"
-"$ROOT/bin/fm-devin-config.sh" "$state" worker "$gen" "$TMP_ROOT/user.json" || fail 'config writer failed'
+# The writer runs under whichever jq is first on PATH, jq 1.6 included, which
+# rejects a keyword such as end as a variable name.
+"$ROOT/bin/fm-devin-config.sh" "$state" worker "$gen" "$TMP_ROOT/user.json" \
+  || fail "config writer failed under $(jq --version 2>&1) on PATH"
 config="$state/worker.devin-config.json"
 jq -e '.agent.model == "swe-2-high" and (.hooks.Stop | length) == 2' "$config" >/dev/null || fail 'user settings/hooks lost'
 run_hook() { bash -c "$(jq -r --arg event "$1" '.hooks[$event][-1].hooks[0].command' "$config")"; }
