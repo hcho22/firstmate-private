@@ -4107,11 +4107,32 @@ test_composer_state_inactive_session_fails_fast_without_server_autostart() {
 
 # shellcheck disable=SC2016
 test_composer_state_piped_reader_does_not_hang() {
-  local out rc=0
+  local dir fb log out rc=0
+  dir="$TMP_ROOT/composer-piped-bad-target"; fb="$dir/fakebin"; log="$dir/log"
+  mkdir -p "$fb"; : > "$log"
+  # A herdr for a session no server runs: status reports it stopped, and every
+  # other call stands in for the real CLI starting a server for a session it
+  # does not find, which leaves a process holding the caller's stdout open. A
+  # probe that skipped the running check would hang its reader past the bound.
+  cat > "$fb/herdr" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_HERDR_LOG"
+if [ "${1:-}" = status ] && [ "${2:-}" = --json ]; then
+  printf '{"client":{"version":"0.7.1","protocol":14},"server":{"running":false}}\n'
+  exit 0
+fi
+sleep 30 &
+exit 0
+SH
+  chmod +x "$fb/herdr"
   # fm_run_timed, not coreutils timeout, which stock macOS does not ship.
-  out=$( fm_run_timed 3 bash -c '. "$0/bin/fm-backend.sh"; ( fm_backend_composer_state herdr nonexistent-session:p2 ) 2>&1 | head -20' "$ROOT" ) || rc=$?
+  out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" \
+    fm_run_timed 3 bash -c '. "$0/bin/fm-backend.sh"; ( fm_backend_composer_state herdr nonexistent-session:p2 ) 2>&1 | head -20' "$ROOT" ) || rc=$?
   [ "$rc" -eq 0 ] || fail "piped composer probe on bad target hung or failed with rc=$rc"
   [ "$out" = unknown ] || fail "piped composer probe should print unknown, got '$out'"
+  if [ ! -s "$log" ] || grep -qv '^status --json ' "$log"; then
+    fail "piped composer probe on a stopped session made calls other than its status read: $(cat "$log")"
+  fi
   pass "fm_backend_composer_state (herdr): piped probe on bad target does not hang EOF-sensitive readers"
 }
 
