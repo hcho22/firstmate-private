@@ -4011,11 +4011,16 @@ SH
   then
     fail "render_export_dom accepted a Chrome that never finished the DOM"
   fi
-  [ "$(wc -l <"$dir/attempts-hang")" -eq 3 ] \
-    || fail "render_export_dom did not exhaust its bounded retries on a Chrome that never finished"
+  # Count the attempts from the helper's own report, not the fake's log: with a
+  # 0.3 s bound a loaded host can time an attempt out before the fake's shell has
+  # run its first line, so the fake can record fewer than the three attempts made.
   report=$(cat "$dir/report-hang")
   assert_contains "$report" "timed_out=yes" \
     "the render failure reported its own kill signal without saying the attempt was timed out"
+  [ "$(printf '%s\n' "$report" | grep -Eo 'attempt [0-9]+: exit=[0-9]+ timed_out=yes' | wc -l | tr -d ' ')" -eq 3 ] \
+    || fail "render_export_dom did not exhaust its bounded retries on a Chrome that never finished: $report"
+  [ "$(wc -l <"$dir/attempts-hang")" -le 3 ] \
+    || fail "render_export_dom started a never-finishing Chrome more often than its bounded retries"
 
   pass "the rendered-export-DOM guard renders in one pass, retries a bounded number of Chrome start-up failures, and reports the Chrome binary, Chrome version, Pi version, exit status, and Chrome diagnostic when every attempt fails"
 }
