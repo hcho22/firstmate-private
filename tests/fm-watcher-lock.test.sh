@@ -601,7 +601,19 @@ test_lock_stale_steal_single_winner_under_concurrency() {
     pids="$pids $!"
     i=$((i + 1))
   done
-  IFS= read -r winner < "$gate"
+  # Opening the FIFO blocks until the winner writes, and bash 3.2 gives up on
+  # that open with "Interrupted system call" when one of the losers exiting
+  # delivers SIGCHLD meanwhile. An empty winner then sent this case waiting
+  # forever on the real winner, still parked on the hold FIFO, so retry the open.
+  winner=
+  local deadline=$((SECONDS + 60))
+  while [ -z "$winner" ] && [ "$SECONDS" -lt "$deadline" ]; do
+    IFS= read -r winner 2>/dev/null < "$gate" || winner=
+  done
+  if [ -z "$winner" ]; then
+    for pid in $waiter $pids; do kill "$pid" 2>/dev/null || true; done
+    fail "no stale-lock stealer reported a win within 60s"
+  fi
   [ "$winner" = "$waiter" ] || { kill "$waiter" 2>/dev/null || true; wait "$waiter" 2>/dev/null || true; }
   for pid in $pids; do
     [ "$pid" = "$winner" ] || wait "$pid" 2>/dev/null || true
