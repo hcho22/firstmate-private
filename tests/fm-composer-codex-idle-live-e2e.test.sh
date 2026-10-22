@@ -95,10 +95,17 @@ dismiss_at=$((SECONDS + 20))
 tmux_verdict=''
 cursorless_verdict=''
 styled=''
+screen=''
+drawn=''
 dismissed=0
 while [ "$SECONDS" -lt "$deadline" ]; do
   tmux_verdict=$(fm_tmux_composer_state "$SESSION:$WIN")
   styled=$(tmux capture-pane -e -p -t "$SESSION:$WIN" 2>/dev/null | tail -n "$FM_COMPOSER_CAPTURE_LINES")
+  # The last whole screen codex drew, kept for the failure report: a modal
+  # drawn above the classified tail rows leaves that tail blank, and the one
+  # Escape below can cancel it and exit codex, leaving nothing to capture.
+  screen=$(tmux capture-pane -p -t "$SESSION:$WIN" 2>/dev/null)
+  case "$screen" in *[![:space:]]*) drawn=$screen ;; esac
   cursorless_verdict=$(classify_cursorless "$styled")
   if [ "$tmux_verdict" = empty ] && [ "$cursorless_verdict" = empty ]; then
     break
@@ -135,8 +142,8 @@ if [ "$tmux_verdict" = empty ] && [ "$cursorless_verdict" = empty ]; then
   CHECKED=$((CHECKED + 1))
   pass "codex ($VERSION): real idle screen classifies empty on the cursor-anchored tmux read and the cursorless styled read"
 else
-  printf '# codex pane tail at failure:\n' >&2
-  printf '%s\n' "$plain" | grep '[^[:space:]]' | tail -8 | sed 's/^/#   /' >&2
+  printf '# last codex screen before the failure:\n' >&2
+  printf '%s\n' "$drawn" | grep '[^[:space:]]' | tail -12 | sed 's/^/#   /' >&2
   fail "codex ($VERSION): idle screen never classified empty (tmux read: ${tmux_verdict:-unreadable}, cursorless styled read: ${cursorless_verdict:-unreadable})"
 fi
 

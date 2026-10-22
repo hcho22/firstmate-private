@@ -1879,7 +1879,7 @@ families_for_changed_path() {
 }
 
 select_changed() {
-  local base=$1 path entry fam script_name s
+  local base=$1 path entries entry fam script_name s repo_tests
   local -a wanted_families=()
   local -a wanted_scripts=()
 
@@ -1887,8 +1887,13 @@ select_changed() {
     die "changed-file base ref not found: $base (pass --base <ref>)"
   fi
 
+  # Each path's entries and the test list are read through here-strings, never
+  # a per-iteration `done < <(...)`: bash 3.2 holds every such pipe open until
+  # this function returns, so a merge-sized change set exhausted a 256-file
+  # limit and silently dropped the remaining paths and the family expansion.
   while IFS= read -r path; do
     [ -n "$path" ] || continue
+    entries=$(families_for_changed_path "$path")
     while IFS= read -r entry; do
       [ -n "$entry" ] || continue
       case "$entry" in
@@ -1903,7 +1908,7 @@ select_changed() {
           wanted_families+=("$entry")
           ;;
       esac
-    done < <(families_for_changed_path "$path")
+    done <<<"$entries"
   done < <(git -C "$ROOT" diff --name-only "${base}...HEAD" 2>/dev/null; \
            git -C "$ROOT" diff --name-only HEAD 2>/dev/null; \
            git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null)
@@ -1919,13 +1924,14 @@ select_changed() {
     [ "$seen_f" -eq 0 ] && unique_families+=("$f")
   done
 
+  repo_tests=$(all_repo_tests)
   for f in "${unique_families[@]+"${unique_families[@]}"}"; do
     while IFS= read -r s; do
       [ -n "$s" ] || continue
       if [ "$(family_for_basename "$(basename "$s")")" = "$f" ]; then
         add_script "$s"
       fi
-    done < <(all_repo_tests)
+    done <<<"$repo_tests"
   done
 
   for script_name in "${wanted_scripts[@]+"${wanted_scripts[@]}"}"; do

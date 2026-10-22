@@ -1826,6 +1826,7 @@ test_changed_test_support_files_select_their_readers() {
   : >"$repo/tests/demo-repro.py"
   # shellcheck disable=SC2016  # literal reader text the reference scan must find.
   printf '# "$ROOT/tests/captures/demo-v1/$1.toon"\n' >>"$repo/tests/fm-afk-return.test.sh"
+  # shellcheck disable=SC2016  # literal reader text the reference scan must find.
   printf '# HARNESS="$ROOT/tests/assets/demo-harness.mjs"\n' >>"$repo/tests/fm-bearings-snapshot.test.sh"
   # shellcheck disable=SC2016  # literal reader text the reference scan must find.
   printf '# python3 "$(dirname "${BASH_SOURCE[0]}")/demo-repro.py"\n' >>"$repo/tests/fm-quota-choose.test.sh"
@@ -1870,6 +1871,52 @@ test_changed_test_support_files_select_their_readers() {
 
   rm -rf "$tmp"
   pass "changed captures, assets, and helper programs select the suites that read them"
+}
+
+# A merge-sized change set can name more paths than a launchd-started shell
+# may hold open files (macOS gives it 256). Selection must hold no per-path
+# file descriptor: bash 3.2 keeps each `done < <(...)` pipe open until the
+# enclosing function returns, so exhausting them dropped every later path's
+# tests and the family expansion while selection still exited 0.
+test_changed_selection_survives_a_low_open_file_limit() {
+  local tmp repo i f unlimited limited rc
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-fd-limit.XXXXXX")
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+  mkdir -p "$repo/docs"
+  : >"$repo/docs/fm-test-portable-shards.md"
+  i=0
+  while [ "$i" -lt 100 ]; do
+    i=$((i + 1))
+    : >"$repo/docs/note-$i.md"
+  done
+  git -C "$repo" add -A
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm many-paths
+
+  # The shard doc sorts first and selects a whole family, the notes select
+  # nothing, and the changed suite sorts after every note.
+  for f in "$repo"/docs/*.md "$repo/tests/fm-pr-merge.test.sh"; do
+    printf 'x\n' >>"$f"
+  done
+
+  unlimited=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD 2>"$tmp/unlimited.err") \
+    || fail "the unlimited selection failed: $(cat "$tmp/unlimited.err")"
+  assert_contains "$unlimited" "tests/fm-brief.test.sh" \
+    "the early shard doc selects its pure-contract-unit family"
+  assert_contains "$unlimited" "tests/fm-pr-merge.test.sh" \
+    "the late changed suite selects itself"
+
+  rc=0
+  (cd "$repo" && ulimit -n 64 && bin/fm-test-run.sh --list --changed --base HEAD) \
+    >"$tmp/out" 2>"$tmp/err" || rc=$?
+  [ "$rc" -eq 0 ] || fail "the limited selection failed (rc=$rc): $(cat "$tmp/err")"
+  [ ! -s "$tmp/err" ] || fail "the limited selection reported errors: $(cat "$tmp/err")"
+  limited=$(cat "$tmp/out")
+  [ "$limited" = "$unlimited" ] \
+    || fail "a 64-file limit changed the selection: unlimited [$unlimited] limited [$limited]"
+
+  rm -rf "$tmp"
+  pass "changed selection over many paths is identical under a low open-file limit"
 }
 
 # Workers are handed scripts in order, so the slowest script must start first or
@@ -2783,6 +2830,7 @@ fm_test_run_cases \
   test_unmapped_new_test_never_inherits_family_concurrency \
   test_changed_shared_fixture_selects_its_readers \
   test_changed_test_support_files_select_their_readers \
+  test_changed_selection_survives_a_low_open_file_limit \
   test_concurrent_runs_are_ordered_longest_first \
   test_per_script_timeout_bounds_a_hang \
   test_changed_bound_gives_slow_watcher_suites_headroom \
