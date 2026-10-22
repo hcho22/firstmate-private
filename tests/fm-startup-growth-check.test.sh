@@ -312,7 +312,7 @@ test_due_unsafe_inputs_are_reported_but_absent_optional_memory_is_not() {
 }
 
 test_over_long_finding_set_is_capped_with_the_shared_marker() {
-  local rec root home deep seg out reported
+  local rec root home deep seg out reported limit target
   rec=$(make_world capped)
   root=${rec%%|*}
   home=${rec#*|}
@@ -320,11 +320,18 @@ test_over_long_finding_set_is_capped_with_the_shared_marker() {
   while [ "${#seg}" -lt 100 ]; do
     seg="${seg}memory"
   done
+  # A data path long enough to push the finding set past the wake line's cap,
+  # but inside the host's PATH_MAX: macOS allows 1024 bytes, so a 1200-byte
+  # path (fine on Linux's 4096) could not even be created there.
+  limit=$(getconf PATH_MAX "$home" 2>/dev/null) || limit=4096
+  case "$limit" in ''|*[!0-9]*) limit=4096 ;; esac
+  target=1200
+  [ "$target" -le "$((limit - 32))" ] || target=$((limit - 32))
   deep="$home/data"
-  while [ "${#deep}" -lt 1200 ]; do
+  while [ "$((${#deep} + ${#seg} + 1))" -lt "$target" ]; do
     deep="$deep/$seg"
   done
-  mkdir -p "$deep"
+  mkdir -p "$deep" || fail "could not create the long data path (${#deep} bytes)"
   ln -s "$home/data/captain.md" "$deep/learnings.md"
   out=$(FM_ROOT_OVERRIDE="$root" FM_HOME="$home" FM_DATA_OVERRIDE="$deep" FM_STARTUP_GROWTH_NOW=1000 \
     "$CHECK" check 2>/dev/null) || fail "capped check failed"
