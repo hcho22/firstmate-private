@@ -2064,6 +2064,10 @@ case "$sr_leader" in ''|*[!0-9]*) fail "could not read the state-root fixture le
 
 kill -KILL -"$sr_leader" 2>/dev/null || true
 kill -KILL "$sr_leader" 2>/dev/null || true
+# Wait for the leader itself as well as its group: macOS's kill(-pgid, 0) skips
+# a zombie member while kill(pid, 0) still finds it, so the group reads gone as
+# soon as the leader dies, before launchd has reaped it.
+wait_gone "$sr_leader" || true
 wait_gone -"$sr_leader" || true
 kill -0 "$sr_leader" 2>/dev/null && fail "the state-root fixture leader survived SIGKILL"
 kill -0 -"$sr_leader" 2>/dev/null && fail "fixture invalid: the owned group outlived the whole generation"
