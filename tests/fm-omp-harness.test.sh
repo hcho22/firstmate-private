@@ -528,6 +528,10 @@ test_watch_extension_arms_and_delivers() {
   # stays up, so exactly one wake exists to consume.
   cat > "$repo/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
+# The extension confirms each delivered wake's recovery generation through this
+# script before it hands the wake over; answer that at once, as the real arm
+# does, instead of falling into the successor's 30s sleep.
+[ "${1:-}" = --handling-delivered ] && exit 0
 printf 'watcher: started pid=%s (beacon 0s) recovery-generation=gen-1\n' "$$"
 if [ ! -e "${FM_HOME:?}/state/.e2e-fired" ]; then
   : > "$FM_HOME/state/.e2e-fired"
