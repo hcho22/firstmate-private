@@ -1603,7 +1603,8 @@ test_promoted_scout_relaunch_receives_the_current_delivery_contract() {
     fm_git_worktree "$dir/proj" "$dir/wt" "task-$id"
     FM_HOME="$home" "$BRIEF" "$id" firstmate --scout >/dev/null \
       || fail "$mode: could not scaffold the scout brief"
-    brief="$home/data/$id/brief.md"
+    # The scaffold files the brief under its project's task folder.
+    brief=$(task_data_path "$home" "$id" brief.md)
     sed 's/{TASK}/Fix the promotion relaunch contract./; s/{FIRSTMATE_SPEC}/Preserve the current delivery mode./' \
       "$brief" > "$brief.filled"
     mv "$brief.filled" "$brief"
@@ -1633,7 +1634,7 @@ test_promoted_scout_relaunch_receives_the_current_delivery_contract() {
     printf 'zsh' > "$dir/fake/command"
     out=$(run_spawn "$dir" "$id" --relaunch) \
       || fail "$mode: promoted scout relaunch should succeed: $out"
-    launch="$home/data/$id/launch-brief.md"
+    launch=$(task_data_path "$home" "$id" launch-brief.md)
     assert_grep "This task is now kind=ship with mode=$mode" "$launch" \
       "$mode: the replacement launch did not receive the promoted task identity"
     assert_grep 'Any earlier "Never push" or scout-only delivery language in this file is superseded' "$launch" \
