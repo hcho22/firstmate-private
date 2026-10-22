@@ -566,7 +566,13 @@ const marker = readFileSync(`${process.env.FM_HOME}/state/.omp-watch-extension-l
 if (marker[1] !== String(process.pid)) throw new Error("loaded marker must record the session pid");
 const again = await tool.execute();
 if (!/^watcher: unchanged - omp extension already owns an arm child/.test(again.content[0].text)) throw new Error(`redundant arm was not an ownership no-op: ${again.content[0].text}`);
-await new Promise((r) => setTimeout(r, 2500));
+// Wait for the wake itself: it follows the first arm child closing, the successor
+// arming, and the delivery confirmation, each a login-shell spawn whose cost the
+// host sets, so a fixed window raced them. A short settle then lets a duplicate
+// show. (No apostrophes here: bash 3.2 misparses one in a heredoc inside $(...).)
+const deadline = Date.now() + 60000;
+while (sent.length === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
+await new Promise((r) => setTimeout(r, 500));
 if (sent.length !== 1) throw new Error(`expected one follow-up wake, saw ${sent.length}: ${JSON.stringify(sent)}`);
 if (!sent[0].m.startsWith("⁣FIRSTMATE_OP: v1 watcher: FIRSTMATE WATCHER WAKE: signal: omp-e2e done")) throw new Error(`unexpected wake text: ${sent[0].m}`);
 if (sent[0].o?.deliverAs !== "followUp") throw new Error("wake must be delivered as a follow-up");
