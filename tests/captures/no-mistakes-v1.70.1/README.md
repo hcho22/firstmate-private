@@ -1,6 +1,7 @@
 # AXI run-state input captures
 
 These files own recorded serialized CLI inputs and a persisted run-inventory projection for the `test_captured_*` cases in `../../fm-crew-state.test.sh`.
+`../../fm-teardown.test.sh` also replays `parked.toon` and `replacement.toon` for its parked-run cleanup cases.
 They were captured on 2026-09-14 at 22:06 UTC with `no-mistakes version v1.70.1 (9c380d4) 2026-09-07T20:47:58Z`.
 They are replay inputs, not evidence that every composed scenario was driven live.
 
@@ -33,7 +34,7 @@ Original stdout, source projections, and SHA-256 digests were retained in the te
 
 ## Replay transformations and limits
 
-`captured_axi_status` substitutes only the run ID, branch, and head fields so the captures bind to disposable Git repositories.
+`captured_axi_status` in the crew-state suite and `captured_axi_status_toon` in the teardown suite substitute only the run ID, branch, and head fields so the captures bind to disposable Git repositories.
 Status, outcome, steps, findings, and gate bytes remain unchanged.
 The inventory replay substitutes its disposable repository key and path, preserves every captured same-branch row, and hashes the database before and after the state read to detect writes.
 Its ambiguity case explicitly changes one hidden cancelled row to running; this is a counterfactual, not a captured competing-live history.

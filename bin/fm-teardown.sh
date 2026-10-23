@@ -277,14 +277,16 @@
 # delete, or backend kill below - a still-active run or a leaked process may
 # own live work in that worktree):
 #   Fix 1 - conclude the task's own no-mistakes run. A ship task's worktree can
-#     be torn down while its no-mistakes pipeline run is still PARKED at a gate
-#     (awaiting_approval/fix_review/any awaiting_agent field), with no worker
-#     left to ever answer it - the run then sits there holding a fleet slot
-#     indefinitely (observed 2026-08-03: runs parked 7h39m and parked at a
-#     post-CI approval gate after the worker was already cleaned up). A run
-#     with an autonomous step still under way (running/fixing/ci) is left
-#     alone: no-mistakes drives those against its own gate-repo clone, not the
-#     crew's worktree, so they are not orphaned by removing the worktree.
+#     be torn down while its no-mistakes pipeline run is still PARKED at a gate,
+#     with no worker left to ever answer it - the run then sits there holding a
+#     fleet slot indefinitely (observed 2026-08-03: runs parked 7h39m and
+#     parked at a post-CI approval gate after the worker was already cleaned
+#     up). Parked means the gate markers bin/fm-nm-run-lib.sh's
+#     fm_nm_run_is_parked reads, never the top-level status word, which the
+#     CLI leaves at `running` while a run waits at a gate. A run executing a
+#     step carries no such marker and is left alone: no-mistakes drives it
+#     against its own gate-repo clone, not the crew's worktree, so it is not
+#     orphaned by removing the worktree.
 #     conclude_task_no_mistakes_run attributes the active-or-most-recent run to
 #     THIS task only when its branch AND code identity both match this
 #     worktree under the head and submitted-head rules it shares with
@@ -2163,7 +2165,7 @@ NM_TEARDOWN_RUNS_LIMIT=${FM_TEARDOWN_NM_RUNS_LIMIT:-200}
 case "$NM_TEARDOWN_RUNS_LIMIT" in ''|*[!0-9]*) NM_TEARDOWN_RUNS_LIMIT=200 ;; esac
 TASK_RUN_ID=
 task_status_is_own_parked_run() {  # <worktree> <axi-status-output>
-  local wt=$1 out=$2 branch run_id run_branch run_head status outcome awaiting has_gate ledger
+  local wt=$1 out=$2 branch run_id run_branch run_head status outcome ledger
   TASK_RUN_ID=
   branch=$(git -C "$wt" symbolic-ref --quiet --short HEAD 2>/dev/null) || return 1
   [ -n "$branch" ] || return 1
@@ -2178,8 +2180,12 @@ task_status_is_own_parked_run() {  # <worktree> <axi-status-output>
   status=$(fm_nm_strip_quotes "$(fm_nm_field "$out" status)")
   [ -n "$status" ] || return 1
   case "$status" in
-    completed|failed|cancelled|passed|checks-passed|running|fixing|ci) return 1 ;;
+    completed|failed|cancelled|passed|checks-passed) return 1 ;;
   esac
+  # Parked is decided by the shared gate markers, never the status word: the
+  # CLI keeps `running` while a run waits at a gate, and a run executing a
+  # step carries no marker, so it stays untouched.
+  fm_nm_run_is_parked "$out" || return 1
   if ! fm_nm_head_matches_worktree "$wt" "$run_head" \
     && ! fm_nm_run_is_submitted_head_active "$wt" "$out"; then
     # Neither the strict object-local rule nor the run's own record of
@@ -2201,16 +2207,7 @@ task_status_is_own_parked_run() {  # <worktree> <axi-status-output>
     ledger=$(fm_nm_run "$wt" "$NM_TEARDOWN_TIMEOUT" runs --limit "$NM_TEARDOWN_RUNS_LIMIT")
     [ "$(fm_nm_runs_status_for_worktree "$wt" "$branch" "$ledger" "$run_head")" = running ] || return 1
   fi
-  awaiting=$(printf '%s\n' "$out" | grep -E '^[[:space:]]*awaiting_agent:' | head -1 || true)
-  has_gate=$(printf '%s\n' "$out" | grep -Eq '^[[:space:]]*gate:[[:space:]]*' && echo 1 || echo 0)
-  case "$status" in
-    awaiting_approval|fix_review) TASK_RUN_ID=$run_id; return 0 ;;
-  esac
-  if [ -n "$awaiting" ] || [ "$has_gate" = 1 ]; then
-    TASK_RUN_ID=$run_id
-    return 0
-  fi
-  return 1
+  TASK_RUN_ID=$run_id
 }
 
 task_run_is_own_parked_run() {  # <worktree>

@@ -171,10 +171,24 @@ wait_gone() {
   return 0
 }
 
+# claim_runner_gone <source-id>: 0 once no runner is left behind the source's
+# claim. A finished runner deletes its claim only if the source lock is free as
+# it exits (release_start_claim in bin/fm-procevent.sh); one that exits inside
+# another process's brief hold, such as a launch-confirmation poll, leaves a
+# dead claim for the next reconcile to reclaim. So the proof that it finished
+# is its process group, which the claim records as the runner's pid, being gone.
+claim_runner_gone() {
+  local claim="$FM_PROCEVENT_CLAIM_ROOT/$1.claim" leader
+  [ -e "$claim" ] || return 0
+  leader=$(sed -n '2p' "$claim" 2>/dev/null) || leader=
+  [ -n "$leader" ] || return 1
+  ! kill -0 -"$leader" 2>/dev/null
+}
+
 # Arm now starts the listener, so a later start would poll again. Wait for the
-# capture that listener is already producing, and for its runner to release the
-# claim: the result lands before the runner publishes and exits, and a retire or
-# re-arm in that gap meets a live claim the synchronous start never left behind.
+# capture that listener is already producing, and for its runner to exit: the
+# result lands before the runner publishes and exits, and a retire or re-arm in
+# that gap meets a live claim the synchronous start never left behind.
 # The [tries] request takes the same 60 s floor as wait_for.
 wait_capture() {  # <home> <source-id> [tries]
   local home=$1 id=$2 n=${3:-100}
@@ -182,7 +196,7 @@ wait_capture() {  # <home> <source-id> [tries]
   [ "$n" -ge "$WAIT_FLOOR_TRIES" ] || n=$WAIT_FLOOR_TRIES
   for _ in $(seq 1 "$n"); do
     if first_result "$home" "$id" >/dev/null 2>&1 \
-      && [ ! -e "$FM_PROCEVENT_CLAIM_ROOT/$id.claim" ]; then
+      && claim_runner_gone "$id"; then
       return 0
     fi
     sleep 0.1
@@ -2344,11 +2358,11 @@ assert_contains "$ep_out" "failed=0" "a repaired source was still reported faile
 [ "$(launch_failed_wake_count "$HEP" episode-src)" = 1 ] \
   || fail "a confirmed launch produced a launch-failed wake: $ep_out"
 deadline=$((SECONDS + 60))
-while [ -e "$FM_PROCEVENT_CLAIM_ROOT/episode-src.claim" ] && [ "$SECONDS" -lt "$deadline" ]; do
+until claim_runner_gone episode-src || [ "$SECONDS" -ge "$deadline" ]; do
   sleep 0.1
 done
-[ ! -e "$FM_PROCEVENT_CLAIM_ROOT/episode-src.claim" ] \
-  || fail "the confirmed episode runner never released its claim"
+claim_runner_gone episode-src \
+  || fail "the confirmed episode runner never exited"
 ep_damage
 ep_reconcile "failed=1" 1 "a source that failed again after recovering was not reported failed"
 [ "$(launch_failed_wake_count "$HEP" episode-src)" = 2 ] \

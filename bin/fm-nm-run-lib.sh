@@ -490,7 +490,8 @@ FM_NM_GATE_ROW_RE='^[[:space:]]*[^,]+,[[:space:]]*"?(awaiting_approval|fix_revie
 # 0 if the run in captured `axi status` TOON $1 carries any of those PARKED
 # markers. The top-level `status:` word alone does NOT decide this: the CLI
 # leaves it at `running` while a run waits at a gate, so the word and the gate
-# markers routinely disagree.
+# markers routinely disagree. bin/fm-teardown.sh uses this same predicate to
+# decide which of a task's own runs cleanup may abort.
 fm_nm_run_is_parked() {  # <toon-output>
   printf '%s\n' "$1" | grep -Eq \
     "$FM_NM_GATE_LINE_RE|$FM_NM_AWAITING_AGENT_RE|$FM_NM_GATE_SCALAR_RE|$FM_NM_GATE_ROW_RE"
