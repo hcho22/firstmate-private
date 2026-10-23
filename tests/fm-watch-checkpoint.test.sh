@@ -325,6 +325,53 @@ SH
   pass "the perl fallback lets the watcher finish its exit cleanup under the default cleanup bound"
 }
 
+# A watcher stopped by TERM (fm-watch-arm.sh --stop or --restart, or a stalled
+# holder's eviction) runs its EXIT cleanup and then dies by that signal, as
+# bin/fm-watch.sh does with its native HUP and TERM handling. The perl fallback
+# must report that death as 128+n like timeout does: a 0 reached the checkpoint's
+# exit with no wake line, which its contract reads as an actionable wake.
+test_perl_fallback_reports_a_watcher_signal_death_as_failure() {
+  local home root toolbin tool real status out deadline checkpoint_pid
+  home=$(make_home perl-fallback-signal-death)
+  root="$home/root"
+  toolbin="$home/toolbin"
+  out="$home/out.txt"
+  mkdir -p "$root/bin" "$toolbin"
+  cp "$CHECKPOINT" "$root/bin/fm-watch-checkpoint.sh"
+  cp "$ROOT/bin/fm-supervision-engine-lib.sh" "$root/bin/fm-supervision-engine-lib.sh"
+  cat > "$root/bin/fm-watch.sh" <<'SH'
+#!/usr/bin/env bash
+[ "${1:-}" != --warm ] || exit 0
+trap ': > "$FM_FIXTURE/cleaned"' EXIT
+trap - HUP TERM
+printf '%s\n' "$$" > "$FM_FIXTURE/watcher.pid"
+while :; do sleep 0.05; done
+SH
+  chmod +x "$root/bin/fm-watch-checkpoint.sh" "$root/bin/fm-watch.sh"
+  "$root/bin/fm-watch.sh" --warm
+  for tool in bash env mktemp grep cat rm dirname perl sleep; do
+    real=$(command -v "$tool" || true)
+    [ -n "$real" ] || fail "missing tool for the perl-fallback path: $tool"
+    ln -s "$real" "$toolbin/$tool"
+  done
+  [ ! -e "$toolbin/timeout" ] && [ ! -e "$toolbin/gtimeout" ] || fail "the fixture PATH still offers a timeout command"
+  PATH="$toolbin" FM_HOME="$home" FM_FIXTURE="$home" \
+    "$root/bin/fm-watch-checkpoint.sh" --seconds 60 >"$out" 2>/dev/null &
+  checkpoint_pid=$!
+  deadline=$((SECONDS + 30))
+  while [ ! -s "$home/watcher.pid" ]; do
+    [ "$SECONDS" -lt "$deadline" ] || { kill "$checkpoint_pid" 2>/dev/null; fail "the stub watcher never started"; }
+    sleep 0.05
+  done
+  kill -TERM "$(cat "$home/watcher.pid")"
+  status=0
+  wait "$checkpoint_pid" || status=$?
+  expect_code 143 "$status" "a perl-fallback checkpoint whose watcher died by TERM"
+  assert_present "$home/cleaned" "the stub watcher did not run its exit cleanup before dying"
+  assert_not_contains "$(cat "$out")" "checkpoint: no actionable wake" "a watcher killed by TERM was reported as a quiet checkpoint"
+  pass "the perl fallback reports a watcher's signal death as 128+n, never as an actionable wake"
+}
+
 # Perl splits a one-element exec list on whitespace, so a watcher path in a
 # checkout whose path contains a space must still reach exec as one argument,
 # both on the host's own PATH and on the perl fallback.
@@ -481,6 +528,7 @@ test_quiet_checkpoint_releases_its_lock_when_started_with_int_ignored
 test_startup_timeout_releases_an_acquired_lock
 test_perl_timeout_fallback_honors_cleanup_bound_before_escalating
 test_perl_fallback_lets_the_watcher_finish_its_cleanup
+test_perl_fallback_reports_a_watcher_signal_death_as_failure
 test_checkpoint_runs_from_a_checkout_path_with_a_space
 test_announced_recovery_is_not_reannounced_by_next_checkpoint
 test_never_announced_recovery_is_announced_once

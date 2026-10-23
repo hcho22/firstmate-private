@@ -133,6 +133,8 @@ A session displaced by an explicit takeover (`bin/fm-lock.sh takeover`, recorded
 `fm_session_lock_displaced_record` decides it.
 It requires that the displaced pid is this process or an ancestor, or that the record names the displaced session's trusted Claude id and this process proves that id.
 It also requires that the session that took over still holds the lock: its pid is line 1, or its session id is recorded beside a line 1 it re-anchored.
+A Claude taker's recorded pid is its model-loop helper, which can be recycled while that session keeps running, so `bin/fm-lock.sh` refuses the displaced session's automatic reclaim of that dead pid while the id beside the lock is still the takeover's new session id.
+The taker's own next hook reclaims the lock, and the displaced session holds it again only through a captain-confirmed takeover.
 That notice is a plain stop-acting notice in every harness, never a blind-turn alarm.
 Claude, Codex, and native Grok receive it as exit 2 with the guard's own stderr unchanged.
 The follow-up renderers (OpenCode, Pi, omp, Grok's pre-native resume fallback, and the Cursor park) call the guard with `--followup`, receive it as exit 3, and forward it unchanged, because they frame every exit 2 with their own `TURN WOULD END BLIND` repair heading.
