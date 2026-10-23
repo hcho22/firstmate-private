@@ -27,12 +27,10 @@
 #
 # Lock-refused (read-only) sessions, in every mode: when another verified live
 # session owns the home lock (fm_session_lock_foreign_owner_live in
-# bin/fm-session-lock-lib.sh), or a takeover that displaced this session still
-# holds it behind a dead recorded pid (fm_session_lock_displaced_while_taker_holds),
-# this session may not arm, drain, or repair supervision, so the guard never
-# blocks it and never writes to this home's state/, before any other predicate
-# runs. docs/turnend-guard.md "Foreign session-lock owner" owns the notices that
-# session gets.
+# bin/fm-session-lock-lib.sh), this session may not arm, drain, or repair
+# supervision, so the guard never blocks it and never writes to this home's
+# state/, before any other predicate runs. docs/turnend-guard.md "Foreign
+# session-lock owner" owns the notices that session gets.
 # See docs/turnend-guard.md for the per-harness mechanics, validation evidence,
 # and fail-open tradeoffs.
 #
@@ -335,14 +333,6 @@ if fm_session_lock_foreign_owner_live "$STATE"; then
   if [ "$FM_SUP_NEEDED" = true ] && ! supervision_proven; then
     readonly_session_notice "$LOCK_HOLDER"
   fi
-  exit 0
-fi
-# The one dead holder that is read-only for this session too: the takeover that
-# displaced it still holds the lock through its session id while its recorded
-# pid, a recycled Claude helper, is dead, and bin/fm-lock.sh refuses this
-# session's reclaim. It gets the same displaced notice and the same stand-down.
-if displaced_record=$(fm_session_lock_displaced_while_taker_holds "$STATE"); then
-  displaced_session_notice "$displaced_record"
   exit 0
 fi
 if [ "$FM_SUP_NEEDED" = false ]; then

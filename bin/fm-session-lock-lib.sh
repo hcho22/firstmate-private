@@ -265,8 +265,10 @@ fm_session_lock_same_session() {  # <state> [<ancestry-pids>]
 # session, so "recorded pid dead" keeps meaning "session gone" instead of
 # wedging a home behind a live daemon whose session died. A replaced background
 # helper leaves a dead pid that its own session's next hook reclaims, because
-# the sidecar still names that session. Every other session records the
-# outermost pid of its contiguous run, exactly as before.
+# the sidecar still names that session. Until that hook runs the lock reads as a
+# dead holder to every session, so any other session, including one an explicit
+# takeover displaced, can reclaim it in that window. Every other session records
+# the outermost pid of its contiguous run, exactly as before.
 fm_session_lock_anchor_pid() {
   local pids
   pids=$(fm_harness_ancestry_pids) || return 1
@@ -518,23 +520,5 @@ fm_session_lock_displaced_record() {  # <state>
     trusted=$(fm_session_lock_trusted_session_id) || return 1
     [ "$trusted" = "$prev_session" ] || return 1
   fi
-  printf '%s\n' "$record"
-}
-
-# Print the newest takeover record when fm_session_lock_displaced_record names
-# this process's session as displaced AND the id recorded beside the lock is
-# still that takeover's new session id; fail otherwise. This is the one dead
-# line 1 that does not end the taker's hold: a Claude taker's recorded pid is its
-# model-loop helper, which is recycled while the session keeps running, and its
-# own next hook reclaims the lock. bin/fm-lock.sh refuses this session's reclaim
-# of it, and the turn-end guard stands this session down with the displaced
-# notice exactly as it does for a live taker.
-fm_session_lock_displaced_while_taker_holds() {  # <state>
-  local state=$1 record new_session recorded
-  record=$(fm_session_lock_displaced_record "$state") || return 1
-  new_session=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^new_session=//p')
-  [ -n "$new_session" ] || return 1
-  recorded=$(fm_session_lock_recorded_session_id "$state") || return 1
-  [ "$recorded" = "$new_session" ] || return 1
   printf '%s\n' "$record"
 }

@@ -994,102 +994,38 @@ test_takeover_of_a_trusted_session_moves_the_sidecar_and_records_its_id() {
   pass "session-lock takeover: a trusted session's takeover moves the sidecar to the new id and records the displaced one"
 }
 
-# A takeover by a trusted Claude session records its model-loop helper as line 1,
-# and that helper is recycled while the session keeps running: the lock then
-# names a dead pid while the taker's id is still beside it. The displaced session
-# (S1) holds the lock first, the taker (S2) takes it over from a short-lived
-# claude helper inside its own session, and that helper exits. Sets
-# DISPLACED_PID, TAKER_PID, and HELPER_PID; the caller stops both sessions.
-make_recycled_taker_home() {  # <dir>
-  local dir=$1
+# A captain-confirmed takeover holds against the displaced session only while the
+# taker's recorded pid lives. Once that pid is dead the lock is stale like any
+# other, so the displaced session reclaims it automatically, even with the
+# taker's id still beside it and the takeover record still naming the displaced
+# session.
+test_displaced_session_reclaims_once_the_takers_recorded_pid_is_dead() {
+  local dir displaced taker
+  dir="$TMP_ROOT/takeover-dead-taker"
   make_primary_home "$dir"
-  cat > "$dir/helper.sh" <<'SH'
-#!/usr/bin/env bash
-printf '%s\n' "$$" > "$FM_HOME/helper-pid"
-CLAUDE_CODE_SESSION_ID=S2 CLAUDE_PID=$$ "$FM_HOME/bin/fm-lock.sh" "$@"
-exit $?
-SH
+  rm -f "${dir:?}/state/task.meta"
   session_start "$dir" displaced "$NAMED_CLAUDE"
-  DISPLACED_PID=$SESSION_PID
+  displaced=$SESSION_PID
   session_run "$dir" displaced 'export CLAUDE_CODE_SESSION_ID=S1 CLAUDE_PID=$$; "$FM_HOME/bin/fm-lock.sh"'
-  [ "$SESSION_RC" = 0 ] || fail "the displaced session could not take the lock first: $SESSION_OUT"
+  expect_code 0 "$SESSION_RC" "the first trusted session could not take the lock: $SESSION_OUT"
   session_start "$dir" taker "$NAMED_CLAUDE"
-  TAKER_PID=$SESSION_PID
-  session_run "$dir" taker "\"$NAMED_CLAUDE\" \"\$FM_HOME/helper.sh\" takeover --confirm-holder $DISPLACED_PID"
-  [ "$SESSION_RC" = 0 ] || fail "the taker's helper could not take the lock over: $SESSION_OUT"
-  HELPER_PID=$(cat "$dir/helper-pid")
-  [ "$(cat "$dir/state/.lock")" = "$HELPER_PID" ] || fail "the takeover did not record the taker's helper as the holder"
-  [ "$(cat "$dir/state/.lock-session")" = S2 ] || fail "the takeover did not record the taker's id"
-  if kill -0 "$HELPER_PID" 2>/dev/null; then fail "the taker's helper is still running"; fi
-}
-
-stop_recycled_taker_home() {  # <dir>
-  session_stop "$1" taker "$TAKER_PID"
-  session_stop "$1" displaced "$DISPLACED_PID"
-}
-
-test_displaced_session_never_reclaims_a_recycled_takers_dead_pid() {
-  local dir record
-  dir="$TMP_ROOT/takeover-recycled-taker"
-  make_recycled_taker_home "$dir"
-  record=$(cat "$dir/state/.lock-takeovers")
-  # The displaced session's next Stop needs supervision and finds a dead holder.
-  session_run "$dir" displaced '"$FM_HOME/bin/fm-claude-stop-autoarm.sh" </dev/null'
-  expect_code 0 "$SESSION_RC" "the displaced session's Stop auto-arm must exit silently: $SESSION_OUT"
-  [ ! -e "$dir/state/arm-ran" ] || fail "the displaced session's auto-arm reclaimed the dead pid and armed supervision"
-  [ "$(cat "$dir/state/.lock")" = "$HELPER_PID" ] || fail "the displaced session's auto-arm took the lock back"
-  [ "$(cat "$dir/state/.lock-session")" = S2 ] || fail "the displaced session's auto-arm replaced the taker's id"
+  taker=$SESSION_PID
+  session_run "$dir" taker "export CLAUDE_CODE_SESSION_ID=S2 CLAUDE_PID=\$\$; \"\$FM_HOME/bin/fm-lock.sh\" takeover --confirm-holder $displaced"
+  expect_code 0 "$SESSION_RC" "the confirmed takeover failed: $SESSION_OUT"
   session_run "$dir" displaced '"$FM_HOME/bin/fm-lock.sh"'
-  expect_code 1 "$SESSION_RC" "the displaced session's fm-lock.sh reclaimed the taker's dead pid"
-  assert_contains "$SESSION_OUT" "this session no longer owns the fleet" "the displaced session was not told the takeover displaced it"
-  assert_contains "$SESSION_OUT" "moved the lock to session S2" "the refusal did not name the session that took over"
-  assert_contains "$SESSION_OUT" "must stop acting on the fleet now" "the refusal did not tell the displaced session to stop acting"
-  assert_contains "$SESSION_OUT" "fm-lock.sh takeover --confirm-holder $HELPER_PID" "the refusal did not print the takeover of the dead pid"
-  assert_not_contains "$SESSION_OUT" "another live firstmate session holds the lock" "the displaced session got the generic live-holder refusal"
-  [ "$(cat "$dir/state/.lock")" = "$HELPER_PID" ] || fail "the displaced session's fm-lock.sh took the lock back"
-  [ "$(cat "$dir/state/.lock-takeovers")" = "$record" ] || fail "a refused reclaim changed the takeover record"
-  session_run "$dir" displaced '. "$FM_HOME/bin/fm-session-lock-lib.sh"; fm_session_lock_displaced_record "$FM_HOME/state"'
-  expect_code 0 "$SESSION_RC" "a refused reclaim stopped the displaced session recognizing its takeover"
-  # The captain's explicit takeover of that dead pid still succeeds.
-  session_run "$dir" displaced "\"\$FM_HOME/bin/fm-lock.sh\" takeover --confirm-holder $HELPER_PID"
-  expect_code 0 "$SESSION_RC" "the displaced session's confirmed takeover of the dead pid failed: $SESSION_OUT"
-  assert_contains "$SESSION_OUT" "lock taken over: harness pid $DISPLACED_PID replaced pid $HELPER_PID" "the takeover did not report who replaced whom"
-  [ "$(cat "$dir/state/.lock")" = "$DISPLACED_PID" ] || fail "the confirmed takeover did not move the lock"
-  [ "$(cat "$dir/state/.lock-session")" = S1 ] || fail "the confirmed takeover did not record this session's id"
-  assert_contains "$(tail -n 1 "$dir/state/.lock-takeovers")" "prev_session=S2" "the takeover of the dead pid did not record the session it displaced"
-  stop_recycled_taker_home "$dir"
-  pass "session-lock takeover: a displaced session never reclaims a recycled taker's dead pid, and its confirmed takeover still succeeds"
-}
-
-test_recycled_takers_dead_pid_is_reclaimed_by_any_session_it_did_not_displace() {
-  local dir other
-  dir="$TMP_ROOT/takeover-recycled-taker-own"
-  make_recycled_taker_home "$dir"
-  # The taker's own next lock check reclaims its dead pid, and the displaced
-  # session still recognizes the takeover, which the turn-end guard's displaced
-  # notice reads, rather than seeing only a foreign holder.
-  session_run "$dir" taker 'export CLAUDE_CODE_SESSION_ID=S2 CLAUDE_PID=$$; "$FM_HOME/bin/fm-lock.sh"'
-  expect_code 0 "$SESSION_RC" "the taker could not reclaim its own recycled helper's lock: $SESSION_OUT"
-  [ "$(cat "$dir/state/.lock")" = "$TAKER_PID" ] || fail "the taker's reclaim did not anchor the lock on its live session"
-  [ "$(cat "$dir/state/.lock-session")" = S2 ] || fail "the taker's reclaim lost its id"
-  session_run "$dir" displaced '. "$FM_HOME/bin/fm-session-lock-lib.sh"; fm_session_lock_displaced_record "$FM_HOME/state"'
-  expect_code 0 "$SESSION_RC" "after the taker reclaimed, the displaced session no longer recognized its takeover"
-  stop_recycled_taker_home "$dir"
-
-  # A session that no takeover displaced reclaims the same dead pid exactly as
-  # any stale lock, with the taker's id still beside it.
-  dir="$TMP_ROOT/takeover-recycled-taker-other"
-  make_recycled_taker_home "$dir"
-  session_start "$dir" other "$CODEX_BIN"
-  other=$SESSION_PID
-  session_run "$dir" other '"$FM_HOME/bin/fm-lock.sh"'
-  expect_code 0 "$SESSION_RC" "a session no takeover displaced could not reclaim a dead pid: $SESSION_OUT"
-  [ "$(cat "$dir/state/.lock")" = "$other" ] || fail "the undisplaced session did not take the stale lock"
-  assert_absent "$dir/state/.lock-session" "the undisplaced session's reclaim left the taker's id beside its lock"
-  [ "$(wc -l < "$dir/state/.lock-takeovers" | tr -d ' ')" = 1 ] || fail "an automatic reclaim was recorded as a takeover"
-  session_stop "$dir" other "$other"
-  stop_recycled_taker_home "$dir"
-  pass "session-lock takeover: a recycled taker's dead pid is reclaimed by the taker and by any session it did not displace"
+  expect_code 1 "$SESSION_RC" "the displaced session took the lock from a live taker"
+  assert_contains "$SESSION_OUT" "holds the lock (pid $taker, session S2)" "the displaced session was not told the live taker holds the lock"
+  [ "$(cat "$dir/state/.lock")" = "$taker" ] || fail "the live taker lost the lock to the displaced session"
+  session_stop "$dir" taker "$taker"
+  if kill -0 "$taker" 2>/dev/null; then fail "the taker session is still running"; fi
+  [ "$(cat "$dir/state/.lock-session")" = S2 ] || fail "the taker's id is no longer beside the lock after it exited"
+  session_run "$dir" displaced '"$FM_HOME/bin/fm-lock.sh"'
+  expect_code 0 "$SESSION_RC" "the displaced session did not reclaim the dead taker's lock automatically: $SESSION_OUT"
+  [ "$(cat "$dir/state/.lock")" = "$displaced" ] || fail "the reclaim did not anchor the lock on the displaced session"
+  [ "$(cat "$dir/state/.lock-session")" = S1 ] || fail "the reclaim did not record the displaced session's id"
+  [ "$(wc -l < "$dir/state/.lock-takeovers" | tr -d ' ')" = 1 ] || fail "the automatic reclaim was recorded as a takeover"
+  session_stop "$dir" displaced "$displaced"
+  pass "session-lock takeover: a live taker holds against the displaced session, which reclaims automatically once the taker's recorded pid is dead"
 }
 
 # --- end-to-end layer: a background session whose helper chain is recycled ---
@@ -1749,8 +1685,7 @@ test_takeover_outside_any_session_says_where_to_run_it
 test_displaced_session_is_read_only_at_its_next_lock_checks
 test_dead_holder_is_still_reclaimed_automatically
 test_takeover_of_a_trusted_session_moves_the_sidecar_and_records_its_id
-test_displaced_session_never_reclaims_a_recycled_takers_dead_pid
-test_recycled_takers_dead_pid_is_reclaimed_by_any_session_it_did_not_displace
+test_displaced_session_reclaims_once_the_takers_recorded_pid_is_dead
 test_e2e_background_session_keeps_its_lock_across_a_recycled_chain
 test_same_session_confirmation_refreshes_rekeyed_id_under_claim_lock
 test_same_session_confirmation_does_not_steal_after_wait

@@ -74,7 +74,7 @@ install_scripts() {
            fm-cd-pretool-check.sh fm-claude-stop-autoarm.sh fm-hook-host-lib.sh \
            fm-primary-scope-lib.sh fm-supervision-lib.sh fm-wake-lib.sh fm-path-lib.sh \
            fm-session-lock-lib.sh fm-cursor-lib.sh fm-operational-input.sh \
-           fm-supervision-instructions.sh fm-harness.sh fm-lock.sh fm-lease-lib.sh \
+           fm-supervision-instructions.sh fm-harness.sh fm-lock.sh \
            fm-gate-refuse-lib.sh fm-afk-contract.sh fm-classify-lib.sh fm-timeout-lib.sh \
            fm-supervision-engine-lib.sh; do
     cp "$ROOT/bin/$f" "$dir/bin/$f"
@@ -799,62 +799,6 @@ SH
   pass "cursor park: a takeover during the last arm attempt still delivers the displaced notice"
 }
 
-# A Cursor session displaced by a trusted Claude session whose recorded pid, its
-# model-loop helper, was then recycled while that session runs on: the lock names
-# a dead pid and the taker's id is still beside it. That dead pid is not the
-# park's to recover, so the park never arms and delivers the shared guard's
-# displaced notice instead. FM_PREV_PID names another session as the displaced
-# one instead of this one.
-RECYCLED_TAKER_PARK_CHILD='
-  prev=${FM_PREV_PID:-$$}
-  printf "%s\n" "$DEAD_PID" > "$FM_HOME/state/.lock"
-  printf "S2\n" > "$FM_HOME/state/.lock-session"
-  printf "at=2026-10-01T20:00:00Z\tnew_pid=%s\tnew_session=S2\tnew_command=claude\tprev_pid=%s\tprev_session=\tprev_holder=command: cursor-agent\n" "$DEAD_PID" "$prev" > "$FM_HOME/state/.lock-takeovers"
-  printf "%s\n" "$PPID" > "$FM_HOME/tmp/cursor-pid"
-  "$FM_HOME/bin/fm-turnend-guard-cursor.sh"
-'
-
-run_recycled_taker_park() {  # <dir> <dead-pid> [<displaced-pid>]
-  printf '%s' "$CURSOR_PAYLOAD" | env -u PI_CODING_AGENT FM_HOME="$1" TMPDIR="$1/tmp" DEAD_PID="$2" FM_PREV_PID="${3:-}" \
-    FM_CURSOR_PARK_POLL=1 "$FAKE_CURSOR" -c "$RECYCLED_TAKER_PARK_CHILD" 2>/dev/null
-}
-
-test_park_never_reclaims_a_recycled_takers_dead_pid_for_the_displaced_session() {
-  local dir dead other out body
-  dead=999991
-  while kill -0 "$dead" 2>/dev/null; do dead=$((dead + 1)); done
-  other=$((dead + 1))
-  while kill -0 "$other" 2>/dev/null; do other=$((other + 1)); done
-  dir=$(make_primary_dir "$TMP_ROOT/park-recycled-taker")
-  : > "$dir/state/task1.meta"
-  mkdir -p "$dir/tmp"
-  write_arm_fixture "$dir" actionable
-  out=$(run_recycled_taker_park "$dir" "$dead")
-  [ "$(kind_of_followup "$out")" = turn-end-guard ] || fail "the displaced session got no typed turn-end-guard follow-up: $out"
-  body=$(followup_of "$out")
-  assert_contains "$body" 'THIS SESSION NO LONGER OWNS THE FLEET' "the displaced follow-up did not say the lock was taken over"
-  assert_contains "$body" 'must stop acting on the fleet now' "the displaced follow-up did not tell the session to stop acting"
-  assert_not_contains "$body" 'TURN WOULD END BLIND' "the displaced follow-up was framed as a blind-turn alarm"
-  assert_not_contains "$body" 'could not establish a live cycle' "the displaced follow-up reused the repair nag"
-  [ ! -e "$dir/state/arm-ran" ] || fail "the displaced session's park reclaimed the dead pid and armed supervision"
-  [ "$(cat "$dir/state/.lock")" = "$dead" ] || fail "the displaced session's park reclaimed the taker's lock"
-  [ "$(cat "$dir/state/.lock-session")" = S2 ] || fail "the displaced session's park replaced the taker's id"
-  [ ! -e "$dir/state/.cursor-park-owner" ] || fail "the displaced session claimed the park"
-  [ ! -e "$dir/state/.turnend-cursor-blocks" ] || fail "the displaced notice consumed the repair budget"
-
-  # The same dead pid and taker id, but the takeover displaced some other
-  # session: this one reclaims the stale lock and parks exactly as before.
-  dir=$(make_primary_dir "$TMP_ROOT/park-recycled-taker-undisplaced")
-  : > "$dir/state/task1.meta"
-  mkdir -p "$dir/tmp"
-  write_arm_fixture "$dir" actionable
-  out=$(run_recycled_taker_park "$dir" "$dead" "$other")
-  [ -e "$dir/state/arm-ran" ] || fail "a session no takeover displaced did not reclaim the dead pid and park"
-  [ "$(cat "$dir/state/.lock")" = "$(cat "$dir/tmp/cursor-pid")" ] || fail "a session no takeover displaced did not take the stale lock"
-  [ "$(kind_of_followup "$out")" = watcher ] || fail "the reclaiming session's wake did not arrive as a follow-up: $out"
-  pass "cursor park: a displaced session is told instead of reclaiming a recycled taker's dead pid, and an undisplaced one still reclaims it"
-}
-
 test_park_inert_in_child_worktree() {
   local base child out
   base=$(make_primary_dir "$TMP_ROOT/park-base")
@@ -981,7 +925,6 @@ test_park_inert_without_session_lock
 test_park_stands_down_after_session_takeover
 test_park_delivers_displaced_notice_once_without_repair_wording
 test_park_delivers_displaced_notice_when_taken_over_during_its_last_attempt
-test_park_never_reclaims_a_recycled_takers_dead_pid_for_the_displaced_session
 test_park_inert_in_child_worktree
 test_park_ignores_malformed_payload
 test_sessionstart_emits_additional_context
