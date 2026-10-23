@@ -205,8 +205,10 @@
 # recorded family-level coupling still expands to the whole family.
 # tests/lib.sh, tests/fixtures.sh, tests/*-helpers.sh and tests/*-fixture.sh are
 # shared files that map to the suites naming them; a fixture under
-# tests/fixtures/<dir>/ is mapped by that directory instead. Curated family arms
-# above those also name individual tests/ files explicitly.
+# tests/fixtures/<dir>/ or a recorded capture under tests/captures/<dir>/ is
+# mapped by that directory instead, and any other tests/ support file maps to
+# the suites naming its path under tests/. Curated family arms above those also
+# name individual tests/ files explicitly.
 set -eu
 
 now_ms() {
