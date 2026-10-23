@@ -72,10 +72,11 @@ install_scripts() {
   for f in fm-turnend-guard-cursor.sh fm-turnend-guard.sh fm-sessionstart-cursor.sh \
            fm-sessionstart-run.sh fm-sessionstart-nudge.sh fm-arm-pretool-check.sh \
            fm-cd-pretool-check.sh fm-claude-stop-autoarm.sh fm-hook-host-lib.sh \
-           fm-primary-scope-lib.sh fm-supervision-lib.sh fm-wake-lib.sh \
+           fm-primary-scope-lib.sh fm-supervision-lib.sh fm-wake-lib.sh fm-path-lib.sh \
            fm-session-lock-lib.sh fm-cursor-lib.sh fm-operational-input.sh \
            fm-supervision-instructions.sh fm-harness.sh fm-lock.sh \
-           fm-gate-refuse-lib.sh; do
+           fm-gate-refuse-lib.sh fm-afk-contract.sh fm-classify-lib.sh fm-timeout-lib.sh \
+           fm-supervision-engine-lib.sh; do
     cp "$ROOT/bin/$f" "$dir/bin/$f"
   done
   cp "$ROOT/bin/fm-arm-command-policy.mjs" "$dir/bin/fm-arm-command-policy.mjs"
@@ -471,6 +472,122 @@ test_park_inert_when_afk() {
   pass "cursor park: inert while away mode is active"
 }
 
+# A supervision host fixture standing in for bin/fm-supervision-host.sh: it
+# records its primary pin and arguments, then closes the way <kind> says.
+write_host_fixture() {  # <dir> <kind>
+  local dir=$1 kind=$2
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'printf "%%s\\t%%s\\t%%s\\n" "$$" "${FM_SUPERVISION_HOST_PRIMARY:-}" "$*" >> "$FM_HOME/state/host-ran"\n'
+    case "$kind" in
+      handback)
+        printf 'printf "watcher: started pid=%%s (beacon fresh)\\n" "$$"\n'
+        printf 'for i in 1 2 3 4 5 6 7 8 9 10; do printf "stale: fixture-win %%s\\n" "$i"; done\n'
+        printf 'printf "supervision-host: the away session could not take this wake: fixture; this wake is yours\\n"\n'
+        printf 'for i in 1 2 3 4 5 6 7 8 9 10; do printf "supervision-host: outcome %%s for demo [routine]: fixture\\n" "$i"; done\n'
+        ;;
+      boundary)
+        printf 'printf "supervision-host: cycle boundary - fixture\\n"\n'
+        ;;
+      stood-down)
+        printf 'printf "supervision-host stood down: this session no longer owns supervision\\n"\n'
+        ;;
+      dies-once)
+        printf '[ "$(wc -l < "$FM_HOME/state/host-ran")" -gt 1 ] || kill -KILL $$\n'
+        printf 'printf "stale: fixture-win after a retry\\n"\n'
+        ;;
+    esac
+    printf 'exit 0\n'
+  } > "$dir/bin/fm-supervision-host.sh"
+  chmod +x "$dir/bin/fm-supervision-host.sh"
+}
+
+test_park_runs_the_supervision_host_only_when_opted_in() {
+  local dir out body
+  dir=$(make_primary_dir "$TMP_ROOT/park-host-off")
+  : > "$dir/state/task1.meta"
+  write_arm_fixture "$dir" actionable
+  write_host_fixture "$dir" handback
+  out=$(run_park "$dir")
+  [ -e "$dir/state/arm-ran" ] || fail "a home without config/supervision-host must park on the arm"
+  [ ! -e "$dir/state/host-ran" ] || fail "a home without config/supervision-host ran the supervision host"
+
+  dir=$(make_primary_dir "$TMP_ROOT/park-host-opted-out")
+  : > "$dir/state/task1.meta"
+  mkdir -p "$dir/config"
+  : > "$dir/config/supervision-host-off"
+  write_arm_fixture "$dir" actionable
+  write_host_fixture "$dir" handback
+  out=$(run_park "$dir")
+  [ -e "$dir/state/arm-ran" ] || fail "a home opted out by config/supervision-host-off must park on the arm"
+  [ ! -e "$dir/state/host-ran" ] || fail "a home opted out by config/supervision-host-off ran the supervision host"
+
+  dir=$(make_primary_dir "$TMP_ROOT/park-host-on")
+  : > "$dir/state/task1.meta"
+  : > "$dir/state/.afk-contract"
+  mkdir -p "$dir/config"
+  : > "$dir/config/supervision-host"
+  write_arm_fixture "$dir" actionable
+  write_host_fixture "$dir" handback
+  out=$(run_park "$dir")
+  [ ! -e "$dir/state/arm-ran" ] || fail "an opted-in home ran the plain arm"
+  [ "$(cut -f2,3 "$dir/state/host-ran")" = "$(printf 'cursor\tpark')" ] \
+    || fail "the park must run the host as 'park' with the cursor primary pin: $(cat "$dir/state/host-ran")"
+  [ "$(kind_of_followup "$out")" = watcher ] || fail "a handed-back wake must arrive as a watcher-kind follow-up, got: $out"
+  body=$(followup_of "$out")
+  [ "$(printf '%s\n' "$body" | grep -c '^supervision-host:')" -eq 11 ] \
+    || fail "the follow-up must carry every supervision-host line: $body"
+  [ "$(printf '%s\n' "$body" | grep -c '^stale: fixture-win')" -eq 8 ] \
+    || fail "the follow-up must keep the eight-line cap on wake lines: $body"
+  case "$body" in *'not from the captain: it is not a return'*) ;; *) fail "an away handback must say it is not the captain's return: $body" ;; esac
+
+  # Quiet mode's record is a present captain (bin/fm-afk-contract.sh AWAY OR
+  # QUIET), so the same handback beside it carries no away note.
+  dir=$(make_primary_dir "$TMP_ROOT/park-host-quiet")
+  : > "$dir/state/task1.meta"
+  FM_HOME="$dir" FM_AFK_MODE=quiet "$ROOT/bin/fm-afk-contract.sh" enter --words 'keep routine wakes off my main' >/dev/null 2>&1 \
+    || fail "fixture: could not record quiet mode"
+  mkdir -p "$dir/config"
+  : > "$dir/config/supervision-host"
+  write_arm_fixture "$dir" actionable
+  write_host_fixture "$dir" handback
+  out=$(run_park "$dir")
+  body=$(followup_of "$out")
+  case "$body" in *'supervision-host:'*) ;; *) fail "the quiet-record handback did not reach main: $out" ;; esac
+  case "$body" in *'not a return'*) fail "a handback beside a quiet record called itself away-posture supervision: $body" ;; esac
+  pass "cursor park: an opted-in home parks on the supervision host and relays every host line"
+}
+
+test_park_host_boundary_stand_down_and_death() {
+  local dir out
+  dir=$(make_primary_dir "$TMP_ROOT/park-host-boundary")
+  : > "$dir/state/task1.meta"
+  mkdir -p "$dir/config"
+  : > "$dir/config/supervision-host"
+  write_host_fixture "$dir" boundary
+  out=$(run_park "$dir")
+  case "$(followup_of "$out")" in *'supervision-host: cycle boundary - fixture'*) ;; *) fail "the park boundary must reach the session as a follow-up: $out" ;; esac
+
+  dir=$(make_primary_dir "$TMP_ROOT/park-host-stood-down")
+  : > "$dir/state/task1.meta"
+  mkdir -p "$dir/config"
+  : > "$dir/config/supervision-host"
+  write_host_fixture "$dir" stood-down
+  out=$(run_park "$dir")
+  [ -z "$out" ] || fail "a host that stood down must end the park silently: $out"
+  [ "$(wc -l < "$dir/state/host-ran" | tr -d ' ')" -eq 1 ] || fail "a host that stood down must not be retried"
+
+  dir=$(make_primary_dir "$TMP_ROOT/park-host-died")
+  : > "$dir/state/task1.meta"
+  mkdir -p "$dir/config"
+  : > "$dir/config/supervision-host"
+  write_host_fixture "$dir" dies-once
+  out=$(run_park "$dir")
+  [ "$(wc -l < "$dir/state/host-ran" | tr -d ' ')" -eq 2 ] || fail "a host that died without a close must be retried: $(cat "$dir/state/host-ran")"
+  case "$(followup_of "$out")" in *'stale: fixture-win after a retry'*) ;; *) fail "the retried host's wake was not delivered: $out" ;; esac
+  pass "cursor park: the host's boundary wakes, its stand-down is silent, and a host that died is retried"
+}
+
 test_park_inert_under_pi_coding_agent() {
   local dir out payload
   dir=$(make_primary_dir "$TMP_ROOT/park-pi-host")
@@ -587,6 +704,25 @@ DISPLACED_PARK_CHILD='
   "$FM_HOME/bin/fm-turnend-guard-cursor.sh"
 '
 
+# Two stops of one displaced session: one agent process, one takeover record
+# naming it, and the park run once per stop beneath it, as Cursor runs its stop
+# hook. Each stop's output and status land in $FM_HOME/tmp/stop<n>.out and .rc.
+DISPLACED_TWICE_PARK_CHILD='
+  printf "%s\n" "$FOREIGN_PID" > "$FM_HOME/state/.lock"
+  printf "at=2026-10-01T20:00:00Z\tnew_pid=%s\tnew_command=claude\tprev_pid=%s\tprev_holder=command: cursor-agent\n" "$FOREIGN_PID" "$$" > "$FM_HOME/state/.lock-takeovers"
+  for n in 1 2; do
+    printf "%s" "$PARK_PAYLOAD" | "$FM_HOME/bin/fm-turnend-guard-cursor.sh" > "$FM_HOME/tmp/stop$n.out" 2>/dev/null
+    printf "%s\n" "$?" > "$FM_HOME/tmp/stop$n.rc"
+  done
+'
+
+run_displaced_park_twice() {  # <dir> <foreign-pid> <session-id>
+  local dir=$1 foreign=$2 session=$3 payload
+  payload=$(printf '{"session_id":"%s","generation_id":"gen-0","loop_count":0,"status":"completed","hook_event_name":"stop","cursor_version":"2026.08.11-e8db854"}' "$session")
+  env -u PI_CODING_AGENT FM_HOME="$dir" TMPDIR="$dir/tmp" FOREIGN_PID="$foreign" PARK_PAYLOAD="$payload" \
+    FM_CURSOR_PARK_POLL=1 "$FAKE_CURSOR" -c "$DISPLACED_TWICE_PARK_CHILD" </dev/null >/dev/null 2>&1
+}
+
 run_displaced_park() {  # <dir> <foreign-pid> <session-id> <displaced:0|1>
   local dir=$1 foreign=$2 session=$3 displaced=$4 payload
   payload=$(printf '{"session_id":"%s","generation_id":"gen-0","loop_count":0,"status":"completed","hook_event_name":"stop","cursor_version":"2026.08.11-e8db854"}' "$session")
@@ -602,8 +738,9 @@ test_park_delivers_displaced_notice_once_without_repair_wording() {
   write_arm_fixture "$dir" actionable
   "$FAKE_CURSOR" -c 'while kill -0 "$PPID" 2>/dev/null; do sleep 1; done' >/dev/null 2>&1 &
   foreign=$!
-  first=$(run_displaced_park "$dir" "$foreign" sess-displaced 1); first_rc=$?
-  second=$(run_displaced_park "$dir" "$foreign" sess-displaced 1); second_rc=$?
+  run_displaced_park_twice "$dir" "$foreign" sess-displaced
+  first=$(cat "$dir/tmp/stop1.out"); first_rc=$(cat "$dir/tmp/stop1.rc")
+  second=$(cat "$dir/tmp/stop2.out"); second_rc=$(cat "$dir/tmp/stop2.rc")
   rm -f "$dir/state/.lock-takeovers"
   observer=$(run_displaced_park "$dir" "$foreign" sess-observer 0)
   kill "$foreign" 2>/dev/null || true
@@ -623,6 +760,43 @@ test_park_delivers_displaced_notice_once_without_repair_wording() {
   [ ! -e "$dir/state/.turnend-cursor-blocks" ] || fail "the displaced notice consumed the repair budget"
   [ ! -e "$dir/state/.cursor-park-owner" ] || fail "a displaced session claimed the park"
   pass "cursor park: a displaced session gets the stop-acting notice once, as a plain follow-up"
+}
+
+# A takeover that lands during the park's last arm attempt, after its ownership
+# poll and before the arm exits, is first seen by the park's final shared-guard
+# call. That call claims the once-per-takeover notice, so the park must deliver
+# it there: a later stop would find the notice already given.
+test_park_delivers_displaced_notice_when_taken_over_during_its_last_attempt() {
+  local dir foreign out body
+  dir=$(make_primary_dir "$TMP_ROOT/park-displaced-last-attempt")
+  : > "$dir/state/task1.meta"
+  mkdir -p "$dir/tmp"
+  cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$$" >> "$FM_HOME/state/arm-ran"
+sleep 2
+foreign=$(cat "$FM_HOME/foreign.pid")
+printf 'at=2026-10-01T20:00:00Z\tnew_pid=%s\tnew_command=claude\tprev_pid=%s\tprev_holder=command: cursor-agent\n' \
+  "$foreign" "$(cat "$FM_HOME/state/.lock")" > "$FM_HOME/state/.lock-takeovers"
+printf '%s\n' "$foreign" > "$FM_HOME/state/.lock"
+printf 'watcher: FAILED - no live watcher with a fresh beacon\n'
+exit 1
+SH
+  chmod +x "$dir/bin/fm-watch-arm.sh"
+  "$FAKE_CURSOR" -c 'while kill -0 "$PPID" 2>/dev/null; do sleep 1; done' >/dev/null 2>&1 &
+  foreign=$!
+  printf '%s\n' "$foreign" > "$dir/foreign.pid"
+  out=$(printf '%s' "$CURSOR_PAYLOAD" | env -u PI_CODING_AGENT FM_HOME="$dir" TMPDIR="$dir/tmp" \
+    FM_CURSOR_PARK_ATTEMPTS=1 FM_CURSOR_PARK_POLL=5 "$FAKE_CURSOR" -c "$PARK_CHILD" 2>/dev/null)
+  kill "$foreign" 2>/dev/null || true
+  wait "$foreign" 2>/dev/null || true
+  [ -s "$dir/state/arm-ran" ] || fail "the park never armed before the takeover"
+  [ "$(kind_of_followup "$out")" = turn-end-guard ] \
+    || fail "a session displaced during its last arm attempt got no turn-end-guard follow-up: $out"
+  body=$(followup_of "$out")
+  assert_contains "$body" 'THIS SESSION NO LONGER OWNS THE FLEET' "the late displaced follow-up did not say the lock was taken over"
+  assert_not_contains "$body" 'could not establish a live cycle' "the late displaced follow-up reused the repair nag"
+  pass "cursor park: a takeover during the last arm attempt still delivers the displaced notice"
 }
 
 test_park_inert_in_child_worktree() {
@@ -742,12 +916,15 @@ test_park_stands_down_when_superseded
 test_park_serializes_supersession_with_followup_commit
 test_superseded_park_does_not_consume_nag_budget
 test_park_inert_when_afk
+test_park_runs_the_supervision_host_only_when_opted_in
+test_park_host_boundary_stand_down_and_death
 test_park_inert_under_pi_coding_agent
 test_park_still_parks_with_pi_leak_and_cursor_identity
 test_park_stands_down_when_away_mode_activates_before_commit
 test_park_inert_without_session_lock
 test_park_stands_down_after_session_takeover
 test_park_delivers_displaced_notice_once_without_repair_wording
+test_park_delivers_displaced_notice_when_taken_over_during_its_last_attempt
 test_park_inert_in_child_worktree
 test_park_ignores_malformed_payload
 test_sessionstart_emits_additional_context

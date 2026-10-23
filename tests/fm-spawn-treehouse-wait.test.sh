@@ -11,8 +11,10 @@
 # bound passes without any observation. A get that is only waiting its turn on
 # its pool behind another live
 # operation is not stuck while that operation advances, and is refused naming
-# it when it does not. Because the wait can be long, it holds no lock another
-# dispatch in the same home needs. Every case drives the public interface
+# it when it does not. A get that settles somewhere other than an isolated
+# worktree is never adopted and is refused by the same bounds, naming the last
+# path seen and why it was rejected. Because the wait can be long, it holds no
+# lock another dispatch in the same home needs. Every case drives the public interface
 # (bin/fm-spawn.sh) against a REAL tmux server on a private socket whose pane
 # shell is a bare bash, with a `treehouse` stand-in on PATH that behaves as the
 # case asks (works for a while, exits with an error, hangs, lands in the wrong
@@ -36,6 +38,10 @@ REAL_PS=$(command -v ps)
 SPAWN="$ROOT/bin/fm-spawn.sh"
 TMP_ROOT=$(fm_test_tmproot fm-spawn-treehouse-wait)
 RUN_TAG="thw$$"
+# The spawn keeps the get's pid record in a private directory under its TMPDIR,
+# which it inherits from this script.
+TMPDIR_BASE=${TMPDIR:-/tmp}
+TMPDIR_BASE=${TMPDIR_BASE%/}
 SOCKETS=()
 PEER_PIDS=()
 # The pool-lock cases need a way to hold a real flock and a way to find who
@@ -54,7 +60,8 @@ cleanup_all() {
     rm -f "${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/$sock"
   done
   for id in "${TASK_IDS[@]:-}"; do
-    [ -n "$id" ] && rm -rf "/tmp/fm-$id"
+    [ -n "$id" ] || continue
+    rm -rf "/tmp/fm-$id" "/tmp/fm-$id+"* "${TMPDIR_BASE}/fm-treehouse-get-$id."*
   done
   fm_test_cleanup
 }
@@ -126,6 +133,10 @@ make_world() {
   fm_git_identity
   fm_git_init_commit "$proj"
   fm_git_add_origin "$proj" "$case_dir/project.origin.git"
+  # A second project in the same home, for a dispatch that must not contend on
+  # the first project's Treehouse project lock (see run_concurrent_case).
+  fm_git_init_commit "$case_dir/project2"
+  fm_git_add_origin "$case_dir/project2" "$case_dir/project2.origin.git"
   printf 'set -g default-command "bash --noprofile --norc"\n' > "$case_dir/tmux.conf"
   cat > "$fakebin/tmux" <<SH
 #!/usr/bin/env bash
@@ -164,13 +175,20 @@ SH
 }
 
 # spawn_in <name> <id> <out-dir> <mode> <seconds> [VAR=value ...]: run one spawn
-# of task <id> in world <name> and leave its output, exit code, and elapsed
-# seconds under <out-dir>.
+# of task <id> on world <name>'s project and leave its output, exit code, and
+# elapsed seconds under <out-dir>.
 spawn_in() {
-  local name=$1 id=$2 out_dir=$3 mode=$4 seconds=$5 case_dir proj home start rc kv
-  shift 5
+  local name=$1
+  shift
+  spawn_in_project "$name" "$TMP_ROOT/$name/project" "$@"
+}
+
+# spawn_in_project <name> <project> <id> <out-dir> <mode> <seconds> [VAR=value ...]:
+# spawn_in on a given project of world <name>.
+spawn_in_project() {
+  local name=$1 proj=$2 id=$3 out_dir=$4 mode=$5 seconds=$6 case_dir home start rc kv
+  shift 6
   case_dir="$TMP_ROOT/$name"
-  proj="$case_dir/project"
   home="$case_dir/home"
   mkdir -p "$out_dir" "$home/data/$id"
   cat > "$home/data/$id/brief.md" <<EOF
@@ -291,7 +309,10 @@ run_handoff_case() {
 
 # run_concurrent_case: two fresh dispatches in one home. The first one's get is
 # held open until the second has finished, and whether the first was still inside
-# its get at that point (no record yet, spawn still running) is recorded.
+# its get at that point (no record yet, spawn still running) is recorded. The
+# second dispatches another project: a spawn keeps its own project's Treehouse
+# project lock across the get by design, so a same-project dispatch is refused
+# meanwhile, while the home's task-set lock, which every dispatch needs, is free.
 run_concurrent_case() {
   local case_dir="$TMP_ROOT/concurrent" first second first_pid deadline
   first=$(case_id concurrent-a)
@@ -301,7 +322,7 @@ run_concurrent_case() {
   first_pid=$!
   deadline=$((SECONDS + 60))
   while [ ! -d "$case_dir/pool/gate" ] && [ "$SECONDS" -lt "$deadline" ]; do "$REAL_SLEEP" 0.1; done
-  spawn_in concurrent "$second" "$case_dir/b" gate 0
+  spawn_in_project concurrent "$case_dir/project2" "$second" "$case_dir/b" gate 0
   if [ ! -e "$case_dir/home/state/$first.meta" ] && kill -0 "$first_pid" 2>/dev/null; then
     touch "$case_dir/first-was-waiting"
   fi
@@ -337,9 +358,9 @@ PID_CEILING=$!
 # A get that errors out immediately: refused promptly, saying it exited.
 run_case failed fail 0 FM_TREEHOUSE_GET_EXIT_GRACE_SECS=1 &
 PID_FAILED=$!
-# A get that lands in the primary checkout's subdirectory: the isolation
-# assertion still refuses it.
-run_case wrongplace subdir 0 &
+# A get that lands in the primary checkout's subdirectory: the isolation screen
+# never adopts it, and the idle shell left there is refused at the stall window.
+run_case wrongplace subdir 0 FM_TREEHOUSE_GET_STALL_SECS=3 &
 PID_WRONG=$!
 PIDS=("$PID_SLOW" "$PID_STUCK" "$PID_CEILING" "$PID_FAILED" "$PID_WRONG")
 # A slow get the spawn can never observe, with a generous unobservable bound:
@@ -394,7 +415,7 @@ test_stuck_get_is_refused_at_the_stall_window() {
   out=$(case_out $c)
   rc=$(case_rc $c)
   expect_code 1 "$rc" "a hung treehouse get must be refused"
-  assert_contains "$out" "treehouse get made no progress for 3s" "the refusal does not say the get stalled: $out"
+  assert_contains "$out" "treehouse get did not enter an isolated worktree: it made no progress for 3s" "the refusal does not say the get stalled: $out"
   assert_contains "$out" "waiting on: " "the refusal does not name what the get was waiting on: $out"
   [ "$(case_elapsed $c)" -lt 40 ] || fail "the stalled get was not refused within the stall window"
   assert_absent "$TMP_ROOT/$c/home/state/$(case_id $c).meta" "a refused launch recorded a task"
@@ -416,7 +437,7 @@ test_failed_get_is_refused_promptly() {
   out=$(case_out $c)
   rc=$(case_rc $c)
   expect_code 1 "$rc" "a treehouse get that exited with an error must be refused"
-  assert_contains "$out" "treehouse get exited without entering a worktree" "the refusal does not say the get exited: $out"
+  assert_contains "$out" "treehouse get did not enter an isolated worktree: it exited without entering a worktree" "the refusal does not say the get exited: $out"
   [ "$(case_elapsed $c)" -lt 30 ] || fail "the exited get was not refused promptly"
   assert_absent "$TMP_ROOT/$c/home/state/$(case_id $c).meta" "a refused launch recorded a task"
   pass "a get that exits without a worktree is refused promptly and says so"
@@ -427,9 +448,14 @@ test_isolation_assertion_still_refuses_a_primary_checkout() {
   out=$(case_out $c)
   rc=$(case_rc $c)
   expect_code 1 "$rc" "a get that lands inside the primary checkout must be refused"
-  assert_contains "$out" "did not yield an isolated worktree" "the isolation refusal did not fire: $out"
+  assert_contains "$out" "treehouse get did not enter an isolated worktree: it made no progress for 3s" \
+    "the isolation refusal did not fire at the stall window: $out"
+  assert_contains "$out" "last seen '" "the refusal does not name the path the pane settled in: $out"
+  assert_contains "$out" "/project/sub" "the refusal does not name the primary checkout's subdirectory: $out"
+  assert_contains "$out" "is a subdirectory of worktree root" "the refusal does not say why that path was rejected: $out"
+  [ "$(case_elapsed $c)" -lt 40 ] || fail "the get that settled in the primary checkout was not refused within the stall window"
   assert_absent "$TMP_ROOT/$c/home/state/$(case_id $c).meta" "a refused launch recorded a task"
-  pass "a get that lands in the primary checkout is still refused by the isolation assertion"
+  pass "a get that lands in the primary checkout is never adopted and is refused, naming that path and why"
 }
 
 test_unobservable_slow_get_honours_the_start_bound() {
@@ -455,7 +481,7 @@ test_unobservable_get_is_refused_at_the_start_bound() {
   out=$(case_out $c)
   rc=$(case_rc $c)
   expect_code 1 "$rc" "a get that can never be observed must still be refused"
-  assert_contains "$out" "treehouse get could not be observed for 3s" "the refusal does not say the get could not be observed: $out"
+  assert_contains "$out" "treehouse get did not enter an isolated worktree: it could not be observed for 3s" "the refusal does not say the get could not be observed: $out"
   [ "$(case_elapsed $c)" -lt 40 ] || fail "the unobservable get was not refused at its bound"
   assert_absent "$TMP_ROOT/$c/home/state/$(case_id $c).meta" "a refused launch recorded a task"
   pass "a get that can never be observed is refused at FM_TREEHOUSE_GET_START_SECS, saying why"
@@ -526,13 +552,22 @@ test_second_dispatch_proceeds_while_a_slow_get_runs() {
   pass "a second fresh dispatch in the same home proceeds while the first one's get is still running"
 }
 
+# wait_dirs_left <id>: the treehouse get wait's private pid-record directories
+# still present for task <id>, one per line.
+wait_dirs_left() {
+  ls -d "$TMPDIR_BASE/fm-treehouse-get-$1."* 2>/dev/null || true
+}
+
 test_the_wait_strands_no_temp_root() {
-  local c
+  local c left
   for c in slow blindslow blindflicker peerprogress; do
-    assert_absent "/tmp/fm-$(case_id $c)/treehouse-get.shell-pid" "the wait left its pid record behind after a successful launch ($c)"
+    left=$(wait_dirs_left "$(case_id $c)")
+    [ -z "$left" ] || fail "the wait left its pid record behind after a successful launch ($c): $left"
   done
   # A refused launch has made no task, so nothing may be left for teardown to miss.
   for c in stuck ceiling failed wrongplace blind peerstalled peerhandoff; do
+    left=$(wait_dirs_left "$(case_id $c)")
+    [ -z "$left" ] || fail "a refused launch left the wait's pid record behind ($c): $left"
     assert_absent "/tmp/fm-$(case_id $c)" "a refused launch stranded a temp root ($c)"
   done
   pass "the wait's pid record is removed on success and a refusal strands no temp root"

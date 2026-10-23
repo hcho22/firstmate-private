@@ -31,7 +31,7 @@
 # loop, or above the counter's initialisation there:
 #   # fm-lint-waits: allow <reason>
 # bin/fm-lint.sh runs this owner on its default (no explicit-path) path, which
-# CI and commands.lint both use.
+# commands.lint uses, and in each CI partition.
 #
 # Usage:
 #   fm-lint-waits.sh              check tests/*.sh under this repo

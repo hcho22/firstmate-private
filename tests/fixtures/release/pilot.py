@@ -34,6 +34,12 @@ def run(*argv, code=0, timeout=40):
     assert p.returncode==code,(argv,p.returncode,p.stdout,p.stderr)
     return p.stdout
 
+def brief_path(task):
+    # The scaffold places a brief in its per-project task folder, which
+    # bin/fm-task-data-lib.sh owns; find it by task id rather than assume a path.
+    folder=run('bash','-c','. "$1/bin/fm-task-data-lib.sh"; fm_task_data_dir "$2" "$3"','_',root,home/'data',task).strip()
+    return Path(folder)/'brief.md'
+
 def result(name, expected, observed, status='pass', limitation='local representative environment only'):
     row=dict(requirement=name,expected=expected,observed=observed,status=status,evidence=str(log),
              limitation=limitation,observed_at=time.time())
@@ -154,11 +160,11 @@ try:
     prep={}
     for name,values in assessments.items():
         t=time.time(); run(root/'bin/fm-brief.sh',name,'synthetic','--mode','local-only')
-        p=home/'data'/name/'brief.md'; text=p.read_text().replace('{TASK}',values[0]).replace('{FIRSTMATE_SPEC}','Preserve the accepted outcome; use only authorized local checks.')
+        p=brief_path(name); text=p.read_text().replace('{TASK}',values[0]).replace('{FIRSTMATE_SPEC}','Preserve the accepted outcome; use only authorized local checks.')
         for f,v in zip(fields,values): text=re.sub(r'^- '+re.escape(f)+r':.*$', '- '+f+': '+v,text,flags=re.M)
         p.write_text(text); assert all('- '+f+':' in text for f in fields)
         prep[name]=time.time()-t
-    amended=home/'data/contained/brief.md'; prior=amended.read_text()
+    amended=brief_path('contained'); prior=amended.read_text()
     amended.write_text(prior.replace('Correct a help label.', 'Clarify the help label without changing flags.'))
     assert 'Correct a help label.' not in amended.read_text() and 'Preserve command behavior.' in amended.read_text()
     result('accepted-amendment','replace superseded criterion and retain preservation constraint', 'amended emitted brief contains current criterion and original preservation constraint')

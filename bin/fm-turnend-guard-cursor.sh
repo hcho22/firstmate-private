@@ -28,7 +28,19 @@
 #   2. the bounded repair instruction when supervision could not be established.
 # A session that does not own the lock never parks; its only possible follow-up
 # is the shared guard's one-time displaced-session notice, when a
-# captain-confirmed takeover moved the lock away from this very session.
+# captain-confirmed takeover moved the lock away from this very session. A park
+# displaced during its last arm attempt ends with that same notice.
+#
+# SUPERVISION HOST. A home opted in with config/supervision-host
+# (docs/configuration.md "Supervision host" owns the gate;
+# config/supervision-host-off opts out, and a Cursor home without the file does not run the host) parks on
+# bin/fm-supervision-host.sh in the arm's place, which takes eligible attended
+# wakes and all away wakes itself and exits only when main is needed; its
+# header owns the output this park reads. A "supervision-host:" line is
+# actionable like a wake line, and the follow-up carries every such line in
+# order while wake lines keep the eight-line cap; "supervision-host stood
+# down:" ends the park silently; a host that died without a close is retried
+# instead of being judged by the healthy-watcher predicate. On a home that does not run the host nothing below changes.
 #
 # LOOP BOUNDING IS DOUBLE, because either bound alone is insufficient:
 #   - `loop_limit` in .cursor/hooks.json is Cursor's own ceiling. Once
@@ -90,6 +102,8 @@ case "$LOCK_ATTEMPTS" in ''|*[!0-9]*|0) LOCK_ATTEMPTS=50 ;; esac
 . "$SCRIPT_DIR/fm-wake-lib.sh"
 # shellcheck source=bin/fm-session-lock-lib.sh
 . "$SCRIPT_DIR/fm-session-lock-lib.sh"
+# shellcheck source=bin/fm-supervision-engine-lib.sh
+. "$SCRIPT_DIR/fm-supervision-engine-lib.sh"
 # shellcheck source=bin/fm-operational-input.sh
 . "$SCRIPT_DIR/fm-operational-input.sh"
 
@@ -232,6 +246,18 @@ run_shared_guard() {
   rm -f "$err" 2>/dev/null || true
 }
 
+# Emit the shared guard's one-time displaced-session notice (exit 3) and stop.
+# The session no longer owns the lock, so this bypasses emit_followup's
+# ownership commit.
+emit_displaced_notice() {
+  local encoded response
+  [ "$GUARD_RC" -eq 3 ] && [ -n "$GUARD_REASON" ] || exit 0
+  fm_operational_input_encode turn-end-guard "$GUARD_REASON" encoded || exit 0
+  response=$(jq -n --arg m "$encoded" '{followup_message:$m}' 2>/dev/null) || exit 0
+  printf '%s\n' "$response" || true
+  exit 0
+}
+
 # --- park ownership ----------------------------------------------------------
 # Last arrival wins. The short owner lock serializes publication with only the
 # final ownership, away-mode, output, and repair-budget commit.
@@ -274,12 +300,7 @@ if ! fm_session_lock_owned_by_self "$STATE"; then
   case "$LOCK_PID" in ''|*[!0-9]*) exit 0 ;; esac
   if fm_harness_pid_alive "$LOCK_PID"; then
     run_shared_guard || exit 0
-    [ "$GUARD_RC" -eq 3 ] || exit 0
-    [ -n "$GUARD_REASON" ] || exit 0
-    fm_operational_input_encode turn-end-guard "$GUARD_REASON" DISPLACED_NOTICE || exit 0
-    DISPLACED_RESPONSE=$(jq -n --arg m "$DISPLACED_NOTICE" '{followup_message:$m}' 2>/dev/null) || exit 0
-    printf '%s\n' "$DISPLACED_RESPONSE" || true
-    exit 0
+    emit_displaced_notice
   fi
   "$SCRIPT_DIR/fm-lock.sh" >/dev/null 2>&1 || exit 0
   fm_session_lock_owned_by_self "$STATE" || exit 0
@@ -322,6 +343,13 @@ ARM_PID=
 ACTIONABLE=0
 HEALTHY=0
 STAND_DOWN=0
+HOST_MODE=0
+HOST_RC=0
+ACTIONABLE_RE='^(signal:|stale:|check:|heartbeat($|:))'
+if fm_supervision_host_enabled "$CONFIG" cursor; then
+  HOST_MODE=1
+  ACTIONABLE_RE='^(signal:|stale:|check:|heartbeat($|:)|supervision-host:)'
+fi
 
 # Never leave an arm child or its capture file behind, on any exit path.
 trap '[ -n "$ARM_PID" ] && kill "$ARM_PID" 2>/dev/null; [ -n "$ARM_OUT" ] && rm -f "$ARM_OUT" 2>/dev/null; :' EXIT
@@ -331,7 +359,9 @@ while [ "$attempt" -lt "$ARM_ATTEMPTS" ]; do
   current_session_still_ours || exit 0
   attempt=$((attempt + 1))
   ARM_OUT=$(mktemp "$STATE/.cursor-park-output.XXXXXX") || ARM_OUT=
-  if [ -n "$ARM_OUT" ]; then
+  if [ "$HOST_MODE" -eq 1 ]; then
+    FM_SUPERVISION_HOST_PRIMARY=cursor "$SCRIPT_DIR/fm-supervision-host.sh" park >"${ARM_OUT:-/dev/null}" 2>&1 &
+  elif [ -n "$ARM_OUT" ]; then
     "$SCRIPT_DIR/fm-watch-arm.sh" >"$ARM_OUT" 2>&1 &
   else
     "$SCRIPT_DIR/fm-watch-arm.sh" >/dev/null 2>&1 &
@@ -351,7 +381,8 @@ while [ "$attempt" -lt "$ARM_ATTEMPTS" ]; do
     ARM_PID=
     exit 0
   fi
-  wait "$ARM_PID" 2>/dev/null || true
+  HOST_RC=0
+  wait "$ARM_PID" 2>/dev/null || HOST_RC=$?
   ARM_PID=
 
   # Away mode may have been entered while parked: the daemon owns triage now.
@@ -359,9 +390,26 @@ while [ "$attempt" -lt "$ARM_ATTEMPTS" ]; do
 
   ACTIONABLE=0
   if [ -n "$ARM_OUT" ]; then
-    grep -Eq '^(signal:|stale:|check:|heartbeat($|:))' "$ARM_OUT" 2>/dev/null && ACTIONABLE=1
+    grep -Eq "$ACTIONABLE_RE" "$ARM_OUT" 2>/dev/null && ACTIONABLE=1
   fi
   [ "$ACTIONABLE" -eq 1 ] && break
+
+  if [ "$HOST_MODE" -eq 1 ]; then
+    # The host stood down because this session no longer owns supervision:
+    # whoever does owns continuity now.
+    if [ -n "$ARM_OUT" ] && grep -q '^supervision-host stood down:' "$ARM_OUT" 2>/dev/null; then
+      exit 0
+    fi
+    # A host that died without a close may have left its cycle running with
+    # no owner to deliver the close; retrying lets the next host stop what it
+    # left and own a fresh cycle, which the healthy-watcher predicate cannot.
+    if [ "$HOST_RC" -gt 128 ] || [ -z "$ARM_OUT" ] || [ ! -s "$ARM_OUT" ]; then
+      [ "$attempt" -lt "$ARM_ATTEMPTS" ] || break
+      [ -z "$ARM_OUT" ] || rm -f "$ARM_OUT" 2>/dev/null
+      ARM_OUT=
+      continue
+    fi
+  fi
 
   # A non-actionable close is benign when another verified watcher already owns
   # this home and is still beating inside the shared grace window.
@@ -382,7 +430,16 @@ if ! fm_supervision_needed "$STATE" "$GRACE"; then
 fi
 
 if [ "$ACTIONABLE" -eq 1 ]; then
-  WAKE=$(grep -E '^(signal:|stale:|check:|heartbeat)' "$ARM_OUT" 2>/dev/null | head -8)
+  if [ "$HOST_MODE" -eq 1 ]; then
+    WAKE=$(awk '/^supervision-host:/ { print; next } /^(signal:|stale:|check:|heartbeat)/ && shown++ < 8' "$ARM_OUT" 2>/dev/null)
+    if [ -e "$STATE/.afk-contract" ] \
+      && [ "$(FM_STATE_OVERRIDE="$STATE" "$SCRIPT_DIR/fm-afk-contract.sh" mode 2>/dev/null)" != quiet ]; then
+      WAKE="$WAKE
+This wake comes from automatic supervision under the away-posture record, not from the captain: it is not a return, so handle it under the away posture."
+    fi
+  else
+    WAKE=$(grep -E '^(signal:|stale:|check:|heartbeat)' "$ARM_OUT" 2>/dev/null | head -8)
+  fi
   emit_followup watcher "firstmate watcher wake - one supervision event needs a handling turn now.
 $WAKE
 
@@ -401,6 +458,7 @@ fi
 # time: bin/fm-turnend-guard.sh owns the block decision and its banner for every
 # harness.
 run_shared_guard || exit 0
+[ "$GUARD_RC" -ne 3 ] || emit_displaced_notice
 [ "$GUARD_RC" -eq 2 ] || exit 0
 REASON=$GUARD_REASON
 

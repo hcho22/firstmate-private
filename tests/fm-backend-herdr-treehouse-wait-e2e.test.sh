@@ -12,7 +12,9 @@
 # While a projected spawn's get is still running, neither the session-wide
 # presentation lock nor the home's task-set lock may be held, so a teardown on
 # the same Herdr session gets past its lock preflight and a second fresh
-# dispatch in the same home completes, projected, before that get settles. The
+# dispatch in the same home completes, projected, before that get settles; that
+# dispatch is of another project, because a spawn keeps its own project's
+# Treehouse project lock across the get by design. The
 # teardown's `treehouse return` then waits behind the get's pool lock without
 # holding the presentation lock either. After its get, a projected spawn waits
 # for a busy presentation lock instead of launching without it, and refuses,
@@ -147,8 +149,10 @@ cleanup_all() {
     PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" teardown "$HERDR_LAB_SESSION" >/dev/null 2>&1 || status=1
     LAB_READY=0
   fi
-  rm -rf "/tmp/fm-hthw-slow-$$" "/tmp/fm-hthw-fail-$$" "/tmp/fm-hthw-hookfail-$$" "/tmp/fm-hthw-gated-$$" "/tmp/fm-hthw-second-$$" \
-    "/tmp/fm-hthw-held-$$" "/tmp/fm-hthw-refused-$$" "/tmp/fm-hthw-ceiling-$$" "$TMP_ROOT"
+  for id in slow fail hookfail gated second held refused ceiling; do
+    rm -rf "/tmp/fm-hthw-$id-$$" "/tmp/fm-hthw-$id-$$+"*
+  done
+  rm -rf "$TMP_ROOT"
   exit "$status"
 }
 trap cleanup_all EXIT
@@ -158,19 +162,29 @@ LAB_READY=1
 
 HOME_DIR="$TMP_ROOT/home"
 PROJECT_DIR="$TMP_ROOT/project"
+SECOND_PROJECT_DIR="$TMP_ROOT/project2"
 POOL_DIR="$TMP_ROOT/pool"
-mkdir -p "$HOME_DIR/data" "$HOME_DIR/projects" "$HOME_DIR/state" "$HOME_DIR/config" "$POOL_DIR" "$PROJECT_DIR"
-git -C "$PROJECT_DIR" init -q
-printf '# treehouse wait fixture\n' > "$PROJECT_DIR/README.md"
-git -C "$PROJECT_DIR" add README.md
-git -C "$PROJECT_DIR" -c user.name='Firstmate Tests' -c user.email='tests@example.invalid' commit -qm initial
-git clone --quiet --bare "$PROJECT_DIR" "$PROJECT_DIR.origin.git"
-git -C "$PROJECT_DIR" remote add origin "file://$PROJECT_DIR.origin.git"
+mkdir -p "$HOME_DIR/data" "$HOME_DIR/projects" "$HOME_DIR/state" "$HOME_DIR/config" "$POOL_DIR"
+make_project() {  # <dir>
+  mkdir -p "$1"
+  git -C "$1" init -q
+  printf '# treehouse wait fixture\n' > "$1/README.md"
+  git -C "$1" add README.md
+  git -C "$1" -c user.name='Firstmate Tests' -c user.email='tests@example.invalid' commit -qm initial
+  git clone --quiet --bare "$1" "$1.origin.git"
+  git -C "$1" remote add origin "file://$1.origin.git"
+}
+make_project "$PROJECT_DIR"
+make_project "$SECOND_PROJECT_DIR"
 touch "$HOME_DIR/state/.last-watcher-beat"
 
 spawn_case() {  # <id> <mode> <seconds> [VAR=value ...]
-  local id=$1 mode=$2 seconds=$3 kv
-  shift 3
+  spawn_case_in "$PROJECT_DIR" "$@"
+}
+
+spawn_case_in() {  # <project> <id> <mode> <seconds> [VAR=value ...]
+  local project=$1 id=$2 mode=$3 seconds=$4 kv
+  shift 4
   mkdir -p "$HOME_DIR/data/$id"
   cat > "$HOME_DIR/data/$id/brief.md" <<EOF
 # Task
@@ -181,13 +195,13 @@ Exercise the treehouse get wait on Herdr for $id.
 Record the worktree the get settled in.
 EOF
   (
-    cd "$PROJECT_DIR" || exit 1
+    cd "$project" || exit 1
     for kv in "$@"; do export "${kv?}"; done
     printf '%s\n' "$mode" > "$CONTROL/mode"
     printf '%s\n' "$seconds" > "$CONTROL/seconds"
     printf '%s\n' "$POOL_DIR" > "$CONTROL/pool"
     FM_GATE_REFUSE_BYPASS=1 FM_SPAWN_NO_GUARD=1 FM_HOME="$HOME_DIR" FM_ROOT_OVERRIDE="$ROOT" \
-      "$ROOT/bin/fm-spawn.sh" "$id" "$PROJECT_DIR" "sh -c 'sleep 120'" --mode no-mistakes --yolo off --backend herdr
+      "$ROOT/bin/fm-spawn.sh" "$id" "$project" "sh -c 'sleep 120'" --mode no-mistakes --yolo off --backend herdr
   ) 2>&1
 }
 
@@ -203,7 +217,7 @@ start=$SECONDS
 if out=$(spawn_case "$FAIL_ID" fail 0 FM_TREEHOUSE_GET_EXIT_GRACE_SECS=1); then
   fail "a treehouse get that exited with an error was not refused on Herdr: $out"
 fi
-case "$out" in *"treehouse get exited without entering a worktree"*) ;; *) fail "the refusal does not say the get exited: $out" ;; esac
+case "$out" in *"did not enter an isolated worktree: it exited without entering a worktree"*) ;; *) fail "the refusal does not say the get exited: $out" ;; esac
 [ $((SECONDS - start)) -lt 40 ] || fail "the exited get was not refused promptly on Herdr"
 [ ! -e "$HOME_DIR/state/$FAIL_ID.meta" ] || fail "a refused launch recorded a task"
 pass "a get that exits without a worktree is refused promptly on Herdr and says so"
@@ -212,7 +226,7 @@ HOOKFAIL_ID="hthw-hookfail-$$"
 if out=$(spawn_case "$HOOKFAIL_ID" hookfail 5 FM_TREEHOUSE_GET_EXIT_GRACE_SECS=1); then
   fail "a treehouse get that failed after a hook ran inside its new worktree launched on Herdr: $out"
 fi
-case "$out" in *"treehouse get exited without entering a worktree"*) ;; *) fail "the hook-failed get was not refused for exiting without a worktree: $out" ;; esac
+case "$out" in *"did not enter an isolated worktree: it exited without entering a worktree"*) ;; *) fail "the hook-failed get was not refused for exiting without a worktree: $out" ;; esac
 [ ! -e "$HOME_DIR/state/$HOOKFAIL_ID.meta" ] || fail "a refused launch recorded a task"
 hookfail_target=$(printf '%s\n' "$out" | sed -n 's/.*; inspect window \([^ ]*\)$/\1/p' | tail -n 1)
 [ -n "$hookfail_target" ] || fail "the refusal did not name the pane it left: $out"
@@ -289,7 +303,7 @@ wait_for "$CONTROL/return-started" "$TEARDOWN_PID" \
   "a teardown on the same Herdr session did not reach its treehouse return while a projected get was running: $(cat "$TMP_ROOT/teardown.out")"
 pass "a teardown on the same Herdr session gets past its presentation lock preflight while a projected spawn's get is still running"
 
-out=$(spawn_case "$SECOND_ID" gate 0) \
+out=$(spawn_case_in "$SECOND_PROJECT_DIR" "$SECOND_ID" gate 0) \
   || fail "a second fresh dispatch in the same home did not proceed while a get was running: $out"
 [ -e "$HOME_DIR/state/$SECOND_ID.meta" ] || fail "the second dispatch recorded no task"
 case "$out" in
@@ -348,7 +362,7 @@ release_presentation_lock
 if wait "$GATED_PID"; then fail "a get that exited without a worktree launched: $(cat "$TMP_ROOT/refused.out")"; fi
 out=$(cat "$TMP_ROOT/refused.out")
 case "$out" in
-  *"treehouse get exited without entering a worktree"*) ;;
+  *"did not enter an isolated worktree: it exited without entering a worktree"*) ;;
   *) fail "the refused get was not refused for exiting without a worktree: $out" ;;
 esac
 case "$out" in

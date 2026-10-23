@@ -4,13 +4,12 @@
 # then verifies both the scope boundary and the conditional trigger.
 set -u
 
-if [ "${FM_STRUCTURAL_REVIEW_GUIDANCE_EVAL:-0}" != 1 ]; then
-  echo "skip: set FM_STRUCTURAL_REVIEW_GUIDANCE_EVAL=1 and FM_STRUCTURAL_REVIEW_LOCAL_MODEL=<model> to run the local instruction evaluation"
-  exit 0
-fi
-
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+# Opt-in: set FM_STRUCTURAL_REVIEW_GUIDANCE_EVAL=1 and
+# FM_STRUCTURAL_REVIEW_LOCAL_MODEL=<model> to run the local instruction evaluation.
+fm_live_gate opt-in FM_STRUCTURAL_REVIEW_GUIDANCE_EVAL curl jq
 
 GUIDANCE="$ROOT/.agents/skills/firstmate-coding-guidelines/SKILL.md"
 TMP_ROOT=$(fm_test_tmproot fm-structural-review-guidance)
