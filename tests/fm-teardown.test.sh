@@ -3844,21 +3844,24 @@ test_teardown_retains_v1_journal_when_workspace_query_ambiguous() {
 # the task's own worktree/tasktmp - both exercised through the real teardown
 # path (bin/fm-teardown.sh), never by matching its source text. ------------
 
-# A parked-at-a-gate `axi status` TOON payload for <branch>/<head>, matching
-# the shape no-mistakes actually emits (see tests/fm-crew-state.test.sh's
-# run_parked fixture, the same shape bin/fm-crew-state.sh's own tests pin).
+# A recorded real `axi status --run` capture (provenance in
+# tests/captures/no-mistakes-v1.70.1/README.md) bound to <branch>/<head>/<run-id>.
+# Only the identity fields are substituted; status, gate, and step bytes stay
+# exactly what the CLI emitted.
+captured_axi_status_toon() {  # <capture> <branch> <head> [run-id]
+  awk -v branch="$2" -v head="$3" -v id="${4:-01RUN}" '
+    /^  id:/ { print "  id: \"" id "\""; next }
+    /^  branch:/ { print "  branch: " branch; next }
+    /^  head:/ { print "  head: " head; next }
+    /^  head_sha:/ { print "  head_sha: " head; next }
+    { print }
+  ' "$ROOT/tests/captures/no-mistakes-v1.70.1/$1.toon"
+}
+
+# A run parked at a gate as the real CLI reports it: the top-level status
+# stays `running` beside `awaiting_agent` and a `gate:` block.
 parked_axi_status_toon() {  # <branch> <head> [run-id]
-  cat <<EOF
-run:
-  id: "${3:-01RUN}"
-  branch: $1
-  status: awaiting_approval
-  awaiting_agent: parked 2m10s
-  head: "$2"
-  pr: ""
-  findings: none
-gate: review
-EOF
+  captured_axi_status_toon parked "$1" "$2" "${3:-01RUN}"
 }
 
 running_axi_status_toon() {  # <branch> <head> [run-id]
@@ -4229,7 +4232,7 @@ test_terminal_status_with_gate_never_queries_or_aborts_ledger_fallback() {
   advanced_short=$(make_unfetched_pipeline_heads "$case_dir")
   assert_head_absent_from_worktree "$case_dir/wt" "$advanced_short" "parked-run-terminal-status-gate"
   terminal_status=$(parked_axi_status_toon fm/task-x1 "$advanced_short")
-  terminal_status=${terminal_status/status: awaiting_approval/status: completed}
+  terminal_status=${terminal_status/status: running/status: completed}
 
   rc=0
   FM_FAKE_AXI_STATUS="$terminal_status" \
@@ -4709,6 +4712,28 @@ test_own_autonomous_run_is_left_alone() {
   assert_not_contains "$(cat "$case_dir/stderr")" "aborting" \
     "autonomous-run-left-alone: teardown reported aborting an autonomous run"
   pass "a task-owned autonomous running step is left alone rather than aborted"
+}
+
+# The real CLI's executing shape - top-level `running` with a live step and no
+# `awaiting_agent` or gate block - on this task's own head is not parked.
+test_own_captured_executing_run_is_left_alone() {
+  local case_dir rc head
+  case_dir=$(make_case captured-executing-run-left-alone)
+  write_meta "$case_dir" no-mistakes ship
+  land_shippable_commit "$case_dir"
+  head=$(git -C "$case_dir/wt" rev-parse HEAD)
+
+  rc=0
+  FM_FAKE_AXI_STATUS="$(captured_axi_status_toon replacement fm/task-x1 "$head")" \
+  FM_FAKE_NM_ABORT_LOG="$case_dir/nm-abort.log" \
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 0 "$rc" "captured-executing-run-left-alone: teardown should still succeed"
+  assert_absent "$case_dir/nm-abort.log" \
+    "captured-executing-run-left-alone: teardown aborted a running run with no gate"
+  assert_not_contains "$(cat "$case_dir/stderr")" "aborting" \
+    "captured-executing-run-left-alone: teardown reported aborting an executing run"
+  pass "a task-owned run the real CLI reports executing with no gate is left alone"
 }
 
 test_leaked_worktree_process_is_reaped() {
@@ -5584,6 +5609,7 @@ fm_test_run_cases \
   test_not_found_status_after_abort_confirms_completion \
   test_another_branchs_parked_run_is_never_touched \
   test_own_autonomous_run_is_left_alone \
+  test_own_captured_executing_run_is_left_alone \
   test_leaked_worktree_process_is_reaped \
   test_leaked_tasktmp_process_is_reaped \
   test_unlanded_subagent_copy_refuses \

@@ -1,6 +1,7 @@
 # AXI run-state input captures
 
 These files own recorded serialized CLI inputs and a persisted run-inventory projection for the `test_captured_*` cases in `../../fm-crew-state.test.sh`.
+`../../fm-teardown.test.sh` also replays `parked.toon` and `replacement.toon` for its parked-run cleanup cases.
 They were captured on 2026-09-14 at 22:06 UTC with `no-mistakes version v1.70.1 (9c380d4) 2026-09-07T20:47:58Z`.
 They are replay inputs, not evidence that every composed scenario was driven live.
 
