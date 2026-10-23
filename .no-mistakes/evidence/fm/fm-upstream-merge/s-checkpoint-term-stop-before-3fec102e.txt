@@ -1,0 +1,19 @@
+commit: 3fec102e no-mistakes(test): Count render-guard hang retries from the helper's report
+host: timeout=none gtimeout=none perl=/usr/bin/perl
+
+## 1. start a foreground checkpoint (bound 120s)
+$ bin/fm-watch-checkpoint.sh --seconds 120 &
+watcher pid recorded in state/.watch.lock/pid: 41067
+41067 41066 bash <lab>/home/bin/fm-watch.sh
+
+## 2. the home-scoped stop (what fm-watch-arm.sh --stop/--restart and a stalled-holder eviction do)
+$ bin/fm-watch-arm.sh --stop
+watcher: stopped pid=41067
+
+## 3. the checkpoint's result
+checkpoint_exit=0 elapsed=3s (bound 120s)
+--- checkpoint stdout ---
+--- checkpoint stderr ---
+--- watch lock after ---
+ls: <lab>/home/state/.watch.lock: No such file or directory
+verdict: exit 0 without a wake line: the caller reads this as an actionable wake

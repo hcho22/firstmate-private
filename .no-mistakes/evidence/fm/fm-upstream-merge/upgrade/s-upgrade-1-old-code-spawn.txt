@@ -1,0 +1,27 @@
+## 1. old code 9463297, tasks-axi 0.2.6: brief, backlog row, spawn
+scaffolded: <lab>/home/data/notes/inflight-old/brief.md (ship, mode=local-only; replace {TASK} and {FIRSTMATE_SPEC})
+ok: added inflight-old (ship, repo notes) -> Queued
+task:
+  id: inflight-old
+  title: "notes: add a changelog line"
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: ship
+  repo: notes
+  priority: "-"
+  created: 2026-10-22
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi start inflight-old` to move it to in flight
+  - Run `tasks-axi block inflight-old --by <other>` to record a dependency
+spawned inflight-old harness=agent kind=ship mode=local-only yolo=off window=firstmate:fm-inflight-old worktree=<lab>/treehouse/.treehouse/notes-b9db61/1/notes
+spawn_exit=0
+windows: bash fm-inflight-old 

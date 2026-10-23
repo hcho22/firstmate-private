@@ -1,0 +1,23 @@
+## new code c2afff2a, tasks-axi 0.2.6: bin/fm-teardown.sh inflight-old
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+teardown: reaping leaked worktree process(es) for inflight-old: 51766 53071
+teardown: force-killing leaked worktree process(es) for inflight-old: 51766
+A new version of treehouse is available: v3.1.0 → v3.1.5
+Run "treehouse update" to update
+
+🌳 Worktree returned to pool.
+teardown inflight-old complete (window firstmate:fm-inflight-old, worktree <lab>/treehouse/.treehouse/notes-b9db61/1/notes)
+Backlog: inflight-old is closed in <lab>/home/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+teardown_exit=0
+
+record: ls: <lab>/home/state/inflight-old.meta: No such file or directory
+windows: bash 
+task folder kept: brief.md 
+backlog:
+# Backlog
+
+## In flight
+## Queued
+## Done
+- [x] inflight-old - notes: add a changelog line (repo: notes) (kind: ship) (done 2026-10-22)
+  local main

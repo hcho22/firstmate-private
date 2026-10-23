@@ -1,0 +1,19 @@
+commit: c2afff2a no-mistakes(review): Revert displaced-session dead-holder refusal; reclaim dead locks again
+host: timeout=none gtimeout=none perl=/usr/bin/perl
+
+## 1. start a foreground checkpoint (bound 120s)
+$ bin/fm-watch-checkpoint.sh --seconds 120 &
+watcher pid recorded in state/.watch.lock/pid: 39701
+39701 39700 bash <lab>/home/bin/fm-watch.sh
+
+## 2. the home-scoped stop (what fm-watch-arm.sh --stop/--restart and a stalled-holder eviction do)
+$ bin/fm-watch-arm.sh --stop
+watcher: stopped pid=39701
+
+## 3. the checkpoint's result
+checkpoint_exit=143 elapsed=4s (bound 120s)
+--- checkpoint stdout ---
+--- checkpoint stderr ---
+--- watch lock after ---
+ls: <lab>/home/state/.watch.lock: No such file or directory
+verdict: exit 143 = 128+TERM: the caller sees the watcher was killed, not a wake

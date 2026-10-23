@@ -1,0 +1,20 @@
+## 2. the target lands on the home's origin; the running old code self-updates
+origin/main now: c2afff2a no-mistakes(review): Revert displaced-session dead-holder refusal; reclaim dead l
+home before: 9463297 fix(bin): wait for treehouse get by watching its progress instead of a fixed 60s b
+$ bin/fm-update.sh   (old code, in the home)
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+firstmate: updated 9463297b..c2afff2a (instructions changed: AGENTS.md, bin, .agents/skills)
+reread-firstmate: yes
+restart-secondmates: none
+nudge-secondmates: none
+update_exit=0
+home after: c2afff2a no-mistakes(review): Revert displaced-session dead-holder refusal; reclaim dead l
+git status: 0 changed paths
+in-flight record still present: <lab>/home/state/inflight-old.meta
+stand-in agent window: fm-inflight-old dead=0

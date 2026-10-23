@@ -1,0 +1,26 @@
+# The gate's configured command at c2afff2a: bin/fm-test-run.sh --changed --exclude-family real-herdr-gated
+FM_TEST_SUMMARY total=265 failed=1 skipped_gate=46 duration_ms=9043005
+# the only failing script:
+FM_TEST_BEGIN 2026-10-23T05:39:19Z tests/fm-composer-codex-idle-live-e2e.test.sh family=live-harness-optin expected_gate_skip=live-capability
+# codex (codex-cli 0.160.0): starfield furniture observed=no placeholder observed=no
+# last codex screen before the failure:
+#     Background server has incompatible feature settings
+#     This session requires api_key_model_discovery to be disabled
+#     Restart will use these shared feature settings:
+#       api_key_model_discovery = false
+#       auth_elicitation = true
+#       code_mode_host = true
+#       mcp_oauth_refresh_coordination = false
+#     These settings persist and can disable functionality for other clients. Restart may interrupt active or queued work.
+#     1. Run without daemon this time
+#     2. Restart with these settings
+#   › 3. Cancel
+not ok - codex (codex-cli 0.160.0): idle screen never classified empty (tmux read: unknown, cursorless styled read: unknown)
+FM_TEST_END 2026-10-23T05:40:21Z tests/fm-composer-codex-idle-live-e2e.test.sh exit=1 duration_ms=61712 gate_skip=false
+# this round's focused suites in the same gate run:
+FM_TEST_END 2026-10-23T04:28:26Z tests/fm-test-run.test.sh exit=0 duration_ms=268628 gate_skip=false
+FM_TEST_END 2026-10-23T04:36:24Z tests/fm-cursor-primary.test.sh exit=0 duration_ms=125431 gate_skip=false
+FM_TEST_END 2026-10-23T04:40:16Z tests/fm-turnend-guard.test.sh exit=0 duration_ms=158753 gate_skip=false
+FM_TEST_END 2026-10-23T04:41:18Z tests/fm-session-lock-ancestry.test.sh exit=0 duration_ms=61920 gate_skip=false
+FM_TEST_END 2026-10-23T04:41:54Z tests/fm-watch-checkpoint.test.sh exit=0 duration_ms=56654 gate_skip=false
+FM_TEST_END 2026-10-23T05:20:04Z tests/fm-claude-stop-autoarm.test.sh exit=0 duration_ms=97191 gate_skip=false

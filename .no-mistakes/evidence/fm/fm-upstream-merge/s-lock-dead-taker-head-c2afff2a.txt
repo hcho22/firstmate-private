@@ -1,0 +1,71 @@
+commit: c2afff2 no-mistakes(review): Revert displaced-session dead-holder refusal; reclaim dead locks again
+stand-in Claude harness processes (outside the driving agent's ancestry):
+24043 24042 <lab>/claude/claude
+24045 24042 <lab>/claude/claude
+A: pid 24043, CLAUDE_CODE_SESSION_ID=S1, CLAUDE_PID=24043
+B: pid 24045, CLAUDE_CODE_SESSION_ID=S2, CLAUDE_PID=24045
+
+## 1. A runs session start
+LOCK
+--------------------------------------------------------------------------------
+lock acquired: harness pid 24043
+
+session_start_exit=0
+state/.lock line 1: 24043 | state/.lock-session: S1 | state/.lock-takeovers lines: 0
+
+## 2. B runs session start while A lives
+LOCK
+--------------------------------------------------------------------------------
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  READ-ONLY SESSION - FLEET LOCK OWNERSHIP WAS NOT VERIFIED
+●  error: another live firstmate session holds the lock (pid 24043, session S1); operate read-only until resolved
+●    holder: pid 24043, command: <lab>/claude/claude --noprofile --norc, holding the lock since 2026-10-23T06:38Z (under 1m ago)
+  [...]
+session_start_exit=0
+state/.lock line 1: 24043 | state/.lock-session: S1 | state/.lock-takeovers lines: 0
+
+## 3. B takes over with the captain's confirmation
+$ bin/fm-lock.sh takeover --confirm-holder 24043
+lock taken over: harness pid 24045 replaced pid 24043 (command: <lab>/claude/claude --noprofile --norc, holding the lock since 2026-10-23T06:38Z (under 1m ago))
+The previous holder was not signalled. If it is still a firstmate session it must stop acting on the fleet now: it is read-only and must not spawn, steer, merge, tear down, drain wakes, or arm the watcher, so tell it to stop. Run <lab>/home/bin/fm-session-start.sh now to complete the locked session start.
+takeover_exit=0
+state/.lock line 1: 24045 | state/.lock-session: S2 | state/.lock-takeovers lines: 1
+
+## 4. displaced A tries to take the lock back while B lives
+$ bin/fm-lock.sh
+error: another live firstmate session holds the lock (pid 24045, session S2); operate read-only until resolved
+  holder: pid 24045, command: <lab>/claude/claude --noprofile --norc, holding the lock since 2026-10-23T06:39Z (under 1m ago)
+  This session never takes over a live holder on its own. Only with the captain's OK, once the captain confirms that process is not a working firstmate session (for example an idle background service), take over with:
+    <lab>/home/bin/fm-lock.sh takeover --confirm-holder 24045
+  The takeover refuses while a watcher beat is fresh, and records who took over from whom.
+fm_lock_exit=1
+state/.lock line 1: 24045 | state/.lock-session: S2 | state/.lock-takeovers lines: 1
+
+## 5. A's turn ends twice (Claude Stop payload into bin/fm-turnend-guard.sh --claude)
+$ printf '{"stop_hook_active":false,"session_id":"S1"}' | bin/fm-turnend-guard.sh --claude   (stop 1)
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  THIS SESSION NO LONGER OWNS THE FLEET - ITS LOCK WAS TAKEN OVER
+●  At 2026-10-23T06:39:07Z a captain-confirmed takeover moved this home's fleet lock to pid 24045, so this session is now read-only.
+●  This session must stop acting on the fleet now: do not spawn, steer, merge, tear down, drain wakes, arm the watcher, or otherwise mutate it from here. Tell the captain, and let the lock holder supervise.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+guard_exit=2
+$ printf '{"stop_hook_active":false,"session_id":"S1"}' | bin/fm-turnend-guard.sh --claude   (stop 2)
+guard_exit=0
+
+## 6. B's harness process exits (the taker is gone; nothing released the lock)
+B pid 24045 is dead
+state/.lock line 1: 24045 | state/.lock-session: S2 | state/.lock-takeovers lines: 1
+
+## 7. displaced A runs session start again
+LOCK
+--------------------------------------------------------------------------------
+lock acquired: harness pid 24043
+
+session_start_exit=0
+state/.lock line 1: 24043 | state/.lock-session: S1 | state/.lock-takeovers lines: 1
+
+## 8. A's next turn end
+guard_exit=0
+
+## state/.lock-takeovers
+at=2026-10-23T06:39:07Z	new_pid=24045	new_session=S2	new_command=<lab>/claude/claude --noprofile --norc	prev_pid=24043	prev_session=S1	prev_holder=command: <lab>/claude/claude --noprofile --norc, holding the lock since 2026-10-23T06:38Z (under 1m ago)
