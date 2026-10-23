@@ -1,0 +1,4 @@
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.zLpprt/fm
+teardown: no-mistakes run for fmlab-parked is parked at a gate; aborting before the worker is removed
+teardown: reaping leaked worktree process(es) for fmlab-parked: 31751 34378
+teardown: force-killing leaked worktree process(es) for fmlab-parked: 31751

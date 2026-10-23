@@ -1,0 +1,51 @@
+tree	case	exit	last_line
+base-tree	test_empty_retry_wait_uses_default_without_aborting	0	ok - empty retry wait overrides use the default without aborting teardown
+base-tree	test_parked_own_run_is_aborted_before_teardown	0	ok - a task's own parked no-mistakes run is aborted, not orphaned, before the worker is removed
+base-tree	test_parked_run_in_a_resolved_workspace_home_is_aborted	0	ok - a parked run in a resolved workspace no-mistakes home is aborted before the worker is removed
+base-tree	test_parked_own_run_concludes_on_passed_with_override_after_abort	0	ok - a run that lands on passed-with-override after abort is still recognized as terminal
+base-tree	test_parked_own_run_concludes_on_passed_with_skips_after_abort	0	ok - a run that lands on passed-with-skips after abort is still recognized as terminal
+base-tree	test_parked_run_advanced_past_unfetched_head_is_still_aborted	0	ok - a parked run the pipeline advanced past the task copy is still concluded from the runs ledger, not orphaned
+base-tree	test_parked_run_with_mismatched_ledger_head_is_never_aborted	0	ok - a ledger row for a different head never authorizes a parked-run abort
+base-tree	test_parked_run_with_malformed_ledger_row_is_never_aborted	0	ok - a malformed ledger row never authorizes a parked-run abort
+base-tree	test_parked_run_with_impossible_ledger_date_is_never_aborted	0	ok - an impossible ledger date never authorizes a parked-run abort
+base-tree	test_terminal_status_with_gate_never_queries_or_aborts_ledger_fallback	0	ok - a terminal status with a stale gate never reaches ledger cleanup
+base-tree	test_parked_run_advanced_head_locally_fetched_is_still_aborted	0	ok - an advanced head present locally aborts through the strict rule alone - the ledger fallback stays dormant
+base-tree	test_parked_advanced_run_without_anchor_is_never_aborted	0	ok - an unresolvable active row with no same-branch anchor is never concluded (conservative refusal)
+base-tree	test_parked_run_pushed_fix_bound_by_submitted_head_is_aborted	0	ok - a parked single run that pushed its own fix is concluded by its submitted head, not orphaned
+base-tree	test_parked_run_pushed_fix_other_submitted_head_is_never_aborted	0	ok - a parked run submitted from another head is never concluded
+base-tree	test_parked_advanced_run_ancestor_anchor_is_never_aborted	0	ok - an ancestor-only anchor never binds an advanced parked run to this task
+base-tree	test_parked_terminal_unfetched_row_is_never_aborted	0	ok - a terminal unfetched-head row is stale history and never concludes a run
+base-tree	test_parked_run_terminal_newest_row_at_own_head_is_never_aborted	0	ok - a terminal newest row anchored at this worktree's head never authorizes an abort
+base-tree	test_parked_run_behind_diverged_newer_row_is_never_aborted	0	ok - a resolvable diverged newer same-branch row makes every older row stale history; no run is concluded
+base-tree	test_parked_advanced_run_ambiguous_rows_are_never_aborted	0	ok - consecutive unresolvable rows are ambiguous and never conclude a run
+base-tree	test_ledger_proven_continuation_never_aborts_active_run	0	ok - a ledger-proven continuation is still left alone while the run is autonomously active
+base-tree	test_parked_own_run_refuses_when_abort_is_unconfirmed	0	ok - teardown refuses before reap or removal when a task-owned run remains parked
+base-tree	test_mismatched_run_after_abort_refuses_unconfirmed	0	ok - a different run cannot confirm the targeted abort
+base-tree	test_empty_status_after_abort_refuses_unconfirmed	0	ok - empty post-abort status is not accepted as confirmation
+base-tree	test_not_found_status_after_abort_confirms_completion	0	ok - the CLI's exact run-not-found signal confirms completion
+base-tree	test_another_branchs_parked_run_is_never_touched	0	ok - a parked run on another branch is never aborted by this task's teardown (ownership is precise)
+base-tree	test_own_autonomous_run_is_left_alone	0	ok - a task-owned autonomous running step is left alone rather than aborted
+base-tree	test_run_abort_precedes_process_reap_precedes_worktree_removal	0	ok - the run abort and the leaked-process reap both complete before the destructive worktree return
+base-code	test_empty_retry_wait_uses_default_without_aborting	0	ok - empty retry wait overrides use the default without aborting teardown
+base-code	test_parked_own_run_is_aborted_before_teardown	1	not ok - parked-run-abort: no-mistakes axi abort was never invoked for the task's own parked run
+base-code	test_parked_run_in_a_resolved_workspace_home_is_aborted	1	not ok - parked-run-resolved-home: the parked run in the resolved workspace home was not aborted
+base-code	test_parked_own_run_concludes_on_passed_with_override_after_abort	0	ok - a run that lands on passed-with-override after abort is still recognized as terminal
+base-code	test_parked_own_run_concludes_on_passed_with_skips_after_abort	0	ok - a run that lands on passed-with-skips after abort is still recognized as terminal
+base-code	test_parked_run_advanced_past_unfetched_head_is_still_aborted	1	not ok - parked-run-pipeline-advanced-unfetched: teardown did not abort the parked run the ledger proves is this task's continuation
+base-code	test_parked_run_with_mismatched_ledger_head_is_never_aborted	0	ok - a ledger row for a different head never authorizes a parked-run abort
+base-code	test_parked_run_with_malformed_ledger_row_is_never_aborted	0	ok - a malformed ledger row never authorizes a parked-run abort
+base-code	test_parked_run_with_impossible_ledger_date_is_never_aborted	1	not ok - parked-run-impossible-ledger-date: fixture broke - the ledger fallback never engaged
+base-code	test_terminal_status_with_gate_never_queries_or_aborts_ledger_fallback	0	ok - a terminal status with a stale gate never reaches ledger cleanup
+base-code	test_parked_run_advanced_head_locally_fetched_is_still_aborted	1	not ok - parked-run-advanced-fetched: teardown did not abort the parked run the strict object-local rule binds
+base-code	test_parked_advanced_run_without_anchor_is_never_aborted	0	ok - an unresolvable active row with no same-branch anchor is never concluded (conservative refusal)
+base-code	test_parked_run_pushed_fix_bound_by_submitted_head_is_aborted	1	not ok - parked-run-pushed-fix-submitted: teardown did not abort the parked run that records submitting this head
+base-code	test_parked_run_pushed_fix_other_submitted_head_is_never_aborted	0	ok - a parked run submitted from another head is never concluded
+base-code	test_parked_advanced_run_ancestor_anchor_is_never_aborted	0	ok - an ancestor-only anchor never binds an advanced parked run to this task
+base-code	test_parked_terminal_unfetched_row_is_never_aborted	0	ok - a terminal unfetched-head row is stale history and never concludes a run
+base-code	test_parked_run_terminal_newest_row_at_own_head_is_never_aborted	1	not ok - parked-run-terminal-newest-at-head: fixture broke - the ledger fallback never engaged
+base-code	test_parked_run_behind_diverged_newer_row_is_never_aborted	0	ok - a resolvable diverged newer same-branch row makes every older row stale history; no run is concluded
+base-code	test_parked_advanced_run_ambiguous_rows_are_never_aborted	0	ok - consecutive unresolvable rows are ambiguous and never conclude a run
+base-code	test_ledger_proven_continuation_never_aborts_active_run	0	ok - a ledger-proven continuation is still left alone while the run is autonomously active
+base-code	test_parked_own_run_refuses_when_abort_is_unconfirmed	1	not ok - parked-run-abort-unconfirmed: teardown should refuse: expected exit 1, got 0
+base-code	test_mismatched_run_after_abort_refuses_unconfirmed	1	not ok - parked-run-replaced: a different run does not confirm the targeted abort: expected exit 1, got 0
+base-code	test_empty_status_after_abort_refuses_unconfirmed	1	not ok - parked-run-empty-confirmation: empty status should refuse: expected exit 1, got 0

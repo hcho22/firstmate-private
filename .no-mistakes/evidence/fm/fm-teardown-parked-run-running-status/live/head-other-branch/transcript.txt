@@ -1,0 +1,67 @@
+
+### code root under test: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M5NA6GSK4NAKVY7FAN5GJRA0 (32a694d9)
+scenario: other-branch
+no-mistakes on PATH: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.ozzwZ2/bin/no-mistakes (lab stand-in replaying real captures)
+treehouse: /usr/local/bin/treehouse (v3.1.0)
+
+### 1. real fm-spawn of a no-mistakes ship task into the lab
+fm-spawn exit 0: warning: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.ozzwZ2/fm/data/fmlab-parked/launch-brief.md records no ship branch; defaulting to legacy branch fm/fmlab-parked spawned fmlab-parked harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fmlab-parked worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.ozzwZ2/pool/.treehouse/project-25563e/1/project 
+meta: worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.ozzwZ2/pool/.treehouse/project-25563e/1/project window=firstmate:fm-fmlab-parked branch= kind=ship mode=no-mistakes
+tmux windows: firstmate:lab firstmate:fm-fmlab-parked 
+
+### 2. the crew creates its branch, commits, and pushes its work (what the run validates)
+task HEAD 95e84089 pushed to origin/fm/fmlab-parked
+
+### 3. what `no-mistakes axi status` reports for the run before teardown
+    run:
+      id: "01MLABPARKEDRUN0000000000"
+      branch: fm/some-other-task
+      status: running
+      awaiting_agent: parked 2d14h
+      head: deadbeef
+      head_sha: deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+      pr: "https://github.com/kunchenguid/firstmate/pull/3998"
+      findings: 1 awaiting
+      steps[9]{step,status,findings,duration_ms}:
+        intent,completed,0,200
+        rebase,completed,0,6521
+        review,completed,0,180772
+        test,awaiting_approval,1,90408
+        document,pending,0,0
+        lint,pending,0,0
+        push,pending,0,0
+        pr,pending,0,0
+        ci,pending,0,0
+    gate:
+      step: test
+      status: awaiting_approval
+      summary: Documentation-only change with no live test surface. Previously declined missing-evidence findings were not repeated.
+      findings[1]{id,severity,file,action,description}:
+        test-1,warning,"",ask-user,"this change has no live-validatable surface; proceed without live validation? (0 of 4 scenarios were driven live against the product); An operator reads the notes and encounters silent loss of supervision as the first warning.: Only documentation changed, with no executable surface. Demonstrating operator response would require a separate operator-driven evaluation.; An operator dismisses hook review with Escape without selecting review, declining hooks, or treating dismissal as approval.: No executable dialog handling changed. Live corroboration requires an operator-controlled isolated sessio… (truncated, 1236 chars total)"
+    help[2]: The explicitly selected gate for run 01M20NDQH0G96AQYH1EHWGKT5F is inspection-only; no run-scoped response command exists,Run `no-mistakes axi logs --run 01M20NDQH0G96AQYH1EHWGKT5F --step test --full` to read the full step log
+    (top-level status word: running)
+
+### 4. real fm-teardown.sh fmlab-parked
+fm-teardown exit 0
+--- teardown stderr
+    fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.ozzwZ2/fm
+    teardown: reaping leaked worktree process(es) for fmlab-parked: 50671 53105
+    teardown: force-killing leaked worktree process(es) for fmlab-parked: 50671
+--- teardown stdout
+    A new version of treehouse is available: v3.1.0 → v3.1.5
+    Run "treehouse update" to update
+    
+    🌳 Worktree returned to pool.
+    /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.ozzwZ2/project: already current
+    teardown fmlab-parked complete (window firstmate:fm-fmlab-parked, worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.ozzwZ2/pool/.treehouse/project-25563e/1/project)
+    Backlog: fmlab-parked just finished (config/backlog-backend selects manual editing). Update /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.ozzwZ2/fm/data/backlog.md - move fmlab-parked to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+--- no-mistakes calls teardown made
+    14:32:15	cwd=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.ozzwZ2/pool/.treehouse/project-25563e/1/project	no-mistakes axi status
+
+### 5. after teardown
+task meta present: no
+crew window firstmate:fm-fmlab-parked present: no
+task worktree registered with project: no
+axi abort calls: 0
+run 01MLABPARKEDRUN0000000000 final state: status=running outcome=none gate=test
+RESULT: teardown left the run alone

@@ -1,0 +1,3 @@
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.LddusL/fm
+warning: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.LddusL/fm/data/fmlab-parked/launch-brief.md records no ship branch; defaulting to legacy branch fm/fmlab-parked
+spawned fmlab-parked harness=sh kind=ship mode=no-mistakes yolo=off window=firstmate:fm-fmlab-parked worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.LddusL/pool/.treehouse/project-5a555d/1/project

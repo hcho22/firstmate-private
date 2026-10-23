@@ -1,0 +1,8 @@
+head parked-own-head teardown_rc=0 RESULT: teardown concluded the run before removing its worker | aborts=2
+base parked-own-head teardown_rc=  | aborts=0
+head parked-pushed-fix teardown_rc=0 RESULT: teardown concluded the run before removing its worker | aborts=2
+base parked-pushed-fix teardown_rc=  | aborts=0
+head executing teardown_rc=0 RESULT: teardown left the run alone | aborts=1
+base executing teardown_rc=  | aborts=0
+head other-branch teardown_rc=0 RESULT: teardown left the run alone | aborts=1
+base other-branch teardown_rc=  | aborts=0
