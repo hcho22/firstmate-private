@@ -135,6 +135,8 @@ It requires that the displaced pid is this process or an ancestor, or that the r
 It also requires that the session that took over still holds the lock: its pid is line 1, or its session id is recorded beside a line 1 it re-anchored.
 A Claude taker's recorded pid is its model-loop helper, which can be recycled while that session keeps running, so `bin/fm-lock.sh` refuses the displaced session's automatic reclaim of that dead pid while the id beside the lock is still the takeover's new session id.
 The taker's own next hook reclaims the lock, and the displaced session holds it again only through a captain-confirmed takeover.
+Until then `fm_session_lock_displaced_while_taker_holds` keeps the displaced session read-only at the guard as well: it stands down exactly as for a live taker, with the displaced notice once and no write under `state/`, in every mode.
+The Cursor park asks the guard for that notice instead of recovering the dead pid.
 That notice is a plain stop-acting notice in every harness, never a blind-turn alarm.
 Claude, Codex, and native Grok receive it as exit 2 with the guard's own stderr unchanged.
 The follow-up renderers (OpenCode, Pi, omp, Grok's pre-native resume fallback, and the Cursor park) call the guard with `--followup`, receive it as exit 3, and forward it unchanged, because they frame every exit 2 with their own `TURN WOULD END BLIND` repair heading.
@@ -143,6 +145,7 @@ This paragraph is the one description of that `--followup` contract; the harness
 The stand-down has these limits:
 
 - Malformed, absent, dead, or ancestry-uncertain lock records are not foreign and retain the ordinary guard behavior.
+  The one exception is a dead line 1 that the takeover displacing this session still holds through its session id, which stands down with the displaced notice as described above.
 - A missing or mismatched sidecar or an untrusted id adds nothing to the verdict, so a live owner outside the ancestry still takes this exit exactly as before.
 
 ### Pull-warning verdict by supervision model

@@ -317,26 +317,13 @@ refuse_live_owner() {  # <recorded-pid>
   exit 1
 }
 
-# True when this session is the one the newest takeover displaced
-# (fm_session_lock_displaced_record) and the id recorded beside the lock is still
-# that takeover's new session id, which is the header's one dead holder this
-# session must not reclaim. Leaves that takeover record in DISPLACED_RECORD.
-DISPLACED_RECORD=
-displaced_while_taker_holds() {
-  local new_session recorded
-  DISPLACED_RECORD=$(fm_session_lock_displaced_record "$STATE") || return 1
-  new_session=$(printf '%s\n' "$DISPLACED_RECORD" | tr '\t' '\n' | sed -n 's/^new_session=//p')
-  [ -n "$new_session" ] || return 1
-  recorded=$(fm_session_lock_recorded_session_id "$STATE") || return 1
-  [ "$recorded" = "$new_session" ]
-}
-
-# The refusal the displaced session gets instead of reclaiming dead holder $1:
-# the takeover that displaced it, never the generic live-holder refusal.
-refuse_displaced_reclaim() {  # <recorded-pid>
+# The refusal the displaced session gets instead of reclaiming dead holder $1,
+# which takeover record $2 (fm_session_lock_displaced_while_taker_holds) still
+# backs: the takeover that displaced it, never the generic live-holder refusal.
+refuse_displaced_reclaim() {  # <recorded-pid> <takeover-record>
   local at new_session home_prefix=
-  at=$(printf '%s\n' "$DISPLACED_RECORD" | tr '\t' '\n' | sed -n 's/^at=//p')
-  new_session=$(printf '%s\n' "$DISPLACED_RECORD" | tr '\t' '\n' | sed -n 's/^new_session=//p')
+  at=$(printf '%s\n' "$2" | tr '\t' '\n' | sed -n 's/^at=//p')
+  new_session=$(printf '%s\n' "$2" | tr '\t' '\n' | sed -n 's/^new_session=//p')
   [ "$FM_HOME" = "$FM_ROOT" ] || home_prefix="FM_HOME='$FM_HOME' "
   echo "error: this session no longer owns the fleet: at $at a captain-confirmed takeover moved the lock to session $new_session, which still holds it although its recorded pid $1 has exited; operate read-only until resolved" >&2
   {
@@ -364,7 +351,7 @@ takeover_preflight() {  # <recorded-pid>
       exit 1
       ;;
   esac
-  if ! fm_harness_pid_alive "$old" && ! displaced_while_taker_holds; then
+  if ! fm_harness_pid_alive "$old" && ! fm_session_lock_displaced_while_taker_holds "$STATE" >/dev/null; then
     echo "error: lock holder pid $old is not a live session, so no takeover is needed; run $SCRIPT_DIR/fm-lock.sh to acquire the lock normally" >&2
     exit 1
   fi
@@ -448,8 +435,9 @@ if [ -e "$LOCK" ] || [ -L "$LOCK" ]; then
       refuse_live_owner "$old"
     fi
   fi
-  if [ "$TAKEOVER" -eq 0 ] && [ -z "$REANCHOR" ] && [ "$old" != "$me" ] && displaced_while_taker_holds; then
-    refuse_displaced_reclaim "$old"
+  if [ "$TAKEOVER" -eq 0 ] && [ -z "$REANCHOR" ] && [ "$old" != "$me" ] \
+    && displaced_record=$(fm_session_lock_displaced_while_taker_holds "$STATE"); then
+    refuse_displaced_reclaim "$old" "$displaced_record"
   fi
 fi
 # A takeover reaches here holding the claim lock. A lock this session already

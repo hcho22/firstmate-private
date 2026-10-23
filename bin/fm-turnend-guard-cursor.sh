@@ -294,11 +294,13 @@ current_session_still_ours() {
 
 # Only the lock-owning session may arm or wake. A prior session that died
 # leaving its numeric harness pid behind is the one recoverable
-# case, delegated to bin/fm-lock.sh so acquisition keeps its single owner.
+# case, delegated to bin/fm-lock.sh so acquisition keeps its single owner. A dead
+# pid that a takeover displacing this session still holds through its session
+# id is not that case: the shared guard tells this session it was displaced.
 if ! fm_session_lock_owned_by_self "$STATE"; then
   LOCK_PID=$(cat "$STATE/.lock" 2>/dev/null || true)
   case "$LOCK_PID" in ''|*[!0-9]*) exit 0 ;; esac
-  if fm_harness_pid_alive "$LOCK_PID"; then
+  if fm_harness_pid_alive "$LOCK_PID" || fm_session_lock_displaced_while_taker_holds "$STATE" >/dev/null; then
     run_shared_guard || exit 0
     emit_displaced_notice
   fi

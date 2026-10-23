@@ -520,3 +520,21 @@ fm_session_lock_displaced_record() {  # <state>
   fi
   printf '%s\n' "$record"
 }
+
+# Print the newest takeover record when fm_session_lock_displaced_record names
+# this process's session as displaced AND the id recorded beside the lock is
+# still that takeover's new session id; fail otherwise. This is the one dead
+# line 1 that does not end the taker's hold: a Claude taker's recorded pid is its
+# model-loop helper, which is recycled while the session keeps running, and its
+# own next hook reclaims the lock. bin/fm-lock.sh refuses this session's reclaim
+# of it, and the turn-end guard stands this session down with the displaced
+# notice exactly as it does for a live taker.
+fm_session_lock_displaced_while_taker_holds() {  # <state>
+  local state=$1 record new_session recorded
+  record=$(fm_session_lock_displaced_record "$state") || return 1
+  new_session=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^new_session=//p')
+  [ -n "$new_session" ] || return 1
+  recorded=$(fm_session_lock_recorded_session_id "$state") || return 1
+  [ "$recorded" = "$new_session" ] || return 1
+  printf '%s\n' "$record"
+}

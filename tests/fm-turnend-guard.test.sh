@@ -2517,6 +2517,70 @@ test_displaced_notice_never_carries_repair_wording_from_the_guard() {
   pass "fm-turnend-guard: the displaced notice is exit 2 for Claude and Codex, exit 3 under --followup, and never a repair alarm"
 }
 
+# A takeover by a Claude session records its model-loop helper as line 1, and
+# that helper is recycled while the session keeps running: the lock names a dead
+# pid while the taker's id is still beside it, and bin/fm-lock.sh refuses the
+# displaced session's reclaim. Several stops of that displaced session run
+# beneath one harness process, so they share the one takeover record that names
+# it. Each stop's output and status land in <dir>/tmp/stop<n>.out and .rc, and
+# the state/ listing around the stops in <dir>/tmp/state-before and state-after.
+run_recycled_taker_stops() {  # <dir> <harness> <dead-pid> <guard-args> <payload>...
+  local dir=$1 harness=$2 dead=$3 args=$4
+  shift 4
+  # shellcheck disable=SC2016 # the inner shell expands its own variables
+  run_in_harness "$dir" "$harness" none bash -c '
+    guard=$1 dead=$2 out=$3 args=$4
+    shift 4
+    printf "%s\n" "$dead" > "$FM_HOME/state/.lock"
+    printf "sess-taker\n" > "$FM_HOME/state/.lock-session"
+    printf "at=2026-10-01T20:00:00Z\tnew_pid=%s\tnew_session=sess-taker\tnew_command=claude\tprev_pid=%s\tprev_session=\tprev_holder=command: codex\n" \
+      "$dead" "$PPID" > "$FM_HOME/state/.lock-takeovers"
+    ls -A "$FM_HOME/state" > "$out/state-before"
+    n=0
+    for payload in "$@"; do
+      n=$((n + 1))
+      printf "%s" "$payload" | "$guard" $args > "$out/stop$n.out" 2>&1
+      printf "%s\n" "$?" > "$out/stop$n.rc"
+    done
+    ls -A "$FM_HOME/state" > "$out/state-after"' _ "$dir/bin/fm-turnend-guard.sh" "$dead" "$dir/tmp" "$args" "$@" < /dev/null
+}
+
+test_displaced_session_stands_down_while_a_recycled_taker_holds_the_lock() {
+  local dir dead harness args first_rc i
+  dead=999991
+  while kill -0 "$dead" 2>/dev/null; do dead=$((dead + 1)); done
+  for harness in claude codex pi; do
+    case "$harness" in
+      claude) args=--claude; first_rc=2 ;;
+      codex) args=; first_rc=2 ;;
+      pi) args=--followup; first_rc=3 ;;
+    esac
+    dir=$(make_primary_dir "$TMP_ROOT/displaced-recycled-$harness")
+    : > "$dir/state/task1.meta"
+    run_recycled_taker_stops "$dir" "$harness" "$dead" "$args" \
+      '{"stop_hook_active":false,"session_id":"sess-displaced"}' \
+      '{"stop_hook_active":false,"session_id":"sess-displaced"}' \
+      '{"stop_hook_active":true,"session_id":"sess-displaced"}'
+    expect_code "$first_rc" "$(cat "$dir/tmp/stop1.rc")" "$harness: the displaced session's first stop must carry the displaced notice: $(cat "$dir/tmp/stop1.out")"
+    assert_plain_displaced_notice "$(cat "$dir/tmp/stop1.out")" "$harness"
+    for i in 2 3; do
+      expect_code 0 "$(cat "$dir/tmp/stop$i.rc")" "$harness: stop $i of the displaced session was blocked again: $(cat "$dir/tmp/stop$i.out")"
+      assert_not_contains "$(cat "$dir/tmp/stop$i.out")" 'TURN WOULD END BLIND' "$harness: stop $i of the displaced session was a blind-turn alarm"
+      assert_not_contains "$(cat "$dir/tmp/stop$i.out")" 'NO LONGER OWNS' "$harness: the displaced notice repeated on stop $i"
+    done
+    [ "$(cat "$dir/tmp/state-after")" = "$(cat "$dir/tmp/state-before")" ] \
+      || fail "$harness: the displaced session's stops wrote under state/: $(cat "$dir/tmp/state-after")"
+    assert_absent "$dir/state/.turnend-claude-blocks" "$harness: the displaced session consumed the block budget"
+    # Non-vacuity: the same dead pid with no takeover naming this session is an
+    # ordinary stale lock and keeps the ordinary blind-turn block.
+    rm -f "$dir/state/.lock-takeovers"
+    GUARD_STOP_ACTIVE=false run_guard_in_harness "$dir" "$harness" sess-ordinary none ${args:+"$args"}
+    expect_code 2 "$GUARD_RC" "$harness: an ordinary dead lock lost its blind-turn block: $GUARD_OUT"
+    assert_contains "$GUARD_OUT" 'TURN WOULD END BLIND' "$harness: an ordinary dead lock lost its blind-turn alarm"
+  done
+  pass "fm-turnend-guard: a session displaced by a recycled Claude taker stands down with one displaced notice in every mode, and an ordinary dead lock still blocks"
+}
+
 test_grok_adapter_delivers_displaced_notice_without_repair_wording() {
   local dir legacy foreign fakebin log
   dir=$(make_primary_dir "$TMP_ROOT/displaced-grok-native")
@@ -2935,6 +2999,7 @@ test_hook_readonly_session_holds_back_the_takeover_while_the_beat_is_fresh
 test_hook_unresolvable_ancestry_keeps_guarding
 test_hook_displaced_session_is_told_once_that_its_lock_was_taken_over
 test_displaced_notice_never_carries_repair_wording_from_the_guard
+test_displaced_session_stands_down_while_a_recycled_taker_holds_the_lock
 test_grok_adapter_delivers_displaced_notice_without_repair_wording
 test_opencode_plugin_delivers_displaced_notice_without_repair_wording
 test_pi_extension_delivers_displaced_notice_without_repair_wording
