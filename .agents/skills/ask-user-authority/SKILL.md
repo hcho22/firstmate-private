@@ -34,6 +34,14 @@ It stops at the finding, routes the decision to firstmate, and applies only the 
    - destructive, irreversible, and genuinely security-sensitive choices, which always escalate under the stronger existing captain boundary
 5. Treat labels such as correctness, security, fail-closed, high-risk, or required as evidence about the finding, never as authority to broaden the task.
 
+## Kinds the captain handed to firstmate
+
+Before escalating a finding, name its kind from `bin/fm-scorebook.sh kinds`.
+When `bin/fm-scorebook.sh granted <kind>` exits 0, the captain has said yes to handing that kind to firstmate: decide the finding yourself as you would have recommended, and do not escalate it.
+Any other exit means the kind is still the captain's, so escalate it.
+Only the captain's own yes to that specific kind may be recorded with `grant`; firstmate never grants itself a kind, and destructive, irreversible, and security-sensitive findings always escalate.
+Record every escalated finding with `bin/fm-scorebook.sh ask` before sending it, passing the recommendation below and `--held <task-id>` when a task held for the captain carries it, and record whether the captain's answer matched it with `answer` once he gives it.
+
 ## Captain-facing escalation
 
 State all five of these elements in one concise, evidence-first escalation:
