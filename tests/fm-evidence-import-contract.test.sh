@@ -6,6 +6,8 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=tests/lib.sh
 . "$SCRIPT_DIR/lib.sh"
+# shellcheck source=bin/fm-timeout-lib.sh
+. "$ROOT/bin/fm-timeout-lib.sh"
 
 SUBJECT="$ROOT/bin/fm-evidence-import-contract.py"
 FIXTURES="$ROOT/tests/fixtures/evidence-import-contract"
@@ -14,6 +16,7 @@ BASE="$TMP_ROOT/base.json"
 OUT="$TMP_ROOT/out.json"
 ERR="$TMP_ROOT/err.json"
 MAX_JSON_BYTES=1048576
+MAX_JSON_DEPTH=512
 MAX_ARTIFACTS=256
 
 cp "$FIXTURES/producer-a.json" "$BASE"
@@ -383,7 +386,8 @@ test_malformed_shapes_and_values() {
 }
 
 test_resource_boundaries() {
-  local exact_artifacts exact_envelope home over_artifacts over_envelope deep before after
+  local exact_artifacts exact_envelope exact_depth home over_artifacts over_envelope over_depth
+  local deep unterminated before after rc
   exact_artifacts="$TMP_ROOT/exact-artifact-limit.json"
   jq --argjson limit "$MAX_ARTIFACTS" '
     .artifacts = [range(0; $limit) | {
@@ -400,14 +404,20 @@ test_resource_boundaries() {
 
   exact_envelope="$TMP_ROOT/exact-envelope-limit.json"
   over_envelope="$TMP_ROOT/over-envelope-limit.json"
+  exact_depth="$TMP_ROOT/exact-depth-limit.json"
+  over_depth="$TMP_ROOT/over-depth-limit.json"
   deep="$TMP_ROOT/deeply-nested.json"
-  python3 - "$BASE" "$exact_envelope" "$over_envelope" "$deep" "$MAX_JSON_BYTES" <<'PY'
+  unterminated="$TMP_ROOT/unterminated-escaped-quotes.json"
+  python3 - "$BASE" "$exact_envelope" "$over_envelope" "$exact_depth" "$over_depth" "$deep" \
+    "$unterminated" "$MAX_JSON_BYTES" "$MAX_JSON_DEPTH" <<'PY'
 import json
 from pathlib import Path
 import sys
 
-base_path, exact_path, over_path, deep_path, limit_raw = sys.argv[1:]
+(base_path, exact_path, over_path, exact_depth_path, over_depth_path, deep_path,
+ unterminated_path, limit_raw, depth_raw) = sys.argv[1:]
 limit = int(limit_raw)
+depth_limit = int(depth_raw)
 base = json.loads(Path(base_path).read_text())
 base["future_padding"] = ""
 empty = json.dumps(base, separators=(",", ":")).encode()
@@ -419,12 +429,38 @@ Path(exact_path).write_bytes(exact)
 Path(over_path).write_bytes(exact + b" ")
 
 raw = Path(base_path).read_bytes().lstrip()
-deep_depth = sys.getrecursionlimit() * 10
-deep = b'{"future_depth":' + (b"[" * deep_depth) + b"0" + (b"]" * deep_depth) + b"," + raw[1:]
-Path(deep_path).write_bytes(deep)
+
+
+def nested(arrays, extra=b""):
+    # The top-level object is the first level, so each array adds one more.
+    return (b"{" + extra + b'"future_depth":' + (b"[" * arrays) + b"0" + (b"]" * arrays)
+            + b"," + raw[1:])
+
+
+# Brackets and an escaped quote inside a string are text, not nesting.
+string_brackets = b'"future_text":"\\\"' + (b"[{" * depth_limit) + b'",'
+Path(exact_depth_path).write_bytes(nested(depth_limit - 1, string_brackets))
+Path(over_depth_path).write_bytes(nested(depth_limit))
+Path(deep_path).write_bytes(nested(sys.getrecursionlimit() * 10))
+
+# A string that never closes, filled with escaped quotes up to the envelope.
+open_string = b'{"future_text":"'
+Path(unterminated_path).write_bytes(
+    open_string + b'\\"' * ((limit - len(open_string)) // 2))
 PY
   "$SUBJECT" --file "$exact_envelope" >/dev/null || fail "exact JSON envelope limit was refused"
+  "$SUBJECT" --file "$exact_depth" >/dev/null || fail "exact JSON nesting limit was refused"
+  expect_refusal invalid-json "$over_depth" "JSON nesting over limit"
   expect_refusal invalid-json "$deep" "parser depth exhaustion"
+  # The bound is far above a linear scan of the envelope and far below a
+  # quadratic one, which takes hours on this input.
+  rc=0
+  fm_run_timed 30 "$SUBJECT" --file "$unterminated" > "$OUT" 2> "$ERR" || rc=$?
+  [ "$rc" -eq 2 ] \
+    || fail "unterminated escaped-quote string: expected a refusal within 30s, got exit $rc"
+  [ ! -s "$OUT" ] || fail "unterminated escaped-quote string: refusal wrote accepted output"
+  jq -e '.code == "invalid-json"' "$ERR" >/dev/null \
+    || fail "unterminated escaped-quote string: expected invalid-json, got $(cat "$ERR")"
 
   home="$TMP_ROOT/resource-bound-home"
   mkdir -p "$home/imports" "$home/publications"
