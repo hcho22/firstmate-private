@@ -1,0 +1,4 @@
+stopped: lab tmux server and lab processes
+removed: 3 Claude project entries under /private/tmp/fmnm-lab
+removed: /private/tmp/fmnm-lab
+down exit=

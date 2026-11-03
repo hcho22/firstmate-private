@@ -1,0 +1,7 @@
+ok primary: claude pid 60866 in /private/tmp/fmnm-lab/home
+ok probe: the primary answered LABREADY-fd6552b6530e
+ok trust: /private/tmp/fmnm-lab/home is trusted in the Claude store
+fail host: supervision host pid 43514 runs (expected none)
+ok watcher: live watcher with a fresh beacon
+ok worker: labfd6552b6530e-worker parked on /private/tmp/fmnm-lab/home/data/notes/labfd6552b6530e-worker/gate
+ok treehouse: ~/.treehouse unchanged

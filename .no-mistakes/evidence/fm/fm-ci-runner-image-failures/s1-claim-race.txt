@@ -1,0 +1,17 @@
+### 1. uutils 0.10.0 mkdir, plain 'mkdir dir' claim (what main's case lanes and locks did)
+mkdir under test: /tmp/fmnm-tools/uubin/mkdir -> mkdir (uutils coreutils) 0.10.0
+claim primitive: plain   rounds=40 racers/round=12
+3 3 1 1 1 1 2 1 1 4 1 1 1 1 4 2 3 3 1 2 2 1 1 2 1 1 2 2 1 1 1 3 3 2 3 1 2 1 3 2 
+rounds with more than one winner: 20 / 40 ; rounds with no winner: 0 / 40
+
+### 2. uutils 0.10.0 mkdir, fm_mkdir_exclusive claim (this change)
+mkdir under test: /tmp/fmnm-tools/uubin/mkdir -> mkdir (uutils coreutils) 0.10.0
+claim primitive: exclusive   rounds=40 racers/round=12
+1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 
+rounds with more than one winner: 0 / 40 ; rounds with no winner: 0 / 40
+
+### 3. host macOS BSD mkdir, fm_mkdir_exclusive claim (falls through to plain mkdir)
+mkdir under test: /bin/mkdir -> mkdir: illegal option -- -
+claim primitive: exclusive   rounds=40 racers/round=12
+1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 
+rounds with more than one winner: 0 / 40 ; rounds with no winner: 0 / 40

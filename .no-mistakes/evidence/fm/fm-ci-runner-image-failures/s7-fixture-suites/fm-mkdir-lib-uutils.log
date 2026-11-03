@@ -1,0 +1,11 @@
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-11-03T18:46:03Z tests/fm-mkdir-lib.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - a claim another process already made fails under a uutils mkdir that reports success for it
+ok - any mkdir other than uutils makes the claim itself
+ok - a given mode is exact and no mode follows the umask, under uutils and any other mkdir
+ok - concurrent claims of one directory on this host's mkdir have exactly one winner
+FM_TEST_END 2026-11-03T18:46:07Z tests/fm-mkdir-lib.test.sh exit=0 duration_ms=3927 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=5335
+FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=3927 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-mkdir-lib.test.sh duration_ms=3927

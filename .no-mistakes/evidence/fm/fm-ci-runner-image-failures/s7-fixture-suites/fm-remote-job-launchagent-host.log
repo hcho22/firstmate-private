@@ -1,0 +1,18 @@
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-11-03T19:02:56Z tests/fm-remote-job-launchagent.test.sh family=unclassified expected_gate_skip=none
+ok - a stale-code crash heartbeat cannot count as replacement readiness
+ok - the live worker recreates missing readiness independently of a blocked sweep
+ok - a slow sequence-claim sweep keeps readiness fresh and cannot trigger a LaunchAgent bootout
+ok - concurrent Darwin ensures serialize one reload and adopt its fresh worker
+ok - stale readiness logs the named condition without reloading a verified launchd-tracked live owner
+ok - Darwin stops an untracked stale-code owner and starts the current worker through launchd
+ok - Darwin replaces a current-code owner that the loaded agent does not track
+ok - a fresh spawn survives when the caller that started it dies before publication
+ok - a dead repair-lock holder is reclaimed by one caller at a time
+ok - Darwin reload waits for asynchronous bootout cleanup before bootstrap (4s)
+ALL TESTS PASSED
+FM_TEST_END 2026-11-03T19:04:52Z tests/fm-remote-job-launchagent.test.sh exit=0 duration_ms=115911 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=116956
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=115911 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-remote-job-launchagent.test.sh duration_ms=115911

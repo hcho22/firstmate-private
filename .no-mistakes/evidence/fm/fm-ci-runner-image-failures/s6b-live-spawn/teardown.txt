@@ -1,0 +1,26 @@
+### before teardown
+drwx------ /tmp/fm-labfd6552b6530e-worker
+drwx------ /tmp/fm-labfd6552b6530e-worker+8ae6c3fb8d3a5400510439b817ef093571764b9c6f929c20556d1388c38c9108
+window=firstmate:fm-labfd6552b6530e-worker
+worktree=/private/tmp/fmnm-lab/treehouse/.treehouse/notes-43f474/1/notes
+tasktmp=/tmp/fm-labfd6552b6530e-worker
+
+$ (lab env) FM_HOME=/tmp/fmnm-lab/home /tmp/fmnm-lab/home/bin/fm-teardown.sh labfd6552b6530e-worker
+teardown: reaping leaked worktree process(es) for labfd6552b6530e-worker: 42551 50247 52056 52059 53152
+teardown: force-killing leaked worktree process(es) for labfd6552b6530e-worker: 42551
+A new version of treehouse is available: v3.1.0 → v3.1.8
+Run "treehouse update" to update
+
+🌳 Worktree returned to pool.
+teardown labfd6552b6530e-worker complete (window firstmate:fm-labfd6552b6530e-worker, worktree /private/tmp/fmnm-lab/treehouse/.treehouse/notes-43f474/1/notes)
+Backlog: labfd6552b6530e-worker is closed in /private/tmp/fmnm-lab/home/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+teardown exit=0
+
+### after teardown
+(eval):7: no matches found: /tmp/fm-labfd6552b6530e-worker+*
+ls: /tmp/fmnm-lab/home/state/labfd6552b6530e-worker.meta: No such file or directory
+lab
+main
+$ ls -d /tmp/fm-labfd6552b6530e-worker /tmp/fm-labfd6552b6530e-worker+<token> (after teardown)
+ls: /tmp/fm-labfd6552b6530e-worker: No such file or directory
+(no launch dir left)

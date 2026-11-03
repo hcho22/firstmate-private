@@ -1,0 +1,6 @@
+head run1 exit=0 load=16.81 161.24 149.04 | 
+base run1 exit=0 load=24.77 80.28 115.22 | 
+head run2 exit=0 load=15.74 41.99 88.84 | 
+base run2 exit=0 load=15.21 26.27 69.11 | 
+head run3 exit=0 load=14.17 20.06 55.01 | 
+base run3 exit=0 load=11.28 17.38 44.37 | 

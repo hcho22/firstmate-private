@@ -1,0 +1,41 @@
+### base (607a05c7), uutils 0.10.0 mkdir
+tree=/tmp/fmnm-base mkdir=/tmp/fmnm-tools/uubin/mkdir (mkdir (uutils coreutils) 0.10.0) rounds=10 writers=16
+round  1: applies_ok=16 final_seq=12 expected=17 LOST-UPDATES
+round  2: applies_ok=16 final_seq=13 expected=17 LOST-UPDATES
+round  3: applies_ok=16 final_seq=11 expected=17 LOST-UPDATES
+round  4: applies_ok=16 final_seq=13 expected=17 LOST-UPDATES
+round  5: applies_ok=16 final_seq=12 expected=17 LOST-UPDATES
+round  6: applies_ok=16 final_seq=11 expected=17 LOST-UPDATES
+round  7: applies_ok=16 final_seq=12 expected=17 LOST-UPDATES
+round  8: applies_ok=16 final_seq=15 expected=17 LOST-UPDATES
+round  9: applies_ok=16 final_seq=17 expected=17 consistent
+round 10: applies_ok=16 final_seq=15 expected=17 LOST-UPDATES
+rounds with lost updates: 9 / 10
+
+### head (this change), uutils 0.10.0 mkdir
+tree=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6H9Q0FJ9ZQDP2EY6ET9116N mkdir=/tmp/fmnm-tools/uubin/mkdir (mkdir (uutils coreutils) 0.10.0) rounds=10 writers=16
+round  1: applies_ok=16 final_seq=17 expected=17 consistent
+round  2: applies_ok=16 final_seq=17 expected=17 consistent
+round  3: applies_ok=16 final_seq=17 expected=17 consistent
+round  4: applies_ok=16 final_seq=17 expected=17 consistent
+round  5: applies_ok=16 final_seq=17 expected=17 consistent
+round  6: applies_ok=16 final_seq=17 expected=17 consistent
+round  7: applies_ok=16 final_seq=17 expected=17 consistent
+round  8: applies_ok=16 final_seq=17 expected=17 consistent
+round  9: applies_ok=16 final_seq=17 expected=17 consistent
+round 10: applies_ok=16 final_seq=17 expected=17 consistent
+rounds with lost updates: 0 / 10
+
+### head (this change), host macOS mkdir
+tree=/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6H9Q0FJ9ZQDP2EY6ET9116N mkdir=/bin/mkdir (mkdir: illegal option -- -) rounds=10 writers=16
+round  1: applies_ok=16 final_seq=17 expected=17 consistent
+round  2: applies_ok=16 final_seq=17 expected=17 consistent
+round  3: applies_ok=16 final_seq=17 expected=17 consistent
+round  4: applies_ok=16 final_seq=17 expected=17 consistent
+round  5: applies_ok=16 final_seq=17 expected=17 consistent
+round  6: applies_ok=16 final_seq=17 expected=17 consistent
+round  7: applies_ok=16 final_seq=17 expected=17 consistent
+round  8: applies_ok=16 final_seq=17 expected=17 consistent
+round  9: applies_ok=16 final_seq=17 expected=17 consistent
+round 10: applies_ok=16 final_seq=17 expected=17 consistent
+rounds with lost updates: 0 / 10

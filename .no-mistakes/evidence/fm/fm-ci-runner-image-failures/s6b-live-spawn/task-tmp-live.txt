@@ -1,0 +1,21 @@
+$ stat of the task temp root fm-spawn created for labfd6552b6530e-worker
+drwx------ 700 owner=hcho /tmp/fm-labfd6552b6530e-worker
+drwxr-xr-x 755 owner=hcho /tmp/fm-labfd6552b6530e-worker/gotmp
+$ tasktmp= line in the worker's recorded meta
+tasktmp=/tmp/fm-labfd6552b6530e-worker
+$ launch dir(s) fm-spawn staged (fm-launch.* under /tmp, by recorded lab record)
+home=/private/tmp/fmnm-lab/home
+tmux_dir=/tmp/fml.PVgiii
+launch_pid=36358
+launch_start=Tue Nov 3 10:45:40 2026
+gate=/private/tmp/fmnm-lab/home/data/notes/labfd6552b6530e-worker/gate
+launch_pid=39388
+launch_start=Tue Nov 3 10:45:47 2026
+launch_pid=60866
+launch_start=Tue Nov 3 10:46:19 2026
+$ stat of fm-spawn's staged launch dir(s) /tmp/fm-labfd6552b6530e-worker+<home-token>
+drwx------ 700 owner=hcho /tmp/fm-labfd6552b6530e-worker+8ae6c3fb8d3a5400510439b817ef093571764b9c6f929c20556d1388c38c9108
+drwx------@   4 hcho  wheel    128 Nov  3 10:46 .
+drwxrwxrwt  819 root  wheel  26208 Nov  3 10:46 ..
+-rw-------@   1 hcho  wheel    145 Nov  3 10:46 git-config.s1793731557.37025.15379.sh
+-rw-------@   1 hcho  wheel   1966 Nov  3 10:46 launch.s1793731557.37025.15379.sh

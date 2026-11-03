@@ -1,0 +1,4 @@
+$ FM_HOME=<lab> bash <bin-root-without-fm-mkdir-lib.sh>/bin/fm-teardown.sh probe-task
+error: teardown refused: required source fm-mkdir-lib.sh is missing or unreadable; nothing was changed
+exit=1
+lab state after the refusal:

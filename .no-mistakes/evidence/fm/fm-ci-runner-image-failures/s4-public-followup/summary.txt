@@ -1,0 +1,8 @@
+== base tree, poll shebang via bsd env: exit=0
+ok - a rejection wake survives a poll that could not write its line
+== base tree, poll shebang via uutils env: exit=1
+not ok - a wake whose line could not be written must stay queued
+== head tree, poll shebang via bsd env: exit=0
+ok - a rejection wake survives a poll that could not write its line
+== head tree, poll shebang via uutils env: exit=0
+ok - a rejection wake survives a poll that could not write its line

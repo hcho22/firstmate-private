@@ -1,0 +1,31 @@
+### head (this change) under Python 3.14
+interpreter: /tmp/fmnm-tools/py314bin/python3 Python 3.14.10; tree: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6H9Q0FJ9ZQDP2EY6ET9116N
+depth-512                      bytes=2013     exit=0 stdout_bytes=705    secs=0.12   stderr=
+depth-513                      bytes=2015     exit=2 stdout_bytes=0      secs=0.08   stderr={"code":"invalid-json","message":"input nests arrays and objects deeper than 512 levels"}
+depth-10000                    bytes=20991    exit=2 stdout_bytes=0      secs=0.08   stderr={"code":"invalid-json","message":"input nests arrays and objects deeper than 512 levels"}
+string-brackets                bytes=4993     exit=0 stdout_bytes=705    secs=0.08   stderr=
+unterminated-escaped-quotes    bytes=1048576  exit=2 stdout_bytes=0      secs=0.11   stderr={"code":"invalid-json","message":"input is not valid JSON"}
+
+### base (607a05c7) under Python 3.14
+interpreter: /tmp/fmnm-tools/py314bin/python3 Python 3.14.10; tree: /tmp/fmnm-base
+depth-512                      bytes=2013     exit=0 stdout_bytes=705    secs=0.38   stderr=
+depth-513                      bytes=2015     exit=0 stdout_bytes=705    secs=0.08   stderr=
+depth-10000                    bytes=20991    exit=0 stdout_bytes=705    secs=0.08   stderr=
+string-brackets                bytes=4993     exit=0 stdout_bytes=705    secs=0.08   stderr=
+unterminated-escaped-quotes    bytes=1048576  exit=2 stdout_bytes=0      secs=0.09   stderr={"code":"invalid-json","message":"input is not valid JSON"}
+
+### head under host Python 3.11
+interpreter: /tmp/fmnm-tools/py311bin/python3 Python 3.11.15; tree: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6H9Q0FJ9ZQDP2EY6ET9116N
+depth-512                      bytes=2013     exit=0 stdout_bytes=705    secs=0.1    stderr=
+depth-513                      bytes=2015     exit=2 stdout_bytes=0      secs=0.09   stderr={"code":"invalid-json","message":"input nests arrays and objects deeper than 512 levels"}
+depth-10000                    bytes=20991    exit=2 stdout_bytes=0      secs=0.08   stderr={"code":"invalid-json","message":"input nests arrays and objects deeper than 512 levels"}
+string-brackets                bytes=4993     exit=0 stdout_bytes=705    secs=0.09   stderr=
+unterminated-escaped-quotes    bytes=1048576  exit=2 stdout_bytes=0      secs=0.11   stderr={"code":"invalid-json","message":"input is not valid JSON"}
+
+### base (607a05c7) under host Python 3.11
+interpreter: /tmp/fmnm-tools/py311bin/python3 Python 3.11.15; tree: /tmp/fmnm-base
+depth-512                      bytes=2013     exit=0 stdout_bytes=705    secs=0.08   stderr=
+depth-513                      bytes=2015     exit=0 stdout_bytes=705    secs=0.09   stderr=
+depth-10000                    bytes=20991    exit=2 stdout_bytes=0      secs=0.09   stderr={"code":"invalid-json","message":"input is not valid JSON"}
+string-brackets                bytes=4993     exit=0 stdout_bytes=705    secs=0.09   stderr=
+unterminated-escaped-quotes    bytes=1048576  exit=2 stdout_bytes=0      secs=0.09   stderr={"code":"invalid-json","message":"input is not valid JSON"}
