@@ -774,6 +774,7 @@ fm_nm_run_worktree() {  # <run-id> [task-worktree]
 # Sets FM_NM_ATTR_BRANCH, FM_NM_ATTR_SINCE (epoch seconds), FM_NM_ATTR_REPO,
 # and FM_NM_ATTR_DB (fm_nm_state_db above), or sets FM_NM_ATTR_REASON to why
 # the runs cannot be attributed; the caller reads the database itself.
+# shellcheck disable=SC2034 # Output globals read by sourcing callers.
 fm_nm_task_run_attribution() {  # <worktree> <timeout_secs>
   local wt=$1 timeout_secs=$2 overview first_line
   FM_NM_ATTR_BRANCH='' FM_NM_ATTR_SINCE='' FM_NM_ATTR_REPO='' FM_NM_ATTR_DB='' FM_NM_ATTR_REASON=''
