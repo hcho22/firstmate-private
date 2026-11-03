@@ -22,7 +22,8 @@
 # captain, and AGENTS.md section 9 for any other question put to him; this
 # script owns the kinds, the record, the threshold, and the grant check.
 #
-# Kinds. `kinds` prints this set and whether each can be handed to firstmate.
+# Kinds. `kinds` prints this set, one per line: kind, hand-off or
+# captain-only, and its definition below.
 # merge, credential, destructive, and authority always stay with the captain:
 # AGENTS.md's hard rules and captain-instruction precedence require his own
 # concrete word for each such action and forbid turning one yes into standing
@@ -58,9 +59,10 @@
 # `answer` can tell when an answer lands on it. Any other question passes
 # `--question` and gets a fresh `chat-` id: one asked only in chat, one relayed
 # from a secondmate home whose backlog holds its task, or each further question
-# on a held task that already carries one, with `--task` naming that task. An
-# id with an unanswered question is refused, so a re-held task records a new
-# question only after its earlier one was answered or withdrawn.
+# on a held task that already carries one, with `--task` naming that task.
+# Every question passes `--project` naming the project it concerns, when it
+# concerns one. An id with an unanswered question is refused, so a re-held task
+# records a new question only after its earlier one was answered or withdrawn.
 #
 # `answer` closes the latest open question with that id and records whether the
 # captain's answer matched firstmate's recommendation, which is firstmate's
@@ -203,13 +205,25 @@ open_question() {  # <id>
     | select(. != null)'
 }
 
+# The definition of <kind> from the Kinds list in this header, its wrapped
+# lines joined into one.
+kind_definition() {  # <kind>
+  awk -v want="$1" '
+    /^# Kinds\./ { block = 1; next }
+    !block { next }
+    /^#$/ { exit }
+    /^#   [a-z]/ { kind = $2; sub(/^#   [a-z-]+ +/, ""); if (kind == want) definition = $0; next }
+    kind == want { sub(/^# +/, ""); definition = definition " " $0 }
+    END { print definition }' "$0"
+}
+
 command_kinds() {
   [ "$#" -eq 0 ] || bad_usage "kinds takes no arguments"
   local kind handoff
   for kind in $KINDS; do
     handoff=captain-only
     in_list "$kind" "$HANDOFF_KINDS" && handoff=hand-off
-    printf '%s\t%s\n' "$kind" "$handoff"
+    printf '%s\t%s\t%s\n' "$kind" "$handoff" "$(kind_definition "$kind")"
   done
 }
 

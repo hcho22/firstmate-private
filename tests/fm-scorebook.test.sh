@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Behavior tests for bin/fm-scorebook.sh through its public commands: a
-# question put to the captain round-trips through ask, answer, and report; the
-# match flag and the hand-off threshold count the way the header documents;
-# `answer` announces a kind once, on the answer that makes it newly qualify;
-# every kind but merge, credential, destructive, and authority can be handed
-# off, so a project-write approval never can, and a kind without the captain's
-# recorded yes still reaches him; and the record
-# never lands on a path a git work tree tracks. Questions carried by a task held
-# for the captain run against a real backlog through bin/fm-captain-hold.sh,
-# including a further question on a held task recorded as a chat question and a
-# task released and held again for a new question, and skip with a reason when
-# tasks-axi is missing.
+# Behavior tests for bin/fm-scorebook.sh through its public commands: `kinds`
+# prints each kind with its definition; a question put to the captain
+# round-trips through ask, answer, and report; the match flag and the hand-off
+# threshold count the way the header documents; `answer` announces a kind once,
+# on the answer that makes it newly qualify; every kind but merge, credential,
+# destructive, and authority can be handed off, so a project-write approval
+# never can, and a kind without the captain's recorded yes still reaches him;
+# and the record never lands on a path a git work tree tracks. Questions
+# carried by a task held for the captain run against a real backlog through
+# bin/fm-captain-hold.sh, including a further question on a held task recorded
+# as a chat question and a task released and held again for a new question, and
+# skip with a reason when tasks-axi is missing.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -395,18 +395,25 @@ test_held_question_survives_release_and_rehold() {
 }
 
 test_unknown_kind_and_help() {
-  local home rc
+  local home rc kinds
   home=$(make_home usage)
   rc=0
   score "$home" ask --kind nonsense --recommend r --question q >/dev/null 2>&1 || rc=$?
   expect_code 2 "$rc" "ask accepted an unknown kind"
-  assert_contains "$(score "$home" kinds)" "finding-scope"$'\t'"hand-off" "kinds does not mark hand-off kinds"
-  assert_contains "$(score "$home" kinds)" "credential"$'\t'"captain-only" "kinds does not mark captain-only kinds"
-  assert_contains "$(score "$home" kinds)" "other"$'\t'"hand-off" "kinds does not let the other kind be handed off"
-  assert_contains "$(score "$home" kinds)" "authority"$'\t'"captain-only" "kinds does not keep authority with the captain"
+  kinds=$(score "$home" kinds) || fail "kinds failed"
+  assert_contains "$kinds" "finding-scope"$'\t'"hand-off" "kinds does not mark hand-off kinds"
+  assert_contains "$kinds" "credential"$'\t'"captain-only" "kinds does not mark captain-only kinds"
+  assert_contains "$kinds" "other"$'\t'"hand-off" "kinds does not let the other kind be handed off"
+  assert_contains "$kinds" "authority"$'\t'"captain-only" "kinds does not keep authority with the captain"
+  assert_contains "$kinds" "design"$'\t'"hand-off"$'\t'"a design or product pick outside a review gate, such as an investigation, visual review, or intake question" \
+    "kinds does not print a wrapped definition joined on its line"
+  assert_contains "$kinds" "other"$'\t'"hand-off"$'\t'"any other question no AGENTS.md rule reserves for his own word" \
+    "kinds does not print the last kind's definition"
+  assert_equals "" "$(printf '%s\n' "$kinds" | awk -F '\t' 'NF != 3 || $3 == "" { print $1 }')" \
+    "kinds printed a kind without its definition"
   assert_contains "$(score "$home" --help)" "fm-scorebook.sh report" "help does not show usage"
   assert_absent "$home/data/captain-scorebook.jsonl" "a refused or read-only command wrote the record"
-  pass "unknown kinds are refused and read-only commands write nothing"
+  pass "unknown kinds are refused, kinds prints each kind's definition, and read-only commands write nothing"
 }
 
 test_chat_round_trip
