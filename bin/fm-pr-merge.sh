@@ -1195,7 +1195,7 @@ github_read_outcome_with_gh() {
   # shellcheck disable=SC2016  # GraphQL variables are literal query syntax.
   if ! fields=$(gh api graphql \
     -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged isInMergeQueue baseRefName}}}' \
-    -F "owner=$PR_OWNER" -F "repo=$PR_REPO" -F "number=$PR_NUMBER" \
+    -f "owner=$PR_OWNER" -f "repo=$PR_REPO" -F "number=$PR_NUMBER" \
     --jq '.data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring), "queued=" + (.isInMergeQueue | tostring), "base=" + (.baseRefName // "")' \
     2>/dev/null) || [ -z "$fields" ]; then
     return 1
@@ -1390,7 +1390,7 @@ github_read_merge_queue() {
   # shellcheck disable=SC2016  # GraphQL variables are literal query syntax.
   enabled=$(gh api graphql \
     -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){isMergeQueueEnabled}}}' \
-    -F "owner=$PR_OWNER" -F "repo=$PR_REPO" -F "number=$PR_NUMBER" \
+    -f "owner=$PR_OWNER" -f "repo=$PR_REPO" -F "number=$PR_NUMBER" \
     --jq '.data.repository.pullRequest.isMergeQueueEnabled' 2>/dev/null) || enabled=
   github_read_queue_method
   case "$enabled:$FM_PR_GITHUB_QUEUE_STATUS" in

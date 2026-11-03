@@ -247,6 +247,23 @@ case "${1:-} ${2:-}" in
     exit "$merge_rc"
     ;;
   "api graphql")
+    # gh's typed -F turns digits, true, false, or null into a JSON number,
+    # boolean, or null, which GitHub refuses for a String! variable.
+    prev= typed=
+    for arg in "$@"; do
+      if [ "$prev" = -F ]; then
+        case "$arg" in
+          owner=true | owner=false | owner=null | repo=true | repo=false | repo=null) typed=$arg ;;
+          owner= | repo= | owner=*[!0-9]* | repo=*[!0-9]*) ;;
+          owner=* | repo=*) typed=$arg ;;
+        esac
+      fi
+      prev=$arg
+    done
+    if [ -n "$typed" ]; then
+      echo "gh: Variable \$${typed%%=*} of type String! was provided invalid value" >&2
+      exit 1
+    fi
     # The pull request's own merge-queue read answers false unless the case
     # writes true, or fail for a read that cannot reach the API.
     case " $* " in
@@ -4938,6 +4955,33 @@ test_approved_head_away_merge_is_not_bound() {
   pass "an away-authority merge is not bound to an approved head"
 }
 
+# GitHub refuses a String! variable that gh sent as a number, so a repository
+# named by digits reads its merge queue and outcome only when owner and repo
+# are passed as raw strings.
+test_approved_head_digit_repository_merges() {
+  local case_dir url=https://github.com/example/2048/pull/85 head=8585858585858585858585858585858585858585
+  case_dir=$(make_case approved-head-digit-repo)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" "$head" "$url"
+  expect_code 0 "$(approved_head_merge "$case_dir" "$url")" \
+    "approved-head-digit-repo: a merge bound to the approved head refused for a repository named by digits: $(cat "$case_dir/stderr")"
+  assert_logged_gh_merge "$case_dir" 85 example/2048 --squash
+  assert_grep "verified: $url is merged (state=MERGED, merged=true, isInMergeQueue=false)" "$case_dir/stdout" \
+    "approved-head-digit-repo: the merge was not verified as landed"
+  assert_no_grep 'pr view' "$case_dir/gh-axi.log" \
+    "approved-head-digit-repo: the outcome read failed over to gh-axi"
+
+  case_dir=$(make_case away-digit-repo)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  write_away_record "$case_dir" --words 'merge task-x1 when green'
+  expect_code 0 "$(approved_head_merge "$case_dir" "$url")" \
+    "away-digit-repo: an away merge refused for a repository named by digits: $(cat "$case_dir/stderr")"
+  assert_logged_gh_merge "$case_dir" 85 example/2048 --squash
+  pass "a repository named by digits passes the merge-queue and outcome reads"
+}
+
 test_approved_head_gitlab_and_forgejo() {
   local case_dir approved live
   # GitLab reads its merge request head ref, and a clean base merge passes.
@@ -5245,5 +5289,6 @@ fm_test_run_cases \
   test_approved_head_relayed_child_head_binds_the_mate_merge \
   test_approved_head_mate_clean_catch_up_publishes_no_ready_line \
   test_approved_head_away_merge_is_not_bound \
+  test_approved_head_digit_repository_merges \
   test_approved_head_gitlab_and_forgejo \
   test_approved_head_refuses_a_deferred_merge

@@ -954,7 +954,7 @@ fm_pr_github_read_record_with_gh() {  # <owner> <repo> <number>
   # shellcheck disable=SC2016  # GraphQL variables are literal query syntax.
   if ! fields=$(gh api graphql \
     -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged}}}' \
-    -F "owner=$owner" -F "repo=$repo" -F "number=$number" \
+    -f "owner=$owner" -f "repo=$repo" -F "number=$number" \
     --jq '.data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring)' \
     2>/dev/null) || [ -z "$fields" ]; then
     return 1
