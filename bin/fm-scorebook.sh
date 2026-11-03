@@ -55,12 +55,12 @@
 # backlog does not carry. The question id is the task id, the question text is
 # not copied because the hold reason already records it, and the call's
 # lifecycle identity (bin/fm-captain-hold.sh open --identity) is recorded so
-# `answer` can tell when an answer lands on it. Any other question passes `--question` and gets a fresh
-# `chat-` id: one asked only in chat, one relayed from a secondmate home whose
-# backlog holds its task, or each further question on a held task that already
-# carries one, with `--task` naming that task. An id with an unanswered question
-# is refused, so a re-held task records a new question only after its earlier
-# one was answered or withdrawn.
+# `answer` can tell when an answer lands on it. Any other question passes
+# `--question` and gets a fresh `chat-` id: one asked only in chat, one relayed
+# from a secondmate home whose backlog holds its task, or each further question
+# on a held task that already carries one, with `--task` naming that task. An
+# id with an unanswered question is refused, so a re-held task records a new
+# question only after its earlier one was answered or withdrawn.
 #
 # `answer` closes the latest open question with that id and records whether the
 # captain's answer matched firstmate's recommendation, which is firstmate's
