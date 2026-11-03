@@ -1,0 +1,7 @@
+gh pr view https://github.com/athombv/node-homey/pull/696 --json headRefOid -q .headRefOid
+gh pr view https://github.com/athombv/node-homey/pull/696 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+gh api repos/athombv/node-homey/branches/develop
+gh api --paginate repos/athombv/node-homey/rules/branches/develop
+gh api repos/athombv/node-homey/pulls/696
+gh api --paginate repos/athombv/node-homey/pulls/696/files?per_page=100
+gh api repos/athombv/node-homey/pulls/696

@@ -1,0 +1,7 @@
+gh pr view https://github.com/betawins/VProfile-1/pull/7 --json headRefOid -q .headRefOid
+gh pr view https://github.com/betawins/VProfile-1/pull/7 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+gh api repos/betawins/VProfile-1/branches/master
+gh api --paginate repos/betawins/VProfile-1/rules/branches/master
+gh api repos/betawins/VProfile-1/pulls/7
+gh api --paginate repos/betawins/VProfile-1/pulls/7/files?per_page=100
+gh api repos/betawins/VProfile-1/pulls/7

@@ -1,0 +1,37 @@
+### scenario: jenkinsfile-dotted-name
+### 2026-11-03T08:11:52Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l1 https://github.com/DIGITALAPPLICATION/JarProject/pull/5 --low-risk
+### project (registry name from project= basename): JarProject
+### config/merge-tiers:
+    JarProject low-risk **
+    JarProject low-risk Jenkinsfile.groovy
+### stderr+stdout:
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+armed: state/task-l1.check.sh
+verified: https://github.com/DIGITALAPPLICATION/JarProject/pull/5 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 3f712ce1b181fde534ce63d9b146a5af04667463
+error: refusing a low-risk merge of https://github.com/DIGITALAPPLICATION/JarProject/pull/5: 1 changed path(s) fall outside the low-risk tier for JarProject, so this merge waits for the captain
+  - Jenkinsfile.groovy (always ask: CI or forge configuration)
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/DIGITALAPPLICATION/JarProject/pull/5 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/DIGITALAPPLICATION/JarProject/pull/5 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/DIGITALAPPLICATION/JarProject/branches/develop
+    gh api --paginate repos/DIGITALAPPLICATION/JarProject/rules/branches/develop
+    gh api repos/DIGITALAPPLICATION/JarProject/pulls/5
+    gh api --paginate repos/DIGITALAPPLICATION/JarProject/pulls/5/files?per_page=100
+    gh api repos/DIGITALAPPLICATION/JarProject/pulls/5
+### task record afterwards (state/task-l1.meta):
+    window=fm-task-l1
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.G0YvvX/wt-1
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.G0YvvX/projects/JarProject
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/DIGITALAPPLICATION/JarProject/pull/5
+    pr_head=3f712ce1b181fde534ce63d9b146a5af04667463
+### merge poll armed: state/task-l1.check.sh exists

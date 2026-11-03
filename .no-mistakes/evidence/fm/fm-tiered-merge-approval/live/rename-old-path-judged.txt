@@ -1,0 +1,36 @@
+### scenario: rename-old-path-judged
+### 2026-11-03T07:46:49Z  worktree HEAD: 617baf6f48c00da30eb9964a6f8a68e9d959c9c7
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l6 https://github.com/caylex-ai/caylex-developer-docs/pull/38 --low-risk
+### project (registry name from project= basename): caylex-developer-docs
+### config/merge-tiers:
+    caylex-developer-docs low-risk administration/**
+    caylex-developer-docs low-risk widget/**
+    caylex-developer-docs low-risk docs.json
+    caylex-developer-docs low-risk **/data-sync.mdx
+    caylex-developer-docs low-risk cookbooks/overview.mdx
+    caylex-developer-docs low-risk cookbooks/background-agent-file-sync.mdx
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l6.check.sh
+verified: https://github.com/caylex-ai/caylex-developer-docs/pull/38 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 91cb5066a69f3c93d2d9dc1092d7af0527bfa5a2
+error: refusing a low-risk merge of https://github.com/caylex-ai/caylex-developer-docs/pull/38: 2 changed path(s) fall outside the low-risk tier for caylex-developer-docs, so this merge waits for the captain
+  - background-tasks/background-sync.mdx (matches no low-risk pattern)
+  - cookbooks/background-sync.mdx (matches no low-risk pattern)
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/caylex-ai/caylex-developer-docs/pull/38 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/caylex-ai/caylex-developer-docs/pull/38 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/caylex-ai/caylex-developer-docs/branches/main
+    gh api --paginate repos/caylex-ai/caylex-developer-docs/rules/branches/main
+    gh api repos/caylex-ai/caylex-developer-docs/pulls/38
+    gh api --paginate repos/caylex-ai/caylex-developer-docs/pulls/38/files?per_page=100
+    gh api repos/caylex-ai/caylex-developer-docs/pulls/38
+### task record afterwards (state/task-l6.meta):
+    window=fm-task-l6
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.SGGgf8/wt-6
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.SGGgf8/projects/caylex-developer-docs
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/caylex-ai/caylex-developer-docs/pull/38
+    pr_head=91cb5066a69f3c93d2d9dc1092d7af0527bfa5a2
+### merge poll armed: state/task-l6.check.sh exists

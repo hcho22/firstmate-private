@@ -1,0 +1,7 @@
+gh pr view https://github.com/thephpleague/oauth2-server/pull/1522 --json headRefOid -q .headRefOid
+gh pr view https://github.com/thephpleague/oauth2-server/pull/1522 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+gh api repos/thephpleague/oauth2-server/branches/master
+gh api --paginate repos/thephpleague/oauth2-server/rules/branches/master
+gh api repos/thephpleague/oauth2-server/pulls/1522
+gh api --paginate repos/thephpleague/oauth2-server/pulls/1522/files?per_page=100
+gh api repos/thephpleague/oauth2-server/pulls/1522

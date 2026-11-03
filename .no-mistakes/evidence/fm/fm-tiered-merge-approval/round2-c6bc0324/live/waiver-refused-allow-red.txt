@@ -1,0 +1,18 @@
+### scenario: waiver-refused-allow-red
+### 2026-11-03T08:10:07Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l22 https://github.com/krovacloud/krova-node/pull/91 --low-risk --allow-red ci
+### project (registry name from project= basename): krova-node
+### config/merge-tiers:
+    krova-node low-risk **
+### stderr+stdout:
+error: --low-risk takes no attended waiver: --attended-override, --allow-red, --allow-missing, and --allow-no-pipeline need an explicit captain instruction, and a merge on one is not a low-risk merge
+### exit status: 2
+### gh calls made (real gh unless marked intercepted):
+    (none)
+### task record afterwards (state/task-l22.meta):
+    window=fm-task-l22
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/wt-22
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/projects/krova-node
+    kind=ship
+    mode=no-mistakes
+### merge poll armed: no

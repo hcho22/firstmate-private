@@ -1,0 +1,4 @@
+gh pr view https://github.com/sonatype/docker-nexus-iq-server/pull/216 --json headRefOid -q .headRefOid
+gh pr view https://github.com/sonatype/docker-nexus-iq-server/pull/216 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+gh api repos/sonatype/docker-nexus-iq-server/branches/main
+gh api --paginate repos/sonatype/docker-nexus-iq-server/rules/branches/main

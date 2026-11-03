@@ -1,0 +1,28 @@
+### scenario: jenkinsfile-dot-suffix
+### 2026-11-03T08:09:32Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l11 https://github.com/stolostron/acmqe-mcn-test/pull/831 --low-risk
+### project (registry name from project= basename): acmqe-mcn-test
+### config/merge-tiers:
+    acmqe-mcn-test low-risk **
+    acmqe-mcn-test low-risk jenkinsfiles/**
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l11.check.sh
+error: refusing to merge https://github.com/stolostron/acmqe-mcn-test/pull/831
+  - check 'tide' is not green
+error: these checks are not green: tide
+### exit status: 1
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/stolostron/acmqe-mcn-test/pull/831 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/stolostron/acmqe-mcn-test/pull/831 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/stolostron/acmqe-mcn-test/branches/release-5.0
+    gh api --paginate repos/stolostron/acmqe-mcn-test/rules/branches/release-5.0
+### task record afterwards (state/task-l11.meta):
+    window=fm-task-l11
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/wt-11
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/projects/acmqe-mcn-test
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/stolostron/acmqe-mcn-test/pull/831
+    pr_head=25e5ffa017447dcfb0c5e1da6af37b41432b433b
+### merge poll armed: state/task-l11.check.sh exists

@@ -1,0 +1,39 @@
+### scenario: refuse-unmatched
+### 2026-11-03T07:48:22Z  worktree HEAD: 617baf6f48c00da30eb9964a6f8a68e9d959c9c7
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l1 https://github.com/Codeplain-ai/codeplain/pull/356 --low-risk
+### project (registry name from project= basename): codeplain
+### config/merge-tiers:
+    codeplain low-risk docs/**
+    codeplain low-risk tests/**
+### stderr+stdout:
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+armed: state/task-l1.check.sh
+verified: https://github.com/Codeplain-ai/codeplain/pull/356 is open and mergeable, with every unwaived required check reported and every unwaived check green at head b35bc0e778826725166a7af2591fe7b243491ff8
+error: refusing a low-risk merge of https://github.com/Codeplain-ai/codeplain/pull/356: 3 changed path(s) fall outside the low-risk tier for codeplain, so this merge waits for the captain
+  - plain2code.py (matches no low-risk pattern)
+  - plain2code_arguments.py (matches no low-risk pattern)
+  - tui/plain2code_tui.py (matches no low-risk pattern)
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/Codeplain-ai/codeplain/pull/356 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/Codeplain-ai/codeplain/pull/356 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/Codeplain-ai/codeplain/branches/main
+    gh api --paginate repos/Codeplain-ai/codeplain/rules/branches/main
+    gh api repos/Codeplain-ai/codeplain/pulls/356
+    gh api --paginate repos/Codeplain-ai/codeplain/pulls/356/files?per_page=100
+    gh api repos/Codeplain-ai/codeplain/pulls/356
+### task record afterwards (state/task-l1.meta):
+    window=fm-task-l1
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.GIpksT/wt-1
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.GIpksT/projects/codeplain
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/Codeplain-ai/codeplain/pull/356
+    pr_head=b35bc0e778826725166a7af2591fe7b243491ff8
+### merge poll armed: state/task-l1.check.sh exists

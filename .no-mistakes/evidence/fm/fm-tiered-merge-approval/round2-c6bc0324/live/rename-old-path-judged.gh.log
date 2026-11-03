@@ -1,0 +1,7 @@
+gh pr view https://github.com/bmx-ng/pub.mod/pull/83 --json headRefOid -q .headRefOid
+gh pr view https://github.com/bmx-ng/pub.mod/pull/83 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+gh api repos/bmx-ng/pub.mod/branches/master
+gh api --paginate repos/bmx-ng/pub.mod/rules/branches/master
+gh api repos/bmx-ng/pub.mod/pulls/83
+gh api --paginate repos/bmx-ng/pub.mod/pulls/83/files?per_page=100
+gh api repos/bmx-ng/pub.mod/pulls/83

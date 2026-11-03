@@ -1,0 +1,27 @@
+### scenario: red-still-refused
+### 2026-11-03T08:10:02Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l16 https://github.com/juninmd/appmetrics-dash-hapi/pull/39 --low-risk
+### project (registry name from project= basename): appmetrics-dash-hapi
+### config/merge-tiers:
+    appmetrics-dash-hapi low-risk **
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l16.check.sh
+error: refusing to merge https://github.com/juninmd/appmetrics-dash-hapi/pull/39
+  - check 'check / validate' is not green
+error: these checks are not green: check / validate
+### exit status: 1
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/juninmd/appmetrics-dash-hapi/pull/39 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/juninmd/appmetrics-dash-hapi/pull/39 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/juninmd/appmetrics-dash-hapi/branches/master
+    gh api --paginate repos/juninmd/appmetrics-dash-hapi/rules/branches/master
+### task record afterwards (state/task-l16.meta):
+    window=fm-task-l16
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/wt-16
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/projects/appmetrics-dash-hapi
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/juninmd/appmetrics-dash-hapi/pull/39
+    pr_head=75f07127e9703ca2e42b6360b2812c36c313ba69
+### merge poll armed: state/task-l16.check.sh exists

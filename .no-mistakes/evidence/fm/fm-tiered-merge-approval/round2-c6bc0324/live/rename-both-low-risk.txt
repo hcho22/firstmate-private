@@ -1,0 +1,34 @@
+### scenario: rename-both-low-risk
+### 2026-11-03T08:09:14Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l8 https://github.com/bmx-ng/pub.mod/pull/83 --low-risk
+### project (registry name from project= basename): pub.mod
+### config/merge-tiers:
+    pub.mod low-risk freeprocess.mod/doc/**
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l8.check.sh
+verified: https://github.com/bmx-ng/pub.mod/pull/83 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 8e1f0c03bdf3ea25422fa1324bd7a46d10e9d2b5
+verified: all 5 changed files of https://github.com/bmx-ng/pub.mod/pull/83 at head 8e1f0c03bdf3ea25422fa1324bd7a46d10e9d2b5 are in the low-risk tier for pub.mod
+LIVE-TEST GUARD: intercepted 'gh pr merge 83 --repo bmx-ng/pub.mod --match-head-commit 8e1f0c03bdf3ea25422fa1324bd7a46d10e9d2b5 --squash'; nothing was merged
+error: GitHub merge outcome was not successful: state=OPEN, merged=false, isInMergeQueue=false
+### exit status: 1
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/bmx-ng/pub.mod/pull/83 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/bmx-ng/pub.mod/pull/83 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/bmx-ng/pub.mod/branches/master
+    gh api --paginate repos/bmx-ng/pub.mod/rules/branches/master
+    gh api repos/bmx-ng/pub.mod/pulls/83
+    gh api --paginate repos/bmx-ng/pub.mod/pulls/83/files?per_page=100
+    gh api repos/bmx-ng/pub.mod/pulls/83
+    gh pr merge 83 --repo bmx-ng/pub.mod --match-head-commit 8e1f0c03bdf3ea25422fa1324bd7a46d10e9d2b5 --squash
+    gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged isInMergeQueue baseRefName}}} -F owner=bmx-ng -F repo=pub.mod -F number=83 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring), "queued=" + (.isInMergeQueue | tostring), "base=" + (.baseRefName // "")
+    gh api --paginate repos/bmx-ng/pub.mod/rules/branches/master --jq .[] | select(.type == "merge_queue") | "merge_method=" + (.parameters.merge_method // "")
+### task record afterwards (state/task-l8.meta):
+    window=fm-task-l8
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/wt-8
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/projects/pub.mod
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/bmx-ng/pub.mod/pull/83
+    pr_head=8e1f0c03bdf3ea25422fa1324bd7a46d10e9d2b5
+### merge poll armed: state/task-l8.check.sh exists

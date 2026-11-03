@@ -1,0 +1,38 @@
+### scenario: builtin-agent-instructions
+### 2026-11-03T08:08:48Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l4 https://github.com/DataDog/browser-sdk/pull/5219 --low-risk
+### project (registry name from project= basename): browser-sdk
+### config/merge-tiers:
+    browser-sdk low-risk **
+    browser-sdk low-risk **/CLAUDE.md
+    browser-sdk low-risk .cursor/**
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l4.check.sh
+verified: https://github.com/DataDog/browser-sdk/pull/5219 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 91c9abb54a5b7a30ef18e3cdb79c64ce86d3a7ab
+error: refusing a low-risk merge of https://github.com/DataDog/browser-sdk/pull/5219: 6 changed path(s) fall outside the low-risk tier for browser-sdk, so this merge waits for the captain
+  - .cursor/rules/test-driven-development.mdc (always ask: agent instructions or settings)
+  - .cursor/rules/unit-test-best-practices.mdc (always ask: agent instructions or settings)
+  - CLAUDE.md (always ask: agent instructions or settings)
+  - packages/js-core/CLAUDE.md (always ask: agent instructions or settings)
+  - scripts/CLAUDE.md (always ask: agent instructions or settings)
+  - test/e2e/CLAUDE.md (always ask: agent instructions or settings)
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/DataDog/browser-sdk/pull/5219 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/DataDog/browser-sdk/pull/5219 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/DataDog/browser-sdk/branches/main
+    gh api --paginate repos/DataDog/browser-sdk/rules/branches/main
+    gh api --paginate repos/DataDog/browser-sdk/commits/91c9abb54a5b7a30ef18e3cdb79c64ce86d3a7ab/check-runs
+    gh api repos/DataDog/browser-sdk/pulls/5219
+    gh api --paginate repos/DataDog/browser-sdk/pulls/5219/files?per_page=100
+    gh api repos/DataDog/browser-sdk/pulls/5219
+### task record afterwards (state/task-l4.meta):
+    window=fm-task-l4
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/wt-4
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/projects/browser-sdk
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/DataDog/browser-sdk/pull/5219
+    pr_head=91c9abb54a5b7a30ef18e3cdb79c64ce86d3a7ab
+### merge poll armed: state/task-l4.check.sh exists

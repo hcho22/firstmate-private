@@ -1,0 +1,31 @@
+### scenario: builtin-ci-beats-project-rule
+### 2026-11-03T07:46:24Z  worktree HEAD: 617baf6f48c00da30eb9964a6f8a68e9d959c9c7
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l2 https://github.com/frostney/herakles/pull/41 --low-risk
+### project (registry name from project= basename): herakles
+### config/merge-tiers:
+    herakles low-risk **
+    herakles low-risk .github/**
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l2.check.sh
+verified: https://github.com/frostney/herakles/pull/41 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 99383434442d884adb17bb100163b004a1fbce0d
+error: refusing a low-risk merge of https://github.com/frostney/herakles/pull/41: 1 changed path(s) fall outside the low-risk tier for herakles, so this merge waits for the captain
+  - .github/workflows/ci.yml (always ask: CI or forge configuration)
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/frostney/herakles/pull/41 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/frostney/herakles/pull/41 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/frostney/herakles/branches/main
+    gh api --paginate repos/frostney/herakles/rules/branches/main
+    gh api repos/frostney/herakles/pulls/41
+    gh api --paginate repos/frostney/herakles/pulls/41/files?per_page=100
+    gh api repos/frostney/herakles/pulls/41
+### task record afterwards (state/task-l2.meta):
+    window=fm-task-l2
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.SGGgf8/wt-2
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.SGGgf8/projects/herakles
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/frostney/herakles/pull/41
+    pr_head=99383434442d884adb17bb100163b004a1fbce0d
+### merge poll armed: state/task-l2.check.sh exists

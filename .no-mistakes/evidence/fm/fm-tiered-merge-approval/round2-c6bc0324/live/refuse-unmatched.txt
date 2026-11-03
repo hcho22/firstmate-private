@@ -1,0 +1,33 @@
+### scenario: refuse-unmatched
+### 2026-11-03T08:08:36Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l2 https://github.com/Codeplain-ai/codeplain/pull/356 --low-risk
+### project (registry name from project= basename): codeplain
+### config/merge-tiers:
+    codeplain low-risk docs/**
+    codeplain low-risk tests/**
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l2.check.sh
+verified: https://github.com/Codeplain-ai/codeplain/pull/356 is open and mergeable, with every unwaived required check reported and every unwaived check green at head b35bc0e778826725166a7af2591fe7b243491ff8
+error: refusing a low-risk merge of https://github.com/Codeplain-ai/codeplain/pull/356: 3 changed path(s) fall outside the low-risk tier for codeplain, so this merge waits for the captain
+  - plain2code.py (matches no low-risk pattern)
+  - plain2code_arguments.py (matches no low-risk pattern)
+  - tui/plain2code_tui.py (matches no low-risk pattern)
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/Codeplain-ai/codeplain/pull/356 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/Codeplain-ai/codeplain/pull/356 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/Codeplain-ai/codeplain/branches/main
+    gh api --paginate repos/Codeplain-ai/codeplain/rules/branches/main
+    gh api repos/Codeplain-ai/codeplain/pulls/356
+    gh api --paginate repos/Codeplain-ai/codeplain/pulls/356/files?per_page=100
+    gh api repos/Codeplain-ai/codeplain/pulls/356
+### task record afterwards (state/task-l2.meta):
+    window=fm-task-l2
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/wt-2
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/projects/codeplain
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/Codeplain-ai/codeplain/pull/356
+    pr_head=b35bc0e778826725166a7af2591fe7b243491ff8
+### merge poll armed: state/task-l2.check.sh exists

@@ -1,0 +1,18 @@
+### scenario: gitlab-refused
+### 2026-11-03T08:10:07Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l23 https://gitlab.com/gitlab-org/gitlab/-/merge_requests/1 --low-risk
+### project (registry name from project= basename): gitlab
+### config/merge-tiers:
+    gitlab low-risk **
+### stderr+stdout:
+error: refusing a low-risk merge of https://gitlab.com/gitlab-org/gitlab/-/merge_requests/1: the low-risk tier reads changed files only from GitHub, so this merge waits for the captain
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    (none)
+### task record afterwards (state/task-l23.meta):
+    window=fm-task-l23
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/wt-23
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/projects/gitlab
+    kind=ship
+    mode=no-mistakes
+### merge poll armed: no

@@ -1,0 +1,34 @@
+### scenario: jenkinsfile-variants
+### 2026-11-03T07:46:55Z  worktree HEAD: 617baf6f48c00da30eb9964a6f8a68e9d959c9c7
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l7 https://github.com/hmcts/et-shared-infrastructure/pull/151 --low-risk
+### project (registry name from project= basename): et-shared-infrastructure
+### config/merge-tiers:
+    et-shared-infrastructure low-risk **
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l7.check.sh
+verified: https://github.com/hmcts/et-shared-infrastructure/pull/151 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 0914a6997d633a36716cfe2967909afb83d2ed7f
+verified: all 2 changed files of https://github.com/hmcts/et-shared-infrastructure/pull/151 at head 0914a6997d633a36716cfe2967909afb83d2ed7f are in the low-risk tier for et-shared-infrastructure
+LIVE-TEST GUARD: intercepted 'gh pr merge 151 --repo hmcts/et-shared-infrastructure --match-head-commit 0914a6997d633a36716cfe2967909afb83d2ed7f --squash'; nothing was merged
+error: GitHub merge outcome was not successful: state=OPEN, merged=false, isInMergeQueue=false
+### exit status: 1
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/hmcts/et-shared-infrastructure/pull/151 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/hmcts/et-shared-infrastructure/pull/151 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/hmcts/et-shared-infrastructure/branches/master
+    gh api --paginate repos/hmcts/et-shared-infrastructure/rules/branches/master
+    gh api repos/hmcts/et-shared-infrastructure/pulls/151
+    gh api --paginate repos/hmcts/et-shared-infrastructure/pulls/151/files?per_page=100
+    gh api repos/hmcts/et-shared-infrastructure/pulls/151
+    gh pr merge 151 --repo hmcts/et-shared-infrastructure --match-head-commit 0914a6997d633a36716cfe2967909afb83d2ed7f --squash
+    gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged isInMergeQueue baseRefName}}} -F owner=hmcts -F repo=et-shared-infrastructure -F number=151 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring), "queued=" + (.isInMergeQueue | tostring), "base=" + (.baseRefName // "")
+    gh api --paginate repos/hmcts/et-shared-infrastructure/rules/branches/master --jq .[] | select(.type == "merge_queue") | "merge_method=" + (.parameters.merge_method // "")
+### task record afterwards (state/task-l7.meta):
+    window=fm-task-l7
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.SGGgf8/wt-7
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.SGGgf8/projects/et-shared-infrastructure
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/hmcts/et-shared-infrastructure/pull/151
+    pr_head=0914a6997d633a36716cfe2967909afb83d2ed7f
+### merge poll armed: state/task-l7.check.sh exists

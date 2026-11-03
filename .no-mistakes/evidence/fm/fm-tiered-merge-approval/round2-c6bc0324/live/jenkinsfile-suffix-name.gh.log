@@ -1,0 +1,7 @@
+gh pr view https://github.com/shibumicorp/polis/pull/2 --json headRefOid -q .headRefOid
+gh pr view https://github.com/shibumicorp/polis/pull/2 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+gh api repos/shibumicorp/polis/branches/main
+gh api --paginate repos/shibumicorp/polis/rules/branches/main
+gh api repos/shibumicorp/polis/pulls/2
+gh api --paginate repos/shibumicorp/polis/pulls/2/files?per_page=100
+gh api repos/shibumicorp/polis/pulls/2

@@ -1,0 +1,19 @@
+### scenario: malformed-refuses-before-forge
+### 2026-11-03T07:48:33Z  worktree HEAD: 617baf6f48c00da30eb9964a6f8a68e9d959c9c7
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l5 https://github.com/krovacloud/krova-node/pull/91 --low-risk
+### project (registry name from project= basename): krova-node
+### config/merge-tiers:
+    krova-node low-risk packages/mcp/**
+    some-other-project lowrisk docs/
+### stderr+stdout:
+error: refusing a low-risk merge of https://github.com/krovacloud/krova-node/pull/91: /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.GIpksT/config/merge-tiers line 2 names kind "lowrisk"; the kinds are low-risk and always-ask; until it is corrected every low-risk merge in this home waits for the captain
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    (none)
+### task record afterwards (state/task-l5.meta):
+    window=fm-task-l5
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.GIpksT/wt-5
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.GIpksT/projects/krova-node
+    kind=ship
+    mode=no-mistakes
+### merge poll armed: no

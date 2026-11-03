@@ -1,0 +1,42 @@
+### scenario: accept-all-low-risk
+### 2026-11-03T07:46:01Z  worktree HEAD: 617baf6f48c00da30eb9964a6f8a68e9d959c9c7
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l1 https://github.com/krovacloud/krova-node/pull/91 --low-risk
+### project (registry name from project= basename): krova-node
+### config/merge-tiers:
+    # the MCP package docs merge on green
+    krova-node low-risk packages/mcp/**
+### stderr+stdout:
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+armed: state/task-l1.check.sh
+verified: https://github.com/krovacloud/krova-node/pull/91 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 9e83a1bef8ef717d2180ebd6977736d9a8c78818
+verified: all 2 changed files of https://github.com/krovacloud/krova-node/pull/91 at head 9e83a1bef8ef717d2180ebd6977736d9a8c78818 are in the low-risk tier for krova-node
+LIVE-TEST GUARD: intercepted 'gh pr merge 91 --repo krovacloud/krova-node --match-head-commit 9e83a1bef8ef717d2180ebd6977736d9a8c78818 --squash'; nothing was merged
+error: GitHub merge outcome was not successful: state=OPEN, merged=false, isInMergeQueue=false
+### exit status: 1
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/krovacloud/krova-node/pull/91 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/krovacloud/krova-node/pull/91 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/krovacloud/krova-node/branches/main
+    gh api --paginate repos/krovacloud/krova-node/rules/branches/main
+    gh api --paginate repos/krovacloud/krova-node/commits/9e83a1bef8ef717d2180ebd6977736d9a8c78818/check-runs
+    gh api repos/krovacloud/krova-node/pulls/91
+    gh api --paginate repos/krovacloud/krova-node/pulls/91/files?per_page=100
+    gh api repos/krovacloud/krova-node/pulls/91
+    gh pr merge 91 --repo krovacloud/krova-node --match-head-commit 9e83a1bef8ef717d2180ebd6977736d9a8c78818 --squash
+    gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged isInMergeQueue baseRefName}}} -F owner=krovacloud -F repo=krova-node -F number=91 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring), "queued=" + (.isInMergeQueue | tostring), "base=" + (.baseRefName // "")
+    gh api --paginate repos/krovacloud/krova-node/rules/branches/main --jq .[] | select(.type == "merge_queue") | "merge_method=" + (.parameters.merge_method // "")
+### task record afterwards (state/task-l1.meta):
+    window=fm-task-l1
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.5OvPlg/wt-1
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.5OvPlg/projects/krova-node
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/krovacloud/krova-node/pull/91
+    pr_head=9e83a1bef8ef717d2180ebd6977736d9a8c78818
+### merge poll armed: state/task-l1.check.sh exists

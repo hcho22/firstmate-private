@@ -1,0 +1,10 @@
+gh pr view https://github.com/hmcts/et-shared-infrastructure/pull/151 --json headRefOid -q .headRefOid
+gh pr view https://github.com/hmcts/et-shared-infrastructure/pull/151 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+gh api repos/hmcts/et-shared-infrastructure/branches/master
+gh api --paginate repos/hmcts/et-shared-infrastructure/rules/branches/master
+gh api repos/hmcts/et-shared-infrastructure/pulls/151
+gh api --paginate repos/hmcts/et-shared-infrastructure/pulls/151/files?per_page=100
+gh api repos/hmcts/et-shared-infrastructure/pulls/151
+gh pr merge 151 --repo hmcts/et-shared-infrastructure --match-head-commit 0914a6997d633a36716cfe2967909afb83d2ed7f --squash
+gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged isInMergeQueue baseRefName}}} -F owner=hmcts -F repo=et-shared-infrastructure -F number=151 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring), "queued=" + (.isInMergeQueue | tostring), "base=" + (.baseRefName // "")
+gh api --paginate repos/hmcts/et-shared-infrastructure/rules/branches/master --jq .[] | select(.type == "merge_queue") | "merge_method=" + (.parameters.merge_method // "")

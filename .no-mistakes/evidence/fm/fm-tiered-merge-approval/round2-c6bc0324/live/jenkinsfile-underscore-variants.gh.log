@@ -1,0 +1,7 @@
+gh pr view https://github.com/hmcts/et-shared-infrastructure/pull/151 --json headRefOid -q .headRefOid
+gh pr view https://github.com/hmcts/et-shared-infrastructure/pull/151 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+gh api repos/hmcts/et-shared-infrastructure/branches/master
+gh api --paginate repos/hmcts/et-shared-infrastructure/rules/branches/master
+gh api repos/hmcts/et-shared-infrastructure/pulls/151
+gh api --paginate repos/hmcts/et-shared-infrastructure/pulls/151/files?per_page=100
+gh api repos/hmcts/et-shared-infrastructure/pulls/151

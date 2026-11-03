@@ -1,0 +1,4 @@
+gh pr view https://github.com/juninmd/appmetrics-dash-hapi/pull/39 --json headRefOid -q .headRefOid
+gh pr view https://github.com/juninmd/appmetrics-dash-hapi/pull/39 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+gh api repos/juninmd/appmetrics-dash-hapi/branches/master
+gh api --paginate repos/juninmd/appmetrics-dash-hapi/rules/branches/master

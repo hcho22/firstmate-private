@@ -1,0 +1,7 @@
+gh pr view https://github.com/Codeplain-ai/codeplain/pull/356 --json headRefOid -q .headRefOid
+gh pr view https://github.com/Codeplain-ai/codeplain/pull/356 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+gh api repos/Codeplain-ai/codeplain/branches/main
+gh api --paginate repos/Codeplain-ai/codeplain/rules/branches/main
+gh api repos/Codeplain-ai/codeplain/pulls/356
+gh api --paginate repos/Codeplain-ai/codeplain/pulls/356/files?per_page=100
+gh api repos/Codeplain-ai/codeplain/pulls/356

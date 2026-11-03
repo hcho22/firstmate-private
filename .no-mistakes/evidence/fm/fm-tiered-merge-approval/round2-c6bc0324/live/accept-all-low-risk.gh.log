@@ -1,0 +1,11 @@
+gh pr view https://github.com/krovacloud/krova-node/pull/91 --json headRefOid -q .headRefOid
+gh pr view https://github.com/krovacloud/krova-node/pull/91 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+gh api repos/krovacloud/krova-node/branches/main
+gh api --paginate repos/krovacloud/krova-node/rules/branches/main
+gh api --paginate repos/krovacloud/krova-node/commits/9e83a1bef8ef717d2180ebd6977736d9a8c78818/check-runs
+gh api repos/krovacloud/krova-node/pulls/91
+gh api --paginate repos/krovacloud/krova-node/pulls/91/files?per_page=100
+gh api repos/krovacloud/krova-node/pulls/91
+gh pr merge 91 --repo krovacloud/krova-node --match-head-commit 9e83a1bef8ef717d2180ebd6977736d9a8c78818 --squash
+gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged isInMergeQueue baseRefName}}} -F owner=krovacloud -F repo=krova-node -F number=91 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring), "queued=" + (.isInMergeQueue | tostring), "base=" + (.baseRefName // "")
+gh api --paginate repos/krovacloud/krova-node/rules/branches/main --jq .[] | select(.type == "merge_queue") | "merge_method=" + (.parameters.merge_method // "")

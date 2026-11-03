@@ -1,0 +1,31 @@
+### scenario: jenkinsfile-suffix-name
+### 2026-11-03T08:12:04Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l2 https://github.com/shibumicorp/polis/pull/2 --low-risk
+### project (registry name from project= basename): polis
+### config/merge-tiers:
+    polis low-risk **
+    polis low-risk jenkinsfiles/**
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l2.check.sh
+verified: https://github.com/shibumicorp/polis/pull/2 is open and mergeable, with every unwaived required check reported and every unwaived check green at head f92914232ec2b93c11aef99f8ef1ba185a2d079e
+error: refusing a low-risk merge of https://github.com/shibumicorp/polis/pull/2: 1 changed path(s) fall outside the low-risk tier for polis, so this merge waits for the captain
+  - jenkinsfiles/artifact-build.jenkinsfile (always ask: CI or forge configuration)
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/shibumicorp/polis/pull/2 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/shibumicorp/polis/pull/2 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/shibumicorp/polis/branches/main
+    gh api --paginate repos/shibumicorp/polis/rules/branches/main
+    gh api repos/shibumicorp/polis/pulls/2
+    gh api --paginate repos/shibumicorp/polis/pulls/2/files?per_page=100
+    gh api repos/shibumicorp/polis/pulls/2
+### task record afterwards (state/task-l2.meta):
+    window=fm-task-l2
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.G0YvvX/wt-2
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.G0YvvX/projects/polis
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/shibumicorp/polis/pull/2
+    pr_head=f92914232ec2b93c11aef99f8ef1ba185a2d079e
+### merge poll armed: state/task-l2.check.sh exists

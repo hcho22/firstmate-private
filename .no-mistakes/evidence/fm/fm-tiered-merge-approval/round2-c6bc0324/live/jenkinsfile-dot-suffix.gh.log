@@ -1,0 +1,4 @@
+gh pr view https://github.com/stolostron/acmqe-mcn-test/pull/831 --json headRefOid -q .headRefOid
+gh pr view https://github.com/stolostron/acmqe-mcn-test/pull/831 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+gh api repos/stolostron/acmqe-mcn-test/branches/release-5.0
+gh api --paginate repos/stolostron/acmqe-mcn-test/rules/branches/release-5.0

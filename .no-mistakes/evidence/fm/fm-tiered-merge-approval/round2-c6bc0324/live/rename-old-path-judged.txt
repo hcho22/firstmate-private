@@ -1,0 +1,38 @@
+### scenario: rename-old-path-judged
+### 2026-11-03T08:09:08Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l7 https://github.com/bmx-ng/pub.mod/pull/83 --low-risk
+### project (registry name from project= basename): pub.mod
+### config/merge-tiers:
+    pub.mod low-risk freeprocess.mod/doc/attachprocess.bmx
+    pub.mod low-risk freeprocess.mod/doc/createprocess.bmx
+    pub.mod low-risk freeprocess.mod/doc/detachprocess.bmx
+    pub.mod low-risk freeprocess.mod/doc/processstatus.bmx
+    pub.mod low-risk freeprocess.mod/doc/terminateprocess.bmx
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l7.check.sh
+verified: https://github.com/bmx-ng/pub.mod/pull/83 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 8e1f0c03bdf3ea25422fa1324bd7a46d10e9d2b5
+error: refusing a low-risk merge of https://github.com/bmx-ng/pub.mod/pull/83: 5 changed path(s) fall outside the low-risk tier for pub.mod, so this merge waits for the captain
+  - freeprocess.mod/doc/AttachProcess.bmx (matches no low-risk pattern)
+  - freeprocess.mod/doc/CreateProcess.bmx (matches no low-risk pattern)
+  - freeprocess.mod/doc/DetachProcess.bmx (matches no low-risk pattern)
+  - freeprocess.mod/doc/ProcessStatus.bmx (matches no low-risk pattern)
+  - freeprocess.mod/doc/TerminateProcess.bmx (matches no low-risk pattern)
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/bmx-ng/pub.mod/pull/83 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/bmx-ng/pub.mod/pull/83 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/bmx-ng/pub.mod/branches/master
+    gh api --paginate repos/bmx-ng/pub.mod/rules/branches/master
+    gh api repos/bmx-ng/pub.mod/pulls/83
+    gh api --paginate repos/bmx-ng/pub.mod/pulls/83/files?per_page=100
+    gh api repos/bmx-ng/pub.mod/pulls/83
+### task record afterwards (state/task-l7.meta):
+    window=fm-task-l7
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/wt-7
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/projects/pub.mod
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/bmx-ng/pub.mod/pull/83
+    pr_head=8e1f0c03bdf3ea25422fa1324bd7a46d10e9d2b5
+### merge poll armed: state/task-l7.check.sh exists

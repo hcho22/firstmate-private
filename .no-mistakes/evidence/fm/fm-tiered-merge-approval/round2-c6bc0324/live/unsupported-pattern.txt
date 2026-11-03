@@ -1,0 +1,18 @@
+### scenario: unsupported-pattern
+### 2026-11-03T08:10:07Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l20 https://github.com/krovacloud/krova-node/pull/91 --low-risk
+### project (registry name from project= basename): krova-node
+### config/merge-tiers:
+    krova-node low-risk packages/{mcp,cli}/**
+### stderr+stdout:
+error: refusing a low-risk merge of https://github.com/krovacloud/krova-node/pull/91: /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/config/merge-tiers line 1: pattern "packages/{mcp,cli}/**" contains one of [ ] { } \, which are not supported; until it is corrected every low-risk merge in this home waits for the captain
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    (none)
+### task record afterwards (state/task-l20.meta):
+    window=fm-task-l20
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/wt-20
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/projects/krova-node
+    kind=ship
+    mode=no-mistakes
+### merge poll armed: no

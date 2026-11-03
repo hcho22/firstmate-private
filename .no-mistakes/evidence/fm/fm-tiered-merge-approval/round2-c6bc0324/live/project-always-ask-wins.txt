@@ -1,0 +1,33 @@
+### scenario: project-always-ask-wins
+### 2026-11-03T08:09:02Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l6 https://github.com/thephpleague/oauth2-server/pull/1522 --low-risk
+### project (registry name from project= basename): oauth2-server
+### config/merge-tiers:
+    oauth2-server low-risk **
+    oauth2-server always-ask src/**
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l6.check.sh
+verified: https://github.com/thephpleague/oauth2-server/pull/1522 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 15b575ddbcbd5278930c30ef8fb0d083f91077ab
+error: refusing a low-risk merge of https://github.com/thephpleague/oauth2-server/pull/1522: 3 changed path(s) fall outside the low-risk tier for oauth2-server, so this merge waits for the captain
+  - .github/workflows/static-analysis.yml (always ask: CI or forge configuration)
+  - .github/workflows/tests.yml (always ask: CI or forge configuration)
+  - src/AuthorizationValidators/BearerTokenValidator.php (always ask: matches src/**)
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/thephpleague/oauth2-server/pull/1522 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/thephpleague/oauth2-server/pull/1522 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/thephpleague/oauth2-server/branches/master
+    gh api --paginate repos/thephpleague/oauth2-server/rules/branches/master
+    gh api repos/thephpleague/oauth2-server/pulls/1522
+    gh api --paginate repos/thephpleague/oauth2-server/pulls/1522/files?per_page=100
+    gh api repos/thephpleague/oauth2-server/pulls/1522
+### task record afterwards (state/task-l6.meta):
+    window=fm-task-l6
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/wt-6
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/projects/oauth2-server
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/thephpleague/oauth2-server/pull/1522
+    pr_head=15b575ddbcbd5278930c30ef8fb0d083f91077ab
+### merge poll armed: state/task-l6.check.sh exists

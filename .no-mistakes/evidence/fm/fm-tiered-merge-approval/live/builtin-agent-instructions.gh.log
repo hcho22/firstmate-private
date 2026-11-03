@@ -1,0 +1,8 @@
+gh pr view https://github.com/DataDog/browser-sdk/pull/5219 --json headRefOid -q .headRefOid
+gh pr view https://github.com/DataDog/browser-sdk/pull/5219 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+gh api repos/DataDog/browser-sdk/branches/main
+gh api --paginate repos/DataDog/browser-sdk/rules/branches/main
+gh api --paginate repos/DataDog/browser-sdk/commits/91c9abb54a5b7a30ef18e3cdb79c64ce86d3a7ab/check-runs
+gh api repos/DataDog/browser-sdk/pulls/5219
+gh api --paginate repos/DataDog/browser-sdk/pulls/5219/files?per_page=100
+gh api repos/DataDog/browser-sdk/pulls/5219

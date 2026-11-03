@@ -1,0 +1,31 @@
+### scenario: jenkinsfile-lowercase
+### 2026-11-03T08:09:36Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l12 https://github.com/betawins/VProfile-1/pull/7 --low-risk
+### project (registry name from project= basename): VProfile-1
+### config/merge-tiers:
+    VProfile-1 low-risk **
+    VProfile-1 low-risk jenkinsfile
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l12.check.sh
+verified: https://github.com/betawins/VProfile-1/pull/7 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 22ec036e970bc4f9e054596dac021b6178ad0db1
+error: refusing a low-risk merge of https://github.com/betawins/VProfile-1/pull/7: 1 changed path(s) fall outside the low-risk tier for VProfile-1, so this merge waits for the captain
+  - jenkinsfile (always ask: CI or forge configuration)
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/betawins/VProfile-1/pull/7 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/betawins/VProfile-1/pull/7 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/betawins/VProfile-1/branches/master
+    gh api --paginate repos/betawins/VProfile-1/rules/branches/master
+    gh api repos/betawins/VProfile-1/pulls/7
+    gh api --paginate repos/betawins/VProfile-1/pulls/7/files?per_page=100
+    gh api repos/betawins/VProfile-1/pulls/7
+### task record afterwards (state/task-l12.meta):
+    window=fm-task-l12
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/wt-12
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/projects/VProfile-1
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/betawins/VProfile-1/pull/7
+    pr_head=22ec036e970bc4f9e054596dac021b6178ad0db1
+### merge poll armed: state/task-l12.check.sh exists

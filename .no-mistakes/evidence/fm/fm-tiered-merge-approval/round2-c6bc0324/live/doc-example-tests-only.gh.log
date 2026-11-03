@@ -1,0 +1,10 @@
+gh pr view https://github.com/kunchenguid/firstmate/pull/7899 --json headRefOid -q .headRefOid
+gh pr view https://github.com/kunchenguid/firstmate/pull/7899 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+gh api repos/kunchenguid/firstmate/branches/main
+gh api --paginate repos/kunchenguid/firstmate/rules/branches/main
+gh api repos/kunchenguid/firstmate/pulls/7899
+gh api --paginate repos/kunchenguid/firstmate/pulls/7899/files?per_page=100
+gh api repos/kunchenguid/firstmate/pulls/7899
+gh pr merge 7899 --repo kunchenguid/firstmate --match-head-commit ceb8efc6a931d1d62d29d7eefdd995e06827ec39 --squash
+gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged isInMergeQueue baseRefName}}} -F owner=kunchenguid -F repo=firstmate -F number=7899 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring), "queued=" + (.isInMergeQueue | tostring), "base=" + (.baseRefName // "")
+gh api --paginate repos/kunchenguid/firstmate/rules/branches/main --jq .[] | select(.type == "merge_queue") | "merge_method=" + (.parameters.merge_method // "")

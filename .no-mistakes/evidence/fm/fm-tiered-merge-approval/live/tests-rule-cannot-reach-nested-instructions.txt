@@ -1,0 +1,34 @@
+### scenario: tests-rule-cannot-reach-nested-instructions
+### 2026-11-03T07:46:37Z  worktree HEAD: 617baf6f48c00da30eb9964a6f8a68e9d959c9c7
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l4 https://github.com/athombv/node-homey/pull/696 --low-risk
+### project (registry name from project= basename): node-homey
+### config/merge-tiers:
+    node-homey low-risk tests/**
+    node-homey low-risk lib/**
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l4.check.sh
+verified: https://github.com/athombv/node-homey/pull/696 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 3010175105d9f7f338ca07c5d6d84e186a80e20d
+error: refusing a low-risk merge of https://github.com/athombv/node-homey/pull/696: 4 changed path(s) fall outside the low-risk tier for node-homey, so this merge waits for the captain
+  - tests/fixtures/apps/node-basic/AGENTS.md (always ask: agent instructions or settings)
+  - tests/fixtures/apps/node-basic/CLAUDE.md (always ask: agent instructions or settings)
+  - tests/fixtures/apps/python-basic/AGENTS.md (always ask: agent instructions or settings)
+  - tests/fixtures/apps/python-basic/CLAUDE.md (always ask: agent instructions or settings)
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/athombv/node-homey/pull/696 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/athombv/node-homey/pull/696 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/athombv/node-homey/branches/develop
+    gh api --paginate repos/athombv/node-homey/rules/branches/develop
+    gh api repos/athombv/node-homey/pulls/696
+    gh api --paginate repos/athombv/node-homey/pulls/696/files?per_page=100
+    gh api repos/athombv/node-homey/pulls/696
+### task record afterwards (state/task-l4.meta):
+    window=fm-task-l4
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.SGGgf8/wt-4
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.SGGgf8/projects/node-homey
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/athombv/node-homey/pull/696
+    pr_head=3010175105d9f7f338ca07c5d6d84e186a80e20d
+### merge poll armed: state/task-l4.check.sh exists

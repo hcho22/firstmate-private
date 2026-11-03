@@ -1,0 +1,43 @@
+### scenario: doc-example-instruction-surfaces
+### 2026-11-03T08:09:49Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l14 https://github.com/kunchenguid/firstmate/pull/8035 --low-risk
+### project (registry name from project= basename): firstmate
+### config/merge-tiers:
+    # tests merge on green
+    firstmate low-risk tests/**
+    # Firstmate's own instruction surfaces always reach the captain
+    firstmate always-ask bin/**
+    firstmate always-ask skills/**
+    firstmate always-ask docs/supervision-protocols/**
+    firstmate always-ask docs/configuration.md
+    # the validation gate runs this script as its lint phase
+    firstmate always-ask tests/fm-pi-primary-types.test.sh
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l14.check.sh
+verified: https://github.com/kunchenguid/firstmate/pull/8035 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 0de2170420ff05e57f987ad22fe3cd234f055650
+error: refusing a low-risk merge of https://github.com/kunchenguid/firstmate/pull/8035: 6 changed path(s) fall outside the low-risk tier for firstmate, so this merge waits for the captain
+  - .agents/skills/bootstrap-diagnostics/SKILL.md (always ask: agent instructions or settings)
+  - bin/fm-bootstrap.sh (always ask: matches bin/**)
+  - bin/fm-record-hygiene-lib.sh (always ask: matches bin/**)
+  - bin/fm-watch.sh (always ask: matches bin/**)
+  - docs/architecture.md (matches no low-risk pattern)
+  - docs/scripts.md (matches no low-risk pattern)
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/kunchenguid/firstmate/pull/8035 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/kunchenguid/firstmate/pull/8035 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/kunchenguid/firstmate/branches/main
+    gh api --paginate repos/kunchenguid/firstmate/rules/branches/main
+    gh api repos/kunchenguid/firstmate/pulls/8035
+    gh api --paginate repos/kunchenguid/firstmate/pulls/8035/files?per_page=100
+    gh api repos/kunchenguid/firstmate/pulls/8035
+### task record afterwards (state/task-l14.meta):
+    window=fm-task-l14
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/wt-14
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/projects/firstmate
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/kunchenguid/firstmate/pull/8035
+    pr_head=0de2170420ff05e57f987ad22fe3cd234f055650
+### merge poll armed: state/task-l14.check.sh exists

@@ -1,0 +1,42 @@
+### scenario: doc-example-tests-only
+### 2026-11-03T08:09:42Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l13 https://github.com/kunchenguid/firstmate/pull/7899 --low-risk
+### project (registry name from project= basename): firstmate
+### config/merge-tiers:
+    # tests merge on green
+    firstmate low-risk tests/**
+    # Firstmate's own instruction surfaces always reach the captain
+    firstmate always-ask bin/**
+    firstmate always-ask skills/**
+    firstmate always-ask docs/supervision-protocols/**
+    firstmate always-ask docs/configuration.md
+    # the validation gate runs this script as its lint phase
+    firstmate always-ask tests/fm-pi-primary-types.test.sh
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l13.check.sh
+verified: https://github.com/kunchenguid/firstmate/pull/7899 is open and mergeable, with every unwaived required check reported and every unwaived check green at head ceb8efc6a931d1d62d29d7eefdd995e06827ec39
+verified: all 1 changed files of https://github.com/kunchenguid/firstmate/pull/7899 at head ceb8efc6a931d1d62d29d7eefdd995e06827ec39 are in the low-risk tier for firstmate
+LIVE-TEST GUARD: intercepted 'gh pr merge 7899 --repo kunchenguid/firstmate --match-head-commit ceb8efc6a931d1d62d29d7eefdd995e06827ec39 --squash'; nothing was merged
+error: GitHub merge outcome was not successful: state=OPEN, merged=false, isInMergeQueue=false
+### exit status: 1
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/kunchenguid/firstmate/pull/7899 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/kunchenguid/firstmate/pull/7899 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/kunchenguid/firstmate/branches/main
+    gh api --paginate repos/kunchenguid/firstmate/rules/branches/main
+    gh api repos/kunchenguid/firstmate/pulls/7899
+    gh api --paginate repos/kunchenguid/firstmate/pulls/7899/files?per_page=100
+    gh api repos/kunchenguid/firstmate/pulls/7899
+    gh pr merge 7899 --repo kunchenguid/firstmate --match-head-commit ceb8efc6a931d1d62d29d7eefdd995e06827ec39 --squash
+    gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged isInMergeQueue baseRefName}}} -F owner=kunchenguid -F repo=firstmate -F number=7899 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring), "queued=" + (.isInMergeQueue | tostring), "base=" + (.baseRefName // "")
+    gh api --paginate repos/kunchenguid/firstmate/rules/branches/main --jq .[] | select(.type == "merge_queue") | "merge_method=" + (.parameters.merge_method // "")
+### task record afterwards (state/task-l13.meta):
+    window=fm-task-l13
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/wt-13
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/projects/firstmate
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/kunchenguid/firstmate/pull/7899
+    pr_head=ceb8efc6a931d1d62d29d7eefdd995e06827ec39
+### merge poll armed: state/task-l13.check.sh exists

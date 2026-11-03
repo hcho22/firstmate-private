@@ -1,0 +1,24 @@
+### documented example (extracted verbatim from docs/configuration.md):
+    # tests merge on green
+    firstmate low-risk tests/**
+    # Firstmate's own instruction surfaces always reach the captain
+    firstmate always-ask bin/**
+    firstmate always-ask skills/**
+    firstmate always-ask docs/supervision-protocols/**
+    firstmate always-ask docs/configuration.md
+    # the validation gate runs this script as its lint phase
+    firstmate always-ask tests/fm-pi-primary-types.test.sh
+### this branch's changed files (git diff --name-only 607a05c7..617baf6f) judged under it:
+    .agents/skills/project-management/SKILL.md   always-ask always ask: agent instructions or settings
+    .agents/skills/ship-landing/SKILL.md         always-ask always ask: agent instructions or settings
+    AGENTS.md                                    always-ask always ask: agent instructions or settings
+    bin/fm-merge-tier-lib.sh                     always-ask always ask: matches bin/**
+    bin/fm-pr-merge.sh                           always-ask always ask: matches bin/**
+    docs/configuration.md                        always-ask always ask: matches docs/configuration.md
+    docs/scripts.md                              unmatched  matches no low-risk pattern
+    tests/fm-pr-merge.test.sh                    low-risk   low risk: matches tests/**
+### sample paths named by the example prose:
+    tests/fm-new-feature.test.sh                 low-risk   low risk: matches tests/**
+    tests/fm-pi-primary-types.test.sh            always-ask always ask: matches tests/fm-pi-primary-types.test.sh
+    docs/supervision-protocols/claude.md         always-ask always ask: agent instructions or settings
+    docs/architecture.md                         unmatched  matches no low-risk pattern

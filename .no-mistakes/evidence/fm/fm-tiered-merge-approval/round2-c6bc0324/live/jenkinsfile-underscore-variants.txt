@@ -1,0 +1,31 @@
+### scenario: jenkinsfile-underscore-variants
+### 2026-11-03T08:09:21Z  worktree HEAD: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### command: FM_HOME=<lab> bin/fm-pr-merge.sh task-l9 https://github.com/hmcts/et-shared-infrastructure/pull/151 --low-risk
+### project (registry name from project= basename): et-shared-infrastructure
+### config/merge-tiers:
+    et-shared-infrastructure low-risk **
+### stderr+stdout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/task-l9.check.sh
+verified: https://github.com/hmcts/et-shared-infrastructure/pull/151 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 0914a6997d633a36716cfe2967909afb83d2ed7f
+error: refusing a low-risk merge of https://github.com/hmcts/et-shared-infrastructure/pull/151: 2 changed path(s) fall outside the low-risk tier for et-shared-infrastructure, so this merge waits for the captain
+  - Jenkinsfile_CNP (always ask: CI or forge configuration)
+  - Jenkinsfile_parameterized (always ask: CI or forge configuration)
+### exit status: 4
+### gh calls made (real gh unless marked intercepted):
+    gh pr view https://github.com/hmcts/et-shared-infrastructure/pull/151 --json headRefOid -q .headRefOid
+    gh pr view https://github.com/hmcts/et-shared-infrastructure/pull/151 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+    gh api repos/hmcts/et-shared-infrastructure/branches/master
+    gh api --paginate repos/hmcts/et-shared-infrastructure/rules/branches/master
+    gh api repos/hmcts/et-shared-infrastructure/pulls/151
+    gh api --paginate repos/hmcts/et-shared-infrastructure/pulls/151/files?per_page=100
+    gh api repos/hmcts/et-shared-infrastructure/pulls/151
+### task record afterwards (state/task-l9.meta):
+    window=fm-task-l9
+    worktree=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/wt-9
+    project=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.TQP0oA/projects/et-shared-infrastructure
+    kind=ship
+    mode=no-mistakes
+    pr=https://github.com/hmcts/et-shared-infrastructure/pull/151
+    pr_head=0914a6997d633a36716cfe2967909afb83d2ed7f
+### merge poll armed: state/task-l9.check.sh exists
