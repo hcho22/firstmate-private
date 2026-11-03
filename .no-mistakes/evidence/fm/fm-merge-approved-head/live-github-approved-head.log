@@ -1,0 +1,97 @@
+
+### Register the real PR the way a worker's ready report does (fm-pr-check.sh, main home)
+$ bin/fm-pr-check.sh appr-chat https://github.com/hcho22/firstmate-private/pull/24
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+armed: state/appr-chat.check.sh
+[exit 0]
+--- /tmp/fm-lab.SHEAJh/state/appr-chat.meta
+window=fm-appr-chat
+worktree=/tmp/fm-lab.SHEAJh/wt
+project=/tmp/fm-lab.SHEAJh/wt
+kind=ship
+mode=no-mistakes
+yolo=off
+pr=https://github.com/hcho22/firstmate-private/pull/24
+pr_head=c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+GitHub reports the live head of https://github.com/hcho22/firstmate-private/pull/24 as c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+
+### S1 chat ask: firstmate runs record before asking the captain for the merge word
+$ bin/fm-approved-head.sh record appr-chat https://github.com/hcho22/firstmate-private/pull/24
+recorded: approved head c6bc0324db162cf2b2be2e9bf883a5218f6d2051 for https://github.com/hcho22/firstmate-private/pull/24
+[exit 0]
+--- /tmp/fm-lab.SHEAJh/state/appr-chat.meta
+window=fm-appr-chat
+worktree=/tmp/fm-lab.SHEAJh/wt
+project=/tmp/fm-lab.SHEAJh/wt
+kind=ship
+mode=no-mistakes
+yolo=off
+approved_head=c6bc0324db162cf2b2be2e9bf883a5218f6d2051 https://github.com/hcho22/firstmate-private/pull/24
+pr=https://github.com/hcho22/firstmate-private/pull/24
+pr_head=c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+
+### S2 merge word at the head shown: verify with the live head GitHub reports now
+$ bin/fm-approved-head.sh verify appr-chat https://github.com/hcho22/firstmate-private/pull/24 c6bc0324db162cf2b2be2e9bf883a5218f6d2051 main
+verified: live head c6bc0324db162cf2b2be2e9bf883a5218f6d2051 of https://github.com/hcho22/firstmate-private/pull/24 is the captain-approved head
+[exit 0]
+
+### S3 a commit pushed after approval: the captain was shown the PR one commit earlier
+  real PR commit: c6bc0324db162cf2b2be2e9bf883a5218f6d2051 no-mistakes(test): Treat suffixed and prefixed Jenkins pipeline files as always-ask
+  real PR commit: 617baf6f48c00da30eb9964a6f8a68e9d959c9c7 no-mistakes(review): Keep the gate's lint test script always-ask in example
+$ bin/fm-approved-head.sh record appr-chat https://github.com/hcho22/firstmate-private/pull/24 617baf6f48c00da30eb9964a6f8a68e9d959c9c7
+recorded: approved head 617baf6f48c00da30eb9964a6f8a68e9d959c9c7 for https://github.com/hcho22/firstmate-private/pull/24
+[exit 0]
+$ bin/fm-approved-head.sh verify appr-chat https://github.com/hcho22/firstmate-private/pull/24 c6bc0324db162cf2b2be2e9bf883a5218f6d2051 main
+error: refusing to merge https://github.com/hcho22/firstmate-private/pull/24: the captain approved head 617baf6f48c00da30eb9964a6f8a68e9d959c9c7, but the live head is c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+  - c6bc0324db162cf2b2be2e9bf883a5218f6d2051 no-mistakes(test): Treat suffixed and prefixed Jenkins pipeline files as always-ask (a commit added to the pull request)
+  - 1 commits lie between the heads, 1 of them not on main
+error: present the pull request to the captain again at head c6bc0324db162cf2b2be2e9bf883a5218f6d2051, recording that head with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6GNPXSKPE67SHR2R1HXZ3K7/bin/fm-approved-head.sh record appr-chat https://github.com/hcho22/firstmate-private/pull/24 c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+[exit 1]
+private fetch refs left behind: []
+
+### S4 guard: no head recorded and yolo=off refuses, and never offers to record the live head
+$ bin/fm-approved-head.sh verify appr-norec https://github.com/hcho22/firstmate-private/pull/24 c6bc0324db162cf2b2be2e9bf883a5218f6d2051 main
+error: refusing to merge https://github.com/hcho22/firstmate-private/pull/24: no captain-approved head is recorded for task appr-norec
+error: present the pull request to the captain again and record the head shown then with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6GNPXSKPE67SHR2R1HXZ3K7/bin/fm-approved-head.sh record appr-norec https://github.com/hcho22/firstmate-private/pull/24 <head-shown>
+[exit 1]
+
+### S4b same task under yolo=on (an autonomous merge with no captain word) proceeds with a notice
+$ bin/fm-approved-head.sh verify appr-norec https://github.com/hcho22/firstmate-private/pull/24 c6bc0324db162cf2b2be2e9bf883a5218f6d2051 main
+notice: no captain-approved head is recorded for https://github.com/hcho22/firstmate-private/pull/24; merging under the task's yolo posture
+[exit 0]
+
+### S5 guard: an approved head recorded for a DIFFERENT PR does not authorize this one
+--- /tmp/fm-lab.SHEAJh/state/appr-foreign.meta
+window=fm-appr-foreign
+worktree=/tmp/fm-lab.SHEAJh/wt
+project=/tmp/fm-lab.SHEAJh/wt
+kind=ship
+mode=no-mistakes
+yolo=off
+approved_head=c6bc0324db162cf2b2be2e9bf883a5218f6d2051 https://github.com/hcho22/firstmate-private/pull/23
+pr=https://github.com/hcho22/firstmate-private/pull/24
+$ bin/fm-approved-head.sh verify appr-foreign https://github.com/hcho22/firstmate-private/pull/24 c6bc0324db162cf2b2be2e9bf883a5218f6d2051 main
+error: refusing to merge https://github.com/hcho22/firstmate-private/pull/24: no captain-approved head is recorded for task appr-foreign
+error: present the pull request to the captain again and record the head shown then with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6GNPXSKPE67SHR2R1HXZ3K7/bin/fm-approved-head.sh record appr-foreign https://github.com/hcho22/firstmate-private/pull/24 <head-shown>
+[exit 1]
+
+### S5b guard: record refuses a PR the task does not own
+$ bin/fm-approved-head.sh record appr-chat https://github.com/hcho22/firstmate-private/pull/23 c07ccd0912b4dc8979e5b1eb668cc939072d514d
+error: task appr-chat does not record pr=https://github.com/hcho22/firstmate-private/pull/23; register the PR with bin/fm-pr-check.sh before presenting it for the captain's merge word
+[exit 1]
+--- /tmp/fm-lab.SHEAJh/state/appr-chat.meta
+window=fm-appr-chat
+worktree=/tmp/fm-lab.SHEAJh/wt
+project=/tmp/fm-lab.SHEAJh/wt
+kind=ship
+mode=no-mistakes
+yolo=off
+approved_head=617baf6f48c00da30eb9964a6f8a68e9d959c9c7 https://github.com/hcho22/firstmate-private/pull/24
+pr=https://github.com/hcho22/firstmate-private/pull/24
+pr_head=c6bc0324db162cf2b2be2e9bf883a5218f6d2051

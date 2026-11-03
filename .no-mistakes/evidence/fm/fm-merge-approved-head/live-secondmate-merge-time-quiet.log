@@ -1,0 +1,13 @@
+### parent channel cleared (earlier line kept aside)
+--- parent channel: 0 line(s)
+
+### merge-time registration (FM_PR_CHECK_MERGE=1)
+$ env FM_PR_CHECK_MERGE=1 bin/fm-pr-check.sh child-24 https://github.com/hcho22/firstmate-private/pull/24 
+armed: state/child-24.check.sh
+--- parent channel: 0 line(s)
+
+### control: an ordinary registration publishes the ready line
+$ bin/fm-pr-check.sh child-24 https://github.com/hcho22/firstmate-private/pull/24 
+armed: state/child-24.check.sh
+--- parent channel: 1 line(s)
+done [key=child-pr-child-24] [at=1793711402]: child child-24 PR ready: https://github.com/hcho22/firstmate-private/pull/24 mode=no-mistakes yolo=off head=c6bc0324db162cf2b2be2e9bf883a5218f6d2051

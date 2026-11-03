@@ -1,0 +1,11 @@
+### sequence (a): chat ask recorded 617baf6f; the PR moved to c6bc0324 and firstmate rebuilt the board (card shows c6bc032)
+$ grep approved_head state/appr-board.meta   # after the rebuild
+approved_head=617baf6f48c00da30eb9964a6f8a68e9d959c9c7 https://github.com/hcho22/firstmate-private/pull/24
+live head from GitHub: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+### the captain answers 'merge' to the CHAT message (which showed 617baf6f): the merge's approved-head check
+$ bin/fm-approved-head.sh verify appr-board https://github.com/hcho22/firstmate-private/pull/24 c6bc0324db162cf2b2be2e9bf883a5218f6d2051 main
+error: refusing to merge https://github.com/hcho22/firstmate-private/pull/24: the captain approved head 617baf6f48c00da30eb9964a6f8a68e9d959c9c7, but the live head is c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+  - c6bc0324db162cf2b2be2e9bf883a5218f6d2051 no-mistakes(test): Treat suffixed and prefixed Jenkins pipeline files as always-ask (a commit added to the pull request)
+  - 1 commits lie between the heads, 1 of them not on main
+error: present the pull request to the captain again at head c6bc0324db162cf2b2be2e9bf883a5218f6d2051, recording that head with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6GNPXSKPE67SHR2R1HXZ3K7/bin/fm-approved-head.sh record appr-board https://github.com/hcho22/firstmate-private/pull/24 c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+[exit 1]

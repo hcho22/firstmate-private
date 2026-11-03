@@ -1,0 +1,18 @@
+$ bin/fm-bearings-board.sh build payload.json   (lab home, private Lavish server, real gh head read)
+--- stdout
+board: /tmp/fm-lab.SHEAJh/.lavish/bearings-board.html
+session:
+  file: /private/tmp/fm-lab.SHEAJh/.lavish/bearings-board.html
+  url: "http://127.0.0.1:48731/session/f587d646ffd156db"
+  status: opened
+session: live
+served: /tmp/fm-lab.SHEAJh/.lavish/bearings-board.html
+bound: lavish-f587d646ffd156db
+armed: lavish-f587d646ffd156db
+--- stderr
+dropped-unbound-merge-card: merge.mate-child (its head could not be read: task metadata is unavailable)
+--- payload merge cards in
+{"key":"merge.appr-board","pr_url":"https://github.com/hcho22/firstmate-private/pull/24"}
+{"key":"merge.mate-child","pr_url":"https://github.com/hcho22/firstmate-private/pull/23"}
+--- merge cards in the built board
+{"key":"merge.appr-board","pr_url":"https://github.com/hcho22/firstmate-private/pull/24","head":"c6bc0324db162cf2b2be2e9bf883a5218f6d2051"}

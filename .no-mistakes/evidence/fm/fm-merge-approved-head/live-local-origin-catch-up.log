@@ -1,0 +1,111 @@
+
+### case update-branch: the captain says merge at d4c8f0867332ccb3882ed762642ae39b69fd44f4 (recorded by the chat ask)
+$ bin/fm-approved-head.sh record appr-update-branch https://github.com/example/repo/pull/101 d4c8f0867332ccb3882ed762642ae39b69fd44f4
+recorded: approved head d4c8f0867332ccb3882ed762642ae39b69fd44f4 for https://github.com/example/repo/pull/101
+[exit 0]
+-- base moves (a neighbouring-line edit + an unrelated file), then the worker or GitHub "Update branch" merges main in, conflict-free
+Auto-merging shared.txt
+history the worker pushed after approval:
+    *   77fd842 Merge branch 'main' into feature
+    |\  
+    | * 0e32d29 base: an unrelated change
+    | * 2448c26 base: touch a neighbouring line
+    * | d4c8f08 feat: the approved change
+    |/  
+    * 06567c4 base: add shared
+$ bin/fm-approved-head.sh verify appr-update-branch https://github.com/example/repo/pull/101 77fd84277c0de61e75b22ceddc69d4c71443a5aa main
+verified: live head 77fd84277c0de61e75b22ceddc69d4c71443a5aa of https://github.com/example/repo/pull/101 adds only a clean catch-up with main to the captain-approved head d4c8f0867332ccb3882ed762642ae39b69fd44f4 (2 commits from main, 1 clean merge commits)
+[exit 0]
+
+### case ci-fix-push: the captain says merge at 9fd67dc38e176beadbc41f59f43ac572e89ca173 (recorded by the chat ask)
+$ bin/fm-approved-head.sh record appr-ci-fix-push https://github.com/example/repo/pull/102 9fd67dc38e176beadbc41f59f43ac572e89ca173
+recorded: approved head 9fd67dc38e176beadbc41f59f43ac572e89ca173 for https://github.com/example/repo/pull/102
+[exit 0]
+-- an agent pushes a CI fix after approval, then merges main in
+history the worker pushed after approval:
+    *   7f12ff5 Merge branch 'main' into feature
+    |\  
+    | * e5d1f1f base: an unrelated change
+    * | 7b304a2 fix: pipeline tweak after approval
+    * | 9fd67dc feat: the approved change
+    |/  
+    * b1fd74e base: add shared
+$ bin/fm-approved-head.sh verify appr-ci-fix-push https://github.com/example/repo/pull/102 7f12ff59f5f7a322f796addc5a3e168210bddb94 main
+error: refusing to merge https://github.com/example/repo/pull/102: the captain approved head 9fd67dc38e176beadbc41f59f43ac572e89ca173, but the live head is 7f12ff59f5f7a322f796addc5a3e168210bddb94
+  - 7b304a2367bb16c2b3cf662fabbe574c631b8206 fix: pipeline tweak after approval (a commit added to the pull request)
+  - 3 commits lie between the heads, 2 of them not on main
+error: present the pull request to the captain again at head 7f12ff59f5f7a322f796addc5a3e168210bddb94, recording that head with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6GNPXSKPE67SHR2R1HXZ3K7/bin/fm-approved-head.sh record appr-ci-fix-push https://github.com/example/repo/pull/102 7f12ff59f5f7a322f796addc5a3e168210bddb94
+[exit 1]
+
+### case hand-resolved: the captain says merge at 89354b561238c4c780ebb528acf74b5fd4be884e (recorded by the chat ask)
+$ bin/fm-approved-head.sh record appr-hand-resolved https://github.com/example/repo/pull/103 89354b561238c4c780ebb528acf74b5fd4be884e
+recorded: approved head 89354b561238c4c780ebb528acf74b5fd4be884e for https://github.com/example/repo/pull/103
+[exit 0]
+-- main changes the same line, the merge conflicts, and the worker resolves it by hand
+history the worker pushed after approval:
+    *   f52f05c Merge branch 'main' into feature
+    |\  
+    | * 56a987e base: change the same line
+    * | 89354b5 feat: the approved change
+    |/  
+    * 71bc5d6 base: add shared
+$ bin/fm-approved-head.sh verify appr-hand-resolved https://github.com/example/repo/pull/103 f52f05cd3fe95e30d72ce8cc17e200f2180133f3 main
+error: refusing to merge https://github.com/example/repo/pull/103: the captain approved head 89354b561238c4c780ebb528acf74b5fd4be884e, but the live head is f52f05cd3fe95e30d72ce8cc17e200f2180133f3
+  - f52f05cd3fe95e30d72ce8cc17e200f2180133f3 Merge branch 'main' into feature (a merge whose tree is not the conflict-free automatic merge of its parents)
+  - 2 commits lie between the heads, 1 of them not on main
+error: present the pull request to the captain again at head f52f05cd3fe95e30d72ce8cc17e200f2180133f3, recording that head with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6GNPXSKPE67SHR2R1HXZ3K7/bin/fm-approved-head.sh record appr-hand-resolved https://github.com/example/repo/pull/103 f52f05cd3fe95e30d72ce8cc17e200f2180133f3
+[exit 1]
+
+### case evil-merge: the captain says merge at a6fe7b46baa75675c66d7bf7054a6c61eeb95b3b (recorded by the chat ask)
+$ bin/fm-approved-head.sh record appr-evil-merge https://github.com/example/repo/pull/104 a6fe7b46baa75675c66d7bf7054a6c61eeb95b3b
+recorded: approved head a6fe7b46baa75675c66d7bf7054a6c61eeb95b3b for https://github.com/example/repo/pull/104
+[exit 0]
+-- a conflict-free merge of main that slips in an edit of its own (amended merge)
+history the worker pushed after approval:
+    *   13fa52e Merge branch 'main' into feature
+    |\  
+    | * df74873 base: an unrelated change
+    * | a6fe7b4 feat: the approved change
+    |/  
+    * 45aba4d base: add shared
+$ bin/fm-approved-head.sh verify appr-evil-merge https://github.com/example/repo/pull/104 13fa52e1cb745b6e9a702b7d5dbc71e9829f4b1e main
+error: refusing to merge https://github.com/example/repo/pull/104: the captain approved head a6fe7b46baa75675c66d7bf7054a6c61eeb95b3b, but the live head is 13fa52e1cb745b6e9a702b7d5dbc71e9829f4b1e
+  - 13fa52e1cb745b6e9a702b7d5dbc71e9829f4b1e Merge branch 'main' into feature (a merge whose tree is not the conflict-free automatic merge of its parents)
+  - 2 commits lie between the heads, 1 of them not on main
+error: present the pull request to the captain again at head 13fa52e1cb745b6e9a702b7d5dbc71e9829f4b1e, recording that head with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6GNPXSKPE67SHR2R1HXZ3K7/bin/fm-approved-head.sh record appr-evil-merge https://github.com/example/repo/pull/104 13fa52e1cb745b6e9a702b7d5dbc71e9829f4b1e
+[exit 1]
+
+### case force-push: the captain says merge at 2399a8bc6004be14b60717b5deddfd969edcd7bb (recorded by the chat ask)
+$ bin/fm-approved-head.sh record appr-force-push https://github.com/example/repo/pull/105 2399a8bc6004be14b60717b5deddfd969edcd7bb
+recorded: approved head 2399a8bc6004be14b60717b5deddfd969edcd7bb for https://github.com/example/repo/pull/105
+[exit 0]
+-- the worker rebases onto main and force-pushes
+history the worker pushed after approval:
+    * b6ecccc feat: the approved change
+    * 82ebec2 base: an unrelated change
+    * 6c64b97 base: add shared
+$ bin/fm-approved-head.sh verify appr-force-push https://github.com/example/repo/pull/105 b6ecccccea191a8a82894b897c43505d1f5e6191 main
+error: refusing to merge https://github.com/example/repo/pull/105: the captain approved head 2399a8bc6004be14b60717b5deddfd969edcd7bb, but the live head is b6ecccccea191a8a82894b897c43505d1f5e6191
+  - the approved head is not an ancestor of the live head, so the pull request history was rewritten (a rebase or force-push) or the approved commit is unavailable
+error: present the pull request to the captain again at head b6ecccccea191a8a82894b897c43505d1f5e6191, recording that head with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6GNPXSKPE67SHR2R1HXZ3K7/bin/fm-approved-head.sh record appr-force-push https://github.com/example/repo/pull/105 b6ecccccea191a8a82894b897c43505d1f5e6191
+[exit 1]
+
+### case moved-during-verify: the captain says merge at 688f879f8731cb5a8f38d11ec86c08f16f7588a6 (recorded by the chat ask)
+$ bin/fm-approved-head.sh record appr-moved-during-verify https://github.com/example/repo/pull/106 688f879f8731cb5a8f38d11ec86c08f16f7588a6
+recorded: approved head 688f879f8731cb5a8f38d11ec86c08f16f7588a6 for https://github.com/example/repo/pull/106
+[exit 0]
+-- the merge verified head X, but the PR ref on origin already moved on (a racing push)
+history the worker pushed after approval:
+    *   6682e1f Merge branch 'main' into feature
+    |\  
+    | * 4356a9b base: an unrelated change
+    * | 688f879 feat: the approved change
+    |/  
+    * 88b1e81 base: add shared
+$ bin/fm-approved-head.sh verify appr-moved-during-verify https://github.com/example/repo/pull/106 6682e1f62b8eef370d7c7727ed2c16926737ca27 main
+error: refusing to merge https://github.com/example/repo/pull/106: the captain approved head 688f879f8731cb5a8f38d11ec86c08f16f7588a6, but the live head is 6682e1f62b8eef370d7c7727ed2c16926737ca27
+  - the fetched pull request head 0d9ad8f001e0593adf9b956aba75d3d3ef7ec4f4 is not the live head, so the head moved while it was being verified
+error: present the pull request to the captain again at head 6682e1f62b8eef370d7c7727ed2c16926737ca27, recording that head with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6GNPXSKPE67SHR2R1HXZ3K7/bin/fm-approved-head.sh record appr-moved-during-verify https://github.com/example/repo/pull/106 6682e1f62b8eef370d7c7727ed2c16926737ca27
+[exit 1]
+
+private refs/fm-approved-head refs left in any task worktree: []

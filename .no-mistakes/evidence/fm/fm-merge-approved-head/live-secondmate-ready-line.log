@@ -1,0 +1,21 @@
+live head GitHub reports for https://github.com/hcho22/firstmate-private/pull/24: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+
+### the mate registers its child PR (worker reported ready)
+$ bin/fm-pr-check.sh child-24 https://github.com/hcho22/firstmate-private/pull/24 
+armed: state/child-24.check.sh
+--- parent channel state/mate-lab.status (1 lines)
+done [key=child-pr-child-24] [at=1793711378]: child child-24 PR ready: https://github.com/hcho22/firstmate-private/pull/24 mode=no-mistakes yolo=off head=c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+
+### the same registration again at the same head (a replayed report)
+$ bin/fm-pr-check.sh child-24 https://github.com/hcho22/firstmate-private/pull/24 
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/child-24.check.sh
+--- parent channel state/mate-lab.status (1 lines)
+done [key=child-pr-child-24] [at=1793711378]: child child-24 PR ready: https://github.com/hcho22/firstmate-private/pull/24 mode=no-mistakes yolo=off head=c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+
+### the merge-time registration fm-pr-merge.sh performs (FM_PR_CHECK_MERGE=1)
+$ env FM_PR_CHECK_MERGE=1 bin/fm-pr-check.sh child-24 https://github.com/hcho22/firstmate-private/pull/24 
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/child-24.check.sh
+--- parent channel state/mate-lab.status (1 lines)
+done [key=child-pr-child-24] [at=1793711378]: child child-24 PR ready: https://github.com/hcho22/firstmate-private/pull/24 mode=no-mistakes yolo=off head=c6bc0324db162cf2b2be2e9bf883a5218f6d2051

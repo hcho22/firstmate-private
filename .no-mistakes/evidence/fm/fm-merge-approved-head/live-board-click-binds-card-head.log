@@ -1,0 +1,18 @@
+### board wake: the captured Lavish result of the real 'Merge now' click
+$ bin/fm-procevent-lavish.sh answers <result>
+merge.appr-board	merge	Merge: low-risk merge tier -> merge
+[exit 0]
+$ bin/fm-procevent-lavish.sh heads <result>
+merge.appr-board	c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+[exit ]
+### sequence (b): before the click, the chat ask's record still names a different head:
+approved_head=617baf6f48c00da30eb9964a6f8a68e9d959c9c7 https://github.com/hcho22/firstmate-private/pull/24
+### the handler records exactly the card's head immediately before merging (bearings SKILL board-wake rule)
+$ bin/fm-approved-head.sh record appr-board https://github.com/hcho22/firstmate-private/pull/24 c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+recorded: approved head c6bc0324db162cf2b2be2e9bf883a5218f6d2051 for https://github.com/hcho22/firstmate-private/pull/24
+[exit 0]
+approved_head=c6bc0324db162cf2b2be2e9bf883a5218f6d2051 https://github.com/hcho22/firstmate-private/pull/24
+live head from GitHub now: c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+$ bin/fm-approved-head.sh verify appr-board https://github.com/hcho22/firstmate-private/pull/24 c6bc0324db162cf2b2be2e9bf883a5218f6d2051 main
+verified: live head c6bc0324db162cf2b2be2e9bf883a5218f6d2051 of https://github.com/hcho22/firstmate-private/pull/24 is the captain-approved head
+[exit 0]
