@@ -124,14 +124,14 @@ EOF
   out=$(FAKE_NM_RUN=run3 rounds "$d" check --step review --out-dir "$d/out") || rc=$?
   [ "$rc" -eq 3 ] || fail "three rounds: check exited $rc, not 3: $out"
   [ "$(value "$out" verdict)" = cap-reached ] || fail "three rounds: verdict is not cap-reached: $out"
-  [ "$(value "$out" fix_rounds)" = 3 ] || fail "three rounds: fix_rounds is not 3: $out"
-  [ "$(value "$out" by_worker)" = 2 ] && [ "$(value "$out" by_pipeline)" = 1 ] \
-    || fail "three rounds: worker and pipeline fix rounds are not both counted: $out"
+  [ "$(value "$out" fix_rounds)" = 3 ] \
+    || fail "three rounds: worker and pipeline fix rounds are not all counted: $out"
   [ "$(value "$out" findings)" = r4-1,review-2 ] || fail "three rounds: current findings are wrong: $out"
   [ "$(value "$out" returning)" = review-2 ] || fail "three rounds: the returning finding is not named: $out"
   file=$(value "$out" file)
   [ "$file" = "$d/out/nm-run3-review-rounds.txt" ] || fail "three rounds: wrong history file: $out"
-  grep -q '^## round 4 (pipeline fix)$' "$file" || fail "three rounds: history lacks the pipeline round: $(cat "$file")"
+  grep -q '^## round 1 (initial)$' "$file" || fail "three rounds: history lacks the initial round: $(cat "$file")"
+  grep -q '^## round 4 (fix)$' "$file" || fail "three rounds: history lacks a fix round: $(cat "$file")"
   grep -q 'seen_in_rounds: 1,2,4' "$file" || fail "three rounds: history lacks the recurrence: $(cat "$file")"
   grep -q '    finding r2-1' "$file" || fail "three rounds: history lacks a verbatim finding: $(cat "$file")"
   printf '%s\n' "$(value "$out" escalation)" | grep -Eq \
@@ -191,7 +191,7 @@ repo r1 $d/project
 run run5 r1 fm/task running 10
 round run5 review 1 initial user a
 EOF
-  out=$(FAKE_NM_RUN= rounds "$d" check --step review) || rc=$?
+  out=$(FAKE_NM_RUN='' rounds "$d" check --step review) || rc=$?
   [ "$rc" -eq 1 ] && [ "$(value "$out" verdict)" = unknown ] \
     || fail "unknown: a branch with no run did not read as unknown (exit $rc): $out"
   value "$out" reason | grep -q 'no run on the current branch' \
@@ -203,8 +203,9 @@ EOF
   rm -f "$d/nm/state.sqlite"
   rc=0
   out=$(FAKE_NM_RUN=run5 rounds "$d" check --step review) || rc=$?
-  [ "$rc" -eq 1 ] && value "$out" reason | grep -q 'no state database' \
-    || fail "unknown: a missing database did not read as unknown (exit $rc): $out"
+  [ "$rc" -eq 1 ] || fail "unknown: a missing database did not read as unknown (exit $rc): $out"
+  value "$out" reason | grep -q 'no state database' \
+    || fail "unknown: a missing database is not named as the reason: $out"
   [ ! -e "$d/nm/state.sqlite" ] || fail "unknown: the check created a state database"
   rc=0
   rounds "$d" check --step 'bad step' >/dev/null 2>&1 || rc=$?
@@ -212,8 +213,8 @@ EOF
   pass "an uncountable step reads as unknown rather than under the cap"
 }
 
-test_record_keeps_rounds_to_pass_once_per_incarnation() {
-  local d out ledger
+test_record_counts_every_run_of_the_task_once_per_incarnation() {
+  local d out ledger json
   d=$(make_case record)
   seed_db "$d" <<EOF
 repo r1 $d/project
@@ -242,41 +243,48 @@ EOF
     and .source == "no-mistakes-state" and .branch == "fm/task"
     and [.runs[].id] == ["failed1", "passed1"]
     and (.runs[0].steps[] | select(.step == "review") | .fix_rounds) == 3
-    and .rounds_to_pass == {"run": "passed1", "total": 2, "max": 1,
-                            "steps": [{"step": "review", "fix_rounds": 1}, {"step": "test", "fix_rounds": 1}]}
+    and .rounds_to_pass == {"total": 5, "max": 3,
+                            "steps": [{"step": "review", "fix_rounds": 4}, {"step": "test", "fix_rounds": 1}]}
   ' "$ledger" >/dev/null || fail "record: the recorded rounds are wrong: $(cat "$ledger")"
+  json=$(rounds "$d" report --json)
+  printf '%s\n' "$json" | jq -e '
+    .projects[0].at_cap == 1 and .projects[0].max == 3
+    and .prs == [{"project": .projects[0].project, "task": "task", "pr": "https://example.invalid/acme/project/pull/9",
+                  "fix_rounds": 5, "max": 3, "steps": "review:4,test:1", "recorded_at": .prs[0].recorded_at}]
+  ' >/dev/null || fail "record: the PR does not report the cap its earlier run reached: $json"
   out=$(rounds "$d" record task)
   [ "$out" = "already recorded task s1" ] || fail "record: a repeat was not deduplicated: $out"
   [ "$(wc -l < "$ledger" | tr -d ' ')" = 1 ] || fail "record: a repeat appended a second line"
-  pass "record keeps the passing run's rounds to pass per step, once per incarnation"
+  pass "record counts the fix rounds of every run the task had, once per incarnation"
 }
 
-test_record_without_a_passing_run_or_source_is_explicit() {
+test_record_without_a_run_or_source_is_explicit() {
   local d ledger
   d=$(make_case record-unknown)
   seed_db "$d" <<EOF
 repo r1 $d/project
-run failed1 r1 fm/task failed 100
-round failed1 review 1 initial user a
+run early r1 fm/task completed -500
+run sibling r1 fm/other completed 100
+round early review 1 initial user a
 EOF
   rounds "$d" record task >/dev/null
   ledger=$d/home/data/pipeline-rounds.jsonl
-  jq -e '.rounds_to_pass == {"run": null, "total": null, "max": null, "steps": []}' "$ledger" >/dev/null \
-    || fail "record-unknown: a task with no passing run claimed rounds to pass: $(cat "$ledger")"
+  jq -e '.runs == [] and .rounds_to_pass == {"total": null, "max": null, "steps": []}' "$ledger" >/dev/null \
+    || fail "record-unknown: a task with no run claimed rounds to pass: $(cat "$ledger")"
   rm -f "$ledger" "$d/nm/state.sqlite"
   rounds "$d" record task >/dev/null
   jq -e '.source == "unavailable" and .rounds_to_pass == null and (.reason | contains("no state database"))' \
     "$ledger" >/dev/null || fail "record-unknown: an unreadable source was not recorded as unavailable: $(cat "$ledger")"
-  pass "record states a missing passing run or an unreadable source instead of guessing"
+  pass "record states a task with no run or an unreadable source instead of guessing"
 }
 
 test_report_lists_rounds_per_pr_by_project() {
   local d out json
   d=$(make_case report)
   cat > "$d/home/data/pipeline-rounds.jsonl" <<'EOF'
-{"task":"calm-1","spawn_gen":"g","project":"Calm","pr":"https://example.invalid/o/calm/pull/1","recorded_at":"2026-10-01T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"run":"x","total":1,"max":1,"steps":[{"step":"review","fix_rounds":1}]}}
-{"task":"churn-1","spawn_gen":"g","project":"Churn","pr":"https://example.invalid/o/churn/pull/1","recorded_at":"2026-10-02T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"run":"x","total":5,"max":4,"steps":[{"step":"review","fix_rounds":4},{"step":"test","fix_rounds":1}]}}
-{"task":"churn-2","spawn_gen":"g","project":"Churn","pr":"https://example.invalid/o/churn/pull/2","recorded_at":"2026-10-03T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"run":"x","total":1,"max":1,"steps":[{"step":"review","fix_rounds":1}]}}
+{"task":"calm-1","spawn_gen":"g","project":"Calm","pr":"https://example.invalid/o/calm/pull/1","recorded_at":"2026-10-01T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"total":1,"max":1,"steps":[{"step":"review","fix_rounds":1}]}}
+{"task":"churn-1","spawn_gen":"g","project":"Churn","pr":"https://example.invalid/o/churn/pull/1","recorded_at":"2026-10-02T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"total":5,"max":4,"steps":[{"step":"review","fix_rounds":4},{"step":"test","fix_rounds":1}]}}
+{"task":"churn-2","spawn_gen":"g","project":"Churn","pr":"https://example.invalid/o/churn/pull/2","recorded_at":"2026-10-03T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"total":1,"max":1,"steps":[{"step":"review","fix_rounds":1}]}}
 {"task":"churn-3","spawn_gen":"g","project":"Churn","pr":null,"recorded_at":"2026-10-04T00:00:00Z","source":"unavailable","runs":[],"rounds_to_pass":null}
 not json
 EOF
@@ -288,9 +296,6 @@ EOF
     and .prs_total == 3 and [.prs[].task] == ["churn-2", "churn-1", "calm-1"]
     and (.prs[] | select(.task == "churn-1") | .steps) == "review:4,test:1"
   ' >/dev/null || fail "report: the by-project view is wrong: $json"
-  json=$(rounds "$d" report --json --project Calm)
-  printf '%s\n' "$json" | jq -e '[.projects[].project] == ["Calm"] and [.prs[].task] == ["calm-1"]' >/dev/null \
-    || fail "report: --project did not limit the view: $json"
   json=$(rounds "$d" report --json --limit 1)
   printf '%s\n' "$json" | jq -e '.prs_total == 3 and [.prs[].task] == ["churn-2"] and (.projects | length) == 2' \
     >/dev/null || fail "report: --limit did not keep only the newest PR rows: $json"
@@ -309,6 +314,6 @@ test_three_fix_rounds_on_one_step_reach_the_cap_and_escalate
 test_two_fix_rounds_stay_under_the_cap
 test_a_raised_cap_lets_more_rounds_through
 test_an_uncountable_step_is_unknown_not_under_cap
-test_record_keeps_rounds_to_pass_once_per_incarnation
-test_record_without_a_passing_run_or_source_is_explicit
+test_record_counts_every_run_of_the_task_once_per_incarnation
+test_record_without_a_run_or_source_is_explicit
 test_report_lists_rounds_per_pr_by_project

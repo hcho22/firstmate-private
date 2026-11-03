@@ -4047,7 +4047,7 @@ PY
   jq -e '
     .task == "task-x1" and .source == "no-mistakes-state"
     and .pr == "https://example.invalid/acme/proj/pull/7"
-    and .rounds_to_pass == {"run": "01RUN", "total": 2, "max": 2, "steps": [{"step": "review", "fix_rounds": 2}]}
+    and .rounds_to_pass == {"total": 2, "max": 2, "steps": [{"step": "review", "fix_rounds": 2}]}
   ' "$ledger" >/dev/null || fail "rounds-to-pass: the recorded rounds are wrong: $(cat "$ledger")"
   assert_absent "$case_dir/state/task-x1.meta" "rounds-to-pass: teardown kept the task record"
   pass "teardown records a no-mistakes task's rounds to pass before removing its branch and record"

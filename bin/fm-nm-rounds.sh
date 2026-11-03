@@ -4,9 +4,9 @@
 # pass so projects whose reviews churn show up.
 #
 # Usage:
-#   fm-nm-rounds.sh check --step <step> [--cap <n>] [--out-dir <dir>] [--worktree <dir>]
+#   fm-nm-rounds.sh check --step <step> [--cap <n>] [--out-dir <dir>]
 #   fm-nm-rounds.sh record <task-id>
-#   fm-nm-rounds.sh report [--json] [--project <name>] [--limit <n>]
+#   fm-nm-rounds.sh report [--json] [--limit <n>]
 #
 # This header is the one owner of what a fix round is, of the cap's default,
 # of the check verdict and its escalation line, and of the rounds ledger schema.
@@ -17,14 +17,12 @@
 # Fix rounds. no-mistakes keeps one step_rounds row per execution of a step in
 # a run. Round 1 is `initial`, and every later round that no-mistakes started
 # by fixing the previous round's findings carries trigger_type `auto_fix`,
-# whoever chose that fix: the previous round's selection_source is `user` when
-# the driving worker chose it with `axi respond --action fix`, and `auto_fix`
-# when the pipeline's own automatic fixing chose it. A step's fix rounds in a
-# run are therefore its `auto_fix` rows; by_worker and by_pipeline split them
-# by that previous selection_source, and a fix round with neither counts in
-# fix_rounds only. A step executed again from scratch inside the same run (for
-# example review again after a ci repair rebased the branch) records another
-# `initial` row, which is not a fix round.
+# whether the driving worker chose that fix with `axi respond --action fix` or
+# the pipeline's own automatic fixing chose it. A step's fix rounds in a run
+# are therefore its `auto_fix` rows, whoever started them. A step executed
+# again from scratch inside the same run (for example review again after a ci
+# repair rebased the branch) records another `initial` row, which is not a fix
+# round.
 # `no-mistakes axi` reports none of this history (v1.79.0): `axi status` names
 # only the current round of a running or fixing step in its active_steps table
 # (`round N`, `fix N`, `auto-fix N/M`), and a gate prints no round count. So
@@ -36,17 +34,17 @@
 #     apply their changes in their own initial round, and test may edit while
 #     it runs) are that step's own work, not fix rounds, and are not counted;
 #   - fix rounds of another run on the same branch belong to that run: the cap
-#     is per run, and the ledger keeps every run;
+#     is per run, while the ledger counts every run the task had;
 #   - a fix round still under way counts once it completes;
 #   - when no-mistakes or its database cannot be read, the verdict is unknown.
 #     The worker then counts its own `--action fix` responses to the step in
 #     this run, which cannot see the pipeline's own automatic fix rounds.
 #
-# check: run where the task copy is (or name it with --worktree) while the
-# current branch's run waits at <step>'s gate, before answering that gate with
-# `--action fix`. It resolves the run from `no-mistakes axi status` (the id in
-# its `run:` block) and prints `key: value` lines:
-#   run, step, fix_rounds, by_worker, by_pipeline, cap
+# check: run from the task copy while the current branch's run waits at
+# <step>'s gate, before answering that gate with `--action fix`. It resolves
+# the run from `no-mistakes axi status` (the id in its `run:` block) and prints
+# `key: value` lines:
+#   run, step, fix_rounds, cap
 #   verdict      under-cap, cap-reached (fix_rounds >= cap), or unknown
 #   reason       why the verdict is unknown (unknown only)
 #   findings     the newest round's finding ids, comma separated, or none
@@ -57,9 +55,10 @@
 #     The key is the brief's ask-user key, so the decision binds to the run
 #     exactly as an ask-user gate does; without --out-dir it has no file=.
 # With --out-dir and the cap reached, it writes <dir>/nm-<run>-<step>-rounds.txt:
-# every round of the step oldest first, who started it, and each finding
-# verbatim (id, severity, file, line, action, description), then the returning
-# ids, so the findings that kept returning can be read without the pipeline.
+# every round of the step oldest first, whether it was a fix round, and each
+# finding verbatim (id, severity, file, line, action, description), then the
+# returning ids, so the findings that kept returning can be read without the
+# pipeline.
 # The default cap is 3; --cap raises it when a captain decision allows more
 # rounds. Exit status: 0 under-cap, 3 cap-reached, 1 unknown, 2 bad usage.
 #
@@ -85,22 +84,23 @@
 #                           empty, and rounds_to_pass is null
 #   repo, branch, since     the attribution (since as UTC time or null)
 #   runs[]                  {id, status, created_at, steps[]}, oldest first;
-#                           steps[] is {step, fix_rounds, by_worker,
-#                           by_pipeline} for every step that ran
-#   rounds_to_pass          {run, total, max, steps[] {step, fix_rounds}} from
-#                           the newest completed run, listing only steps with a
-#                           fix round; run is null and the counts are null when
-#                           no run completed
+#                           steps[] is {step, fix_rounds} for every step that ran
+#   rounds_to_pass          {total, max, steps[] {step, fix_rounds}} across
+#                           every run in runs[], whatever its status, so a run
+#                           superseded after a rethink still counts: total sums
+#                           their fix rounds, max is the most any one step took
+#                           in one run, and steps[] sums each step's fix rounds,
+#                           listing only steps with one; the counts are null
+#                           when no run is attributed
 #
 # report: the by-project view of that ledger, rounds to pass per PR. Each
 # project row counts its recorded PRs (records whose rounds to pass are known),
-# their total and mean fix rounds, the most any one step took, how many
-# reached the cap on some step, and how many records are unknown. Projects with
-# PRs at the cap sort first, then by mean. Each PR row names the project, task,
-# PR, total, max, and the steps that took fix rounds, newest first; prs_total
-# counts them all and --limit keeps only the newest <n>. TOON by default;
-# --json prints {cap, projects[], prs_total, prs[]}. --project limits the view
-# to one project.
+# their total and mean fix rounds, the most any one step took in one run, how
+# many reached the cap on some step of some run, and how many records are
+# unknown. Projects with PRs at the cap sort first, then by mean. Each PR row
+# names the project, task, PR, total, max, and the steps that took fix rounds,
+# newest first; prs_total counts them all and --limit keeps only the newest
+# <n>. TOON by default; --json prints {cap, projects[], prs_total, prs[]}.
 # bin/fm-bearings-snapshot.sh projects this view; it is not a second owner.
 set -eu
 
@@ -174,11 +174,11 @@ def findings_of(raw):
 
 def run_steps(db, run_id, only_step=None):
     columns = {r["name"] for r in db.execute("PRAGMA table_info(step_rounds)")}
-    optional = ", ".join("x.%s AS %s" % (c, c) if c in columns else "NULL AS %s" % c
-                         for c in ("selection_source", "findings_json"))
-    query = ("SELECT s.step_name AS step, x.round AS round, x.trigger_type AS trigger_type, %s "
+    findings = "x.findings_json" if "findings_json" in columns else "NULL"
+    query = ("SELECT s.step_name AS step, x.round AS round, x.trigger_type AS trigger_type, "
+             "%s AS findings_json "
              "FROM step_results s JOIN step_rounds x ON x.step_result_id = s.id "
-             "WHERE s.run_id = ?" % optional)
+             "WHERE s.run_id = ?" % findings)
     params = [run_id]
     if only_step is not None:
         query += " AND s.step_name = ?"
@@ -189,35 +189,22 @@ def run_steps(db, run_id, only_step=None):
     for row in db.execute(query, params):
         step = steps.get(row["step"])
         if step is None:
-            step = steps[row["step"]] = {"step": row["step"], "fix_rounds": 0, "by_worker": 0,
-                                         "by_pipeline": 0, "rounds": []}
+            step = steps[row["step"]] = {"step": row["step"], "fix_rounds": 0, "rounds": []}
             order.append(row["step"])
-        started_by = "start"
         if row["trigger_type"] == "auto_fix":
             step["fix_rounds"] += 1
-            previous = step["rounds"][-1]["selection_source"] if step["rounds"] else None
-            if previous == "user":
-                step["by_worker"] += 1
-                started_by = "worker fix"
-            elif previous == "auto_fix":
-                step["by_pipeline"] += 1
-                started_by = "pipeline fix"
-            else:
-                started_by = "fix"
         step["rounds"].append({"round": row["round"], "trigger": row["trigger_type"],
-                               "started_by": started_by, "selection_source": row["selection_source"],
                                "findings": findings_of(row["findings_json"])})
     return [steps[name] for name in order]
 '
 
 cmd_check() {
-  local step='' cap=$CAP_DEFAULT out_dir='' wt=$PWD status run_id
+  local step='' cap=$CAP_DEFAULT out_dir='' status run_id
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --step) [ "$#" -ge 2 ] || usage_error "--step needs a value"; step=$2; shift 2 ;;
       --cap) [ "$#" -ge 2 ] || usage_error "--cap needs a value"; cap=$2; shift 2 ;;
       --out-dir) [ "$#" -ge 2 ] || usage_error "--out-dir needs a value"; out_dir=$2; shift 2 ;;
-      --worktree) [ "$#" -ge 2 ] || usage_error "--worktree needs a value"; wt=$2; shift 2 ;;
       *) usage_error "unknown check argument: $1" ;;
     esac
   done
@@ -227,7 +214,6 @@ cmd_check() {
     case "$out_dir" in /*) ;; *) usage_error "--out-dir must be an absolute path" ;; esac
     [ -d "$out_dir" ] || usage_error "--out-dir $out_dir is not a directory"
   fi
-  [ -d "$wt" ] || usage_error "--worktree $wt is not a directory"
 
   unknown() {
     printf 'step: %s\ncap: %s\nverdict: unknown\nreason: %s\n' "$step" "$cap" "$1"
@@ -235,7 +221,7 @@ cmd_check() {
   }
   command -v no-mistakes >/dev/null 2>&1 || unknown "no-mistakes is not installed"
   command -v python3 >/dev/null 2>&1 || unknown "python3 is required to read no-mistakes' state database"
-  status=$(fm_nm_run_checked "$wt" "$TIMEOUT" axi status) || unknown "no-mistakes axi status failed"
+  status=$(fm_nm_run_checked "$PWD" "$TIMEOUT" axi status) || unknown "no-mistakes axi status failed"
   # The current branch's run is the `run:` block; `other_branch_run:` is never
   # this copy's run.
   run_id=$(printf '%s\n' "$status" | awk '
@@ -247,7 +233,7 @@ cmd_check() {
     '') unknown "no run on the current branch" ;;
     *[!A-Za-z0-9]*) unknown "unreadable run id" ;;
   esac
-  fm_nm_bounded "$wt" "$TIMEOUT" python3 -c "$ROUNDS_PY"'
+  fm_nm_bounded "$PWD" "$TIMEOUT" python3 -c "$ROUNDS_PY"'
 import sys
 import time
 
@@ -282,8 +268,7 @@ returning = [fid for fid in seen if len(seen[fid]) > 1]
 reached = step["fix_rounds"] >= cap
 say("run", run_id)
 say("step", step_name)
-for key in ("fix_rounds", "by_worker", "by_pipeline"):
-    say(key, step[key])
+say("fix_rounds", step["fix_rounds"])
 say("cap", cap)
 say("verdict", "cap-reached" if reached else "under-cap")
 say("findings", ",".join(current) or "none")
@@ -294,10 +279,10 @@ path = ""
 if out_dir:
     path = "%s/nm-%s-%s-rounds.txt" % (out_dir, run_id, step_name)
     lines = ["run: %s" % run_id, "step: %s" % step_name,
-             "fix_rounds: %d (worker %d, pipeline %d)" % (step["fix_rounds"], step["by_worker"], step["by_pipeline"]),
+             "fix_rounds: %d" % step["fix_rounds"],
              "returning: %s" % (",".join(returning) or "none"), ""]
     for r in step["rounds"]:
-        lines.append("## round %s (%s)" % (r["round"], r["started_by"]))
+        lines.append("## round %s (%s)" % (r["round"], "fix" if r["trigger"] == "auto_fix" else r["trigger"]))
         if not r["findings"]:
             lines.append("no findings")
         for f in r["findings"]:
@@ -317,7 +302,7 @@ say("escalation", "needs-decision [at=%d] [key=nm-%s-%s]: fix-round cap rounds=%
     % (time.time(), run_id, step_name, step["fix_rounds"], ",".join(current) or "none",
        " file=%s" % path if path else ""))
 sys.exit(3)
-' "$(fm_nm_state_db "$wt")" "$run_id" "$step" "$cap" "$out_dir"
+' "$(fm_nm_state_db "$PWD")" "$run_id" "$step" "$cap" "$out_dir"
 }
 
 cmd_record() {
@@ -363,8 +348,7 @@ def read_runs():
             (repo_rows[0]["id"], branch, int(since) if since else 0),
         ).fetchall()
         return [{"id": run["id"], "status": run["status"], "created_at": utc(run["created_at"]),
-                 "steps": [{k: s[k] for k in ("step", "fix_rounds", "by_worker", "by_pipeline")}
-                           for s in run_steps(db, run["id"])]}
+                 "steps": [{"step": s["step"], "fix_rounds": s["fix_rounds"]} for s in run_steps(db, run["id"])]}
                 for run in runs]
 
 
@@ -382,13 +366,17 @@ if not reason:
 if reason:
     record.update(source="unavailable", reason=reason, runs=[], rounds_to_pass=None)
 else:
-    passed = [run for run in runs if run["status"] == "completed"]
-    if passed:
-        steps = [{"step": s["step"], "fix_rounds": s["fix_rounds"]} for s in passed[-1]["steps"] if s["fix_rounds"]]
-        rounds = {"run": passed[-1]["id"], "total": sum(s["fix_rounds"] for s in steps),
-                  "max": max([s["fix_rounds"] for s in steps] or [0]), "steps": steps}
+    steps = {}
+    for run in runs:
+        for s in run["steps"]:
+            if s["fix_rounds"]:
+                steps[s["step"]] = steps.get(s["step"], 0) + s["fix_rounds"]
+    if runs:
+        rounds = {"total": sum(steps.values()),
+                  "max": max([s["fix_rounds"] for run in runs for s in run["steps"]] or [0]),
+                  "steps": [{"step": k, "fix_rounds": v} for k, v in steps.items()]}
     else:
-        rounds = {"run": None, "total": None, "max": None, "steps": []}
+        rounds = {"total": None, "max": None, "steps": []}
     record.update(runs=runs, rounds_to_pass=rounds)
 line = json.dumps(record, separators=(",", ":"))
 
@@ -418,24 +406,23 @@ print("recorded %s %s" % (task, spawn_gen or "-"))
 }
 
 cmd_report() {
-  local format=toon project='' limit=0
+  local format=toon limit=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --json) format=json; shift ;;
-      --project) [ "$#" -ge 2 ] || usage_error "--project needs a value"; project=$2; shift 2 ;;
       --limit) [ "$#" -ge 2 ] || usage_error "--limit needs a value"; limit=$2; shift 2 ;;
       *) usage_error "unknown report argument: $1" ;;
     esac
   done
   [ "$limit" = 0 ] || positive_int "$limit" || usage_error "--limit must be a positive integer"
   command -v python3 >/dev/null 2>&1 || fail "python3 is required to read the rounds ledger"
-  python3 - "$DATA/pipeline-rounds.jsonl" "$format" "$project" "$CAP_DEFAULT" "$limit" <<'PY' || fail "could not read the pipeline rounds ledger"
+  python3 - "$DATA/pipeline-rounds.jsonl" "$format" "$CAP_DEFAULT" "$limit" <<'PY' || fail "could not read the pipeline rounds ledger"
 import json
 import os
 import re
 import sys
 
-ledger, fmt, only, cap, limit = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), int(sys.argv[5])
+ledger, fmt, cap, limit = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
 records = []
 if os.path.exists(ledger):
     with open(ledger, encoding="utf-8") as f:
@@ -452,8 +439,6 @@ projects = {}
 prs = []
 for r in records:
     name = r.get("project") or "-"
-    if only and name != only:
-        continue
     p = projects.setdefault(name, {"project": name, "prs": 0, "fix_rounds": 0, "mean": 0,
                                    "max": 0, "at_cap": 0, "unknown": 0})
     rounds = r.get("rounds_to_pass") or {}

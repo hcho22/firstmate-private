@@ -1233,17 +1233,17 @@ test_rounds_to_pass_surface_by_project() {
   home=$(make_home rounds); write_fixture "$home"
   fakebin=$(make_fakebin "$home")
   cat > "$home/data/pipeline-rounds.jsonl" <<'JSONL'
-{"task":"calm-1","spawn_gen":"g","project":"Calm","pr":"https://example.invalid/o/calm/pull/1","recorded_at":"2026-07-01T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"run":"x","total":1,"max":1,"steps":[{"step":"review","fix_rounds":1}]}}
-{"task":"churn-1","spawn_gen":"g","project":"Churn","pr":"https://example.invalid/o/churn/pull/1","recorded_at":"2026-07-02T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"run":"x","total":4,"max":3,"steps":[{"step":"review","fix_rounds":3},{"step":"test","fix_rounds":1}]}}
-{"task":"churn-2","spawn_gen":"g","project":"Churn","pr":"https://example.invalid/o/churn/pull/2","recorded_at":"2026-07-03T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"run":"x","total":0,"max":0,"steps":[]}}
+{"task":"calm-1","spawn_gen":"g","project":"Calm","pr":"https://example.invalid/o/calm/pull/1","recorded_at":"2026-07-01T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"total":1,"max":1,"steps":[{"step":"review","fix_rounds":1}]}}
+{"task":"churn-1","spawn_gen":"g","project":"Churn","pr":"https://example.invalid/o/churn/pull/1","recorded_at":"2026-07-02T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"total":5,"max":3,"steps":[{"step":"review","fix_rounds":4},{"step":"test","fix_rounds":1}]}}
+{"task":"churn-2","spawn_gen":"g","project":"Churn","pr":"https://example.invalid/o/churn/pull/2","recorded_at":"2026-07-03T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"total":0,"max":0,"steps":[]}}
 JSONL
   json=$(FM_BEARINGS_ROUNDS=2 run "$home" "$fakebin" --json)
   printf '%s' "$json" | jq -e '
     [.rounds_by_project[].project] == ["Churn", "Calm"]
-    and .rounds_by_project[0] == {"project":"Churn","prs":2,"fix_rounds":4,"mean":2.0,"max":3,"at_cap":1,"unknown":0}
+    and .rounds_by_project[0] == {"project":"Churn","prs":2,"fix_rounds":5,"mean":2.5,"max":3,"at_cap":1,"unknown":0}
     and .rounds_per_pr == [
       {"project":"Churn","pr":"https://example.invalid/o/churn/pull/2","fix_rounds":0,"max":0,"steps":"-"},
-      {"project":"Churn","pr":"https://example.invalid/o/churn/pull/1","fix_rounds":4,"max":3,"steps":"review:3,test:1"}]
+      {"project":"Churn","pr":"https://example.invalid/o/churn/pull/1","fix_rounds":5,"max":3,"steps":"review:4,test:1"}]
     and ([.omitted[].surface] | index("rounds_per_pr showing 2 of 3") != null)
   ' >/dev/null || fail "rounds to pass must surface by project, bounded and disclosed: $json"
   toon=$(FM_BEARINGS_ROUNDS=2 run "$home" "$fakebin")
