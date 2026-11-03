@@ -93,7 +93,7 @@ fm_merge_tier_pattern_regex() {  # <pattern>
     /*) echo "pattern \"$pattern\" starts with /; patterns are anchored at the repository root without one" >&2; return 1 ;;
     '!'*) echo "pattern \"$pattern\" starts with !; negation is not supported, so list the path as always-ask instead" >&2; return 1 ;;
     */) echo "pattern \"$pattern\" ends with /; write ${pattern}** for everything under that directory" >&2; return 1 ;;
-    *'['*|*']'*|*'{'*|*'}'*|*'\'*) echo "pattern \"$pattern\" contains one of [ ] { } \\, which are not supported" >&2; return 1 ;;
+    *'['*|*']'*|*'{'*|*'}'*|*\\*) echo "pattern \"$pattern\" contains one of [ ] { } \\, which are not supported" >&2; return 1 ;;
   esac
   IFS=/ read -r -a segs <<< "$pattern"
   n=${#segs[@]}
@@ -131,8 +131,8 @@ fm_merge_tier_pattern_regex() {  # <pattern>
       char=${seg:0:1}
       seg=${seg:1}
       case "$char" in
-        '*') out="$out[^/]*" ;;
-        '?') out="$out[^/]" ;;
+        '*') out="${out}[^/]*" ;;
+        '?') out="${out}[^/]" ;;
         '.'|'+'|'('|')'|'|'|'^'|'$') out="$out\\$char" ;;
         *) out="$out$char" ;;
       esac

@@ -50,6 +50,7 @@ Registering a conditional policy is a one-time choice and never requires classif
 The optional `+yolo` posture changes merge authority only and does not change the delivery mode.
 Default it off for every project and every posture, and enable it only on the captain's explicit instruction.
 `AGENTS.md` section 7 owns the merge-authority contract.
+The narrower low-risk merge tier lives in `config/merge-tiers` rather than the registry (`docs/configuration.md` "Low-risk merge tier"), and like `+yolo` it stays unset unless the captain explicitly sets it.
 
 The optional `forge=` token records which forge the project's remote actually is; its values are `forge=gerrit`, `forge=forgejo`, and `forge=external`.
 It is orthogonal to the mode and to `+yolo`, so it is never derived from either, and it is never inferred at use time from a remote name, host, port, or push target.

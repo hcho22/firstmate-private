@@ -13,6 +13,7 @@ Start with the directory layout, then use the setting reference for the behavior
 | Backlog, preferences, and memory | [Backlog backend](#backlog-backend-taskstoml--configbacklog-backend), [captain preferences](#captain-preferences-datacaptainmd--datacaptain-sharedmd), [external memory tiers](#external-memory-tiers-memory-layering-section), and [startup memory budget](#startup-memory-budget-configstartup-memory-budget) |
 | Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), and [Calm preference](#calm-preference-configcalm) |
 | Persistent secondmates | [Secondmate routes](#secondmate-routes-datasecondmatesmd) |
+| Pull requests Firstmate may merge without asking | [Low-risk merge tier](#low-risk-merge-tier-configmerge-tiers) |
 | Per-run overrides and tuning | [Environment variables](#environment-variables) |
 
 ## FM_HOME
@@ -1322,6 +1323,35 @@ When every place is held, `bin/fm-spawn.sh` launches nothing, creates no record,
 A malformed or unreadable file refuses every fresh ship or scout spawn until it is fixed, rather than guessing the intended limit, and so does a local home's state directory or task record that cannot be read while counting a capped project's holders.
 Firstmate cannot see which part of a worker's life uses the resource, so the number bounds whole workers from launch to handoff, and the tightest resource every worker needs should decide it.
 [`bin/fm-project-capacity-lib.sh`](../bin/fm-project-capacity-lib.sh) owns the file format, what holds a place, and why concurrent spawns cannot both take the last one.
+
+## Low-risk merge tier (config/merge-tiers)
+
+The optional local, gitignored `config/merge-tiers` file names, per project, the changed files under which Firstmate may merge a green pull request without asking the captain.
+It is a standing merge posture between yolo off, where the captain approves every merge, and yolo on, where Firstmate merges any green, in-scope work; `AGENTS.md` section 7 owns that merge-authority contract.
+Without the file, or without a low-risk rule for a project, that project's merges wait for the captain exactly as before.
+Firstmate adds or changes a rule only on the captain's explicit instruction.
+Start a project narrow and widen its rules only as its merges under the tier prove safe.
+
+```text
+# docs and tests merge on green
+my-project low-risk docs/**
+my-project low-risk **/*.md
+my-project low-risk tests/**
+my-project always-ask docs/legal/**
+```
+
+Each line holds the project's registered name, the kind `low-risk` or `always-ask`, and one path pattern.
+The pattern is the last field and the kind the one before it, so a project name may contain spaces while a pattern cannot.
+A pattern is anchored at the repository root: `*` and `?` stay within one path segment, and a whole `**` segment spans any number of segments.
+A merge under the tier runs only through `bin/fm-pr-merge.sh --low-risk`, which reads the pull request's changed files live from GitHub at the head it verified green.
+It merges only when every changed path, a renamed file's old path included, matches a low-risk rule and no always-ask rule.
+CI workflow files (`.github/workflows/`, `.forgejo/workflows/`, `.gitea/workflows/`, and `.gitlab-ci.yml`) and agent instruction files (`AGENTS.md` and `CLAUDE.md` at any depth and in any letter case) always wait for the captain, and no project rule can make them low risk.
+List every other path that must always reach the captain as `always-ask`, such as release, payment, sign-in, or stored-data code, CI scripts outside those directories, and other agent instruction or settings files.
+A path outside the low-risk rules, an always-ask path, or a changed-file list GitHub cannot return in full refuses the merge, names the paths that caused it, and leaves the merge to the captain.
+The tier reads changed files from GitHub only, so a GitLab or Forgejo project's merges keep waiting for the captain.
+A malformed line, an unknown kind, or an unsupported pattern spelling makes the whole file unreadable, and every low-risk merge in the home refuses, naming the line, until it is corrected.
+The file is local to the home that merges and is not inherited by secondmate homes, so a project routed to a secondmate is declared in that secondmate's home.
+[`bin/fm-merge-tier-lib.sh`](../bin/fm-merge-tier-lib.sh) owns the format, the pattern grammar, and the built-in always-ask paths, and [`bin/fm-pr-merge.sh`](../bin/fm-pr-merge.sh) owns the live changed-file read.
 
 ## Crew dispatch profiles (config/crew-dispatch.json)
 

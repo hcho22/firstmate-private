@@ -151,11 +151,12 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-pr-check.sh`         | Record validated task `pr=` and `pr_head=` values, then atomically arm a static merge poll; refuses GitHub drafts and persistent secondmate records (see [architecture.md](architecture.md)) |
 | `fm-review-check.sh`    | Record a forge=external task's validated `review=` and `review_head=` without arming a merge watch ([design](external-review-forge.md)) |
 | `fm-external-review-lib.sh` | Shared readers for the forge=external review tool adapter, ready-URL pattern, backup remote, and remote URLs |
-| `fm-pr-merge.sh`         | Record PR metadata, merge a task's canonical full GitHub, GitLab, or Forgejo URL, refuse a Gerrit change because firstmate never submits one, then refuse an outcome it cannot prove landed or queued |
+| `fm-pr-merge.sh`         | Record PR metadata, merge a task's canonical full GitHub, GitLab, or Forgejo URL, refuse a Gerrit change because firstmate never submits one, then refuse an outcome it cannot prove landed or queued, and under `--low-risk` refuse any pull request outside its project's low-risk merge tier |
 | `fm-pr-state.sh`         | Read-only: print one line per GitHub pull-request blocker it can see, reporting on checks that have reported rather than verdicting merge-readiness |
 | `fm-pr-reviewers.sh`     | Read-only: suggest reviewers from GitHub's own author mapping of recent commits on a pull request's changed files, never requesting one |
 | `fm-merge-outcome-lib.sh` | Publish a confirmed merge's durable, role-routed supervision outcome                 |
 | `fm-merge-authority-lib.sh` | Resolve merge authority at the gate, persist it against the accepted canonical PR, and identity-check its later poll consumption |
+| `fm-merge-tier-lib.sh` | Read a project's low-risk merge tier from `config/merge-tiers` and judge each changed path against it and the built-in always-ask paths |
 | `fm-parent-channel-lib.sh` | Resolve a secondmate home's parent channel and append a captain-facing outcome line to it at most once |
 | [`fm-task-data-lib.sh`](../bin/fm-task-data-lib.sh) | Own where a task's private documents live: per-project folder placement, lookup, and the bounded legacy read |
 | [`fm-data-migrate.sh`](../bin/fm-data-migrate.sh) | Move a home's flat task folders into the per-project layout, rewriting backlog links; dry run by default, refuses while work is live or an interrupted cleanup awaits replay, `--revert` undoes it |
