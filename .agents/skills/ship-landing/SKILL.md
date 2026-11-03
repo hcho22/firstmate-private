@@ -17,8 +17,11 @@ A direct-PR worker pushes that commit to its PR branch, and a local-only worker 
 A no-mistakes worker re-validates it with /no-mistakes so the pipeline stays the one publisher; it never pushes from its copy.
 In no-mistakes mode the earlier `done [at=<epoch>]: {summary}` is the pipeline handoff and is not gated.
 Tell the captain the PR's full `https://...` URL copied from the worker's ready line, the resolved checks-green crew-state line, or the task's `pr=` metadata, a concise outcome summary, and the no-mistakes risk level when applicable.
-When that message asks for the captain's merge word, first run `bin/fm-approved-head.sh record <id> <PR url>`, because the word covers only the head it was given at.
-An attended `bin/fm-pr-merge.sh` merges only that head or a clean catch-up of it with the base branch; when it refuses because the head changed, tell the captain what changed, ask again, and record the new head before asking.
+When that message asks for the captain's merge word, first run `bin/fm-approved-head.sh record <id> <PR url>` and name the short head it prints in the message, because the word covers only the head it was given at.
+An attended `bin/fm-pr-merge.sh` merges only that head or a clean catch-up of it with the base branch; when it refuses because the head changed, tell the captain what changed, record the head the refusal names with the command it prints, and ask again at that head.
+When it refuses because no head is recorded, present the PR to the captain again and record the head you show; never record a head the captain was not shown.
+A secondmate child's PR has no task record in the main home: present it at the head its `child <id> PR ready:` line carries in `head=`, and relay the captain's merge word to that secondmate together with that full head.
+In a secondmate home, a relayed merge word names the head the captain was shown, so record exactly that head with `bin/fm-approved-head.sh record <id> <PR url> <head>` before merging; a later push then still refuses, and the new ready line its merge-time registration publishes is what the main firstmate presents again.
 A captain instruction to merge is explicit authority; `yolo` is the only standing routine merge authority.
 For any custom `state/<id>.check.sh` you write yourself, keep it an ordinary single-link mode-`0700` file, print one line only when firstmate should wake, print nothing otherwise, finish before `FM_CHECK_TIMEOUT`, then bind its current bytes with `bin/fm-check-register.sh <id>` before the watcher may execute it.
 Retire a custom check only through `bin/fm-check-unregister.sh <id>` (or `bin/fm-teardown.sh` for a spawned task); never hand-compose an `rm` with `$STATE`/`$ID`.

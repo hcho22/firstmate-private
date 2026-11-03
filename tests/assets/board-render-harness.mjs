@@ -4,7 +4,7 @@
 //
 // Usage: node board-render-harness.mjs <built-board.html>
 // Prints one JSON document:
-//   { stats:[{n,label}], underway:[{title,sub,badges}],
+//   { stats:[{n,label}], call:[{title,head,head_title}], underway:[{title,sub,badges}],
 //     charted:[{title,sub,badges,pickable}], empty, more, error }
 import { readFileSync } from "node:fs";
 
@@ -26,6 +26,8 @@ class Node {
     this.checked = false;
     this.classList = {
       add: (c) => { this.className = (this.className + " " + c).trim(); },
+      remove: (c) => { this.className = this.className.split(/\s+/).filter((k) => k !== c).join(" "); },
+      toggle: (c, on) => { (on ?? !this.classList.contains(c)) ? this.classList.add(c) : this.classList.remove(c); },
       contains: (c) => this.className.split(/\s+/).includes(c),
     };
   }
@@ -108,6 +110,18 @@ const rowsOf = (container) =>
       };
     });
 
+const deck = byId.get("bb-call") || new Node("div");
+const call = deck.children
+  .filter((c) => c.className.split(/\s+/).includes("bb-decision"))
+  .map((card) => {
+    const head = card.querySelectorAll(".bb-decision__head")[0];
+    return {
+      title: card.querySelectorAll(".bb-decision__title")[0]?.textContent ?? "",
+      head: head?.textContent ?? "",
+      head_title: head?.title ?? "",
+    };
+  });
+
 const uw = byId.get("bb-underway") || new Node("div");
 const underway = rowsOf(uw);
 
@@ -123,4 +137,4 @@ const empty = ch.children.filter((c) => c.className.includes("bb-empty")).map((c
 const more = ch.children.filter((c) => c.className.includes("bb-morechip")).map((c) => c.textContent);
 
 process.stdout.write(
-  JSON.stringify({ stats, underway, charted, empty, more, error: errorText }) + "\n");
+  JSON.stringify({ stats, call, underway, charted, empty, more, error: errorText }) + "\n");

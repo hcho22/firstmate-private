@@ -13,6 +13,10 @@ TMP_ROOT=$(fm_test_tmproot fm-bearings-board)
 
 command -v jq >/dev/null 2>&1 || { echo "skip: jq not found"; exit 0; }
 
+# The live head gh reports for the sample merge card's pull request.
+SAMPLE_PR_URL=https://github.com/example/sample/pull/1
+SAMPLE_HEAD=5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a
+
 # A lavish-axi stub that reproduces the shapes verified against the real
 # lavish-axi 0.1.61, because the build's liveness verdict is read from what the
 # vendor emits. The load-bearing shape is the refusal: opening a session the
@@ -98,6 +102,18 @@ emit "$real" opened
 exit 0
 SH
   chmod +x "$fakebin/lavish-axi"
+  # The sample merge card's task records its PR, and gh reports that PR's live
+  # head, so build can record the head the card shows.
+  fm_write_meta "$home/state/sample-task.meta" "kind=ship" "pr=$SAMPLE_PR_URL"
+  printf '%s\n' "$SAMPLE_HEAD" > "$home/github-head"
+  cat > "$fakebin/gh" <<'SH'
+#!/usr/bin/env bash
+case "${1-} ${2-}|$*" in
+  "pr view|"*"--json headRefOid"*) cat "$FM_HOME/github-head" ;;
+  *) exit 1 ;;
+esac
+SH
+  chmod +x "$fakebin/gh"
   printf '%s\n' "$home"
 }
 
@@ -295,6 +311,16 @@ test_build_refuses_malformed_payloads_before_touching_the_board() {
   [ "$rc" -ne 0 ] || fail "a non-HTTPS Captain’s Call PR URL was accepted"
 
   write_valid_payload "$data"
+  jq 'del(.captains_call[1].pr_url)' "$data" > "$data.tmp" && mv "$data.tmp" "$data"
+  set +e; out=$(run_board "$home" build "$data" 2>&1); rc=$?; set -e
+  [ "$rc" -ne 0 ] || fail "a merge card that names no PR was accepted"
+
+  write_valid_payload "$data"
+  jq '.captains_call[1].key = "sample-task"' "$data" > "$data.tmp" && mv "$data.tmp" "$data"
+  set +e; out=$(run_board "$home" build "$data" 2>&1); rc=$?; set -e
+  [ "$rc" -ne 0 ] || fail "a merge card whose key is not merge.<task-id> was accepted"
+
+  write_valid_payload "$data"
   jq '.landed = [{
     "id": "sample-landed",
     "repo": "sample",
@@ -324,13 +350,14 @@ test_build_injects_binds_then_arms() {
   assert_present "$board" "build reported success without a board"
 
   # Round-trip: apart from the reconcile choice the build adds to every
-  # decision card, the payload extracted from the built page is the same JSON
-  # document, and the escaped </script> string can no longer terminate the
-  # data block.
+  # decision card and the head it binds every merge card to, the payload
+  # extracted from the built page is the same JSON document, and the escaped
+  # </script> string can no longer terminate the data block.
   extract_payload "$board" | jq -S . > "$home/extracted.json" \
     || fail "the built board does not carry parseable payload JSON"
   jq -S '.captains_call = [.captains_call[]
-      | .options = [.options[] | select(.value != "reconcile")]]' \
+      | .options = [.options[] | select(.value != "reconcile")]
+      | if .type == "merge" then del(.head) else . end]' \
     "$home/extracted.json" > "$home/stripped.json"
   jq -S '.captains_call = [.captains_call[]
       | .options = [.options[] | select(.value != "reconcile")]]' \
@@ -755,6 +782,44 @@ test_build_refuses_a_payload_that_occupies_the_reconcile_value() {
   pass "build refuses a payload that occupies the reserved reconcile value"
 }
 
+# A "Merge now" click is the captain's merge word for the head the card shows,
+# so build records that head for the card's task and carries it on the card,
+# and drops a card it cannot bind, such as a secondmate child's PR that has no
+# task record in this home.
+test_build_binds_each_merge_card_to_the_head_it_shows() {
+  local home data board err pushed=6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b rc=0
+  home=$(make_home merge-binding)
+  data="$home/payload.json"
+  board="$home/.lavish/bearings-board.html"
+  err="$home/build.err"
+  write_valid_payload "$data"
+  jq '.captains_call += [.captains_call[1]
+    | .key = "merge.child-task" | .pr_url = "https://github.com/example/sample/pull/2"]' \
+    "$data" > "$data.tmp" && mv "$data.tmp" "$data"
+
+  run_board "$home" build "$data" >/dev/null 2> "$err" || fail "a payload with merge cards did not build: $(cat "$err")"
+  grep -qxF "approved_head=$SAMPLE_HEAD $SAMPLE_PR_URL" "$home/state/sample-task.meta" \
+    || fail "build did not record the head the merge card shows: $(cat "$home/state/sample-task.meta")"
+  extract_payload "$board" | jq -e --arg head "$SAMPLE_HEAD" '
+    [.captains_call[] | select(.type == "merge")]
+    | length == 1 and .[0].key == "merge.sample-task" and .[0].head == $head' >/dev/null \
+    || fail "the built board does not carry exactly the bound merge card and its head: $(extract_payload "$board")"
+  assert_contains "$(cat "$err")" "dropped-unbound-merge-card: merge.child-task (its head could not be recorded: task metadata is unavailable)" \
+    "build did not name the merge card it could not bind: $(cat "$err")"
+
+  # The click binds to the card's head: that head verifies, and a head pushed
+  # after the build does not.
+  FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
+    "$ROOT/bin/fm-approved-head.sh" verify sample-task "$SAMPLE_PR_URL" "$SAMPLE_HEAD" main 2> "$home/verify.err" \
+    || fail "the head the merge card showed did not verify: $(cat "$home/verify.err")"
+  FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
+    "$ROOT/bin/fm-approved-head.sh" verify sample-task "$SAMPLE_PR_URL" "$pushed" main 2> "$home/verify.err" || rc=$?
+  [ "$rc" -eq 1 ] || fail "a head pushed after the card was built verified (rc=$rc)"
+  assert_contains "$(cat "$home/verify.err")" "the captain approved head $SAMPLE_HEAD, but the live head is $pushed" \
+    "the refusal did not name the card's head: $(cat "$home/verify.err")"
+  pass "build records the head each merge card shows and drops a merge card it cannot bind"
+}
+
 test_build_refuses_a_nondecision_reconcile_value() {
   local home data rc out
   home=$(make_home merge-reconcile-reserved)
@@ -789,3 +854,4 @@ test_build_fails_when_reconcile_cannot_establish_a_listener
 test_every_decision_card_carries_the_reconcile_choice
 test_build_refuses_a_payload_that_occupies_the_reconcile_value
 test_build_refuses_a_nondecision_reconcile_value
+test_build_binds_each_merge_card_to_the_head_it_shows

@@ -13,11 +13,12 @@
 #
 # build      Validate the payload, drop the Captain's Call cards whose subject
 #            already landed, give every surviving decision card the standard
-#            reconcile choice, and inject the result into a fresh copy of the
-#            shipped template at the stable board path. Establish the Lavish
-#            session on that board and PROVE it is live BEFORE binding and
-#            arming its answer source, so a registered poll can never race a
-#            session that does not exist or attach to one that has ended.
+#            reconcile choice, bind every merge card to the head it shows, and
+#            inject the result into a fresh copy of the shipped template at the
+#            stable board path. Establish the Lavish session on that board and
+#            PROVE it is live BEFORE binding and arming its answer source, so a
+#            registered poll can never race a session that does not exist or
+#            attach to one that has ended.
 #            Bind to the keyed-answer intake (bin/fm-captain-hold.sh) ALWAYS
 #            precedes arm, so the board can never produce an answer that has
 #            nowhere to go (captain-hold-lifecycle's ordering rule, enforced
@@ -31,8 +32,8 @@
 #              already-armed: <source-id>    (registration already present)
 #              listening: <owner>            (only when a replacement was needed)
 #            Every dropped card is named on stderr as a `dropped-landed-card:`
-#            line, so a rebuild states what it removed instead of quietly
-#            shrinking Captain's Call.
+#            or `dropped-unbound-merge-card:` line, so a rebuild states what it
+#            removed instead of quietly shrinking Captain's Call.
 # path       Print the stable board path for this home.
 #
 # A LIVE SESSION IS PROVED, NEVER ASSUMED. `lavish-axi <file>` exits 0 even
@@ -53,6 +54,16 @@
 # A task whose state cannot be established is kept, because a call wrongly
 # hidden is worse than a card wrongly shown. Cleanup is therefore a normal
 # rebuild effect rather than a committed migration or direct state mutation.
+#
+# MERGE CARD BINDING. A "Merge now" click is the captain's merge word, and a
+# merge word covers only the head it was given at. So build records the PR's
+# live head as the captain-approved head of the card's task through
+# bin/fm-approved-head.sh record <task-id> <pr_url>, where a merge card's key is
+# merge.<task-id> and its pr_url must be the PR that task records, and sets the
+# card's `head` to that head, which the template shows. bin/fm-pr-merge.sh then
+# merges only that head or a clean catch-up of it. A card whose head cannot be
+# recorded, such as a secondmate child's PR with no task record in this home, is
+# dropped, because a click on it would bind to no head or to one it never showed.
 #
 # THE RECONCILE CHOICE. Every decision card carries the standard `reconcile`
 # option, injected here so the guarantee does not depend on the composer's
@@ -168,7 +179,9 @@ validate_payload() {  # <data.json>
           and (.recommend_value as $recommend
             | ([.options[].value] | index($recommend) != null))))
       and ([.options[].value] | index("reconcile") == null)
-      and (if .type == "merge" then (.risk | nonempty_string) else true end);
+      and (if .type == "merge"
+        then (.risk | nonempty_string) and (.key | startswith("merge.")) and has("pr_url")
+        else true end);
     def underway_item:
       type == "object" and repo_marker and name_marker and (.id | nonempty_string)
       and (.state | nonempty_string) and (.doing | nonempty_string) and (.kind | nonempty_string);
@@ -292,9 +305,10 @@ decision_card_is_stale() {  # <task-id> <landed-0-or-1>
 # Drop every stale decision card, then give every surviving decision card the
 # standard reconcile choice. Injecting it here is what makes "every decision
 # card offers reconcile" a property of the board rather than of the composer's
-# memory; the validator prevents duplicate decision options.
+# memory; the validator prevents duplicate decision options. Every merge card is
+# then bound to the head it shows, or dropped (see MERGE CARD BINDING above).
 effective_payload() {  # <data.json> <dest.json>
-  local data=$1 dest=$2 landed_keys key reason drop='' tmp landed=0
+  local data=$1 dest=$2 landed_keys key reason drop='' tmp landed=0 url out head heads='{}'
   landed_keys=$(jq -c '
     def version_parts: split(".") | map(tonumber);
     . as $payload
@@ -322,17 +336,31 @@ effective_payload() {  # <data.json> <dest.json>
     drop=$drop$key$'\n'
   done < <(jq -r '.captains_call[]? | select(.type == "decision") | .key' "$data")
   tmp=$(printf '%s' "$drop" | jq -R -s 'split("\n") | map(select(length > 0))') || return 1
-  jq --argjson dropped "$tmp" '
+  while IFS=$'\t' read -r key url; do
+    [ -n "$key" ] || continue
+    if out=$(FM_HOME="$FM_HOME" "$SCRIPT_DIR/fm-approved-head.sh" record "${key#merge.}" "$url" 2>&1) \
+      && head=$(printf '%s\n' "$out" | sed -n 's/^recorded: approved head \([0-9a-f]*\) for .*/\1/p') \
+      && [ -n "$head" ]; then
+      heads=$(jq -c --arg key "$key" --arg head "$head" '. + {($key): $head}' <<< "$heads") || return 1
+    else
+      reason=${out##*$'\n'}
+      printf 'dropped-unbound-merge-card: %s (its head could not be recorded: %s)\n' "$key" "${reason#error: }" >&2
+    fi
+  done < <(jq -r '.captains_call[]? | select(.type == "merge") | [.key, .pr_url] | @tsv' "$data")
+  jq --argjson dropped "$tmp" --argjson heads "$heads" '
     .captains_call = [
       .captains_call[]
       | . as $card
       | select($card.type != "decision" or (($dropped | index($card.key)) == null))
+      | select($card.type != "merge" or ($heads | has($card.key)))
       | if .type == "decision"
         then .options += [{
           value: "reconcile",
           label: "Reconcile",
           hint: "Re-check the latest state, then close this with evidence or keep it open with a note"
         }]
+        elif .type == "merge"
+        then .head = $heads[.key]
         else . end
     ]' "$data" > "$dest" || return 1
 }

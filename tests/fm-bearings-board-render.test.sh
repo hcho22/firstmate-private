@@ -266,8 +266,48 @@ test_charted_rows_without_a_filed_date_follow_the_dated_rows_in_payload_order() 
   pass "charted rows with no filed date follow the dated rows in payload order"
 }
 
+# A merge card shows the head build recorded as the captain-approved head, so the
+# captain sees which commit a Merge now click covers.
+test_a_merge_card_shows_the_short_head_a_click_binds_to() {
+  local home data out head=9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e url=https://github.com/example/sample/pull/3
+  home=$(make_home merge-head)
+  data="$home/payload.json"
+  fm_write_meta "$home/state/sample-task.meta" "kind=ship" "pr=$url"
+  printf '%s\n' "$head" > "$home/github-head"
+  cat > "$home/fakebin/gh" <<'SH'
+#!/usr/bin/env bash
+case "${1-} ${2-}|$*" in
+  "pr view|"*"--json headRefOid"*) cat "$FM_HOME/github-head" ;;
+  *) exit 1 ;;
+esac
+SH
+  chmod +x "$home/fakebin/gh"
+  jq -n --arg url "$url" '{
+    schema:"fm-bearings-board.v1", home:"render-home", generated:"2026-08-26T00:00Z",
+    prs_live:false, underway:[], landed:[], charted:[],
+    captains_call:[{key:"merge.sample-task", type:"merge", repo:"sample",
+      title:"Merge: sample change", pr_url:$url, risk:"low",
+      options:[{value:"merge", label:"Merge now"}, {value:"hold", label:"Not yet"}]}]}' > "$data"
+  PATH="$home/fakebin:$PATH" FM_HOME="$home" \
+    FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
+    FM_PROCEVENT_CLAIM_ROOT="$home/procevent-claims" \
+    LAVISH_AXI_STATE_DIR="$home/lavish-state" \
+    "$BOARD" build "$data" >/dev/null || fail "the merge-card board did not build"
+  require_listener_reached_poll "$home"
+  out=$(node "$HARNESS" "$home/.lavish/bearings-board.html") || fail "the built board could not be rendered"
+  printf '%s' "$out" | jq -e '.error == ""' >/dev/null \
+    || fail "the board rendered its fail-closed error instead of the fleet: $out"
+  printf '%s' "$out" | jq -e --arg head "$head" '
+    (.call | length) == 1
+      and (.call[0] | .title == "Merge: sample change"
+        and .head == ("head " + $head[0:7]) and .head_title == $head)
+  ' >/dev/null || fail "the merge card did not show the short head a click binds to: $out"
+  pass "a merge card shows the short head a Merge now click binds to"
+}
+
 test_an_underway_row_leads_with_the_task_name_and_keeps_its_run_status
 test_an_underway_identifier_label_is_not_replaced_by_run_status
+test_a_merge_card_shows_the_short_head_a_click_binds_to
 test_charted_next_reads_newest_filed_first
 test_charted_rows_without_a_filed_date_follow_the_dated_rows_in_payload_order
 test_a_warning_row_reads_as_a_repair_not_as_queued_work
