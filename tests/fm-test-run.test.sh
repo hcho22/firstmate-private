@@ -2103,7 +2103,7 @@ init_worker_leak_fixture() {
   local repo=$1 file
   mkdir -p "$repo/bin" "$repo/tests"
   for file in fm-test-run.sh fm-timeout-lib.sh fm-test-run-reap.sh \
-    fm-remote-job-lib.sh fm-remote-job-worker.sh; do
+    fm-remote-job-lib.sh fm-remote-job-worker.sh fm-mkdir-lib.sh; do
     cp "$ROOT/bin/$file" "$repo/bin/$file"
   done
   chmod +x "$repo/bin"/*.sh
@@ -2133,7 +2133,8 @@ if [ "$FIXTURE_ROOT" = checkout ]; then
 else
   root="$TMPDIR/remote-root"
   mkdir -p "$root/bin"
-  cp "$repo/bin/fm-remote-job-lib.sh" "$repo/bin/fm-remote-job-worker.sh" "$root/bin/"
+  cp "$repo/bin/fm-remote-job-lib.sh" "$repo/bin/fm-remote-job-worker.sh" \
+    "$repo/bin/fm-mkdir-lib.sh" "$root/bin/"
   printf 'fixture\n' >"$root/AGENTS.md"
   git -C "$root" init -q -b main
   git -C "$root" -c user.email=test@example.com -c user.name=Test add AGENTS.md bin
@@ -2335,7 +2336,8 @@ test_reap_spares_workers_outside_the_sandbox() {
   local foreign real_lsof deadline state pid supervisor read_pids
   foreign=$(fm_test_tmproot fm-test-run-foreign-worker)
   mkdir -p "$foreign/root/bin" "$foreign/account" "$foreign/shim"
-  cp "$ROOT/bin/fm-remote-job-lib.sh" "$ROOT/bin/fm-remote-job-worker.sh" "$foreign/root/bin/"
+  cp "$ROOT/bin/fm-remote-job-lib.sh" "$ROOT/bin/fm-remote-job-worker.sh" \
+    "$ROOT/bin/fm-mkdir-lib.sh" "$foreign/root/bin/"
   printf 'fixture\n' >"$foreign/root/AGENTS.md"
   real_lsof=$(command -v lsof || true)
   cat >"$foreign/shim/lsof" <<SH

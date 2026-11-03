@@ -96,6 +96,13 @@
 # it to stop itself once its root is pruned, and
 # bin/fm-remote-job-reap-orphans.sh uses it to reap workers that were already
 # orphaned that way.
+#
+# Sequence, job, and worker-lock claims are directories made by
+# fm_mkdir_exclusive from bin/fm-mkdir-lib.sh, which this file sources from its
+# own directory, so that file is part of the worker's code identity too.
+
+# shellcheck source=bin/fm-mkdir-lib.sh
+. "$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/fm-mkdir-lib.sh"
 
 FM_REMOTE_JOB_LABEL=dev.firstmate.remote-job
 FM_REMOTE_JOB_MAX_BYTES=${FM_REMOTE_JOB_MAX_BYTES:-1048576}
@@ -606,7 +613,7 @@ fm_remote_job_next_seq() { # [stage-dir destination]
     attempt=$((attempt + 1))
     value=$((value + 1))
     claim="$FM_REMOTE_JOB_SEQ_CLAIMS/$value"
-    if (umask 077; mkdir "$claim") 2>/dev/null; then
+    if fm_mkdir_exclusive "$claim" 700 2>/dev/null; then
       chmod 700 "$claim" || return 1
       fm_remote_job_advance_seq_hint "$value" || true
       if [ -n "$stage" ]; then
@@ -1099,7 +1106,7 @@ fm_remote_job_worker_owned_alive() {
   pid=$(fm_remote_job_read_single_line "$pid_file" 64) || return 1
   case "$pid" in ''|*[!0-9]*) return 1 ;; esac
   identity_file=$(fm_remote_job_worker_identity_path)
-  fm_remote_job_regular_bounded "$identity_file" 256 || return 1
+  fm_remote_job_regular_bounded "$identity_file" 512 || return 1
   fm_remote_job_probe "$account_home" || return 1
   if fm_remote_job_lock_owner_matches_process "$account_home"; then
     [ "$pid" = "$FM_REMOTE_JOB_OWNER_PID" ] || return 1
@@ -1115,19 +1122,22 @@ fm_remote_job_worker_owned_alive() {
 }
 
 fm_remote_job_code_identity() { # <remote-root> <account-home>
-  local root=$1 account_home=$2 git_bin root_hash library_hash worker_hash
+  local root=$1 account_home=$2 git_bin root_hash library_hash worker_hash mkdir_hash
   root=$(fm_remote_job_canonical_existing_dir "$root") || return 1
   [ -f "$root/bin/fm-remote-job-lib.sh" ] && [ ! -L "$root/bin/fm-remote-job-lib.sh" ] || return 1
   [ -f "$root/bin/fm-remote-job-worker.sh" ] && [ ! -L "$root/bin/fm-remote-job-worker.sh" ] || return 1
+  [ -f "$root/bin/fm-mkdir-lib.sh" ] && [ ! -L "$root/bin/fm-mkdir-lib.sh" ] || return 1
   fm_remote_job_compose_operator_path "$account_home" >/dev/null
   git_bin=$(fm_remote_job_operator_tool git 2>/dev/null || true)
   [ -n "$git_bin" ] || return 1
   root_hash=$(printf '%s' "$root" | "$git_bin" hash-object --stdin 2>/dev/null) || return 1
   library_hash=$("$git_bin" hash-object -- "$root/bin/fm-remote-job-lib.sh" 2>/dev/null) || return 1
   worker_hash=$("$git_bin" hash-object -- "$root/bin/fm-remote-job-worker.sh" 2>/dev/null) || return 1
-  case "$root_hash:$library_hash:$worker_hash" in *[!0-9a-f:]*) return 1 ;; esac
-  [ -n "$root_hash" ] && [ -n "$library_hash" ] && [ -n "$worker_hash" ] || return 1
-  printf '%s:%s:%s\n' "$root_hash" "$library_hash" "$worker_hash"
+  mkdir_hash=$("$git_bin" hash-object -- "$root/bin/fm-mkdir-lib.sh" 2>/dev/null) || return 1
+  case "$root_hash:$library_hash:$worker_hash:$mkdir_hash" in *[!0-9a-f:]*) return 1 ;; esac
+  [ -n "$root_hash" ] && [ -n "$library_hash" ] && [ -n "$worker_hash" ] && [ -n "$mkdir_hash" ] \
+    || return 1
+  printf '%s:%s:%s:%s\n' "$root_hash" "$library_hash" "$worker_hash" "$mkdir_hash"
 }
 
 fm_remote_job_worker_identity_matches() { # <remote-root> <account-home>
@@ -1135,7 +1145,7 @@ fm_remote_job_worker_identity_matches() { # <remote-root> <account-home>
   [ "${FM_REMOTE_JOB_ACTIVE:-}" != 1 ] || return 0
   fm_remote_job_prepare_state "$account_home" || return 1
   identity_file=$(fm_remote_job_worker_identity_path)
-  fm_remote_job_regular_bounded "$identity_file" 256 || return 1
+  fm_remote_job_regular_bounded "$identity_file" 512 || return 1
   IFS= read -r actual < "$identity_file" || return 1
   if IFS= read -r extra < <(tail -n +2 "$identity_file"); then
     : "$extra"

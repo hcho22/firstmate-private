@@ -134,6 +134,8 @@ PROJECTS="${FM_PROJECTS_OVERRIDE:-$FM_HOME/projects}"
 BACKLOG="$DATA/backlog.md"
 # shellcheck source=bin/fm-task-data-lib.sh
 . "$SCRIPT_DIR/fm-task-data-lib.sh"
+# shellcheck source=bin/fm-mkdir-lib.sh
+. "$SCRIPT_DIR/fm-mkdir-lib.sh"
 SNAPSHOT_NOW=${FM_SNAPSHOT_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
 if [ -n "${FM_SNAPSHOT_NOW_EPOCH:-}" ]; then
   SNAPSHOT_EPOCH=$FM_SNAPSHOT_NOW_EPOCH
@@ -1339,7 +1341,7 @@ snapshot_cache_prepare() {
     [ $((8#$mode & 077)) -eq 0 ] || return 1
   else
     [ -d "$(dirname "$FM_SNAPSHOT_CACHE_DIR")" ] || return 1
-    (umask 077; mkdir "$FM_SNAPSHOT_CACHE_DIR") 2>/dev/null || return 1
+    fm_mkdir_exclusive "$FM_SNAPSHOT_CACHE_DIR" 700 2>/dev/null || return 1
   fi
   SNAPSHOT_CACHE_AVAILABLE=1
 }
