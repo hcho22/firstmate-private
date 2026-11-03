@@ -32,15 +32,15 @@ esac
 SH
 chmod +x "$FAKEBIN/mkdir"
 
-# Run <script> in a fresh shell that sourced the library, with the stand-in as
-# the host mkdir, so each run probes the host mkdir anew.
-with_fake_mkdir() {  # <identity> <behavior> <script> [args...]
-  local identity=$1 behavior=$2 script=$3
-  shift 3
+# Run fm_mkdir_exclusive under <umask> in a fresh shell that sourced the
+# library, with the stand-in as the host mkdir, so each run probes it anew.
+with_fake_mkdir() {  # <identity> <behavior> <umask> <dir> [mode]
+  local identity=$1 behavior=$2
+  shift 2
   # shellcheck disable=SC2016 # Expanded by the inner shell.
   PATH="$FAKEBIN:$PATH" FAKE_MKDIR_IDENTITY=$identity FAKE_MKDIR_BEHAVIOR=$behavior \
     FAKE_MKDIR_CALLS=$CALLS FAKE_MKDIR_REAL=$REAL_MKDIR \
-    bash -c '. "$1"; shift; '"$script" _ "$LIB" "$@"
+    bash -c '. "$1"; umask "$2"; shift 2; fm_mkdir_exclusive "$@"' _ "$LIB" "$@"
 }
 
 has_mode() {  # <dir> <octal-mode>
@@ -53,10 +53,10 @@ test_a_claim_lost_to_another_process_fails_under_a_uutils_mkdir() {
   PATH="$FAKEBIN:$PATH" FAKE_MKDIR_IDENTITY='uutils coreutils' FAKE_MKDIR_BEHAVIOR=lost-race \
     FAKE_MKDIR_CALLS="$TMP_ROOT/fixture-calls" FAKE_MKDIR_REAL=$REAL_MKDIR mkdir "$dir.fixture" \
     || fail "fixture: the uutils stand-in must report success for a directory that exists"
-  with_fake_mkdir 'uutils coreutils' lost-race 'fm_mkdir_exclusive "$1"' "$dir" \
+  with_fake_mkdir 'uutils coreutils' lost-race 022 "$dir" \
     || fail "a fresh claim was refused under a uutils mkdir"
   [ -d "$dir" ] || fail "a claim under a uutils mkdir did not make its directory"
-  with_fake_mkdir 'uutils coreutils' lost-race 'fm_mkdir_exclusive "$1"' "$dir" 2>/dev/null || rc=$?
+  with_fake_mkdir 'uutils coreutils' lost-race 022 "$dir" 2>/dev/null || rc=$?
   [ "$rc" -ne 0 ] || fail "a second claim of one directory succeeded under a uutils mkdir"
   pass "a claim another process already made fails under a uutils mkdir that reports success for it"
 }
@@ -64,9 +64,9 @@ test_a_claim_lost_to_another_process_fails_under_a_uutils_mkdir() {
 test_any_other_mkdir_makes_the_claim_itself() {
   local dir="$TMP_ROOT/gnu-claim" rc=0
   : > "$CALLS"
-  with_fake_mkdir 'GNU coreutils' real 'fm_mkdir_exclusive "$1"' "$dir" \
+  with_fake_mkdir 'GNU coreutils' real 022 "$dir" \
     || fail "a fresh claim was refused under a GNU mkdir"
-  with_fake_mkdir 'GNU coreutils' real 'fm_mkdir_exclusive "$1"' "$dir" 2>/dev/null || rc=$?
+  with_fake_mkdir 'GNU coreutils' real 022 "$dir" 2>/dev/null || rc=$?
   [ "$rc" -ne 0 ] || fail "a second claim of one directory succeeded under a GNU mkdir"
   [ "$(grep -c -- "$dir" "$CALLS")" -eq 2 ] \
     || fail "a GNU mkdir did not make both claim attempts itself: $(cat "$CALLS")"
@@ -78,10 +78,10 @@ test_a_mode_is_exact_and_no_mode_follows_the_umask() {
   for identity in 'uutils coreutils' 'GNU coreutils'; do
     case "$identity" in uutils*) behavior=lost-race label=uutils ;; *) behavior=real label=GNU ;; esac
     dir="$TMP_ROOT/mode-$label"
-    with_fake_mkdir "$identity" "$behavior" 'umask 077; fm_mkdir_exclusive "$1" 750' "$dir-750" \
+    with_fake_mkdir "$identity" "$behavior" 077 "$dir-750" 750 \
       || fail "$label: a claim with a mode was refused"
     has_mode "$dir-750" 0750 || fail "$label: mode 750 under umask 077 was not exact"
-    with_fake_mkdir "$identity" "$behavior" 'umask 022; fm_mkdir_exclusive "$1"' "$dir-umask" \
+    with_fake_mkdir "$identity" "$behavior" 022 "$dir-umask" \
       || fail "$label: a claim without a mode was refused"
     has_mode "$dir-umask" 0755 || fail "$label: a claim without a mode did not follow umask 022"
   done
