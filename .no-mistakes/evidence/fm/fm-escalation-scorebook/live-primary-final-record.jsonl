@@ -1,0 +1,23 @@
+{"event":"ask","at":"2026-11-03T22:57:41Z","id":"chat-20261103T225740Z-89333","kind":"design","recommendation":"Absolute (\"Nov 6\"): the board and filed report persist past the day they were built, so a relative label goes wrong while an absolute one stays true and matches the defer-until date as set","held":false,"question":"Bearings board due dates: relative (\"in 3 days\") or absolute (\"Nov 6\")?","task":null,"project":null}
+{"event":"answer","at":"2026-11-03T22:58:18Z","id":"chat-20261103T225740Z-89333","matched":false,"answer":"Relative, please - \"in 3 days\" reads faster for me."}
+{"event":"ask","at":"2026-11-03T22:58:47Z","id":"chat-20261103T225847Z-28011","kind":"design","recommendation":"fixture rec 1","held":false,"question":"fixture design pick 1","task":null,"project":"firstmate"}
+{"event":"answer","at":"2026-11-03T22:58:47Z","id":"chat-20261103T225847Z-28011","matched":true,"answer":"fixture: as recommended 1"}
+{"event":"ask","at":"2026-11-03T22:58:48Z","id":"chat-20261103T225848Z-28425","kind":"design","recommendation":"fixture rec 2","held":false,"question":"fixture design pick 2","task":null,"project":"firstmate"}
+{"event":"answer","at":"2026-11-03T22:58:48Z","id":"chat-20261103T225848Z-28425","matched":true,"answer":"fixture: as recommended 2"}
+{"event":"ask","at":"2026-11-03T22:58:49Z","id":"chat-20261103T225849Z-29017","kind":"design","recommendation":"fixture rec 3","held":false,"question":"fixture design pick 3","task":null,"project":"firstmate"}
+{"event":"answer","at":"2026-11-03T22:58:49Z","id":"chat-20261103T225849Z-29017","matched":true,"answer":"fixture: as recommended 3"}
+{"event":"ask","at":"2026-11-03T22:58:50Z","id":"chat-20261103T225849Z-29698","kind":"design","recommendation":"fixture rec 4","held":false,"question":"fixture design pick 4","task":null,"project":"firstmate"}
+{"event":"answer","at":"2026-11-03T22:58:50Z","id":"chat-20261103T225849Z-29698","matched":true,"answer":"fixture: as recommended 4"}
+{"event":"ask","at":"2026-11-03T22:58:51Z","id":"chat-20261103T225851Z-30415","kind":"design","recommendation":"fixture rec 5","held":false,"question":"fixture design pick 5","task":null,"project":"firstmate"}
+{"event":"answer","at":"2026-11-03T22:58:51Z","id":"chat-20261103T225851Z-30415","matched":true,"answer":"fixture: as recommended 5"}
+{"event":"ask","at":"2026-11-03T22:58:52Z","id":"chat-20261103T225851Z-30930","kind":"design","recommendation":"fixture rec 6","held":false,"question":"fixture design pick 6","task":null,"project":"firstmate"}
+{"event":"answer","at":"2026-11-03T22:58:52Z","id":"chat-20261103T225851Z-30930","matched":true,"answer":"fixture: as recommended 6"}
+{"event":"ask","at":"2026-11-03T22:58:53Z","id":"chat-20261103T225852Z-31439","kind":"design","recommendation":"fixture rec 7","held":false,"question":"fixture design pick 7","task":null,"project":"firstmate"}
+{"event":"answer","at":"2026-11-03T22:58:53Z","id":"chat-20261103T225852Z-31439","matched":true,"answer":"fixture: as recommended 7"}
+{"event":"ask","at":"2026-11-03T22:58:54Z","id":"chat-20261103T225853Z-32058","kind":"design","recommendation":"fixture rec 8","held":false,"question":"fixture design pick 8","task":null,"project":"firstmate"}
+{"event":"answer","at":"2026-11-03T22:58:54Z","id":"chat-20261103T225853Z-32058","matched":true,"answer":"fixture: as recommended 8"}
+{"event":"ask","at":"2026-11-03T22:58:55Z","id":"chat-20261103T225854Z-32657","kind":"design","recommendation":"fixture rec 9","held":false,"question":"fixture design pick 9","task":null,"project":"firstmate"}
+{"event":"answer","at":"2026-11-03T22:58:55Z","id":"chat-20261103T225854Z-32657","matched":true,"answer":"fixture: as recommended 9"}
+{"event":"ask","at":"2026-11-03T22:59:21Z","id":"chat-20261103T225921Z-48173","kind":"design","recommendation":"Listed by date, as today: one list answers what comes up next, every row already names its project, some rows have no project, and it pairs with the relative due labels","held":false,"question":"Bearings board Charted Next: grouped by project or listed by date?","task":null,"project":null}
+{"event":"answer","at":"2026-11-03T22:59:48Z","id":"chat-20261103T225921Z-48173","matched":true,"answer":"Agreed - keep it as one list by date."}
+{"event":"grant","at":"2026-11-03T23:00:53Z","kind":"design","captain_words":"Good catch - leave them, I seeded those nine myself to exercise this flow. And yes: from now on, make design picks yourself and stop bringing them to me.\n"}

@@ -1,0 +1,13 @@
+kind            asked answered matched open withdrawn recent  status
+finding-scope       0        0       0    0         0    0/0  not-yet
+finding-design      0        0       0    0         0    0/0  not-yet
+finding-repeat      0        0       0    0         0    0/0  not-yet
+design             11       11      10    0         0  10/10  granted
+merge               0        0       0    0         0    0/0  captain-only
+credential          0        0       0    0         0    0/0  captain-only
+destructive         0        0       0    0         0    0/0  captain-only
+authority           0        0       0    0         0    0/0  captain-only
+other               0        0       0    0         0    0/0  not-yet
+
+A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
+A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).

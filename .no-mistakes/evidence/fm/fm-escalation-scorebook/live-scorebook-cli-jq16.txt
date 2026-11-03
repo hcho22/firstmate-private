@@ -1,0 +1,307 @@
+# lab home: /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.E4620c
+# jq: /Users/hcho/opt/anaconda3/bin/jq jq-1.6  tasks-axi: 0.2.6
+
+########## S1 kinds lists every kind, its hand-off status, and definition
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh kinds
+finding-scope	hand-off	an ask-user review finding whose fix would expand the accepted contract
+finding-design	hand-off	an ask-user review finding that needs a product or architecture call the accepted intent does not settle
+finding-repeat	hand-off	a repeated same-theme review finding while fixes accrete around a questionable abstraction
+design	hand-off	a design or product pick outside a review gate, such as an investigation, visual review, or intake question
+merge	captain-only	a merge or local landing approval; a project's yolo posture, not this record, is the only standing relaxation
+credential	captain-only	a credential or login only the captain can supply
+destructive	captain-only	a destructive, irreversible, or security-sensitive action
+authority	captain-only	any other action AGENTS.md's hard rules or captain-instruction precedence reserve for his own concrete word, such as a direct project write under hard rule 1
+other	hand-off	any other question no AGENTS.md rule reserves for his own word
+[exit 0]
+CHECK ok   - authority is captain-only
+CHECK ok   - merge/credential/destructive captain-only
+CHECK ok   - design is hand-off with joined definition
+CHECK ok   - all 9 kinds have a non-empty definition column
+
+########## S2 chat question round-trips: ask -> pending -> answer -> report -> record
+recorded id: chat-20261103T225432Z-50137
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh pending
+chat-20261103T225432Z-50137	design	chat	2026-11-03T22:54:32Z	board-layout	Option A: one column
+[exit 0]
+CHECK ok   - pending shows id, kind, chat, task, recommendation
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh answer chat-20261103T225432Z-50137 --matched no
+fm-scorebook: question chat-20261103T225432Z-50137 was asked in chat: pass his answer with --answer
+[exit 1]
+CHECK ok   - chat answer without the captain's words refused (exit 1)
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh answer chat-20261103T225432Z-50137 --matched no --answer Two columns, please.
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh pending
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh report
+kind            asked answered matched open withdrawn recent  status
+finding-scope       0        0       0    0         0    0/0  not-yet
+finding-design      0        0       0    0         0    0/0  not-yet
+finding-repeat      0        0       0    0         0    0/0  not-yet
+design              1        1       0    0         0    0/1  not-yet
+merge               0        0       0    0         0    0/0  captain-only
+credential          0        0       0    0         0    0/0  captain-only
+destructive         0        0       0    0         0    0/0  captain-only
+authority           0        0       0    0         0    0/0  captain-only
+other               0        0       0    0         0    0/0  not-yet
+
+A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
+A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
+[exit 0]
+--- persisted record ---
+{"event":"ask","at":"2026-11-03T22:54:32Z","id":"chat-20261103T225432Z-50137","kind":"design","recommendation":"Option A: one column","held":false,"question":"Which layout for the status board?","task":"board-layout","project":"firstmate"}
+{"event":"answer","at":"2026-11-03T22:54:33Z","id":"chat-20261103T225432Z-50137","matched":false,"answer":"Two columns, please."}
+CHECK ok   - record keeps question, recommendation, task, project
+CHECK ok   - record keeps captain's words and matched=false
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh answer chat-20261103T225432Z-50137 --matched yes --answer again
+fm-scorebook: no open question with id chat-20261103T225432Z-50137
+[exit 1]
+CHECK ok   - second answer to an answered question refused
+
+########## S3 held question on a real captain hold (fm-captain-hold.sh + tasks-axi)
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh ask --kind finding-design --recommend keep the queue --held remote-task
+fm-scorebook: task remote-task is not in this home's backlog; record a question asked in chat or relayed from another home with --question
+[exit 1]
+CHECK ok   - ask --held on a task absent from this home refused (exit 1)
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh ask --kind finding-design --recommend keep the queue --held local-task
+fm-scorebook: task local-task is not held for the captain yet; hold it first with fm-captain-hold.sh hold, or record a chat question with --question
+[exit 1]
+CHECK ok   - ask --held on a local task not yet held refused (exit 1)
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-captain-hold.sh hold local-task --reason Captain picks the queue shape: keep the queue or replace with a stream? --repo firstmate
+local-task
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-captain-hold.sh open local-task --identity
+2026-11-03T22:54:36Z#0
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh ask --kind finding-design --recommend "keep the queue" --held local-task --project firstmate
+local-task
+CHECK ok   - held question id is the task id
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh ask --kind finding-design --recommend again --held local-task
+fm-scorebook: question local-task is already open; answer or withdraw it first
+[exit 1]
+CHECK ok   - second open question on the same held task refused
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh ask --kind design --recommend "ship now" --question "Ship now or after the stream lands?" --task local-task --project firstmate
+chat-20261103T225443Z-62522
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh pending
+local-task	finding-design	held	2026-11-03T22:54:41Z	local-task	keep the queue
+chat-20261103T225443Z-62522	design	chat	2026-11-03T22:54:43Z	local-task	ship now
+[exit 0]
+CHECK ok   - pending shows held question with task and recommendation
+CHECK ok   - pending shows the further chat question linked to the held task
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh answer local-task --matched yes
+fm-scorebook: task local-task is still an open captain call with no answer recorded since the question; record his answer with fm-captain-hold.sh answer first
+[exit 1]
+CHECK ok   - held answer refused before the captain's words are on the task
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-captain-hold.sh answer local-task --decision-file /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.E4620c/decision.txt
+answered: local-task
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh answer local-task --matched yes --answer Keep the queue.
+fm-scorebook: question local-task is held on its task: record the captain's words with fm-captain-hold.sh answer, not --answer
+[exit 1]
+CHECK ok   - held answer refuses copied --answer words
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh answer local-task --matched yes
+[exit 0]
+CHECK ok   - held answer accepted once the captain answered the call
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh answer chat-20261103T225443Z-62522 --matched yes --answer Ship now.
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh pending
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh report
+kind            asked answered matched open withdrawn recent  status
+finding-scope       0        0       0    0         0    0/0  not-yet
+finding-design      1        1       1    0         0    1/1  not-yet
+finding-repeat      0        0       0    0         0    0/0  not-yet
+design              2        2       1    0         0    1/2  not-yet
+merge               0        0       0    0         0    0/0  captain-only
+credential          0        0       0    0         0    0/0  captain-only
+destructive         0        0       0    0         0    0/0  captain-only
+authority           0        0       0    0         0    0/0  captain-only
+other               0        0       0    0         0    0/0  not-yet
+
+A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
+A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
+[exit 0]
+CHECK ok   - captain's held words not copied into the scorebook
+--- backlog after the call ---
+## In flight
+
+## Queued
+## Done
+- [x] local-task - Queue rework (repo: firstmate) (done 2026-11-03) (hold: fm-hold-v1:Q2FwdGFpbiBwaWNrcyB0aGUgcXVldWUgc2hhcGU6IGtlZXAgdGhlIHF1ZXVlIG9yIHJlcGxhY2Ugd2l0aCBhIHN0cmVhbT8=) (hold-kind: captain)
+  Resolution recorded by fm-captain-hold.
+  Decision digest: c5b9ccb3addcaf3a4bd407164d5c893faa93a5f858da2f30d96153b5bd368bc1
+  Resolution mode: answered
+
+  Captain decision:
+  Keep the queue.
+
+
+########## S4 threshold: a kind answered as recommended 10 times newly qualifies, announced once
+answer  1 (chat-20261103T225450Z-71469) -> <no output>
+answer  2 (chat-20261103T225451Z-72339) -> <no output>
+answer  3 (chat-20261103T225452Z-73234) -> <no output>
+answer  4 (chat-20261103T225453Z-74255) -> <no output>
+answer  5 (chat-20261103T225454Z-75242) -> <no output>
+answer  6 (chat-20261103T225455Z-76291) -> <no output>
+answer  7 (chat-20261103T225455Z-77175) -> <no output>
+answer  8 (chat-20261103T225456Z-78072) -> <no output>
+answer  9 (chat-20261103T225457Z-78727) -> <no output>
+answer 10 (chat-20261103T225458Z-79458) -> finding-repeat newly qualifies for hand-off: its 10 most recent answers all matched the recommendation (10 answered, 10 matched)
+answer 11 (chat-20261103T225459Z-80317) -> <no output>
+CHECK ok   - the 10th matching answer announced the kind
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh report
+kind            asked answered matched open withdrawn recent  status
+finding-scope       0        0       0    0         0    0/0  not-yet
+finding-design      1        1       1    0         0    1/1  not-yet
+finding-repeat     11       11      11    0         0  10/10  qualifies
+design              2        2       1    0         0    1/2  not-yet
+merge               0        0       0    0         0    0/0  captain-only
+credential          0        0       0    0         0    0/0  captain-only
+destructive         0        0       0    0         0    0/0  captain-only
+authority           0        0       0    0         0    0/0  captain-only
+other               0        0       0    0         0    0/0  not-yet
+
+A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
+A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
+[exit 0]
+
+########## S5 grant: a qualifying kind stays the captain's until he says yes
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh granted finding-repeat
+[exit 1]
+CHECK ok   - qualifying but ungranted kind is not granted (exit 1)
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh grant finding-repeat
+fm-scorebook: grant needs --captain-words-file with the captain's own yes
+[exit 2]
+CHECK ok   - grant without captain words refused (exit 2)
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh grant finding-repeat --captain-words-file /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.E4620c/empty.txt
+fm-scorebook: captain words file is missing or empty: /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.E4620c/empty.txt
+[exit 1]
+CHECK ok   - grant with empty captain words refused (exit 1)
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh grant finding-repeat --captain-words-file /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.E4620c/yes.txt
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh granted finding-repeat
+[exit 0]
+CHECK ok   - granted kind passes the check (exit 0)
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh granted finding-scope
+[exit 1]
+CHECK ok   - a grant for one kind does not grant another
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh report
+kind            asked answered matched open withdrawn recent  status
+finding-scope       0        0       0    0         0    0/0  not-yet
+finding-design      1        1       1    0         0    1/1  not-yet
+finding-repeat     11       11      11    0         0  10/10  granted
+design              2        2       1    0         0    1/2  not-yet
+merge               0        0       0    0         0    0/0  captain-only
+credential          0        0       0    0         0    0/0  captain-only
+destructive         0        0       0    0         0    0/0  captain-only
+authority           0        0       0    0         0    0/0  captain-only
+other               0        0       0    0         0    0/0  not-yet
+
+A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
+A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh revoke finding-repeat --reason captain wants to see these again
+[exit 0]
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh granted finding-repeat
+[exit 1]
+CHECK ok   - revoked kind no longer granted
+
+########## S6 adversarial: captain-only kinds can never be handed off
+CHECK ok   - 10 matching authority answers announced nothing
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh grant authority --captain-words-file /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.E4620c/blanket.txt
+fm-scorebook: kind authority always stays with the captain: AGENTS.md reserves it for his own concrete word, so it cannot be handed to firstmate
+[exit 1]
+CHECK ok   - grant authority refused (exit 1)
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh grant merge --captain-words-file /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.E4620c/blanket.txt
+fm-scorebook: kind merge always stays with the captain: AGENTS.md reserves it for his own concrete word, so it cannot be handed to firstmate
+[exit 1]
+CHECK ok   - grant merge refused (exit 1)
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh grant credential --captain-words-file /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.E4620c/blanket.txt
+fm-scorebook: kind credential always stays with the captain: AGENTS.md reserves it for his own concrete word, so it cannot be handed to firstmate
+[exit 1]
+CHECK ok   - grant credential refused (exit 1)
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh grant destructive --captain-words-file /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.E4620c/blanket.txt
+fm-scorebook: kind destructive always stays with the captain: AGENTS.md reserves it for his own concrete word, so it cannot be handed to firstmate
+[exit 1]
+CHECK ok   - grant destructive refused (exit 1)
+(hand-appended grant events for merge and authority to the record)
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh granted merge
+[exit 1]
+CHECK ok   - hand-written grant for merge does not make it granted
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh granted authority
+[exit 1]
+CHECK ok   - hand-written grant for authority does not make it granted
+
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh report
+kind            asked answered matched open withdrawn recent  status
+finding-scope       0        0       0    0         0    0/0  not-yet
+finding-design      1        1       1    0         0    1/1  not-yet
+finding-repeat     11       11      11    0         0  10/10  qualifies
+design              2        2       1    0         0    1/2  not-yet
+merge               0        0       0    0         0    0/0  captain-only
+credential          0        0       0    0         0    0/0  captain-only
+destructive         0        0       0    0         0    0/0  captain-only
+authority          10       10      10    0         0  10/10  captain-only
+other               0        0       0    0         0    0/0  not-yet
+
+A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
+A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
+[exit 0]
+
+########## S7 adversarial: concurrent writers serialize; one question answered once
+CHECK ok   - every concurrent ask produced a distinct id
+CHECK ok   - record is still valid JSON lines
+racing answers to chat-20261103T225510Z-92452: 1 of 6 accepted
+CHECK ok   - exactly one of six racing answers to one question accepted
+CHECK ok   - exactly one answer event recorded for it
+
+########## S8 adversarial: the record never lands on a git-tracked path
+
+$ FM_HOME=<tracked repo> /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh ask --kind other --recommend r --question q
+fm-scorebook: refusing to write /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.E4620c-tracked/data/captain-scorebook.jsonl: it is not ignored by the git work tree that contains it
+[exit 1]
+CHECK ok   - ask into a tracked data dir refused
+CHECK ok   - no record written there
+
+$ FM_HOME=<repo ignoring data/> /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18K66NSHQ8C358YX9T6B/bin/fm-scorebook.sh ask --kind other --recommend r --question q
+chat-20261103T225515Z-98511
+CHECK ok   - ask into an ignored data dir writes the record and leaves git clean
+
+########## RESULT: 0 failed checks

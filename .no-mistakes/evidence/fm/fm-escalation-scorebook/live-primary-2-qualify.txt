@@ -1,0 +1,39 @@
+  Why a date list:
+  - The section is about what comes next. One list puts the most pressing item at the top no matter which project it's in. If it were grouped by project, an item due tomorrow in one project could sit
+    below everything in another.
+  - Each row already shows its project under the title, so a date list still tells you where every item belongs.
+  - Some rows belong to no project, such as repair warnings and the catch-up notice after you've been away. Grouping would need a catch-all bucket just for those.
+  - It goes well with the relative dates you just chose. Reading down a list that runs "in 1 day," "in 3 days," and so on is about as fast as it gets.
+  The case for grouping is when one project has so many rows that they swamp the list. The section shows at most 20 rows, and this home has no projects registered yet, so I don't expect that to
+  happen.
+  Note that "by date" currently means newest filed first, not soonest due. If you'd rather have it sorted by soonest due, we can decide that separately later.
+  Which do you want: grouped by project, or listed by date? Nothing gets built until you decide.
+✻ Crunched for 31s · done 2:59 PM
+❯ Agreed - keep it as one list by date.
+  Ran 1 shell command
+⏺ Update(/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.rnqOi7/data/captain.md)
+  ⎿  Added 2 lines
+      4
+      5  - Show due and defer-until dates as relative labels ("in 3 days"), not absolute dates ("Nov 6"); the captain finds relative faster to read (chosen 2026-11-03).
+      6    The board is a built snapshot that can stay open for days, so compute the relative label when the board is viewed rather than baking it in at build time.
+      7 +- Keep Charted Next as one date-ordered list with each row's project shown on the row, not grouped by project (confirmed 2026-11-03).
+      8 +  Whether "date" means newest filed (current behavior) or soonest due is still open.
+  ⎿  Allowed by auto mode classifier
+  Ran 1 shell command
+⏺ Captain, it's settled: Charted Next stays one list in date order, with each row's project shown on the row. I've added that to your saved preferences. Since that's how the board already works,
+  nothing needs building.
+  Something else came up while I was recording your answer.
+  What I found: I keep a tally of how often you go with my design recommendations. Once you've agreed with my last 10 in a row, I can ask whether you want to let me make that kind of call myself.
+  Between your first answer and my second question, nine extra entries showed up in that tally. They're labeled "fixture design pick 1" through "fixture design pick 9", each marked as answered my way,
+  all written within about eight seconds. I didn't write them, and they look like test data, not anything you said.
+  Why it matters: Counting those nine, the tally says you've agreed with my last 10 design picks. That would make it look like it's time to ask you about handing those calls to me. Your real record is
+  two answers: you overruled me on relative dates and agreed on the list order. I'm ignoring the bogus entries, and nothing changes unless you explicitly hand design picks to me, which I'm not asking
+  for.
+  My recommendation: Let me save a backup copy of the tally and then delete those nine entries, so it reflects only your real answers.
+  Should I remove the nine test entries?
+✻ Churned for 29s · done 3:00 PM
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Yes, back it up and remove them.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Opus 5.5 | Ctx 91% | 5h 40% / 7d 54%
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents

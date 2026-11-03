@@ -1,0 +1,16 @@
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-11-03T22:50:05Z tests/fm-scorebook.test.sh family=unclassified expected_gate_skip=none
+ok - a chat question round-trips through ask, pending, answer, and report
+ok - the match flag counts matched answers and withdrawn questions never count
+ok - a hand-off kind qualifies only with 10 recent answers all matched, announced once when it does
+ok - a kind is firstmate's to decide only after the captain's recorded yes
+ok - the record is written only where git ignores it
+ok - a held question reuses the hold reason and the recorded answer
+ok - a held question counts as answered only once an answer lands on its call, across release and deferral
+ok - project-write approvals recorded as authority stay with the captain after 10 matching answers
+ok - unknown kinds are refused, kinds prints each kind's definition, and read-only commands write nothing
+FM_TEST_END 2026-11-03T22:51:52Z tests/fm-scorebook.test.sh exit=0 duration_ms=107813 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=108540
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=107813 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-scorebook.test.sh duration_ms=107813

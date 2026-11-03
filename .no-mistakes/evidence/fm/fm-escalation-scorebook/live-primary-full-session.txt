@@ -1,0 +1,38 @@
+  Why it matters: Counting those nine, the tally says you've agreed with my last 10 design picks. That would make it look like it's time to ask you about handing those calls to me. Your real record is
+  two answers: you overruled me on relative dates and agreed on the list order. I'm ignoring the bogus entries, and nothing changes unless you explicitly hand design picks to me, which I'm not asking
+  for.
+  My recommendation: Let me save a backup copy of the tally and then delete those nine entries, so it reflects only your real answers.
+  Should I remove the nine test entries?
+✻ Churned for 29s · done 3:00 PM
+❯ Good catch - leave them, I seeded those nine myself to exercise this flow. And yes: from now on, make design picks yourself and stop bringing them to me.
+  Searched for 1 pattern, ran 1 shell command
+⏺ Aye, Captain: design picks are now my call. You said yes, and I've recorded it in your own words.
+  - Your nine entries: left as they are.
+  - What's covered: design and product choices that come up while I'm investigating, reviewing a visual, or taking on new work. I'll make the choice I would have recommended and get on with it. When a
+    pick matters, I'll mention it in my next normal reply so you can still see it, but I won't wait for an answer. One example: whether Charted Next sorts by when items were filed or when they're
+    due. I'll settle that when the board work starts.
+  - What still comes to you:
+    - merges
+    - logins and credentials
+    - anything destructive, irreversible, or security-sensitive
+    - any action the standing rules reserve for your explicit word
+    - product questions raised during code review of a change
+  - Exceptions: if you ever ask me to bring you a particular pick, I will. Say the word and I'll hand design picks back to you.
+✻ Churned for 22s · done 3:01 PM
+❯ Design question for the Bearings board: should the header show a count of open captain calls, or leave the header as it is? Nothing to build yet.
+⏺ Captain, design picks are mine now, so I'll make this call myself. First I'm checking what the board header and the Captain's Call section already show.
+  Searched for 1 pattern, ran 1 shell command
+⏺ Captain, I've decided: the header stays as it is.
+  The board already shows how many calls are waiting on you in three places:
+  - the highlighted "need you" number at the start of the summary row, directly under the header
+  - the line next to the Captain's Call heading, which reads "N items wait on you, captain"
+  - the "card 1 of N" counter under the card stack
+  A number in the header would be a fourth copy sitting right above the first one. It would add clutter without telling you anything new. Right now the header holds only the Bearings name and mark,
+  and I'd keep it that way.
+  Nothing gets built. If you'd like the count in the header anyway, say so and I'll put it there.
+✻ Baked for 14s · done 3:01 PM
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Leave the header as is.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Opus 5.5 | Ctx 91% | 5h 40% / 7d 54%
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
