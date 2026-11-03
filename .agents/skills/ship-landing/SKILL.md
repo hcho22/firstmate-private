@@ -19,6 +19,7 @@ In no-mistakes mode the earlier `done [at=<epoch>]: {summary}` is the pipeline h
 Tell the captain the PR's full `https://...` URL copied from the worker's ready line, the resolved checks-green crew-state line, or the task's `pr=` metadata, a concise outcome summary, and the no-mistakes risk level when applicable.
 When that message asks for the captain's merge word, first run `bin/fm-approved-head.sh record <id> <PR url>` and name the short head it prints in the message, because the word covers only the head it was given at.
 An attended `bin/fm-pr-merge.sh` merges only that head or a clean catch-up of it with the base branch; when it refuses because the head changed, tell the captain what changed, record the head the refusal names with the command it prints, and ask again at that head.
+That merge must land at once, so `bin/fm-pr-merge.sh` refuses `--auto`, a merge queue, and GitLab auto-merge for it; wait until the checks are green and merge then.
 When it refuses because no head is recorded, present the PR to the captain again and record the head you show; never record a head the captain was not shown.
 A secondmate child's PR has no task record in the main home: present it at the head its `child <id> PR ready:` line carries in `head=`, and relay the captain's merge word to that secondmate together with the full head shown in the presentation the captain answered, never simply the newest `head=` on the channel.
 A newer ready line for the same child means presenting the PR again at its head before relaying any merge word.

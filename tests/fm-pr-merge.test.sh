@@ -4561,9 +4561,10 @@ write_approved_meta() {
     ${head:+"approved_head=$head $url"}
 }
 
-approved_head_merge() {  # <case_dir> <url>
-  local rc=0
-  run_pr_merge "$1" task-x1 "$2" > "$1/stdout" 2> "$1/stderr" || rc=$?
+approved_head_merge() {  # <case_dir> <url> [<merge args>...]
+  local case_dir=$1 url=$2 rc=0
+  shift 2
+  run_pr_merge "$case_dir" task-x1 "$url" "$@" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
   printf '%s\n' "$rc"
 }
 
@@ -4955,6 +4956,80 @@ test_approved_head_gitlab_and_forgejo() {
   pass "GitLab and Forgejo merges are bound to the approved head the same way"
 }
 
+# A forge asked to merge later lands whatever the head is by then, so a merge
+# bound to the captain-approved head refuses every such request before the
+# forge command and says to merge once the checks are green.
+test_approved_head_refuses_a_deferred_merge() {
+  local case_dir url=https://github.com/example/repo/pull/83 head=8383838383838383838383838383838383838383 merge_line
+  case_dir=$(make_case approved-head-github-auto)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" "$head" "$url"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$url" --attended-override -- --auto --merge)" \
+    "approved-head-github-auto: an auto-merge bound to the approved head was handed to the forge"
+  assert_grep "refusing to merge $url with --auto: the merge is bound to the captain-approved head" "$case_dir/stderr" \
+    "approved-head-github-auto: the refusal did not name auto-merge and the binding"
+  assert_grep 'merge once the checks are green instead' "$case_dir/stderr" \
+    "approved-head-github-auto: the refusal did not say to merge once the checks are green"
+  assert_no_gh_merge "$case_dir" approved-head-github-auto
+
+  case_dir=$(make_case approved-head-github-queue)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  printf 'merge_method=MERGE\n' > "$case_dir/github-rules"
+  write_approved_meta "$case_dir" "$head" "$url"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$url")" \
+    "approved-head-github-queue: a merge bound to the approved head was handed to a merge-queue base"
+  assert_grep "the merge-queue state of base branch main does not prove an immediate merge" "$case_dir/stderr" \
+    "approved-head-github-queue: the refusal did not name the merge queue"
+  assert_grep 'a base branch that requires a merge queue needs a later design' "$case_dir/stderr" \
+    "approved-head-github-queue: the refusal did not say a merge queue needs a later design"
+  assert_no_gh_merge "$case_dir" approved-head-github-queue
+
+  # A direct merge that leaves the pull request open offers no queue retry.
+  case_dir=$(make_case approved-head-github-unlanded)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  write_github_outcome "$case_dir" OPEN false false main
+  write_approved_meta "$case_dir" "$head" "$url"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$url")" \
+    "approved-head-github-unlanded: an unlanded merge was reported as success"
+  assert_logged_gh_merge "$case_dir" 83 example/repo --squash
+  assert_grep 'a merge bound to the captain-approved head is offered no merge-queue or auto-merge retry' "$case_dir/stderr" \
+    "approved-head-github-unlanded: the outcome did not say why no retry is offered"
+  assert_no_grep '--auto' "$case_dir/stderr" \
+    "approved-head-github-unlanded: the refusal suggested an auto-merge retry"
+
+  case_dir=$(make_gitlab_case approved-head-gitlab-auto)
+  write_approved_meta "$case_dir" "$MR_HEAD" "$MR_URL"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$MR_URL" --attended-override -- --auto-merge)" \
+    "approved-head-gitlab-auto: a GitLab auto-merge bound to the approved head was handed to the forge"
+  assert_grep "refusing to merge $MR_URL with GitLab auto-merge" "$case_dir/stderr" \
+    "approved-head-gitlab-auto: the refusal did not name auto-merge"
+  assert_grep 'merge once the checks are green instead' "$case_dir/stderr" \
+    "approved-head-gitlab-auto: the refusal did not say to merge once the checks are green"
+  [ -z "$(glab_merge_line "$case_dir/glab.log")" ] || fail "approved-head-gitlab-auto: glab merged"
+
+  case_dir=$(make_gitlab_case approved-head-gitlab-scheduled merge_after='"2026-11-04T00:00:00Z"')
+  write_approved_meta "$case_dir" "$MR_HEAD" "$MR_URL"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$MR_URL")" \
+    "approved-head-gitlab-scheduled: a merge request with a scheduled merge was merged under the approved head"
+  assert_grep "refusing to merge $MR_URL with GitLab auto-merge, requested here or already set on the merge request" "$case_dir/stderr" \
+    "approved-head-gitlab-scheduled: the refusal did not name the merge set on the merge request"
+  [ -z "$(glab_merge_line "$case_dir/glab.log")" ] || fail "approved-head-gitlab-scheduled: glab merged"
+
+  case_dir=$(make_gitlab_case approved-head-gitlab-immediate)
+  write_approved_meta "$case_dir" "$MR_HEAD" "$MR_URL"
+  expect_code 0 "$(approved_head_merge "$case_dir" "$MR_URL")" \
+    "approved-head-gitlab-immediate: an immediate merge at the approved head refused: $(cat "$case_dir/stderr")"
+  merge_line=$(glab_merge_line "$case_dir/glab.log")
+  case "$merge_line" in
+    *" --sha $MR_HEAD --yes --auto-merge=false") ;;
+    *) fail "approved-head-gitlab-immediate: the final glab flag did not force an immediate merge: '$merge_line'" ;;
+  esac
+  pass "a merge bound to the approved head refuses every request to merge later and stays immediate"
+}
+
 # Every case builds its own home, worktree, and forge mocks under $TMP_ROOT/<name>,
 # so the cases share nothing and run in the concurrent lanes
 # tests/case-lanes-helpers.sh owns.
@@ -5094,4 +5169,5 @@ fm_test_run_cases \
   test_approved_head_relayed_child_head_binds_the_mate_merge \
   test_approved_head_mate_clean_catch_up_publishes_no_ready_line \
   test_approved_head_away_merge_is_not_bound \
-  test_approved_head_gitlab_and_forgejo
+  test_approved_head_gitlab_and_forgejo \
+  test_approved_head_refuses_a_deferred_merge

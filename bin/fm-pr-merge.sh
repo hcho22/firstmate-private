@@ -70,6 +70,7 @@
 # method and exact --attended-override -- --auto --<method> retry flags. While
 # the away-posture record exists, asynchronous merge requests are refused and
 # queue retry flags are not offered because they would outlive away authority.
+# A merge bound to a captain-approved head (below) is offered none either.
 # An attended caller that already passed the configured method with --auto is
 # told instead that the accepted request has not entered the queue and its queue
 # state has to be re-checked.
@@ -142,6 +143,15 @@
 # An away-authority merge is not bound to a head, because no captain word named
 # one. In a secondmate home a refusal publishes the child's PR-ready line with
 # the live head on the parent channel, so the parent can present that head.
+# A merge bound to a head must also land it immediately, because a forge asked
+# to merge later lands whatever the head is by then, without the captain being
+# asked again. A GitHub or GitLab auto-merge, requested here or already set on
+# a GitLab merge request, is refused with a pointer to merge once the checks
+# are green instead, and GitLab is passed a final --auto-merge=false. A GitHub
+# base branch whose rules do not prove the absence of a merge queue is refused
+# too, so a base branch that requires a merge queue takes no merge bound to a
+# head; that needs a later design. A yolo merge with no recorded head is bound
+# to none and keeps the asynchronous paths above.
 #
 # Before either forge merge, the task's existing per-task control lock
 # serializes the captain-hold check through the forge command. A still-held or
@@ -1400,8 +1410,10 @@ require_released_captain_hold() {
 # earlier read was away and the record has since been archived. In a secondmate
 # home a refusal publishes the child's PR-ready line with the live head, which
 # is what the parent presents to the captain again; bin/fm-pr-check.sh's
-# merge-time registration publishes no ready line of its own.
+# merge-time registration publishes no ready line of its own. A merge the
+# verify binds to a head sets FM_PR_HEAD_BOUND and must then be immediate.
 FM_PR_APPROVED_HEAD_VERIFIED=
+FM_PR_HEAD_BOUND=false
 require_approved_head() {
   local verify_status=0 ready_rc=0
   [ "$FM_PR_AWAY_POSTURE" != true ] || return 0
@@ -1418,8 +1430,42 @@ require_approved_head() {
         "$FM_PR_MERGE_HEAD" "$URL" "$ready_rc" >&2 ;;
     esac
   fi
-  [ "$verify_status" -eq 0 ] || return 1
+  case "$verify_status" in
+    0)
+      FM_PR_HEAD_BOUND=true
+      refuse_deferred_bound_merge || return 1
+      ;;
+    3) ;;
+    *) return 1 ;;
+  esac
   FM_PR_APPROVED_HEAD_VERIFIED=$FM_PR_MERGE_HEAD
+}
+
+# A forge asked to merge later lands whatever the head is by then, so a merge
+# bound to the captain-approved head refuses every such request before the
+# forge command. The GitHub queue read is the one refuse_github_queue_while_away
+# makes, and it refuses on anything short of proving no queue the same way.
+refuse_deferred_bound_merge() {
+  case "$PROVIDER" in
+    github)
+      if [ "$FM_PR_GITHUB_AUTO_REQUESTED" = true ]; then
+        printf 'error: refusing to merge %s with --auto: the merge is bound to the captain-approved head, and auto-merge would land the pull request later with any push made by then; merge once the checks are green instead\n' \
+          "$URL" >&2
+        return 1
+      fi
+      github_read_queue_method
+      [ "$FM_PR_GITHUB_QUEUE_STATUS" != none ] || return 0
+      printf 'error: refusing to merge %s: the merge is bound to the captain-approved head, but the merge-queue state of base branch %s does not prove an immediate merge, and a queued merge would land with any push made by then; nothing was handed to the forge, and a base branch that requires a merge queue needs a later design\n' \
+        "$URL" "$FM_PR_GITHUB_BASE" >&2
+      return 1
+      ;;
+    gitlab)
+      [ "$FM_PR_GITLAB_ASYNC_REQUESTED" = true ] || [ "$FM_PR_GITLAB_ASYNC_CONFIGURED" = true ] || return 0
+      printf 'error: refusing to merge %s with GitLab auto-merge, requested here or already set on the merge request: the merge is bound to the captain-approved head, and auto-merge would land the merge request later with any push made by then; merge once the checks are green instead, cancelling any auto-merge or scheduled merge set on the merge request\n' \
+        "$URL" >&2
+      return 1
+      ;;
+  esac
 }
 
 FM_PR_MERGE_AUTHORITY=
@@ -1580,6 +1626,10 @@ github_report_queue_rules() {
   local queue_method methods_display
   if [ "$FM_PR_AWAY_POSTURE" = true ]; then
     printf 'error: the direct merge did not land while the away-posture record exists; merge-queue retry flags are unavailable because a queued merge would outlive its authority\n' >&2
+    return 0
+  fi
+  if [ "$FM_PR_HEAD_BOUND" = true ]; then
+    printf 'error: the direct merge did not land, and a merge bound to the captain-approved head is offered no merge-queue or auto-merge retry, because either would land the pull request later with any push made by then; a base branch that requires a merge queue needs a later design\n' >&2
     return 0
   fi
   github_read_queue_method
@@ -1801,7 +1851,7 @@ case "$PROVIDER" in
     require_approved_head || exit 1
     merge_status=0
     gitlab_merge_args=()
-    if [ "$FM_PR_AWAY_POSTURE" = true ]; then
+    if [ "$FM_PR_AWAY_POSTURE" = true ] || [ "$FM_PR_HEAD_BOUND" = true ]; then
       gitlab_merge_args=(--auto-merge=false)
     fi
     GITLAB_HOST="$FM_PR_HOST" glab mr merge "$PR_NUMBER" -R "$PROJECT_URL" \

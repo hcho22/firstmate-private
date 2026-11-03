@@ -30,9 +30,10 @@
 # verify <task-id> <pr-url> <live-head> <base-branch>
 #   Called by bin/fm-pr-merge.sh on an attended merge, after its own live read
 #   and before the forge merge command; away-authority merges never call it.
-#   Exit 0 lets the merge proceed, exit 1 refuses with every reason on stderr,
-#   exit 2 is a usage error. A recorded approved_head counts only when its URL is
-#   the PR being merged. The verdict:
+#   Exit 0 lets the merge proceed bound to the captain-approved head, exit 3
+#   lets it proceed bound to no head under the yolo allowance below, exit 1
+#   refuses with every reason on stderr, exit 2 is a usage error. A recorded
+#   approved_head counts only when its URL is the PR being merged. The verdict:
 #   - approved head equals the live head: proceed.
 #   - no approved head recorded for this PR: proceed only when the task meta
 #     records yolo=on, because an autonomous yolo merge has no captain word to
@@ -54,7 +55,11 @@
 #      as does any ordinary commit added on the PR branch.
 #   Together they leave the live head nothing but the approved commits and base
 #   branch commits combined by automatic merges, so landing it adds nothing to
-#   the base branch that the captain did not approve.
+#   the base branch that the captain did not approve. That holds only because a
+#   merge bound to a head here lands the verified head immediately:
+#   bin/fm-pr-merge.sh refuses one that asks the forge to merge later (GitHub
+#   auto-merge or a merge-queue entry, GitLab auto-merge), which would land
+#   whatever the head is by then.
 #   The commits are read from the task worktree (worktree= in the meta) after
 #   fetching the PR head ref (refs/pull/<n>/head on GitHub and Forgejo,
 #   refs/merge-requests/<n>/head on GitLab) and the base branch from origin into
@@ -254,7 +259,7 @@ verify_approved_head() {
   if [ -z "$approved" ]; then
     if [ "$(meta_value yolo)" = on ]; then
       printf 'notice: no captain-approved head is recorded for %s; merging under the task'"'"'s yolo posture\n' "$URL" >&2
-      return 0
+      return 3
     fi
     printf 'error: refusing to merge %s: no captain-approved head is recorded for task %s\n' "$URL" "$ID" >&2
     printf 'error: %s\n' "$REPRESENT_REMEDY" >&2
