@@ -4934,9 +4934,10 @@ test_merge_tier_builtin_paths_match_whole_names() {
     GROK_BOT.md .cursorrules .mcp.json opencode.json opencode.jsonc docs/agents-guide.md \
     .github/CODEOWNERS .forgejo/actions/a.yml .gitea/workflows/ci.yml .gitlab/ci/build.yml \
     .circleci/config.yml .buildkite/pipeline.yml .gitlab-ci.yml .travis.yml azure-pipelines.yml \
-    Jenkinsfile docs/CODEOWNERS .no-mistakes.yaml sub/.No-Mistakes.yaml \
+    Jenkinsfile Jenkinsfile_CNP ci/Jenkinsfile.release jenkins/release.Jenkinsfile \
+    docs/CODEOWNERS .no-mistakes.yaml sub/.No-Mistakes.yaml \
     docs/agents/guide.md src/github/client.go docs/skills.md my.claude/notes.txt .github.bak/a.yml \
-    docs/jenkinsfile.md AGENTS.md.txt private/a.txt Private/a.txt) || fail "merge-tier-builtin-names: $out"
+    docs/about-jenkinsfile.md AGENTS.md.txt private/a.txt Private/a.txt) || fail "merge-tier-builtin-names: $out"
   assert_equals ".agents/skills/a/notes.md=always ask: agent instructions or settings
 .claude/settings.json=always ask: agent instructions or settings
 .codex/hooks.json=always ask: agent instructions or settings
@@ -4968,6 +4969,9 @@ docs/agents-guide.md=always ask: agent instructions or settings
 .travis.yml=always ask: CI or forge configuration
 azure-pipelines.yml=always ask: CI or forge configuration
 Jenkinsfile=always ask: CI or forge configuration
+Jenkinsfile_CNP=always ask: CI or forge configuration
+ci/Jenkinsfile.release=always ask: CI or forge configuration
+jenkins/release.Jenkinsfile=always ask: CI or forge configuration
 docs/CODEOWNERS=always ask: CI or forge configuration
 .no-mistakes.yaml=always ask: the validation gate's configuration
 sub/.No-Mistakes.yaml=always ask: the validation gate's configuration
@@ -4976,7 +4980,7 @@ src/github/client.go=low risk: matches **
 docs/skills.md=low risk: matches **
 my.claude/notes.txt=low risk: matches **
 .github.bak/a.yml=low risk: matches **
-docs/jenkinsfile.md=low risk: matches **
+docs/about-jenkinsfile.md=low risk: matches **
 AGENTS.md.txt=low risk: matches **
 private/a.txt=low risk: matches **
 Private/a.txt=always ask: matches Private/**" "$out" "merge-tier-builtin-names: verdicts"

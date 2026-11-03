@@ -231,7 +231,7 @@ fm_merge_tier_verdict() {  # <path>
         SKILL.md|AGENTS*.md|CLAUDE*.md|GEMINI.md|GROK*.md|.cursorrules|.mcp.json|opencode.json|opencode.jsonc)
           reason='always ask: agent instructions or settings'
           ;;
-        .gitlab-ci.yml|.travis.yml|azure-pipelines.yml|Jenkinsfile|CODEOWNERS)
+        .gitlab-ci.yml|.travis.yml|azure-pipelines.yml|Jenkinsfile*|*.Jenkinsfile|CODEOWNERS)
           reason='always ask: CI or forge configuration'
           ;;
         .no-mistakes.yaml)

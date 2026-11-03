@@ -1375,10 +1375,11 @@ Both match at any depth and in any letter case, because a case-insensitive files
 | Kind | Directory names (everything inside) | File names |
 | --- | --- | --- |
 | Agent instructions and settings | `.agents`, `.claude`, `.codex`, `.cursor`, `.gemini`, `.greptile`, `.grok`, `.omp`, `.opencode`, `.pi` | `SKILL.md`, `AGENTS*.md`, `CLAUDE*.md`, `GEMINI.md`, `GROK*.md`, `.cursorrules`, `.mcp.json`, `opencode.json`, `opencode.jsonc` |
-| CI and forge configuration | `.github`, `.forgejo`, `.gitea`, `.gitlab`, `.circleci`, `.buildkite` | `.gitlab-ci.yml`, `.travis.yml`, `azure-pipelines.yml`, `Jenkinsfile`, `CODEOWNERS` |
+| CI and forge configuration | `.github`, `.forgejo`, `.gitea`, `.gitlab`, `.circleci`, `.buildkite` | `.gitlab-ci.yml`, `.travis.yml`, `azure-pipelines.yml`, `Jenkinsfile*`, `*.Jenkinsfile`, `CODEOWNERS` |
 | Validation gate configuration | | `.no-mistakes.yaml` |
 
 The `*` in a file name stays within that name, so `AGENTS*.md` covers `AGENTS.override.md` and `docs/agents-guide.md` but not `docs/agents/guide.md`.
+The Jenkins names cover the pipeline files a job's script path commonly names, such as `Jenkinsfile_CNP`, `Jenkinsfile.release`, and `release.Jenkinsfile`.
 When a new agent tool, CI service, or gate appears, extend the set by adding its directory or file name to the matching list in `fm_merge_tier_verdict` in [`bin/fm-merge-tier-lib.sh`](../bin/fm-merge-tier-lib.sh) and a sample path to the built-in test in [`tests/fm-pr-merge.test.sh`](../tests/fm-pr-merge.test.sh).
 
 ## Crew dispatch profiles (config/crew-dispatch.json)
