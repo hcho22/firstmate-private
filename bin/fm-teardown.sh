@@ -339,7 +339,9 @@
 # recorded by bin/fm-pipeline-spend.sh, which owns the attribution and the
 # ledger. It runs before the task branch it attributes runs by is deleted and
 # before state/<id>.meta is removed, and is best effort: a failure warns and
-# never blocks cleanup.
+# never blocks cleanup. A no-mistakes ship task whose local copy this teardown
+# owns has its rounds to pass recorded the same way, always, by
+# bin/fm-nm-rounds.sh, which owns that ledger.
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -3853,6 +3855,11 @@ if [ "$KIND" = ship ] && teardown_owns_worktree && [ -e "$CONFIG/pipeline-spend"
   FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_DATA_OVERRIDE="$DATA" FM_CONFIG_OVERRIDE="$CONFIG" \
     "$SCRIPT_DIR/fm-pipeline-spend.sh" record "$ID" >/dev/null \
     || echo "warning: could not record $ID's no-mistakes pipeline spend; cleanup continues" >&2
+fi
+if [ "$KIND" = ship ] && [ "$MODE" = no-mistakes ] && teardown_owns_worktree; then
+  FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_DATA_OVERRIDE="$DATA" \
+    "$SCRIPT_DIR/fm-nm-rounds.sh" record "$ID" >/dev/null \
+    || echo "warning: could not record $ID's no-mistakes fix rounds; cleanup continues" >&2
 fi
 
 # Fix 3 (see script header): sweep remote job workers abandoned by an already

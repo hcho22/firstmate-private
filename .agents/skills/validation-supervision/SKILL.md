@@ -1,6 +1,6 @@
 ---
 name: validation-supervision
-description: Load when a ship starts or already has an active no-mistakes validation run, including a mid-run requirement change or finding, and before deciding or answering any ask-user finding.
+description: Load when a ship starts or already has an active no-mistakes validation run, including a mid-run requirement change or finding, and before deciding or answering any ask-user finding or fix-round cap escalation.
 user-invocable: false
 metadata:
   internal: true
@@ -24,6 +24,12 @@ Once ownership is settled, validate exactly once against that final head so no o
 An ask-user finding returns as `needs-decision`; firstmate loads `ask-user-authority` and either decides or escalates per that skill.
 Send the same worker one exact decision naming the decision key, step, action, affected finding IDs, instructions where needed, and exact response command, passing `--resolve-key` so the worker's open decision record closes at answer time.
 Require the matching `resolved` event, forbid `--yes`, and require the worker to process every synchronous return until completion or a genuinely new escalation.
+A fix-round cap escalation returns as `needs-decision` under the same `nm-<run>-<step>` key; `ask-user-authority` takes it to the captain, and the decision sent back is one of:
+
+- approve as is: `no-mistakes axi respond --step <step> --action approve`;
+- allow more rounds: the new cap, which the worker passes as `--cap <n>` to every later check of that step, and the exact fix response to send;
+- rethink the approach: the captain's direction as a new instruction, which follows the supersession sequence above when it replaces the work being validated.
+
 Resume fleet supervision immediately after the decision lands.
 
 Judge validation by the resolved state line from [`bin/fm-crew-state.sh`](../../../bin/fm-crew-state.sh), whose header owns outcome mappings and CI-monitor/daemon exceptions, never by shell liveness, the last status event, or a raw run record.

@@ -4005,6 +4005,66 @@ test_teardown_records_unavailable_spend_for_a_gone_worktree() {
   pass "teardown records unavailable pipeline spend for an owned ship task whose copy is gone"
 }
 
+# Cleanup always keeps a no-mistakes ship task's rounds to pass per step in
+# this home's records (bin/fm-nm-rounds.sh), read while the task branch that
+# attributes its runs and the task record still exist.
+test_teardown_records_the_task_rounds_to_pass() {
+  local case_dir rc=0 ledger
+  case_dir=$(make_case rounds-to-pass)
+  write_meta "$case_dir" no-mistakes ship
+  land_shippable_commit "$case_dir"
+  mkdir -p "$case_dir/nm"
+  python3 - "$case_dir/nm/state.sqlite" "$case_dir/project" "$(date +%s)" <<'PY'
+import sqlite3
+import sys
+
+database, project, created = sys.argv[1], sys.argv[2], int(sys.argv[3])
+db = sqlite3.connect(database)
+db.executescript("""
+    CREATE TABLE repos (id TEXT PRIMARY KEY, working_path TEXT NOT NULL UNIQUE);
+    CREATE TABLE runs (id TEXT PRIMARY KEY, repo_id TEXT NOT NULL, branch TEXT NOT NULL,
+                       status TEXT NOT NULL, created_at INTEGER NOT NULL);
+    CREATE TABLE step_results (id TEXT PRIMARY KEY, run_id TEXT, step_name TEXT, step_order INTEGER);
+    CREATE TABLE step_rounds (id TEXT PRIMARY KEY, step_result_id TEXT, round INTEGER,
+                              trigger_type TEXT, findings_json TEXT, selection_source TEXT);
+""")
+db.execute("INSERT INTO repos VALUES ('r1', ?)", (project,))
+db.execute("INSERT INTO runs VALUES ('01RUN', 'r1', 'fm/task-x1', 'completed', ?)", (created,))
+db.execute("INSERT INTO step_results VALUES ('s1', '01RUN', 'review', 3)")
+db.execute("INSERT INTO step_results VALUES ('s2', '01RUN', 'test', 4)")
+for n, trigger, selection in ((1, "initial", "user"), (2, "auto_fix", "user"), (3, "auto_fix", None)):
+    db.execute("INSERT INTO step_rounds VALUES (?, 's1', ?, ?, NULL, ?)", ("x%d" % n, n, trigger, selection))
+db.execute("INSERT INTO step_rounds VALUES ('t1', 's2', 1, 'initial', NULL, NULL)")
+db.commit()
+PY
+  printf 'pr=https://example.invalid/acme/proj/pull/7\n' >> "$case_dir/state/task-x1.meta"
+  NM_HOME="$case_dir/nm" FM_FAKE_AXI_OVERVIEW="repo: $case_dir/project" \
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 0 "$rc" "rounds-to-pass: teardown should succeed"
+  ledger=$case_dir/data/pipeline-rounds.jsonl
+  assert_present "$ledger" "rounds-to-pass: teardown left no rounds record"
+  jq -e '
+    .task == "task-x1" and .source == "no-mistakes-state"
+    and .pr == "https://example.invalid/acme/proj/pull/7"
+    and .rounds_to_pass == {"run": "01RUN", "total": 2, "max": 2, "steps": [{"step": "review", "fix_rounds": 2}]}
+  ' "$ledger" >/dev/null || fail "rounds-to-pass: the recorded rounds are wrong: $(cat "$ledger")"
+  assert_absent "$case_dir/state/task-x1.meta" "rounds-to-pass: teardown kept the task record"
+  pass "teardown records a no-mistakes task's rounds to pass before removing its branch and record"
+}
+
+test_teardown_records_no_rounds_for_a_direct_pr_task() {
+  local case_dir rc=0
+  case_dir=$(make_case rounds-direct-pr)
+  write_meta "$case_dir" direct-PR ship
+  land_shippable_commit "$case_dir"
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 0 "$rc" "rounds-direct-pr: teardown should succeed"
+  assert_absent "$case_dir/data/pipeline-rounds.jsonl" \
+    "rounds-direct-pr: a task that ran no pipeline got a rounds record"
+  pass "teardown records no fix rounds for a task that ran no pipeline"
+}
+
 test_parked_own_run_is_aborted_before_teardown() {
   local case_dir rc head
   case_dir=$(make_case parked-run-abort)
@@ -5584,6 +5644,8 @@ fm_test_run_cases \
   test_teardown_records_the_task_pipeline_spend \
   test_teardown_skips_pipeline_spend_when_disabled \
   test_teardown_records_unavailable_spend_for_a_gone_worktree \
+  test_teardown_records_the_task_rounds_to_pass \
+  test_teardown_records_no_rounds_for_a_direct_pr_task \
   test_parked_own_run_is_aborted_before_teardown \
   test_parked_run_in_a_resolved_workspace_home_is_aborted \
   test_parked_own_run_concludes_on_passed_with_override_after_abort \

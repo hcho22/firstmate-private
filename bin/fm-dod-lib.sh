@@ -138,6 +138,8 @@
 . "$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)/fm-nm-run-lib.sh"
 # shellcheck source=bin/fm-brief-heading-lib.sh
 . "$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)/fm-brief-heading-lib.sh"
+# The fix-round counter the no-mistakes contract names, beside this library.
+FM_DOD_NM_ROUNDS="$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)/fm-nm-rounds.sh"
 # shellcheck source=bin/fm-external-review-lib.sh
 . "$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)/fm-external-review-lib.sh"
 
@@ -433,11 +435,14 @@ EOF
 }
 
 # The forge-independent middle of the no-mistakes contract: how a worker drives
-# the pipeline, what `--intent` may carry, and the two firstmate-specific rules.
+# the pipeline, what `--intent` may carry, and the three firstmate-specific
+# rules. bin/fm-nm-rounds.sh owns what the fix-round cap counts and the
+# escalation line its check prints.
 # Written once; only the two sentences about a green PR depend on the forge,
 # because on gerrit the ci step is skipped and there is no PR to report.
 fm_nm_driving_block() {  # <forge>
-  local pr_return_line='' pr_reattach_clause=';' drive_block wait_cfg
+  local pr_return_line='' pr_reattach_clause=';' drive_block wait_cfg rounds_q
+  printf -v rounds_q '%q' "$FM_DOD_NM_ROUNDS"
   if [ "$1" != gerrit ]; then
     pr_return_line="Only a drive call's return reports the green PR: \`no-mistakes axi status\` shows progress but never reports \`checks-passed\` while the ci step is still monitoring the PR for merge, so never wait on a status poll for the next gate or outcome.
 "
@@ -476,10 +481,17 @@ $drive_block
 A killed or timed-out call is never evidence the daemon died: the daemon accepts your response immediately and runs the round in the background, so the call was only ever waiting for a read while the run kept working.
 Reattach and keep going rather than reporting the pipeline blocked; rule 7 owns the checks that decide when a pipeline block is real.
 
-Two firstmate-specific rules layer on top of that guidance:
+Three firstmate-specific rules layer on top of that guidance:
 - ask-user findings are never yours to answer: escalate to firstmate using rule 6's ask-user format and stop.
   Firstmate applies \`ask-user-authority\` and obtains any required captain decision.
   When the decision comes back, feed it to the gate with \`no-mistakes axi respond\` and let the pipeline apply it - do not route the question to "the user" or implement the fix yourself.
+- Fix rounds are capped at 3 per step of one run: an agent reviewer and fixer can keep each other busy indefinitely, so after 3 the approach goes back to firstmate instead of into another fix.
+  At every gate, before you answer it with \`--action fix\` or escalate its ask-user findings, run \`$rounds_q check --step <step> --out-dir <the directory rule 6 writes its findings file to>\` from this copy; it counts every fix round on that step, whether you or the pipeline's own automatic fixing started it.
+  Exit 0 lets the gate go ahead as usual.
+  Exit 3 means the step already took its 3 fix rounds: do not send the fix; append the text after \`escalation: \` in its output to the status file, exactly as printed, and stop.
+  That escalation replaces rule 6's for the gate, because its file holds every round's findings verbatim, ask-user ones included.
+  Exit 1 means it could not count: count your own \`--action fix\` responses to that step in this run instead, and at 3 write the gate's findings verbatim to the file rule 6 names and append \`needs-decision [at=<epoch>] [key=nm-<run>-<step>]: fix-round cap rounds=<n> findings=<id1>,<id2>,... file=<that file>\` and stop.
+  Relaying a decision firstmate sent needs no second check; when that decision allows more rounds, pass the \`--cap <n>\` it names to every later check of that step.
 - NEVER pass \`--yes\` (or \`-y\`) to \`no-mistakes axi run\` or \`no-mistakes axi respond\`. It is banned fleet-wide.
   It auto-resolves every gate including ask-user findings with no escalation, and answering your own ask-user finding is a hard rule violation.
 EOF

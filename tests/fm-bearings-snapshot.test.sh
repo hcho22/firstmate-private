@@ -1225,6 +1225,40 @@ test_report_pointers_surface() {
   pass "current report pointers surface"
 }
 
+# Rounds to pass per PR are projected by project from bin/fm-nm-rounds.sh, so a
+# project whose reviews churn shows up; the per-PR rows are bounded and an
+# unreadable ledger is disclosed rather than shown as no churn.
+test_rounds_to_pass_surface_by_project() {
+  local home fakebin json toon
+  home=$(make_home rounds); write_fixture "$home"
+  fakebin=$(make_fakebin "$home")
+  cat > "$home/data/pipeline-rounds.jsonl" <<'JSONL'
+{"task":"calm-1","spawn_gen":"g","project":"Calm","pr":"https://example.invalid/o/calm/pull/1","recorded_at":"2026-07-01T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"run":"x","total":1,"max":1,"steps":[{"step":"review","fix_rounds":1}]}}
+{"task":"churn-1","spawn_gen":"g","project":"Churn","pr":"https://example.invalid/o/churn/pull/1","recorded_at":"2026-07-02T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"run":"x","total":4,"max":3,"steps":[{"step":"review","fix_rounds":3},{"step":"test","fix_rounds":1}]}}
+{"task":"churn-2","spawn_gen":"g","project":"Churn","pr":"https://example.invalid/o/churn/pull/2","recorded_at":"2026-07-03T00:00:00Z","source":"no-mistakes-state","runs":[],"rounds_to_pass":{"run":"x","total":0,"max":0,"steps":[]}}
+JSONL
+  json=$(FM_BEARINGS_ROUNDS=2 run "$home" "$fakebin" --json)
+  printf '%s' "$json" | jq -e '
+    [.rounds_by_project[].project] == ["Churn", "Calm"]
+    and .rounds_by_project[0] == {"project":"Churn","prs":2,"fix_rounds":4,"mean":2.0,"max":3,"at_cap":1,"unknown":0}
+    and .rounds_per_pr == [
+      {"project":"Churn","pr":"https://example.invalid/o/churn/pull/2","fix_rounds":0,"max":0,"steps":"-"},
+      {"project":"Churn","pr":"https://example.invalid/o/churn/pull/1","fix_rounds":4,"max":3,"steps":"review:3,test:1"}]
+    and ([.omitted[].surface] | index("rounds_per_pr showing 2 of 3") != null)
+  ' >/dev/null || fail "rounds to pass must surface by project, bounded and disclosed: $json"
+  toon=$(FM_BEARINGS_ROUNDS=2 run "$home" "$fakebin")
+  assert_contains "$toon" "rounds_by_project[2]{project,prs,fix_rounds,mean,max,at_cap,unknown}:" \
+    "TOON must carry the by-project rounds table"
+  rm -f "$home/data/pipeline-rounds.jsonl"
+  mkdir "$home/data/pipeline-rounds.jsonl"
+  json=$(run "$home" "$fakebin" --json)
+  printf '%s' "$json" | jq -e '
+    .rounds_by_project == [] and .rounds_per_pr == []
+    and ([.omitted[].surface] | index("pipeline rounds ledger unreadable") != null)
+  ' >/dev/null || fail "an unreadable rounds ledger must be disclosed, not shown as no churn: $json"
+  pass "rounds to pass surface by project, bounded, with an unreadable ledger disclosed"
+}
+
 test_queued_item_prose_never_hides_it() {
   local home fakebin json
   home=$(make_home superseded); write_fixture "$home"
@@ -3525,6 +3559,7 @@ fm_test_run_cases \
   test_completed_scout_report_not_pending \
   test_open_decision_surfaces_end_to_end \
   test_report_pointers_surface \
+  test_rounds_to_pass_surface_by_project \
   test_queued_item_prose_never_hides_it \
   test_include_prs_is_the_only_fetch_path \
   test_include_prs_maps_custom_branch_prefix_to_task \
