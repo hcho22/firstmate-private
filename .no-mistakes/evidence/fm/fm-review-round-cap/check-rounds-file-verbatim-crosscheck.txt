@@ -1,0 +1,4 @@
+# Cross-check: every finding in the real DB rounds appears verbatim in the rounds file
+round 1 (initial) id=returning-ids-match-positional-finding-ids severity=warning action=ask-user id_in_file=True description_verbatim=True
+round 2 (auto_fix) id=rounds-test-mapping-narrows-consumer-selection severity=info action=auto-fix id_in_file=True description_verbatim=True
+ALL VERBATIM: True

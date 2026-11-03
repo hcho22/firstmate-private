@@ -1,0 +1,22 @@
+# Live teardown in a lab FM_HOME: real bin/fm-teardown.sh, real git and real no-mistakes v1.79.0 CLI; only treehouse and the GitHub CLIs are stubbed
+# ledger lines before: 3
+
+$ FM_HOME=$LAB bin/fm-teardown.sh td-nm    # mode=no-mistakes
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.CIvpad
+td-nm: already current
+teardown td-nm complete (window firstmate:fm-td-nm, worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.CIvpad/wt-td-nm)
+Backlog: td-nm just finished (this home keeps no markdown backlog at /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.CIvpad/data/backlog.md). Update /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.CIvpad/data/backlog.md - move td-nm to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+[exit 0]
+meta left: none   worktree left: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.CIvpad/wt-td-nm
+
+$ FM_HOME=$LAB bin/fm-teardown.sh td-dpr    # mode=direct-PR
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.CIvpad
+td-dpr: already current
+teardown td-dpr complete (window firstmate:fm-td-dpr, worktree /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.CIvpad/wt-td-dpr)
+Backlog: td-dpr just finished (this home keeps no markdown backlog at /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.CIvpad/data/backlog.md). Update /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.CIvpad/data/backlog.md - move td-dpr to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+[exit 0]
+meta left: none   worktree left: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.CIvpad/wt-td-dpr
+
+# ledger lines after: 4
+# rows for the torn-down tasks:
+{"task":"td-nm","spawn_gen":"s-td-nm","project":"td-nm","source":"unavailable","reason":"no-mistakes resolved no repository for the task copy: error: repo not initialized (run 'no-mistakes init' first)","runs":[],"rounds_to_pass":null}

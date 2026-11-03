@@ -1,0 +1,11 @@
+# Status file a capped worker leaves (the escalation text printed by the live default-cap check, appended verbatim)
+working: driving no-mistakes
+needs-decision [at=1793691799] [key=nm-01M6FZGJQ58MKGSJXV3HG9VSJ4-review]: fix-round cap rounds=3 findings=none file=/Users/hcho/.no-mistakes/evidence/01M6G4KD7APZXVETZRZKB46K8B/nm-01M6FZGJQ58MKGSJXV3HG9VSJ4-review-rounds.txt
+
+# Firstmate's status classifier (bin/fm-classify-lib.sh) reading that file
+last_status_line: needs-decision [at=1793691799] [key=nm-01M6FZGJQ58MKGSJXV3HG9VSJ4-review]: fix-round cap rounds=3 findings=none file=/Users/hcho/.no-mistakes/evidence/01M6G4KD7APZXVETZRZKB46K8B/nm-01M6FZGJQ58MKGSJXV3HG9VSJ4-review-rounds.txt
+status_open_decisions:
+  nm-01M6FZGJQ58MKGSJXV3HG9VSJ4-review | needs-decision | fix-round cap rounds=3 findings=none file=/Users/hcho/.no-mistakes/evidence/01M6G4KD7APZXVETZRZKB46K8B/nm-01M6FZGJQ58MKGSJXV3HG9VSJ4-review-rounds.txt
+status_has_open_needs_decision <run 01M6FZGJQ58MKGSJXV3HG9VSJ4>: yes (0)
+status_has_open_needs_decision <run OTHERRUN>: no (1)
+status_worker_wait_verb: needs-decision

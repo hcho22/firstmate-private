@@ -1,0 +1,24 @@
+=== tests/fm-nm-rounds.test.sh
+ok - three fix rounds on one step reach the cap and print the keyed escalation
+ok - two fix rounds on one step stay under the cap and escalate nothing
+ok - a cap raised by --cap lets more rounds through, and the default stays 3
+ok - an uncountable step reads as unknown rather than under the cap
+ok - record counts the fix rounds of every run the task had, once per incarnation
+ok - record states a task with no run or an unreadable source instead of guessing
+ok - report lists rounds per PR by project, churning projects first
+[exit 0]
+=== tests/zz-tmp-teardown-rounds.test.sh
+ok - teardown records a no-mistakes task's rounds to pass before removing its branch and record
+ok - teardown records no fix rounds for a task that ran no pipeline
+ok - teardown records the task's pipeline spend before removing its branch and record
+[exit 0]
+=== tests/zz-tmp-bearings-rounds.test.sh
+ok - rounds to pass surface by project, bounded, with an unreadable ledger disclosed
+ok - an authoritative captain hold surfaces end-to-end
+[exit 0]
+=== tests/zz-tmp-brief-rounds.test.sh
+ok - fm-brief: scaffolds leave the worker role scope to the launch boundary and keep the secondmate contract
+ok - fm-brief.sh: no-mistakes DOD keeps its apostrophe prose and bans --yes outright
+ok - fm-brief.sh: no-mistakes DOD caps fix rounds per step and names a runnable counter
+ok - fm-brief.sh: no-mistakes ask-user findings use one event plus a verbatim snapshot
+[exit 0]

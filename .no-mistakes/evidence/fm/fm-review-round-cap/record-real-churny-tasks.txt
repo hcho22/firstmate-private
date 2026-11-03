@@ -1,0 +1,11 @@
+# [redacted: RepToday is a private repository and this evidence is published to a public repo; its task name, finding ids, and review content are replaced]
+$ FM_HOME=$LAB bin/fm-nm-rounds.sh record fm-tiered-merge-approval
+recorded fm-tiered-merge-approval s1793683249.33836.27527
+[exit 0]
+{"task":"fm-tiered-merge-approval","project":"firstmate-private","source":"no-mistakes-state","runs":[{"id":"01M6FZGJQ58MKGSJXV3HG9VSJ4","status":"running","steps":[{"step":"review","fix_rounds":3}]}],"rounds_to_pass":{"total":3,"max":3,"steps":[{"step":"review","fix_rounds":3}]}}
+
+$ FM_HOME=$LAB bin/fm-nm-rounds.sh record reptoday-task
+recorded reptoday-task s1793661035.11419.7258
+[exit 0]
+{"task":"reptoday-task","project":"RepToday","source":"no-mistakes-state","runs":[{"id":"01M6FTVN7JTNX6A4WAFRJ616Y7","status":"failed","steps":[{"step":"review","fix_rounds":3}]},{"id":"01M6G4JH9C6AT2NDPSMM4V9T1M","status":"running","steps":[]}],"rounds_to_pass":{"total":3,"max":3,"steps":[{"step":"review","fix_rounds":3}]}}
+

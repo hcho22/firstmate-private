@@ -1,0 +1,73 @@
+# Live record: lab FM_HOME, task meta pointing at this change's real task copy; runs read from the real no-mistakes state database (read-only)
+$ FM_HOME=$LAB bin/fm-nm-rounds.sh record fm-review-round-cap
+recorded fm-review-round-cap s1793683288.41834.26164
+[exit 0]
+$ (again - a retried cleanup)
+already recorded fm-review-round-cap s1793683288.41834.26164
+[exit 0]
+
+$ wc -l $LAB/data/pipeline-rounds.jsonl
+       1
+$ jq . $LAB/data/pipeline-rounds.jsonl
+{
+  "task": "fm-review-round-cap",
+  "spawn_gen": "s1793683288.41834.26164",
+  "project": "firstmate-private",
+  "pr": null,
+  "recorded_at": "2026-11-03T07:43:03Z",
+  "source": "no-mistakes-state",
+  "reason": null,
+  "repo": "/Users/hcho/Developer/FM_Private/firstmate-private",
+  "branch": "fm/fm-review-round-cap",
+  "since": "2026-11-03T05:21:48Z",
+  "runs": [
+    {
+      "id": "01M6FZANFKPHCM25QC37S3265G",
+      "status": "failed",
+      "created_at": "2026-11-03T05:50:18Z",
+      "steps": [
+        {
+          "step": "intent",
+          "fix_rounds": 0
+        },
+        {
+          "step": "rebase",
+          "fix_rounds": 0
+        },
+        {
+          "step": "review",
+          "fix_rounds": 1
+        }
+      ]
+    },
+    {
+      "id": "01M6G4KD7APZXVETZRZKB46K8B",
+      "status": "running",
+      "created_at": "2026-11-03T07:22:27Z",
+      "steps": [
+        {
+          "step": "intent",
+          "fix_rounds": 0
+        },
+        {
+          "step": "rebase",
+          "fix_rounds": 0
+        },
+        {
+          "step": "review",
+          "fix_rounds": 1
+        }
+      ]
+    }
+  ],
+  "rounds_to_pass": {
+    "total": 2,
+    "max": 1,
+    "steps": [
+      {
+        "step": "review",
+        "fix_rounds": 2
+      }
+    ]
+  }
+}

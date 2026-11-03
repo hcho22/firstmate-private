@@ -1,0 +1,34 @@
+# Live check, default cap of 3, real run with 3 real review fix rounds
+# cwd: /Users/hcho/.treehouse/firstmate-private-0ac9d2/3/firstmate-private (real task copy of fm-tiered-merge-approval)
+$ no-mistakes axi status | (run block)
+run:
+  id: "01M6FZGJQ58MKGSJXV3HG9VSJ4"
+  branch: fm/fm-tiered-merge-approval
+  status: running
+  head: 617baf6f
+  head_sha: 617baf6f48c00da30eb9964a6f8a68e9d959c9c7
+  findings: none
+  steps[9]{step,status,findings,duration_ms}:
+    intent,completed,0,22
+    rebase,completed,0,1468
+    review,completed,0,2156342
+    test,running,0,0
+    document,pending,0,0
+    lint,pending,0,0
+    push,pending,0,0
+    pr,pending,0,0
+    ci,pending,0,0
+  active_steps[1]{step,status,active_for,round_active_for,last_activity,agent_pid,round}:
+    test,running,4m26s,4m26s,"4s ago: claude producing output","45016",starting
+branch_sync:
+
+$ fm-nm-rounds.sh check --step review --out-dir /Users/hcho/.no-mistakes/evidence/01M6G4KD7APZXVETZRZKB46K8B
+run: 01M6FZGJQ58MKGSJXV3HG9VSJ4
+step: review
+fix_rounds: 3
+cap: 3
+verdict: cap-reached
+findings: none
+file: /Users/hcho/.no-mistakes/evidence/01M6G4KD7APZXVETZRZKB46K8B/nm-01M6FZGJQ58MKGSJXV3HG9VSJ4-review-rounds.txt
+escalation: needs-decision [at=1793691799] [key=nm-01M6FZGJQ58MKGSJXV3HG9VSJ4-review]: fix-round cap rounds=3 findings=none file=/Users/hcho/.no-mistakes/evidence/01M6G4KD7APZXVETZRZKB46K8B/nm-01M6FZGJQ58MKGSJXV3HG9VSJ4-review-rounds.txt
+[exit 3]

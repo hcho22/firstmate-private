@@ -1,0 +1,14 @@
+# [redacted: RepToday is a private repository and this evidence is published to a public repo; its task name, finding ids, and review content are replaced]
+# Replay: the gate RepToday's run 01M6FTVN7JTNX6A4WAFRJ616Y7 parked at after its 3rd review fix round (real state database, read-only;
+# only 'axi status' is shimmed to name that historical run). Without the cap the worker sent a 4th fix and the run failed:
+#   runs.error = step review failed: agent fix: claude exited: exit status 1: 
+$ fm-nm-rounds.sh check --step review --out-dir $LAB/data/demo/cap-demo
+run: 01M6FTVN7JTNX6A4WAFRJ616Y7
+step: review
+fix_rounds: 3
+cap: 3
+verdict: cap-reached
+findings: <finding-a>,<finding-b>,<finding-c>
+file: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.CIvpad/data/demo/cap-demo/nm-01M6FTVN7JTNX6A4WAFRJ616Y7-review-rounds.txt
+escalation: needs-decision [at=1793692115] [key=nm-01M6FTVN7JTNX6A4WAFRJ616Y7-review]: fix-round cap rounds=3 findings=<finding-a>,<finding-b>,<finding-c> file=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.CIvpad/data/demo/cap-demo/nm-01M6FTVN7JTNX6A4WAFRJ616Y7-review-rounds.txt
+[exit 3]

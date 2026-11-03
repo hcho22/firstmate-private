@@ -1,0 +1,45 @@
+schema: fm-bearings.v1
+home: /fm-lab.CIvpad
+generated: "2026-11-03T07:44:09Z"
+prs: "not_requested (run: /bearings include PRs)"
+contributions: 
+  scope: owned contributions per home
+  known: 0
+  checked: 0
+  counts: 
+    captain: 0
+    fleet: 0
+    maintainer: 0
+    nobody: 0
+  complete: false
+  proven_clear: false
+  unmeasured_homes: 0
+  unreadable_records: 1
+  unmeasured: 0
+  stale_verdicts: 0
+  missing_verdicts: 0
+  captain_omitted: 0
+  captain: []
+in_flight[1]{id,kind,state,repo,name,doing}:
+  cap-demo,ship,unknown,/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.CIvpad/projects/demo,cap-demo,no backend target recorded
+secondmates: []
+secondmate_reconcile: []
+decisions_open: []
+landed: []
+gates: []
+reports: []
+recorded_prs: []
+rounds_by_project[2]{project,prs,fix_rounds,mean,max,at_cap,unknown}:
+  RepToday,1,3,3,3,1,0
+  firstmate-private,2,5,2.5,3,1,0
+rounds_per_pr[2]{project,pr,fix_rounds,max,steps}:
+  firstmate-private,"-",3,3,"review:3"
+  RepToday,"-",3,3,"review:3"
+omitted[7]{surface,reveal}:
+  backlog item bodies,"--fields bodies"
+  task paths,"--fields paths"
+  watch/steer actions,"--fields actions"
+  healthy endpoint detail,"--fields endpoints"
+  full scout-report inventory,"--all-reports"
+  rounds_per_pr showing 2 of 3,bin/fm-nm-rounds.sh report
+  live PR discovery + checks,"--include-prs"

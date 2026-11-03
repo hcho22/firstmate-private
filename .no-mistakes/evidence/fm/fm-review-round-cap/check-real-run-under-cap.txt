@@ -1,0 +1,28 @@
+# Live check against the real no-mistakes v1.79.0 daemon and state database
+# cwd: /Users/hcho/.treehouse/firstmate-private-0ac9d2/5/firstmate-private (real task copy of this change, branch fm/fm-review-round-cap)
+# script: target commit 77eb830c bin/fm-nm-rounds.sh
+
+$ fm-nm-rounds.sh check --step review
+run: 01M6G4KD7APZXVETZRZKB46K8B
+step: review
+fix_rounds: 1
+cap: 3
+verdict: under-cap
+findings: rounds-test-mapping-narrows-consumer-selection
+[exit 0]
+
+$ fm-nm-rounds.sh check --step test   # test step is running, no completed round yet
+run: 01M6G4KD7APZXVETZRZKB46K8B
+step: test
+cap: 3
+verdict: unknown
+reason: run 01M6G4KD7APZXVETZRZKB46K8B has no recorded round of step test
+[exit 1]
+
+$ fm-nm-rounds.sh check --step lint   # pending step
+run: 01M6G4KD7APZXVETZRZKB46K8B
+step: lint
+cap: 3
+verdict: unknown
+reason: run 01M6G4KD7APZXVETZRZKB46K8B has no recorded round of step lint
+[exit 1]

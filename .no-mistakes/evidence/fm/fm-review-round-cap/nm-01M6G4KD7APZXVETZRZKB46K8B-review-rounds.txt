@@ -1,0 +1,19 @@
+run: 01M6G4KD7APZXVETZRZKB46K8B
+step: review
+fix_rounds: 1
+
+## round 1 (initial)
+- id: returning-ids-match-positional-finding-ids
+  severity: warning
+  file: bin/fm-nm-rounds.sh:267
+  action: ask-user
+  description: |
+    `check` decides that a finding is "returning" by matching the bare finding id across rounds (lines 260-267: `seen[fid]` collects round numbers, and any id seen in more than one round counts as returning). Many no-mistakes reviewers number findings by position within each round (`F1`, `F2`, `review-1`). In that case a different finding in each round gets reported as one finding that kept coming back, and nothing errors. Evidence from the local no-mistakes state database (read-only, v1.79.0): step_result 01KTQ3ZS... has `F1` in rounds 1-5, and every one of them is a different finding ("/infer relies on a route dependency for bearer auth", "`Image.open()` is invoked on arbitrary uploaded bytes", "never enforces a decoded pixel limit", ...). That step would print `returning: F1,F2` and `seen_in_rounds: 1,2,3,4,5`. Across all 137 steps with 3 or more fix rounds, 95 would report returning ids, and 10 of those include at least one id whose description differs in every round. About 20% of recent finding ids use these position-based forms. This matters because the change tells firstmate to put these first in the captain escalation: `.agents/skills/ask-user-authority/SKILL.md:42` says "Lead with ... the findings that kept returning from the escalation's rounds file". The captain can then be told one finding kept returning when several distinct issues were each fixed once. Other places that rely on the same id match: bin/fm-nm-rounds.sh:275 (the `returning:` output), :283 (the rounds-file `returning:` header), :294 (`seen_in_rounds`), header lines 51 and 59-61, and tests/fm-nm-rounds.test.sh:130 and :135, which assert it with ids that are stable across rounds. Simplification: the intent requires the 3-round cap, the question about rethinking the approach, and counting rounds per PR. It does not require detecting returning findings. Because the defect sits inside a component the intent does not need, the smallest honest remedy is to remove `returning`/`seen_in_rounds` and the skill's "findings that kept returning" lead-in, and keep the verbatim per-round history file. The alternative is to match findings by file plus description instead of by id. Either way the author needs to decide, so this is ask-user.
+
+## round 2 (fix)
+- id: rounds-test-mapping-narrows-consumer-selection
+  severity: info
+  file: bin/fm-test-run.sh:1723
+  action: auto-fix
+  description: |
+    Adding `bin/fm-nm-rounds.sh` to the curated `pr-forge` entry of `families_for_changed_path` narrows what `--changed` runs. Without an entry, `families_for_unmapped_bin` would select every test that names the script plus the curated families of its consumer scripts. Concrete sequence: someone changes only the `report --json` shape or the `check --help` path in bin/fm-nm-rounds.sh and runs `bin/fm-test-run.sh --changed`. Only pr-forge runs (fm-nm-rounds.test.sh, fm-teardown.test.sh). `tests/fm-bearings-snapshot.test.sh::test_rounds_to_pass_surface_by_project` is not selected, although it asserts the report projection that bin/fm-bearings-snapshot.sh:360 consumes. `tests/fm-brief.test.sh::test_no_mistakes_dod_caps_fix_rounds` is not selected either, although it runs the counter the brief names. This contradicts the map's own rule ('Over-selects rather than under-selects'). Full CI lanes still run everything, so this only affects local targeted selection. Fix: list the consumers on the entry the way the bin/fm-nm-run-lib.sh entry does, by adding `snapshot-bearings` and `__script__:fm-brief.test.sh` for bin/fm-nm-rounds.sh, or drop the curated entry so the consumer fallback applies.

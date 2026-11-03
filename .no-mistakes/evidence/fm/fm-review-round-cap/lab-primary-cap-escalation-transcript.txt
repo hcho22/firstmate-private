@@ -1,0 +1,50 @@
+# [redacted: RepToday is a private repository and this evidence is published to a public repo; its task name, finding ids, and review content are replaced]
+# Lab firstmate primary (real claude CLI, Opus 5.5, normal login) on private tmux socket fm-lab, FM_HOME=lab home.
+# Input: one wake carrying the cap escalation produced by the replayed check (RepToday run 01M6FTVN7JTNX6A4WAFRJ616Y7, review, 3 fix rounds).
+# The trailing '❯ allow one more round...' line is Claude Code's ghost prompt suggestion; nothing was typed or answered after the wake.
+# Wake typed into the primary (the screen redraw dropped its first lines from the capture):
+#   Wake: crew cap-demo (ship, no-mistakes) appended a new status event: needs-decision [at=1793692115] [key=nm-01M6FTVN7JTNX6A4WAFRJ616Y7-review]: fix-round cap rounds=3 findings=<finding-a>,<finding-b>,<finding-c> file=<lab>/data/demo/cap-demo/nm-01M6FTVN7JTNX6A4WAFRJ616Y7-review-rounds.txt
+
+  findings=<finding-a>,<finding-b>,<finding-c>
+  file=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.CIvpad/data/demo/cap-demo/nm-01M6FTVN7JTNX6A4WAFRJ616Y7-review-rounds.txt
+
+  Read 1 file, ran 2 shell commands
+
+⏺ Skill(ask-user-authority)
+  ⎿  Successfully loaded skill
+
+⏺ Skill(validation-supervision)
+  ⎿  Successfully loaded skill
+
+  Ran 1 shell command
+
+⏺ Captain, I'm reading the review history behind the fix-round cap decision on the demo task so I can put the choice in front of you.
+
+  Ran 1 shell command
+
+⏺ Skill(stuck-crewmate-recovery)
+  ⎿  Successfully loaded skill
+
+  Ran 2 shell commands
+
+⏺ Captain, the code review on the RepToday <private task> change (the demo project) has used all 3 of its allowed fix rounds and still has open findings. It has stopped and needs your call before
+  it continues.
+
+  How the rounds went (every round's findings, word for word: <rounds file>)
+  [round-by-round narrative of RepToday's private review findings redacted]
+  Options
+  - Approve the review as it stands: the change moves on to tests, the PR and CI now. [consequences naming private product gaps redacted]
+  - Allow one more round (4 total), with your picks for the two gaps: one more fix and review. The risk is that the review finds something new and stops again at 4.
+  - Rethink the approach: I see no sign it's needed. [reasoning naming private product details redacted]
+
+  Recommendation: allow one more round, with these picks:
+  [three product-specific picks redacted]
+  No worker is running for this change right now. Once you answer, I'll pass your decision on and restart a worker on the same local copy to apply it.
+
+✻ Baked for 1m 57s · done 11:51 PM
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ allow one more round with your recommended picks
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Opus 5.5 | Ctx 91% | 5h 65% / 7d 30%
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 1 agent

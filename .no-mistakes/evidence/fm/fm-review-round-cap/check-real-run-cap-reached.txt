@@ -1,0 +1,11 @@
+# Live check, cap reached on the real run (cap lowered to the real round count with --cap 1)
+$ fm-nm-rounds.sh check --step review --cap 1 --out-dir /Users/hcho/.no-mistakes/evidence/01M6G4KD7APZXVETZRZKB46K8B
+run: 01M6G4KD7APZXVETZRZKB46K8B
+step: review
+fix_rounds: 1
+cap: 1
+verdict: cap-reached
+findings: rounds-test-mapping-narrows-consumer-selection
+file: /Users/hcho/.no-mistakes/evidence/01M6G4KD7APZXVETZRZKB46K8B/nm-01M6G4KD7APZXVETZRZKB46K8B-review-rounds.txt
+escalation: needs-decision [at=1793691751] [key=nm-01M6G4KD7APZXVETZRZKB46K8B-review]: fix-round cap rounds=1 findings=rounds-test-mapping-narrows-consumer-selection file=/Users/hcho/.no-mistakes/evidence/01M6G4KD7APZXVETZRZKB46K8B/nm-01M6G4KD7APZXVETZRZKB46K8B-review-rounds.txt
+[exit 3]

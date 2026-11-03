@@ -1,0 +1,58 @@
+# [redacted: RepToday is a private repository and this evidence is published to a public repo; its task name, finding ids, and review content are replaced]
+$ FM_HOME=$LAB bin/fm-nm-rounds.sh report
+cap: 3
+projects[2]{project,prs,fix_rounds,mean,max,at_cap,unknown}:
+  RepToday,1,3,3.0,3,1,0
+  firstmate-private,2,5,2.5,3,1,0
+prs_total: 3
+prs[3]{project,task,pr,fix_rounds,max,steps,recorded_at}:
+  firstmate-private,fm-tiered-merge-approval,"-",3,3,"review:3","2026-11-03T07:43:33Z"
+  RepToday,reptoday-task,"-",3,3,"review:3","2026-11-03T07:43:33Z"
+  firstmate-private,fm-review-round-cap,"-",2,1,"review:2","2026-11-03T07:43:03Z"
+[exit 0]
+
+$ FM_HOME=$LAB bin/fm-nm-rounds.sh report --json --limit 2 | jq .
+{
+  "cap": 3,
+  "projects": [
+    {
+      "project": "RepToday",
+      "prs": 1,
+      "fix_rounds": 3,
+      "mean": 3,
+      "max": 3,
+      "at_cap": 1,
+      "unknown": 0
+    },
+    {
+      "project": "firstmate-private",
+      "prs": 2,
+      "fix_rounds": 5,
+      "mean": 2.5,
+      "max": 3,
+      "at_cap": 1,
+      "unknown": 0
+    }
+  ],
+  "prs_total": 3,
+  "prs": [
+    {
+      "project": "firstmate-private",
+      "task": "fm-tiered-merge-approval",
+      "pr": "-",
+      "fix_rounds": 3,
+      "max": 3,
+      "steps": "review:3",
+      "recorded_at": "2026-11-03T07:43:33Z"
+    },
+    {
+      "project": "RepToday",
+      "task": "reptoday-task",
+      "pr": "-",
+      "fix_rounds": 3,
+      "max": 3,
+      "steps": "review:3",
+      "recorded_at": "2026-11-03T07:43:33Z"
+    }
+  ]
+}
