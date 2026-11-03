@@ -89,6 +89,8 @@ FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 # What a long-lived server must not inherit (fm_backend_herdr_server_ensure).
 # shellcheck source=bin/fm-server-env-lib.sh
 . "$FM_BACKEND_HERDR_ROOT/bin/fm-server-env-lib.sh"
+# shellcheck source=bin/fm-mkdir-lib.sh
+. "$FM_BACKEND_HERDR_ROOT/bin/fm-mkdir-lib.sh"
 
 # Shared, backend-neutral harness-process identity (bin/fm-agent-process-lib.sh):
 # the same agent|shell|other vocabulary the tmux adapter proves liveness with,
@@ -884,7 +886,7 @@ fm_backend_herdr_presentation_session_lock_path() {  # <session>
   dir=$(fm_backend_herdr_presentation_lock_namespace) || return 1
   [ -n "$dir" ] || return 1
   if [ ! -e "$dir" ] && [ ! -L "$dir" ]; then
-    if ! mkdir -m 700 "$dir" 2>/dev/null; then
+    if ! fm_mkdir_exclusive "$dir" 700 2>/dev/null; then
       fm_backend_herdr_presentation_lock_namespace_valid "$dir" || return 1
     fi
   fi

@@ -37,7 +37,10 @@ characters: it has no absolute root, backslash, empty segment, ``.`` segment,
 Paths must be unique across the report and all artifacts, and no path may be
 an ancestor of another path.
 The UTF-8 JSON envelope must contain exactly one value, must not contain
-duplicate object keys, and may contain at most 1048576 bytes and 256 artifacts.
+duplicate object keys, and may contain at most 1048576 bytes, 512 levels of
+array and object nesting counting the top-level object, and 256 artifacts.
+Deeper nesting is refused as invalid JSON before decoding, so the bound does
+not depend on the Python interpreter's own recursion limits.
 
 Unknown fields at any object level are optional extension data within schema
 major 1 and are accepted but omitted from normalized output.
@@ -60,7 +63,11 @@ import sys
 
 
 MAX_JSON_BYTES = 1048576
+MAX_JSON_DEPTH = 512
 MAX_ARTIFACTS = 256
+# Strings are removed before nesting is counted so brackets inside them do not
+# count. Malformed input that this misreads still fails decoding afterwards.
+JSON_STRING = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"', re.DOTALL)
 
 
 class JsonIntegerToken:
@@ -169,6 +176,20 @@ def json_value(value):
         )
         return "{{{}}}".format(",".join(members))
     raise TypeError("value is not JSON-serializable")
+
+
+def reject_deep_nesting(text):
+    depth = 0
+    for character in JSON_STRING.sub("", text):
+        if character in "[{":
+            depth += 1
+            if depth > MAX_JSON_DEPTH:
+                refuse(
+                    "invalid-json",
+                    "input nests arrays and objects deeper than 512 levels",
+                )
+        elif character in "]}":
+            depth -= 1
 
 
 def reject_lone_surrogates(value):
@@ -361,6 +382,7 @@ def decode_contract(raw):
         )
 
     text = raw.decode("utf-8")
+    reject_deep_nesting(text)
     decoder = json.JSONDecoder(
         object_pairs_hook=object_without_duplicates,
         parse_int=JsonIntegerToken,
