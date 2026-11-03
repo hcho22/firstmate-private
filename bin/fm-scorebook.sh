@@ -43,7 +43,7 @@
 # task must be an open captain call, the question id is the task id, the
 # question text is not copied because the hold reason already records it, and
 # the call's lifecycle identity (bin/fm-captain-hold.sh open --identity) is
-# recorded so the question stays bound to that one call. A question asked only
+# recorded so `answer` can tell when an answer lands on it. A question asked only
 # in chat passes `--question` and gets a fresh `chat-` id. An id with an
 # unanswered question is refused, so a re-held task records a new question
 # only after its earlier one was answered or withdrawn.
@@ -51,14 +51,15 @@
 # `answer` closes the latest open question with that id and records whether the
 # captain's answer matched firstmate's recommendation, which is firstmate's
 # judgment and never inferred here. A held question's answer is the captain's
-# words already recorded on the task by bin/fm-captain-hold.sh answer, so it
-# is refused while the task is still the open captain call the question was
-# asked on, and `--answer` is refused for it; once that call is answered, even
-# if the task was released and held again for a new question, the answer is
-# accepted. A chat question requires `--answer` with his words. When the
-# answer makes its kind newly qualify for hand-off, `answer` prints one line
-# naming the kind and its count; later answers that keep it qualifying print
-# nothing.
+# words already recorded on the task by bin/fm-captain-hold.sh answer, so
+# `--answer` is refused for it, and it is refused while the task is still an
+# open captain call with no resolution recorded since the ask: the count after
+# `#` in its lifecycle identity must have grown. A deferral re-held with a new
+# hold-set stamp but no answer is still refused, while a call answered with
+# `--release` and held again for a new question is accepted. A chat question
+# requires `--answer` with his words. When the answer makes its kind newly
+# qualify for hand-off, `answer` prints one line naming the kind and its count;
+# later answers that keep it qualifying print nothing.
 # `withdraw` closes a question that dissolved without his answer, such as a
 # call reconciled as moot; it never counts toward agreement.
 # `pending` lists open questions, one per line: id, kind, held or chat, asked
@@ -277,13 +278,14 @@ command_answer() {
   [ -n "$open" ] || fail "no open question with id $id"
   if [ "$(printf '%s' "$open" | jq -r .held)" = true ]; then
     [ "$answer_set" = 0 ] || fail "question $id is held on its task: record the captain's words with fm-captain-hold.sh answer, not --answer"
-    local rc=0 current
+    local rc=0 current asked
     current=$("$SCRIPT_DIR/fm-captain-hold.sh" open "$id" --identity) || rc=$?
     case "$rc" in
       1) ;;
       0)
-        [ "$current" != "$(printf '%s' "$open" | jq -r .call_identity)" ] \
-          || fail "task $id is still the open captain call this question was asked on; record his answer with fm-captain-hold.sh answer first"
+        asked=$(printf '%s' "$open" | jq -r .call_identity)
+        [ "${current##*#}" -gt "${asked##*#}" ] \
+          || fail "task $id is still an open captain call with no answer recorded since the question; record his answer with fm-captain-hold.sh answer first"
         ;;
       *) fail "could not tell whether task $id is still an open captain call" ;;
     esac

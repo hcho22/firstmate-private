@@ -267,7 +267,7 @@ test_held_questions_reuse_hold_records() {
 }
 
 test_held_question_survives_release_and_rehold() {
-  local home fakebin id rc
+  local home fakebin id rc asked current
   if [ -z "$TASKS_AXI_BIN" ]; then
     echo "skip: tasks-axi not found; held-question cases need a real backlog"
     return 0
@@ -312,7 +312,25 @@ test_held_question_survives_release_and_rehold() {
   assert_equals 2 "$(report_field "$home" finding-scope answered)" "the two calls on one task did not both count"
   assert_equals 1 "$(report_field "$home" finding-scope matched)" "the two calls' match flags were mixed up"
   assert_equals 0 "$(report_field "$home" finding-scope withdrawn)" "a call on the re-held task was withdrawn"
-  pass "a held question is bound to its call, so a released and re-held task records both answers"
+
+  FM_CAPTAIN_HOLD_NOW=2026-01-01T00:00:00Z captain hold sample-later --title "Pick the cache" \
+    --reason "captain picks the cache" --repo sample >/dev/null || fail "could not hold the deferral fixture"
+  heldscore ask --kind finding-design --recommend "no cache" --held sample-later >/dev/null \
+    || fail "ask --held refused the deferral fixture"
+  asked=$(captain open sample-later --identity) || fail "fixture: the deferral is not an open captain call"
+  FM_CAPTAIN_HOLD_NOW=2026-01-02T00:00:00Z captain hold sample-later \
+    --reason "captain said later" --until 2000-01-01 >/dev/null || fail "could not defer the call"
+  FM_CAPTAIN_HOLD_NOW=2026-01-03T00:00:00Z captain hold sample-later \
+    --reason "captain said later again" --until 2000-01-02 >/dev/null || fail "could not re-hold the expired deferral"
+  current=$(captain open sample-later --identity) || fail "fixture: the re-held deferral is not an open captain call"
+  assert_not_equals "$asked" "$current" "fixture: re-holding the expired deferral kept its lifecycle identity"
+  rc=0
+  heldscore answer sample-later --matched yes >/dev/null 2>&1 || rc=$?
+  expect_code 1 "$rc" "a re-held deferral the captain never answered was recorded as answered"
+  printf 'No cache.\n' > "$home/later.txt"
+  captain answer sample-later --decision-file "$home/later.txt" >/dev/null || fail "captain-hold answer failed"
+  heldscore answer sample-later --matched yes || fail "answer refused the deferral once the captain answered it"
+  pass "a held question counts as answered only once an answer lands on its call, across release and deferral"
 }
 
 test_unknown_kind_and_help() {
