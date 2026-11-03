@@ -4996,26 +4996,27 @@ test_merge_tier_documented_example() {
   [ -s "$dir/merge-tiers" ] || fail "merge-tier-documented-example: the documented example was not found"
   out=$(bash -c '
     . "$1/bin/fm-merge-tier-lib.sh"
-    fm_merge_tier_load "$2" my-project || { echo "load failed: $FM_MERGE_TIER_ERROR"; exit 1; }
+    fm_merge_tier_load "$2" firstmate || { echo "load failed: $FM_MERGE_TIER_ERROR"; exit 1; }
     shift 2
     for path in "$@"; do
       fm_merge_tier_verdict "$path"
       printf "%s=%s\n" "$path" "$FM_MERGE_TIER_REASON"
     done' _ "$ROOT" "$dir" \
-    docs/guide.md tests/fm-pr-merge.test.sh docs/legal/terms.md README.md src/app.py \
-    bin/fm-pr-merge.sh skills/stow/notes.md .agents/skills/ship-landing/SKILL.md docs/CLAUDE.md \
-    tests/.claude/settings.json) || fail "merge-tier-documented-example: $out"
-  assert_equals 'docs/guide.md=low risk: matches docs/**
-tests/fm-pr-merge.test.sh=low risk: matches tests/**
-docs/legal/terms.md=always ask: matches docs/legal/**
+    tests/fm-pr-merge.test.sh docs/supervision-protocols/codex.md docs/configuration.md \
+    docs/architecture.md README.md bin/fm-pr-merge.sh skills/stow/notes.md \
+    .agents/skills/ship-landing/SKILL.md docs/CLAUDE.md tests/.claude/settings.json) \
+    || fail "merge-tier-documented-example: $out"
+  assert_equals 'tests/fm-pr-merge.test.sh=low risk: matches tests/**
+docs/supervision-protocols/codex.md=always ask: matches docs/supervision-protocols/**
+docs/configuration.md=always ask: matches docs/configuration.md
+docs/architecture.md=matches no low-risk pattern
 README.md=matches no low-risk pattern
-src/app.py=matches no low-risk pattern
 bin/fm-pr-merge.sh=always ask: matches bin/**
 skills/stow/notes.md=always ask: matches skills/**
 .agents/skills/ship-landing/SKILL.md=always ask: agent instructions or settings
 docs/CLAUDE.md=always ask: agent instructions or settings
 tests/.claude/settings.json=always ask: agent instructions or settings' "$out" "merge-tier-documented-example: verdicts"
-  pass "the documented merge-tiers example merges only docs and tests, and keeps instruction surfaces and other Markdown with the captain"
+  pass "the documented merge-tiers example merges only tests, and keeps Firstmate's docs, scripts, skills, and every other instruction surface with the captain"
 }
 
 # Every case builds its own home, worktree, and forge mocks under $TMP_ROOT/<name>,
