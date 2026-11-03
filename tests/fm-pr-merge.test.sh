@@ -52,12 +52,15 @@ make_case() {
   fm_test_tasks_toml "$case_dir/home/.tasks.toml"
   printf '%s\n' '## In flight' '' '## Queued' '' '## Done' \
     > "$case_dir/home/data/backlog.md"
+  # yolo=on makes a case an autonomous merge, which binds no captain-approved
+  # head; the approved-head cases below record yolo=off and a head themselves.
   fm_write_meta "$case_dir/state/task-x1.meta" \
     "window=fm-task-x1" \
     "worktree=$case_dir/wt" \
     "project=$case_dir/project" \
     "kind=ship" \
-    "mode=no-mistakes"
+    "mode=no-mistakes" \
+    "yolo=on"
   printf '%s\n' \
     'state=MERGED' \
     'merged=true' \
@@ -384,7 +387,7 @@ write_mr_json() {
   local file=$1 kv key value
   local state=opened detail=mergeable conflicts=false discussions=true
   local head=$MR_HEAD pipeline_sha=$MR_HEAD pipeline_status=success pipeline=present
-  local merge_when_pipeline_succeeds=false merge_after=null
+  local merge_when_pipeline_succeeds=false merge_after=null base=main
   shift
   for kv in "$@"; do
     key=${kv%%=*}
@@ -400,6 +403,7 @@ write_mr_json() {
       pipeline) pipeline=$value ;;
       merge_when_pipeline_succeeds) merge_when_pipeline_succeeds=$value ;;
       merge_after) merge_after=$value ;;
+      base) base=$value ;;
       *) fail "write_mr_json: unknown field '$key'" ;;
     esac
   done
@@ -410,8 +414,8 @@ write_mr_json() {
     "$state" "$detail" "$conflicts" > "$file"
   printf '"blocking_discussions_resolved":%s,"sha":"%s","head_pipeline":%s,' \
     "$discussions" "$head" "$pipeline" >> "$file"
-  printf '"merge_when_pipeline_succeeds":%s,"merge_after":%s}\n' \
-    "$merge_when_pipeline_succeeds" "$merge_after" >> "$file"
+  printf '"merge_when_pipeline_succeeds":%s,"merge_after":%s,"target_branch":"%s"}\n' \
+    "$merge_when_pipeline_succeeds" "$merge_after" "$base" >> "$file"
 }
 
 # tea mock recording every invocation, so a test can prove the login and
@@ -524,7 +528,7 @@ SH
 # with named fields overridden so one case drives exactly one condition.
 write_forgejo_pr_json() {
   local file=$1 kv key value
-  local state=open mergeable=true merged=false draft=false head=$FJ_HEAD
+  local state=open mergeable=true merged=false draft=false head=$FJ_HEAD base=main
   shift
   for kv in "$@"; do
     key=${kv%%=*}
@@ -535,11 +539,12 @@ write_forgejo_pr_json() {
       merged) merged=$value ;;
       draft) draft=$value ;;
       head) head=$value ;;
+      base) base=$value ;;
       *) fail "write_forgejo_pr_json: unknown field '$key'" ;;
     esac
   done
-  printf '{"state":"%s","mergeable":%s,"merged":%s,"draft":%s,"head":{"sha":"%s"}}\n' \
-    "$state" "$mergeable" "$merged" "$draft" "$head" > "$file"
+  printf '{"state":"%s","mergeable":%s,"merged":%s,"draft":%s,"head":{"sha":"%s"},"base":{"ref":"%s"}}\n' \
+    "$state" "$mergeable" "$merged" "$draft" "$head" "$base" > "$file"
 }
 
 # write_forgejo_status_json <file> [state=<value>] [total_count=<n>]
@@ -4498,6 +4503,325 @@ test_allow_no_pipeline_is_attended_only_and_gitlab_only() {
   pass "fm-pr-merge --allow-no-pipeline is attended-only, takes no value, and applies only to GitLab"
 }
 
+# Approved-head fixtures. A real origin carries the base branch and the pull
+# request head ref, an author clone plays the worker and the base branch's other
+# contributors, and the task worktree is a plain clone of origin, so the merge
+# reads the commits between two heads exactly as it would in a home.
+# Args: case_dir pr_ref. Leaves the author on branch feature at the PR's first
+# commit and prints that commit.
+make_pr_repos() {
+  local case_dir=$1 pr_ref=$2 author=$1/author
+  git init -q --bare -b main "$case_dir/origin.git"
+  fm_git_init_commit "$author"
+  printf 'one\ntwo\nthree\nfour\nfive\n' > "$author/shared.txt"
+  git -C "$author" add shared.txt
+  git -C "$author" commit -qm 'base: add shared'
+  git -C "$author" remote add origin "$case_dir/origin.git"
+  git -C "$author" push -q origin main
+  git -C "$author" checkout -q -b feature
+  printf 'one\nTWO from the pull request\nthree\nfour\nfive\n' > "$author/shared.txt"
+  printf 'feature\n' > "$author/feature.txt"
+  git -C "$author" add shared.txt feature.txt
+  git -C "$author" commit -qm 'feat: the approved change'
+  git -C "$author" push -q origin "HEAD:$pr_ref"
+  rm -rf "$case_dir/wt"
+  git clone -q "$case_dir/origin.git" "$case_dir/wt"
+  git -C "$author" rev-parse HEAD
+}
+
+# Commit one file change on the base branch and push it. Args: case_dir file content subject
+push_base_commit() {
+  local author=$1/author
+  git -C "$author" checkout -q main
+  printf '%s\n' "$3" > "$author/$2"
+  git -C "$author" add "$2"
+  git -C "$author" commit -qm "$4"
+  git -C "$author" push -q origin main
+  git -C "$author" checkout -q feature
+}
+
+# Push the author's feature branch as the PR head and print it. Args: case_dir pr_ref
+push_pr_head() {
+  git -C "$1/author" push -q -f origin "HEAD:$2"
+  git -C "$1/author" rev-parse HEAD
+}
+
+# Record a captain-approved head the way bin/fm-approved-head.sh record does,
+# without a pr= line yet, so the merge's own pr= recording follows it.
+# Args: case_dir head url [yolo]
+write_approved_meta() {
+  local case_dir=$1 head=$2 url=$3 yolo=${4:-off}
+  fm_write_meta "$case_dir/state/task-x1.meta" \
+    "window=fm-task-x1" \
+    "worktree=$case_dir/wt" \
+    "project=$case_dir/project" \
+    "kind=ship" \
+    "mode=no-mistakes" \
+    "yolo=$yolo" \
+    ${head:+"approved_head=$head $url"}
+}
+
+approved_head_merge() {  # <case_dir> <url>
+  local rc=0
+  run_pr_merge "$1" task-x1 "$2" > "$1/stdout" 2> "$1/stderr" || rc=$?
+  printf '%s\n' "$rc"
+}
+
+assert_no_gh_merge() {  # <case_dir> <label>
+  assert_no_grep 'pr merge ' "$1/gh.log" "$2: the forge merge ran"
+}
+
+test_approved_head_matching_heads_merge() {
+  local case_dir url=https://github.com/example/repo/pull/70 head=7070707070707070707070707070707070707070
+  case_dir=$(make_case approved-head-matches)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" "$head" "$url"
+  expect_code 0 "$(approved_head_merge "$case_dir" "$url")" "approved-head-matches: the merge at the approved head refused"
+  assert_grep "verified: live head $head of $url is the captain-approved head" "$case_dir/stderr" \
+    "approved-head-matches: the approved head was not reported as verified"
+  assert_logged_gh_merge "$case_dir" 70 example/repo --squash
+  pass "an attended merge proceeds when the live head is the captain-approved head"
+}
+
+test_approved_head_added_commit_refuses_and_names_it() {
+  local case_dir url=https://github.com/example/repo/pull/71 approved live rc
+  case_dir=$(make_case approved-head-added-commit)
+  approved=$(make_pr_repos "$case_dir" refs/pull/71/head)
+  printf 'fixed\n' > "$case_dir/author/ci.txt"
+  git -C "$case_dir/author" add ci.txt
+  git -C "$case_dir/author" commit -qm 'fix: a pipeline tweak after approval'
+  live=$(push_pr_head "$case_dir" refs/pull/71/head)
+  add_gh_mocks "$case_dir" "$live"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" "$approved" "$url"
+  rc=$(approved_head_merge "$case_dir" "$url")
+  expect_code 1 "$rc" "approved-head-added-commit: a commit added after approval merged"
+  assert_grep "the captain approved head $approved, but the live head is $live" "$case_dir/stderr" \
+    "approved-head-added-commit: the refusal did not name both heads"
+  assert_grep "$live fix: a pipeline tweak after approval (a commit added to the pull request)" "$case_dir/stderr" \
+    "approved-head-added-commit: the refusal did not name the added commit"
+  assert_grep "fm-approved-head.sh record task-x1 $url" "$case_dir/stderr" \
+    "approved-head-added-commit: the refusal did not print the record command"
+  assert_no_gh_merge "$case_dir" approved-head-added-commit
+  [ -z "$(git -C "$case_dir/wt" for-each-ref refs/fm-approved-head)" ] \
+    || fail "approved-head-added-commit: the private fetch refs were left behind"
+  pass "an attended merge refuses a commit added after approval and names it"
+}
+
+test_approved_head_clean_base_merge_merges() {
+  local case_dir url=https://github.com/example/repo/pull/72 approved live
+  case_dir=$(make_case approved-head-clean-catch-up)
+  approved=$(make_pr_repos "$case_dir" refs/pull/72/head)
+  # The base edits a line inside the pull request hunk's context, so a
+  # full-context patch would differ while the catch-up is still clean.
+  push_base_commit "$case_dir" shared.txt $'one\ntwo\nthree\nfour changed on main\nfive' 'base: touch a neighbouring line'
+  push_base_commit "$case_dir" other.txt 'other' 'base: an unrelated change'
+  git -C "$case_dir/author" merge -q --no-edit main >/dev/null 2>&1
+  live=$(push_pr_head "$case_dir" refs/pull/72/head)
+  add_gh_mocks "$case_dir" "$live"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" "$approved" "$url"
+  expect_code 0 "$(approved_head_merge "$case_dir" "$url")" "approved-head-clean-catch-up: a clean catch-up with the base refused"
+  assert_grep "adds only a clean catch-up with main to the captain-approved head $approved (2 commits from main, 1 clean merge commits)" \
+    "$case_dir/stderr" "approved-head-clean-catch-up: the catch-up was not reported as verified"
+  assert_logged_gh_merge "$case_dir" 72 example/repo --squash
+  pass "an attended merge proceeds when the only new commit is a clean merge of the base"
+}
+
+test_approved_head_hand_resolved_base_merge_refuses() {
+  local case_dir url=https://github.com/example/repo/pull/73 approved live marker_tree
+  case_dir=$(make_case approved-head-conflict-merge)
+  approved=$(make_pr_repos "$case_dir" refs/pull/73/head)
+  push_base_commit "$case_dir" shared.txt $'one\nTWO from main\nthree\nfour\nfive' 'base: change the same line'
+  if git -C "$case_dir/author" merge -q --no-edit main >/dev/null 2>&1; then
+    fail "approved-head-conflict-merge: the fixture merge did not conflict"
+  fi
+  printf 'one\nTWO resolved by hand\nthree\nfour\nfive\n' > "$case_dir/author/shared.txt"
+  git -C "$case_dir/author" add shared.txt
+  git -C "$case_dir/author" commit -q --no-edit
+  live=$(push_pr_head "$case_dir" refs/pull/73/head)
+  add_gh_mocks "$case_dir" "$live"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" "$approved" "$url"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$url")" "approved-head-conflict-merge: a hand-resolved base merge merged"
+  assert_grep "$live Merge branch 'main' into feature (a merge whose tree is not the conflict-free automatic merge of its parents)" "$case_dir/stderr" \
+    "approved-head-conflict-merge: the refusal did not name the hand-resolved merge"
+  assert_grep "own changes relative to main differ from those at the approved head" "$case_dir/stderr" \
+    "approved-head-conflict-merge: the refusal did not report the changed pull request diff"
+  assert_no_gh_merge "$case_dir" approved-head-conflict-merge
+
+  # A merge with no conflict that still carries an edit of its own is refused
+  # by the same tree comparison.
+  case_dir=$(make_case approved-head-edited-merge)
+  url=https://github.com/example/repo/pull/74
+  approved=$(make_pr_repos "$case_dir" refs/pull/74/head)
+  push_base_commit "$case_dir" other.txt 'other' 'base: an unrelated change'
+  git -C "$case_dir/author" merge -q --no-edit main >/dev/null
+  printf 'slipped in\n' >> "$case_dir/author/feature.txt"
+  git -C "$case_dir/author" commit -q -a --amend --no-edit
+  live=$(push_pr_head "$case_dir" refs/pull/74/head)
+  add_gh_mocks "$case_dir" "$live"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" "$approved" "$url"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$url")" "approved-head-edited-merge: a base merge carrying an edit merged"
+  assert_grep "$live Merge branch 'main' into feature (a merge whose tree is not the conflict-free automatic merge of its parents)" "$case_dir/stderr" \
+    "approved-head-edited-merge: the refusal did not name the edited merge"
+  assert_no_gh_merge "$case_dir" approved-head-edited-merge
+
+  # A merge committed with the very tree a conflicted automatic merge leaves,
+  # conflict markers and all, is no clean merge either.
+  case_dir=$(make_case approved-head-marker-merge)
+  url=https://github.com/example/repo/pull/78
+  approved=$(make_pr_repos "$case_dir" refs/pull/78/head)
+  push_base_commit "$case_dir" shared.txt $'one\nTWO from main\nthree\nfour\nfive' 'base: change the same line'
+  # The conflict markers name the revisions merge-tree is given, so it is given
+  # the full commit ids the merge check itself passes.
+  marker_tree=$(git -C "$case_dir/author" merge-tree --write-tree --no-messages \
+    "$(git -C "$case_dir/author" rev-parse HEAD)" "$(git -C "$case_dir/author" rev-parse main)") \
+    && fail "approved-head-marker-merge: the fixture merge did not conflict"
+  marker_tree=${marker_tree%%$'\n'*}
+  live=$(git -C "$case_dir/author" commit-tree "$marker_tree" -p HEAD -p main -m "Merge branch 'main' into feature")
+  git -C "$case_dir/author" reset -q --hard "$live"
+  live=$(push_pr_head "$case_dir" refs/pull/78/head)
+  add_gh_mocks "$case_dir" "$live"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" "$approved" "$url"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$url")" "approved-head-marker-merge: a merge committed with conflict markers merged"
+  assert_grep "$live Merge branch 'main' into feature (a merge whose tree is not the conflict-free automatic merge of its parents)" "$case_dir/stderr" \
+    "approved-head-marker-merge: the refusal did not name the conflicted merge"
+  assert_no_gh_merge "$case_dir" approved-head-marker-merge
+  pass "an attended merge refuses a base merge with hand-resolved conflicts or edits of its own"
+}
+
+test_approved_head_rewritten_history_refuses() {
+  local case_dir url=https://github.com/example/repo/pull/75 approved live
+  case_dir=$(make_case approved-head-rebased)
+  approved=$(make_pr_repos "$case_dir" refs/pull/75/head)
+  push_base_commit "$case_dir" other.txt 'other' 'base: an unrelated change'
+  git -C "$case_dir/author" rebase -q main
+  live=$(push_pr_head "$case_dir" refs/pull/75/head)
+  add_gh_mocks "$case_dir" "$live"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" "$approved" "$url"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$url")" "approved-head-rebased: a rebased pull request merged"
+  assert_grep "the approved head is not an ancestor of the live head" "$case_dir/stderr" \
+    "approved-head-rebased: the refusal did not report the rewritten history"
+  assert_no_gh_merge "$case_dir" approved-head-rebased
+  pass "an attended merge refuses a rebased or force-pushed pull request"
+}
+
+test_approved_head_missing_follows_the_documented_rule() {
+  local case_dir url=https://github.com/example/repo/pull/76 head=7676767676767676767676767676767676767676 meta
+  case_dir=$(make_case approved-head-missing)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" '' "$url"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$url")" "approved-head-missing: a merge with no approved head merged"
+  assert_grep "no captain-approved head is recorded for task task-x1" "$case_dir/stderr" \
+    "approved-head-missing: the refusal did not explain the missing head"
+  assert_grep "record the head the captain was shown with: $ROOT/bin/fm-approved-head.sh record task-x1 $url" "$case_dir/stderr" \
+    "approved-head-missing: the refusal did not print the exact record command"
+  assert_no_gh_merge "$case_dir" approved-head-missing
+
+  # The printed command records the live head ahead of pr=, and the merge then
+  # proceeds at it.
+  meta="$case_dir/state/task-x1.meta"
+  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$case_dir/home" FM_STATE_OVERRIDE="$case_dir/state" \
+    FM_TEST_GH_LOG="$case_dir/gh.log" FM_TEST_GH_HEAD="$case_dir/github-head" \
+    FM_TEST_GH_VIEW_JSON="$case_dir/github-view.json" PATH="$case_dir/fakebin:$PATH" \
+    "$ROOT/bin/fm-approved-head.sh" record task-x1 "$url" > "$case_dir/record.out" 2> "$case_dir/record.err" \
+    || fail "approved-head-missing: recording the head failed: $(cat "$case_dir/record.err")"
+  assert_grep "recorded: approved head $head for $url" "$case_dir/record.out" \
+    "approved-head-missing: the record command did not report the head"
+  [ "$(grep -n -e '^approved_head=' -e '^pr=' "$meta" | cut -d: -f2 | cut -d= -f1 | paste -sd, -)" = approved_head,pr ] \
+    || fail "approved-head-missing: the approved head was not recorded ahead of pr=: $(cat "$meta")"
+  expect_code 0 "$(approved_head_merge "$case_dir" "$url")" "approved-head-missing: the merge refused after the head was recorded"
+  assert_logged_gh_merge "$case_dir" 76 example/repo --squash
+
+  # A head approved for another pull request does not count for this one.
+  case_dir=$(make_case approved-head-other-pr)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" "$head" https://github.com/example/repo/pull/1
+  expect_code 1 "$(approved_head_merge "$case_dir" "$url")" "approved-head-other-pr: another PR's approval merged this one"
+  assert_no_gh_merge "$case_dir" approved-head-other-pr
+
+  # An autonomous yolo merge has no captain word to bind.
+  case_dir=$(make_case approved-head-yolo)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" '' "$url" on
+  expect_code 0 "$(approved_head_merge "$case_dir" "$url")" "approved-head-yolo: a yolo merge refused"
+  assert_grep "no captain-approved head is recorded for $url; merging under the task's yolo posture" "$case_dir/stderr" \
+    "approved-head-yolo: the yolo merge did not say it was unbound"
+  assert_logged_gh_merge "$case_dir" 76 example/repo --squash
+  pass "a missing approved head refuses with the exact record command, except for a yolo merge"
+}
+
+test_approved_head_away_merge_is_not_bound() {
+  local case_dir url=https://github.com/example/repo/pull/77 head=7777777777777777777777777777777777777777
+  case_dir=$(make_case approved-head-away)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" 1111111111111111111111111111111111111111 "$url"
+  write_away_record "$case_dir" --words 'merge task-x1 when green'
+  expect_code 0 "$(approved_head_merge "$case_dir" "$url")" "approved-head-away: an away merge was bound to the approved head"
+  assert_logged_gh_merge "$case_dir" 77 example/repo --squash
+  pass "an away-authority merge is not bound to an approved head"
+}
+
+test_approved_head_gitlab_and_forgejo() {
+  local case_dir approved live
+  # GitLab reads its merge request head ref, and a clean base merge passes.
+  case_dir=$(make_gitlab_case approved-head-gitlab-catch-up)
+  approved=$(make_pr_repos "$case_dir" refs/merge-requests/7/head)
+  push_base_commit "$case_dir" other.txt 'other' 'base: an unrelated change'
+  git -C "$case_dir/author" merge -q --no-edit main >/dev/null
+  live=$(push_pr_head "$case_dir" refs/merge-requests/7/head)
+  write_mr_json "$case_dir/mr.json" head="$live" pipeline_sha="$live"
+  write_approved_meta "$case_dir" "$approved" "$MR_URL"
+  expect_code 0 "$(approved_head_merge "$case_dir" "$MR_URL")" "approved-head-gitlab-catch-up: a clean GitLab catch-up refused"
+  assert_contains "$(glab_merge_line "$case_dir/glab.log")" "--sha $live" \
+    "approved-head-gitlab-catch-up: GitLab did not merge the live head"
+
+  # A GitLab commit added after approval refuses before glab merges.
+  case_dir=$(make_gitlab_case approved-head-gitlab-added)
+  approved=$(make_pr_repos "$case_dir" refs/merge-requests/7/head)
+  printf 'fixed\n' > "$case_dir/author/ci.txt"
+  git -C "$case_dir/author" add ci.txt
+  git -C "$case_dir/author" commit -qm 'fix: after approval'
+  live=$(push_pr_head "$case_dir" refs/merge-requests/7/head)
+  write_mr_json "$case_dir/mr.json" head="$live" pipeline_sha="$live"
+  write_approved_meta "$case_dir" "$approved" "$MR_URL"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$MR_URL")" "approved-head-gitlab-added: a GitLab commit added after approval merged"
+  assert_grep "$live fix: after approval (a commit added to the pull request)" "$case_dir/stderr" \
+    "approved-head-gitlab-added: the refusal did not name the added commit"
+  [ -z "$(glab_merge_line "$case_dir/glab.log")" ] || fail "approved-head-gitlab-added: glab merged"
+
+  # Forgejo reads refs/pull/<n>/head; an added commit refuses before tea merges,
+  # and the approved head merges.
+  case_dir=$(make_forgejo_case approved-head-forgejo-added)
+  approved=$(make_pr_repos "$case_dir" refs/pull/9/head)
+  printf 'fixed\n' > "$case_dir/author/ci.txt"
+  git -C "$case_dir/author" add ci.txt
+  git -C "$case_dir/author" commit -qm 'fix: after approval'
+  live=$(push_pr_head "$case_dir" refs/pull/9/head)
+  write_forgejo_pr_json "$case_dir/pr.json" head="$live"
+  printf '%s\n' "$live" > "$case_dir/tea-expected-head"
+  write_approved_meta "$case_dir" "$approved" "$FJ_URL"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$FJ_URL")" "approved-head-forgejo-added: a Forgejo commit added after approval merged"
+  assert_grep "$live fix: after approval (a commit added to the pull request)" "$case_dir/stderr" \
+    "approved-head-forgejo-added: the refusal did not name the added commit"
+  [ ! -e "$case_dir/tea-merge-called" ] || fail "approved-head-forgejo-added: tea merged"
+
+  case_dir=$(make_forgejo_case approved-head-forgejo-matches)
+  write_approved_meta "$case_dir" "$FJ_HEAD" "$FJ_URL"
+  expect_code 0 "$(approved_head_merge "$case_dir" "$FJ_URL")" "approved-head-forgejo-matches: the approved Forgejo head refused"
+  [ -e "$case_dir/tea-merge-called" ] || fail "approved-head-forgejo-matches: tea did not merge"
+  pass "GitLab and Forgejo merges are bound to the approved head the same way"
+}
+
 # Every case builds its own home, worktree, and forge mocks under $TMP_ROOT/<name>,
 # so the cases share nothing and run in the concurrent lanes
 # tests/case-lanes-helpers.sh owns.
@@ -4626,4 +4950,12 @@ fm_test_run_cases \
   test_allow_red_refused_on_forgejo \
   test_allow_missing_refused_on_forgejo \
   test_allow_no_pipeline_merges_only_a_null_head_pipeline \
-  test_allow_no_pipeline_is_attended_only_and_gitlab_only
+  test_allow_no_pipeline_is_attended_only_and_gitlab_only \
+  test_approved_head_matching_heads_merge \
+  test_approved_head_added_commit_refuses_and_names_it \
+  test_approved_head_clean_base_merge_merges \
+  test_approved_head_hand_resolved_base_merge_refuses \
+  test_approved_head_rewritten_history_refuses \
+  test_approved_head_missing_follows_the_documented_rule \
+  test_approved_head_away_merge_is_not_bound \
+  test_approved_head_gitlab_and_forgejo

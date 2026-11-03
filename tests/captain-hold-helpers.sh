@@ -108,6 +108,11 @@ request_reconciles() {  # <home> <source-id> <task-id>...
         --source "captured board result" >/dev/null
 }
 
+# The head configure_merged_github's pull request reports, recorded as the
+# captain-approved head by fixtures whose merge models a captain's merge word.
+# shellcheck disable=SC2034 # Read by the suites that source this helper.
+CAPTAIN_HOLD_GITHUB_HEAD=1111111111111111111111111111111111111111
+
 configure_merged_github() {  # <home>
   local home=$1
   fm_shared_stub "$home/fakebin" "gh" <<'SH'
