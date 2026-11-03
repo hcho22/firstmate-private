@@ -43,12 +43,15 @@
 # braces, and negation are refused rather than read literally, because a rule
 # that silently matches nothing it was written for would be a guess.
 #
-# Built-in always-ask paths, which no project rule can remove:
-#   - CI workflow files: .github/workflows/**, .forgejo/workflows/**,
-#     .gitea/workflows/**, and .gitlab-ci.yml.
-#   - Agent instruction files: any path whose last segment is AGENTS.md or
-#     CLAUDE.md, compared case-insensitively, because a case-insensitive
-#     filesystem loads a differently cased copy as the instruction file.
+# Built-in always-ask paths, which no project rule can remove: every path a
+# tool reads as instructions, settings, or a pipeline definition rather than
+# as the product, namely agent instructions and settings, CI and forge
+# configuration, and the validation gate's configuration. A path is built in
+# when any of its segments is one of the directory names, or its last segment
+# is one of the file names, that fm_merge_tier_verdict lists, at any depth and
+# in any letter case, because a case-insensitive filesystem loads a
+# differently cased copy as the real one. docs/configuration.md "Built-in
+# always-ask paths" explains the set and how to extend it.
 #
 # Verdict for one path, first match wins: a built-in always-ask path, then a
 # project always-ask rule, then a project low-risk rule; a path none of them
@@ -212,23 +215,37 @@ fm_merge_tier_load() {  # <config-dir> <project-name>
 # the rules fm_merge_tier_load read. Sets FM_MERGE_TIER_VERDICT to low-risk,
 # always-ask, or unmatched, and FM_MERGE_TIER_REASON to why.
 fm_merge_tier_verdict() {  # <path>
-  local path=$1 i
-  case "$path" in
-    .github/workflows/*|.forgejo/workflows/*|.gitea/workflows/*|.gitlab-ci.yml)
-      FM_MERGE_TIER_VERDICT=always-ask
-      FM_MERGE_TIER_REASON='always ask: a CI workflow file'
-      return 0
+  local path=$1 i reason='' nocase=0
+  # Only the built-in names ignore case; project rules stay case-sensitive.
+  shopt -q nocasematch && nocase=1
+  shopt -s nocasematch
+  case "/$path/" in
+    */.agents/*|*/.claude/*|*/.codex/*|*/.cursor/*|*/.gemini/*|*/.greptile/*|*/.grok/*|*/.omp/*|*/.opencode/*|*/.pi/*)
+      reason='always ask: agent instructions or settings'
+      ;;
+    */.github/*|*/.forgejo/*|*/.gitea/*|*/.gitlab/*|*/.circleci/*|*/.buildkite/*)
+      reason='always ask: CI or forge configuration'
+      ;;
+    *)
+      case "${path##*/}" in
+        SKILL.md|AGENTS*.md|CLAUDE*.md|GEMINI.md|GROK*.md|.cursorrules|.mcp.json|opencode.json|opencode.jsonc)
+          reason='always ask: agent instructions or settings'
+          ;;
+        .gitlab-ci.yml|.travis.yml|azure-pipelines.yml|Jenkinsfile|CODEOWNERS)
+          reason='always ask: CI or forge configuration'
+          ;;
+        .no-mistakes.yaml)
+          reason="always ask: the validation gate's configuration"
+          ;;
+      esac
       ;;
   esac
-  # Spelled out letter by letter, because Bash 3.2 has no case-folding
-  # expansion and a subprocess per path would slow a large pull request.
-  case "${path##*/}" in
-    [aA][gG][eE][nN][tT][sS].[mM][dD]|[cC][lL][aA][uU][dD][eE].[mM][dD])
-      FM_MERGE_TIER_VERDICT=always-ask
-      FM_MERGE_TIER_REASON='always ask: an agent instruction file'
-      return 0
-      ;;
-  esac
+  [ "$nocase" -eq 1 ] || shopt -u nocasematch
+  if [ -n "$reason" ]; then
+    FM_MERGE_TIER_VERDICT=always-ask
+    FM_MERGE_TIER_REASON=$reason
+    return 0
+  fi
   for ((i = 0; i < ${#FM_MERGE_TIER_ALWAYS_ASK_REGEXES[@]}; i++)); do
     if [[ $path =~ ${FM_MERGE_TIER_ALWAYS_ASK_REGEXES[i]} ]]; then
       FM_MERGE_TIER_VERDICT=always-ask

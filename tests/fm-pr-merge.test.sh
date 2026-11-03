@@ -4622,7 +4622,7 @@ test_low_risk_refuses_naming_unmatched_and_always_ask_paths() {
 }
 
 # The built-in always-ask paths hold even when a project's own rules would
-# call them low risk, case-folded instruction files included.
+# call them low risk, case-folded names and nested agent directories included.
 test_low_risk_builtin_always_ask_paths_cannot_be_overridden() {
   local case_dir rc path head=7272727272727272727272727272727272727272
   case_dir=$(make_case low-risk-builtins)
@@ -4630,25 +4630,37 @@ test_low_risk_builtin_always_ask_paths_cannot_be_overridden() {
   add_gh_mocks "$case_dir" "$head"
   write_merge_tiers "$case_dir" \
     'project low-risk **' \
-    'project low-risk .github/workflows/**' \
+    'project low-risk .github/**' \
+    'project low-risk .agents/**' \
     'project low-risk AGENTS.md'
-  write_github_files "$case_dir" "$head" docs/a.md .github/workflows/ci.yml .gitlab-ci.yml \
-    .forgejo/workflows/ci.yml .gitea/workflows/ci.yml AGENTS.md pkg/CLAUDE.md docs/Agents.md
+  write_github_files "$case_dir" "$head" docs/a.md docs/agents/guide.md \
+    .agents/skills/ship-landing/SKILL.md .claude/settings.json pkg/.Cursor/rules/style.mdc \
+    GROK_BOT.md AGENTS.override.md docs/Agents.md \
+    .github/workflows/ci.yml .github/actions/setup/action.yml .github/copilot-instructions.md \
+    .circleci/config.yml Jenkinsfile .no-mistakes.yaml
 
   run_low_risk_merge "$case_dir"
 
   expect_code 4 "$rc" "low-risk-builtins: a built-in always-ask path must refuse"
   assert_no_grep 'pr merge' "$case_dir/gh.log" "low-risk-builtins: gh pr merge ran"
-  for path in .github/workflows/ci.yml .gitlab-ci.yml .forgejo/workflows/ci.yml .gitea/workflows/ci.yml; do
-    assert_grep "  - $path (always ask: a CI workflow file)" "$case_dir/stderr" \
-      "low-risk-builtins: $path was not refused as a CI workflow file"
+  assert_grep '12 changed path(s) fall outside the low-risk tier for project' "$case_dir/stderr" \
+    "low-risk-builtins: the refusal did not count every built-in path"
+  for path in .agents/skills/ship-landing/SKILL.md .claude/settings.json pkg/.Cursor/rules/style.mdc \
+    GROK_BOT.md AGENTS.override.md docs/Agents.md; do
+    assert_grep "  - $path (always ask: agent instructions or settings)" "$case_dir/stderr" \
+      "low-risk-builtins: $path was not refused as agent instructions or settings"
   done
-  for path in AGENTS.md pkg/CLAUDE.md docs/Agents.md; do
-    assert_grep "  - $path (always ask: an agent instruction file)" "$case_dir/stderr" \
-      "low-risk-builtins: $path was not refused as an agent instruction file"
+  for path in .github/workflows/ci.yml .github/actions/setup/action.yml .github/copilot-instructions.md \
+    .circleci/config.yml Jenkinsfile; do
+    assert_grep "  - $path (always ask: CI or forge configuration)" "$case_dir/stderr" \
+      "low-risk-builtins: $path was not refused as CI or forge configuration"
   done
+  assert_grep "  - .no-mistakes.yaml (always ask: the validation gate's configuration)" "$case_dir/stderr" \
+    "low-risk-builtins: .no-mistakes.yaml was not refused as the validation gate's configuration"
   assert_no_grep '  - docs/a.md' "$case_dir/stderr" "low-risk-builtins: a low-risk path was named"
-  pass "fm-pr-merge --low-risk always refuses CI workflow and agent instruction files, whatever the project's rules say"
+  assert_no_grep '  - docs/agents/guide.md' "$case_dir/stderr" \
+    "low-risk-builtins: a directory merely named like an agent tool's was refused"
+  pass "fm-pr-merge --low-risk always refuses agent instructions and settings, CI and forge configuration, and the gate's configuration, whatever the project's rules say"
 }
 
 # A changed-file list that cannot be read in full is never judged as complete.
@@ -4900,6 +4912,112 @@ src/main.go=unmatched' "$out" "merge-tier-grammar: verdicts"
   pass "fm-merge-tier-lib.sh anchors patterns at the root, reads * ? and ** by segment, and refuses every unsupported spelling"
 }
 
+# Every built-in name matches as a whole segment at any depth and in any letter
+# case, while the project's own rules stay case-sensitive around it.
+test_merge_tier_builtin_paths_match_whole_names() {
+  local dir out
+  dir="$TMP_ROOT/merge-tier-builtin-names"
+  mkdir -p "$dir"
+  printf '%s\n' 'project always-ask Private/**' 'project low-risk **' > "$dir/merge-tiers"
+  out=$(bash -c '
+    . "$1/bin/fm-merge-tier-lib.sh"
+    fm_merge_tier_load "$2" project || { echo "load failed: $FM_MERGE_TIER_ERROR"; exit 1; }
+    shift 2
+    for path in "$@"; do
+      fm_merge_tier_verdict "$path"
+      printf "%s=%s\n" "$path" "$FM_MERGE_TIER_REASON"
+    done
+    if shopt -q nocasematch; then echo "nocasematch was left set"; fi' _ "$ROOT" "$dir" \
+    .agents/skills/a/notes.md .claude/settings.json .codex/hooks.json src/.cursor/rules/a.mdc \
+    .gemini/settings.json .greptile/rules.md .grok/hooks/a.sh .omp/overlay.yml .opencode/plugins/a.ts \
+    .PI/extensions/a.ts .claude skills/stow/SKILL.md AGENTS.override.md pkg/CLAUDE.local.md GEMINI.md \
+    GROK_BOT.md .cursorrules .mcp.json opencode.json opencode.jsonc docs/agents-guide.md \
+    .github/CODEOWNERS .forgejo/actions/a.yml .gitea/workflows/ci.yml .gitlab/ci/build.yml \
+    .circleci/config.yml .buildkite/pipeline.yml .gitlab-ci.yml .travis.yml azure-pipelines.yml \
+    Jenkinsfile docs/CODEOWNERS .no-mistakes.yaml sub/.No-Mistakes.yaml \
+    docs/agents/guide.md src/github/client.go docs/skills.md my.claude/notes.txt .github.bak/a.yml \
+    docs/jenkinsfile.md AGENTS.md.txt private/a.txt Private/a.txt) || fail "merge-tier-builtin-names: $out"
+  assert_equals ".agents/skills/a/notes.md=always ask: agent instructions or settings
+.claude/settings.json=always ask: agent instructions or settings
+.codex/hooks.json=always ask: agent instructions or settings
+src/.cursor/rules/a.mdc=always ask: agent instructions or settings
+.gemini/settings.json=always ask: agent instructions or settings
+.greptile/rules.md=always ask: agent instructions or settings
+.grok/hooks/a.sh=always ask: agent instructions or settings
+.omp/overlay.yml=always ask: agent instructions or settings
+.opencode/plugins/a.ts=always ask: agent instructions or settings
+.PI/extensions/a.ts=always ask: agent instructions or settings
+.claude=always ask: agent instructions or settings
+skills/stow/SKILL.md=always ask: agent instructions or settings
+AGENTS.override.md=always ask: agent instructions or settings
+pkg/CLAUDE.local.md=always ask: agent instructions or settings
+GEMINI.md=always ask: agent instructions or settings
+GROK_BOT.md=always ask: agent instructions or settings
+.cursorrules=always ask: agent instructions or settings
+.mcp.json=always ask: agent instructions or settings
+opencode.json=always ask: agent instructions or settings
+opencode.jsonc=always ask: agent instructions or settings
+docs/agents-guide.md=always ask: agent instructions or settings
+.github/CODEOWNERS=always ask: CI or forge configuration
+.forgejo/actions/a.yml=always ask: CI or forge configuration
+.gitea/workflows/ci.yml=always ask: CI or forge configuration
+.gitlab/ci/build.yml=always ask: CI or forge configuration
+.circleci/config.yml=always ask: CI or forge configuration
+.buildkite/pipeline.yml=always ask: CI or forge configuration
+.gitlab-ci.yml=always ask: CI or forge configuration
+.travis.yml=always ask: CI or forge configuration
+azure-pipelines.yml=always ask: CI or forge configuration
+Jenkinsfile=always ask: CI or forge configuration
+docs/CODEOWNERS=always ask: CI or forge configuration
+.no-mistakes.yaml=always ask: the validation gate's configuration
+sub/.No-Mistakes.yaml=always ask: the validation gate's configuration
+docs/agents/guide.md=low risk: matches **
+src/github/client.go=low risk: matches **
+docs/skills.md=low risk: matches **
+my.claude/notes.txt=low risk: matches **
+.github.bak/a.yml=low risk: matches **
+docs/jenkinsfile.md=low risk: matches **
+AGENTS.md.txt=low risk: matches **
+private/a.txt=low risk: matches **
+Private/a.txt=always ask: matches Private/**" "$out" "merge-tier-builtin-names: verdicts"
+  pass "fm-merge-tier-lib.sh matches every built-in always-ask name as a whole segment in any case and leaves project rules case-sensitive"
+}
+
+# The example in docs/configuration.md "Low-risk merge tier" is the declaration
+# operators copy, so it is read from that page and judged by the real loader.
+test_merge_tier_documented_example() {
+  local dir out
+  dir="$TMP_ROOT/merge-tier-documented-example"
+  mkdir -p "$dir"
+  awk '/^## Low-risk merge tier/ { section = 1 }
+    section && /^```text$/ { block = 1; next }
+    block && /^```$/ { exit }
+    block' "$ROOT/docs/configuration.md" > "$dir/merge-tiers"
+  [ -s "$dir/merge-tiers" ] || fail "merge-tier-documented-example: the documented example was not found"
+  out=$(bash -c '
+    . "$1/bin/fm-merge-tier-lib.sh"
+    fm_merge_tier_load "$2" my-project || { echo "load failed: $FM_MERGE_TIER_ERROR"; exit 1; }
+    shift 2
+    for path in "$@"; do
+      fm_merge_tier_verdict "$path"
+      printf "%s=%s\n" "$path" "$FM_MERGE_TIER_REASON"
+    done' _ "$ROOT" "$dir" \
+    docs/guide.md tests/fm-pr-merge.test.sh docs/legal/terms.md README.md src/app.py \
+    bin/fm-pr-merge.sh skills/stow/notes.md .agents/skills/ship-landing/SKILL.md docs/CLAUDE.md \
+    tests/.claude/settings.json) || fail "merge-tier-documented-example: $out"
+  assert_equals 'docs/guide.md=low risk: matches docs/**
+tests/fm-pr-merge.test.sh=low risk: matches tests/**
+docs/legal/terms.md=always ask: matches docs/legal/**
+README.md=matches no low-risk pattern
+src/app.py=matches no low-risk pattern
+bin/fm-pr-merge.sh=always ask: matches bin/**
+skills/stow/notes.md=always ask: matches skills/**
+.agents/skills/ship-landing/SKILL.md=always ask: agent instructions or settings
+docs/CLAUDE.md=always ask: agent instructions or settings
+tests/.claude/settings.json=always ask: agent instructions or settings' "$out" "merge-tier-documented-example: verdicts"
+  pass "the documented merge-tiers example merges only docs and tests, and keeps instruction surfaces and other Markdown with the captain"
+}
+
 # Every case builds its own home, worktree, and forge mocks under $TMP_ROOT/<name>,
 # so the cases share nothing and run in the concurrent lanes
 # tests/case-lanes-helpers.sh owns.
@@ -5038,4 +5156,6 @@ fm_test_run_cases \
   test_low_risk_is_github_only \
   test_low_risk_still_requires_green \
   test_without_low_risk_the_tier_is_never_consulted \
-  test_merge_tier_pattern_grammar
+  test_merge_tier_pattern_grammar \
+  test_merge_tier_builtin_paths_match_whole_names \
+  test_merge_tier_documented_example

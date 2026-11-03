@@ -1335,9 +1335,11 @@ Start a project narrow and widen its rules only as its merges under the tier pro
 ```text
 # docs and tests merge on green
 my-project low-risk docs/**
-my-project low-risk **/*.md
 my-project low-risk tests/**
 my-project always-ask docs/legal/**
+# scripts and skills that steer this project's agents always reach the captain
+my-project always-ask bin/**
+my-project always-ask skills/**
 ```
 
 Each line holds the project's registered name, the kind `low-risk` or `always-ask`, and one path pattern.
@@ -1345,13 +1347,31 @@ The pattern is the last field and the kind the one before it, so a project name 
 A pattern is anchored at the repository root: `*` and `?` stay within one path segment, and a whole `**` segment spans any number of segments.
 A merge under the tier runs only through `bin/fm-pr-merge.sh --low-risk`, which reads the pull request's changed files live from GitHub at the head it verified green.
 It merges only when every changed path, a renamed file's old path included, matches a low-risk rule and no always-ask rule.
-CI workflow files (`.github/workflows/`, `.forgejo/workflows/`, `.gitea/workflows/`, and `.gitlab-ci.yml`) and agent instruction files (`AGENTS.md` and `CLAUDE.md` at any depth and in any letter case) always wait for the captain, and no project rule can make them low risk.
-List every other path that must always reach the captain as `always-ask`, such as release, payment, sign-in, or stored-data code, CI scripts outside those directories, and other agent instruction or settings files.
+Agent instructions and settings, CI and forge configuration, and the validation gate's configuration always wait for the captain, and no project rule can make them low risk; [Built-in always-ask paths](#built-in-always-ask-paths) lists them.
+Keep each low-risk rule narrow, naming a directory such as `docs/**` or `tests/**` rather than a file kind across the tree, because a blanket rule such as `**/*.md` also reaches instruction files outside the built-in paths.
+A project's own instruction surfaces belong on its always-ask list, so that no later widening of its low-risk rules reaches them: in this repository they are `bin/`, whose scripts carry Firstmate's behavior, and `skills/`, whose skill folders can hold references and scripts beside each built-in `SKILL.md`.
+List every other path that must always reach the captain as `always-ask` too, such as release, payment, sign-in, or stored-data code, and scripts a CI pipeline runs from elsewhere in the tree.
 A path outside the low-risk rules, an always-ask path, or a changed-file list GitHub cannot return in full refuses the merge, names the paths that caused it, and leaves the merge to the captain.
 The tier reads changed files from GitHub only, so a GitLab or Forgejo project's merges keep waiting for the captain.
 A malformed line, an unknown kind, or an unsupported pattern spelling makes the whole file unreadable, and every low-risk merge in the home refuses, naming the line, until it is corrected.
 The file is local to the home that merges and is not inherited by secondmate homes, so a project routed to a secondmate is declared in that secondmate's home.
 [`bin/fm-merge-tier-lib.sh`](../bin/fm-merge-tier-lib.sh) owns the format, the pattern grammar, and the built-in always-ask paths, and [`bin/fm-pr-merge.sh`](../bin/fm-pr-merge.sh) owns the live changed-file read.
+
+### Built-in always-ask paths
+
+A path is built in when a tool reads it as instructions, settings, or a pipeline definition rather than as the project's product.
+A change there alters how agents, CI, or the validation gate treat every later change, so the agents and checks it steers must not be the ones to let it through.
+A path is built in when any of its segments is one of the directory names below, or its last segment is one of the file names below.
+Both match at any depth and in any letter case, because a case-insensitive filesystem loads a differently cased copy as the real one.
+
+| Kind | Directory names (everything inside) | File names |
+| --- | --- | --- |
+| Agent instructions and settings | `.agents`, `.claude`, `.codex`, `.cursor`, `.gemini`, `.greptile`, `.grok`, `.omp`, `.opencode`, `.pi` | `SKILL.md`, `AGENTS*.md`, `CLAUDE*.md`, `GEMINI.md`, `GROK*.md`, `.cursorrules`, `.mcp.json`, `opencode.json`, `opencode.jsonc` |
+| CI and forge configuration | `.github`, `.forgejo`, `.gitea`, `.gitlab`, `.circleci`, `.buildkite` | `.gitlab-ci.yml`, `.travis.yml`, `azure-pipelines.yml`, `Jenkinsfile`, `CODEOWNERS` |
+| Validation gate configuration | | `.no-mistakes.yaml` |
+
+The `*` in a file name stays within that name, so `AGENTS*.md` covers `AGENTS.override.md` and `docs/agents-guide.md` but not `docs/agents/guide.md`.
+When a new agent tool, CI service, or gate appears, extend the set by adding its directory or file name to the matching list in `fm_merge_tier_verdict` in [`bin/fm-merge-tier-lib.sh`](../bin/fm-merge-tier-lib.sh) and a sample path to the built-in test in [`tests/fm-pr-merge.test.sh`](../tests/fm-pr-merge.test.sh).
 
 ## Crew dispatch profiles (config/crew-dispatch.json)
 
