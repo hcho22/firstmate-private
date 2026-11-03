@@ -1,0 +1,9 @@
+design newly qualifies for hand-off: its 10 most recent answers all matched the recommendation (10 answered, 10 matched)
+kind            asked answered matched open withdrawn recent  status
+finding-scope       0        0       0    0         0    0/0  not-yet
+finding-design      0        0       0    0         0    0/0  not-yet
+finding-repeat      0        0       0    0         0    0/0  not-yet
+design             10       10      10    0         0  10/10  granted
+merge               0        0       0    0         0    0/0  captain-only
+bin/fm-scorebook.sh: line 402: printf: write error: Broken pipe
+granted design: exit 0

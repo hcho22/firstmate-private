@@ -1,0 +1,55 @@
+  - The project already runs Redis for something else, so it adds nothing new to run.
+
+  Whichever you pick, I'd have the worker put the cache behind a small get/set/invalidate interface so that switching later stays cheap.
+
+  I've logged the question and my recommendation. Tell me SQLite or Redis (or that one of the Redis conditions applies), and when you want the work started, tell me which project it is so I can
+  register it.
+
+✻ Worked for 1m 2s · done 12:02 AM
+
+❯ Redis. We will run several copies of the app behind a load balancer, so they need one shared cache. Still do not start any work.
+
+  Ran 1 shell command
+
+⏺ Captain, Redis it is. You're right: with several copies of the app behind a load balancer they need one shared cache, and SQLite can't provide that.
+
+  I've logged your answer as not matching my recommendation. I had led with SQLite and kept Redis only as the fallback for this case, and if I had made the call alone without knowing about the load
+  balancer, I'd have picked wrong. No other decisions are waiting on you.
+
+  Nothing has been started. When you want to go ahead, tell me which project this is so I can register it. I'll then send out the work with these in the instructions:
+  - A Redis-backed cache shared by every copy of the app.
+  - Built-in expiry and eviction.
+  - A small get/set/invalidate interface in front of it.
+
+✻ Churned for 13s · done 12:03 AM
+
+❯ How often have I agreed with your recommendations so far, by kind of question?
+
+  Ran 1 shell command
+
+⏺ Captain, so far there's only one answered question on record, and you didn't agree with me on it.
+
+  ┌──────────────────────────────────────────────────────────────────────────┬───────┬──────────┬────────────────┐
+  │                             Kind of question                             │ Asked │ Answered │ Agreed with me │
+  ├──────────────────────────────────────────────────────────────────────────┼───────┼──────────┼────────────────┤
+  │ Design picks                                                             │ 1     │ 1        │ 0              │
+  ├──────────────────────────────────────────────────────────────────────────┼───────┼──────────┼────────────────┤
+  │ Review findings: scope, design, repeated theme                           │ 0     │ 0        │ 0              │
+  ├──────────────────────────────────────────────────────────────────────────┼───────┼──────────┼────────────────┤
+  │ Other                                                                    │ 0     │ 0        │ 0              │
+  ├──────────────────────────────────────────────────────────────────────────┼───────┼──────────┼────────────────┤
+  │ Merges, credentials, destructive actions, other actions reserved for you │ 0     │ 0        │ 0              │
+  └──────────────────────────────────────────────────────────────────────────┴───────┴──────────┴────────────────┘
+
+  The one answer was today's cache pick: I recommended SQLite and you chose Redis.
+
+  None of this changes who decides anything yet. I can make a kind of call for you only after you've answered at least 10 questions of that kind and agreed with my last 10 in a row. Even then, it
+  stays your call until you explicitly hand that kind to me. Merges, credentials, destructive actions and other actions reserved for you stay with you no matter what the record shows.
+
+✻ Brewed for 9s · done 12:04 AM
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Opus 5.5 | Ctx 93% | 5h 81% / 7d 31%
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 1 agent

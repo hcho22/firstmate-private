@@ -1,0 +1,55 @@
+
+ ▐▛███▛█   Claude Code v2.1.284
+▝▜██████▀  Opus 5.5 with xhigh effort · Claude Max
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/5e4a80ba0eae/01M6G4M5ED85ZY2VEC9NVZ1ZSG
+
+
+❯ Captain here. A new small project needs a background job queue, and I have not settled whether to back it with Postgres (using SKIP LOCKED) or with Redis. Which should it be? Do not start any work
+  or spawn anyone yet.
+
+  Listed 2 directories, ran 4 shell commands
+
+⏺ Captain, my call is Postgres with SKIP LOCKED. Design picks are now mine to make, so this is a decision, not a menu.
+
+  Why Postgres for a small project:
+  - Jobs commit with your data. You add the job in the same transaction as the record that caused it. If that write rolls back, the job disappears with it. With Redis you are writing to two systems,
+    and sooner or later you get a job for a record that doesn't exist, or a record whose job never got queued.
+  - Nothing new to run. A small project almost certainly needs Postgres anyway. Redis would be a second service to host, monitor, back up and secure.
+  - Jobs survive crashes. Postgres doesn't lose a committed job. Redis can lose recently queued jobs on a crash or failover unless you tune its persistence settings, and even then failover isn't
+    airtight.
+  - Easy to see and fix. Every job is a row. Plain SQL lets you inspect stuck jobs, retry failures, block duplicates with a unique constraint, and schedule jobs for later with a run-at column.
+  - Enough speed. A properly indexed SKIP LOCKED queue handles thousands of jobs per second on modest hardware. A small project won't get close.
+
+  How to do it well:
+  - Use an existing Postgres-backed queue library for the project's language rather than writing one. Examples: River (Go), Oban (Elixir), Graphile Worker or pg-boss (Node), Procrastinate (Python),
+    Solid Queue or GoodJob (Ruby).
+  - Keep the jobs table small by deleting or archiving finished jobs. Heavy churn bloats the table if it isn't cleaned up.
+  - Have workers listen for new-job notifications (LISTEN/NOTIFY) instead of polling constantly.
+  - Keep job transactions short so they don't hold row locks or stall cleanup.
+
+  When I'd switch to Redis: sustained volume in the tens of thousands of jobs per second, a need for sub-millisecond pickup, or a stack that has Redis and no Postgres. None of these is likely for a
+  small project. If one shows up later, switching is a contained change.
+
+  As you asked, nothing has started and nobody is working on it. When you want it built, tell me the project's name and language, and I'll set up the project and pick the queue library to match.
+
+✻ Sautéed for 1m 14s · done 12:07 AM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Go with Postgres, I'll send the project details later
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Opus 5.5 | Ctx 93% | 5h 85% / 7d 31%
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents

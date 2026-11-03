@@ -1,0 +1,54 @@
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-11-03T07:46:53Z tests/fm-captain-hold-lifecycle.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - marked hold reasons round-trip through public reads, fleet, startup, and return without changing other fields
+ok - new, active, and released holds require the origin first with and without deferral
+ok - historical self-inventories name a workable repair that preserves sibling entries
+ok - completion and verification compare backend identities for entries and current or stored origins
+ok - complete refuses the origin as its own captain-call inventory
+ok - complete refuses an entry held for another origin and flags one with none recorded
+ok - report-only unresolved captain call is reproduced and completion refuses before loss
+ok - the completion gate attests captain-held inventory and transfers open status decisions
+ok - answer records the captain's words, closes idempotently, and releases routed work
+ok - release frees held work with the captain's words recorded and the body preserved
+ok - captain holds become visible only after their hold-set timestamp is durable
+ok - an interrupted answer preserves its hold age until close retry
+ok - a deferred captain call leaves the live Captain's Call until its date and stays answerable
+ok - an out-of-band close is recordable with the captain's word and nothing else
+ok - ended visual review follows the same captain-hold completion owner
+ok - resolved findings and decision-like prose do not create captain-held tasks
+ok - terminal single-owner stale status decisions do not block empty inventory
+ok - main-home and secondmate-home captain calls remain correctly routed
+ok - a secondmate home publishes each hold occurrence and its answer on the parent channel
+ok - secondmate resolutions publish before retiring durable retry triggers
+ok - merge approval releases before zero-retention cleanup records completion
+ok - the PR merge entrypoint refuses a captain-held task before merging
+ok - the local merge entrypoint refuses a captain-held task before merging
+ok - the PR merge entrypoint separates an unreadable authority record from an absent one
+ok - the local merge entrypoint separates an unreadable authority record from an absent one
+ok - merge entrypoints reject unsafe identities and absent state before locking
+ok - merge entrypoints refuse a replacement incarnation after waiting for cleanup
+ok - merge entrypoints own task state before forced cleanup can retire it
+ok - a released merge passes the guarded entrypoint and remains recently landed
+FM_TEST_END 2026-11-03T07:58:32Z tests/fm-captain-hold-lifecycle.test.sh exit=0 duration_ms=699043 gate_skip=false
+FM_TEST_BEGIN 2026-11-03T07:58:32Z tests/fm-ask-user-authority.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - primary workers and secondmates receive the authority rule through generated instructions
+FM_TEST_END 2026-11-03T07:58:33Z tests/fm-ask-user-authority.test.sh exit=0 duration_ms=1076 gate_skip=false
+FM_TEST_BEGIN 2026-11-03T07:58:33Z tests/fm-scorebook.test.sh family=unclassified expected_gate_skip=none
+ok - a chat question round-trips through ask, pending, answer, and report
+ok - the match flag counts matched answers and withdrawn questions never count
+ok - a hand-off kind qualifies only with 10 recent answers all matched, announced once when it does
+ok - a kind is firstmate's to decide only after the captain's recorded yes
+ok - the record is written only where git ignores it
+ok - a held question reuses the hold reason and the recorded answer
+ok - a held question counts as answered only once an answer lands on its call, across release and deferral
+ok - project-write approvals recorded as authority stay with the captain after 10 matching answers
+ok - unknown kinds are refused and read-only commands write nothing
+FM_TEST_END 2026-11-03T08:00:18Z tests/fm-scorebook.test.sh exit=0 duration_ms=104984 gate_skip=false
+FM_TEST_SUMMARY total=3 failed=0 skipped_gate=0 duration_ms=806345
+FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=2 duration_ms=700119 failed=0
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=104984 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-captain-hold-lifecycle.test.sh duration_ms=699043
+FM_TEST_SLOWEST rank=2 script=tests/fm-scorebook.test.sh duration_ms=104984
+FM_TEST_SLOWEST rank=3 script=tests/fm-ask-user-authority.test.sh duration_ms=1076
+bin/fm-test-run.sh tests/fm-scorebook.test.sh    518.27s user 321.41s system 104% cpu 13:26.74 total
