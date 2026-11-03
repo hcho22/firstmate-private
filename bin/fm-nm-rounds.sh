@@ -48,7 +48,7 @@
 #   verdict      under-cap, cap-reached (fix_rounds >= cap), or unknown
 #   reason       why the verdict is unknown (unknown only)
 #   findings     the newest round's finding ids, comma separated, or none
-#   file        the rounds history it wrote (cap-reached with --out-dir)
+#   file         the rounds history it wrote (cap-reached with --out-dir)
 #   escalation   the exact status line to append (cap-reached only):
 #     needs-decision [at=<epoch>] [key=nm-<run>-<step>]: fix-round cap rounds=<n> findings=<ids> file=<file>
 #     The key is the brief's ask-user key, so the decision binds to the run

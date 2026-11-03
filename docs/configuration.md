@@ -77,7 +77,7 @@ Each effective `FM_HOME` contains private operational directories.
 
 - Project and secondmate registries.
 - Captain preferences and optional shared captain preferences.
-- Learnings, backlog, per-project task folders holding briefs and scout reports, and the optional per-task no-mistakes pipeline-spend ledger.
+- Learnings, backlog, per-project task folders holding briefs and scout reports, the optional per-task no-mistakes pipeline-spend ledger, and the per-task no-mistakes rounds-to-pass ledger.
 - Explicitly installed content-addressed extension packages under `data/extensions/packages/`.
 
 `state/` holds runtime records:

@@ -336,8 +336,9 @@
 #     failure never blocks this teardown.
 # After Fix 1 and Fix 2, when config/pipeline-spend opts this home in, a ship
 # task whose local copy this teardown owns has its no-mistakes pipeline spend
-# recorded by bin/fm-pipeline-spend.sh, which owns the attribution and the
-# ledger. It runs before the task branch it attributes runs by is deleted and
+# recorded by bin/fm-pipeline-spend.sh, which owns the ledger, attributing runs
+# through bin/fm-nm-run-lib.sh's fm_nm_task_run_attribution, which owns that
+# rule. It runs before the task branch it attributes runs by is deleted and
 # before state/<id>.meta is removed, and is best effort: a failure warns and
 # never blocks cleanup. A no-mistakes ship task whose local copy this teardown
 # owns has its rounds to pass recorded the same way, always, by
