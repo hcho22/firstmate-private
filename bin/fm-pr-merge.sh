@@ -174,7 +174,30 @@
 # explicit captain instruction and never skips the live green check, the
 # away-record read, or a captain hold.
 #
-# Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--allow-red <check-name>] [--allow-missing <check-name>] [--allow-no-pipeline] [-- <extra forge merge args>]
+# --low-risk is the merge path for the low-risk merge tier, the standing
+# posture under which firstmate merges without the captain's word or yolo
+# (AGENTS.md section 7); bin/fm-merge-tier-lib.sh owns the declaration and
+# the per-path verdict. The task's project declaration is read from the home's
+# config/merge-tiers before anything is recorded, and a project with no
+# low-risk rule, or a declaration that cannot be read, refuses. After the live
+# green check verifies a head, the pull request's changed files are read from
+# GitHub's REST file listing, every page, between two reads of the pull
+# request that must both report that verified head and one changed-file count,
+# and the listing must hold exactly that many entries. The merge stays bound to
+# that head, so the paths judged are the paths merged. Every listed path, and
+# a renamed file's previous path, must be low risk. A listing that cannot be
+# read in full refuses: a failed read, a moved head, more files than GitHub
+# lists (3000), a short listing, a path carrying a control character, or no
+# changed file at all. Any always-ask or unmatched path refuses too, and the
+# refusal names it. Every tier refusal exits 4, apart from a red or
+# unmergeable pull request's 1, because its answer is the captain's merge
+# call. The changed-file read is GitHub-only, so a GitLab or Forgejo request
+# refuses the same way. --low-risk takes none of the attended waivers
+# (--attended-override, --allow-red, --allow-missing, --allow-no-pipeline),
+# which exist only for an explicit captain instruction, and every other gate
+# above still applies, the captain-hold check and away authority included.
+#
+# Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--allow-red <check-name>] [--allow-missing <check-name>] [--allow-no-pipeline] [--low-risk] [-- <extra forge merge args>]
 #
 # On GitLab, this script confirms the MR is actually merged before reporting it;
 # an auto-merge-queued or unconfirmed request leaves the poll armed and records
@@ -188,6 +211,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
+CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 
 # shellcheck source=bin/fm-pr-lib.sh
 . "$SCRIPT_DIR/fm-pr-lib.sh"
@@ -199,6 +223,8 @@ STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 . "$SCRIPT_DIR/fm-merge-authority-lib.sh"
 # shellcheck source=bin/fm-afk-contract.sh
 . "$SCRIPT_DIR/fm-afk-contract.sh"
+# shellcheck source=bin/fm-merge-tier-lib.sh
+. "$SCRIPT_DIR/fm-merge-tier-lib.sh"
 
 if [ "$#" -lt 2 ]; then
   echo "error: invalid PR merge request" >&2
@@ -234,6 +260,7 @@ fi
 shift 2
 ATTENDED_OVERRIDE=false
 ALLOW_NO_PIPELINE=false
+LOW_RISK=false
 ALLOW_RED=()
 ALLOW_MISSING=()
 while [ "$#" -gt 0 ]; do
@@ -272,6 +299,14 @@ while [ "$#" -gt 0 ]; do
       ;;
     --allow-no-pipeline=*)
       echo "error: --allow-no-pipeline takes no value" >&2
+      exit 2
+      ;;
+    --low-risk)
+      LOW_RISK=true
+      shift
+      ;;
+    --low-risk=*)
+      echo "error: --low-risk takes no value" >&2
       exit 2
       ;;
     --) shift; break ;;
@@ -315,6 +350,19 @@ if [ "${#ALLOW_MISSING[@]}" -gt 0 ]; then
       exit 2
       ;;
   esac
+fi
+# A low-risk merge runs on standing posture, not on a captain instruction, so
+# it takes none of the waivers that exist only for one.
+if [ "$LOW_RISK" = true ]; then
+  if [ "$ATTENDED_OVERRIDE" = true ] || [ "${#ALLOW_RED[@]}" -gt 0 ] \
+    || [ "${#ALLOW_MISSING[@]}" -gt 0 ] || [ "$ALLOW_NO_PIPELINE" = true ]; then
+    echo "error: --low-risk takes no attended waiver: --attended-override, --allow-red, --allow-missing, and --allow-no-pipeline need an explicit captain instruction, and a merge on one is not a low-risk merge" >&2
+    exit 2
+  fi
+  if [ "$PROVIDER" != github ]; then
+    printf 'error: refusing a low-risk merge of %s: the low-risk tier reads changed files only from GitHub, so this merge waits for the captain\n' "$URL" >&2
+    exit 4
+  fi
 fi
 
 caller_has_merge_method() {
@@ -472,6 +520,31 @@ if ! fm_backlog_meta_spawn_gen_optional "$META" "$STATE"; then
   exit 1
 fi
 MERGE_EXPECTED_SPAWN_GEN=$FM_BACKLOG_META_SPAWN_GEN
+
+# The low-risk declaration is read once, before anything is recorded, so an
+# undeclared or unreadable tier refuses with no side effect. The project is
+# named by its recorded clone's basename, as the registry names it.
+TIER_PROJECT=
+if [ "$LOW_RISK" = true ]; then
+  TIER_PROJECT=$(grep '^project=' "$META" | tail -1 | cut -d= -f2- || true)
+  TIER_PROJECT=${TIER_PROJECT%/}
+  TIER_PROJECT=${TIER_PROJECT##*/}
+  tier_status=0
+  fm_merge_tier_load "$CONFIG" "$TIER_PROJECT" || tier_status=$?
+  case "$tier_status" in
+    0) ;;
+    1)
+      printf 'error: refusing a low-risk merge of %s: %s, so this merge waits for the captain\n' \
+        "$URL" "$FM_MERGE_TIER_ERROR" >&2
+      exit 4
+      ;;
+    *)
+      printf 'error: refusing a low-risk merge of %s: %s; until it is corrected every low-risk merge in this home waits for the captain\n' \
+        "$URL" "$FM_MERGE_TIER_ERROR" >&2
+      exit 4
+      ;;
+  esac
+fi
 
 MERGE_CONTROL_LOCK=
 MERGE_META_LOCK=
@@ -1149,6 +1222,101 @@ EOF
   FM_PR_GITHUB_BASE=$base
 }
 
+# GitHub's REST file listing returns at most this many files for one pull
+# request, so a larger change cannot be read in full.
+FM_PR_GITHUB_FILES_MAX=3000
+
+# "<head> <changed-file count>" from one live REST read of the pull request, or
+# non-zero when either field is unreadable.
+github_head_and_file_count() {
+  local json
+  json=$(gh api "repos/$PR_OWNER/$PR_REPO/pulls/$PR_NUMBER" 2>/dev/null) && [ -n "$json" ] || return 1
+  printf '%s' "$json" | jq -r '
+    if type == "object" and (.head.sha | type) == "string"
+       and (.changed_files | type) == "number"
+       and .changed_files >= 0 and (.changed_files | floor) == .changed_files
+    then "\(.head.sha) \(.changed_files)"
+    else error("pull request payload is unreadable") end' 2>/dev/null
+}
+
+# Every path the pull request changes at the verified head, one per line, with
+# a renamed file's previous path as well, in FM_PR_TIER_PATHS. Returns non-zero
+# after naming why the listing could not be read in full. The listing is read
+# between two reads of the pull request that must agree on the verified head
+# and the changed-file count, and must hold exactly that many entries.
+FM_PR_TIER_PATHS=
+FM_PR_TIER_FILE_COUNT=0
+github_read_changed_files() {
+  local before after head count listing listed paths
+  FM_PR_TIER_PATHS=
+  FM_PR_TIER_FILE_COUNT=0
+  if ! before=$(github_head_and_file_count) || [ -z "$before" ]; then
+    echo "error: could not read the changed-file count of $URL" >&2
+    return 1
+  fi
+  head=${before%% *}
+  count=${before#* }
+  if [ "$head" != "$FM_PR_MERGE_HEAD" ]; then
+    echo "error: the head of $URL moved from $FM_PR_MERGE_HEAD to $head after it was verified" >&2
+    return 1
+  fi
+  if [ "$count" -eq 0 ]; then
+    echo "error: GitHub reports no changed file for $URL" >&2
+    return 1
+  fi
+  if [ "$count" -gt "$FM_PR_GITHUB_FILES_MAX" ]; then
+    echo "error: $URL changes $count files, more than the $FM_PR_GITHUB_FILES_MAX GitHub lists" >&2
+    return 1
+  fi
+  if ! listing=$(gh api --paginate "repos/$PR_OWNER/$PR_REPO/pulls/$PR_NUMBER/files?per_page=100" 2>/dev/null) \
+    || [ -z "$listing" ] \
+    || ! listed=$(printf '%s' "$listing" | jq -s '
+      [ .[] | if type == "array" then .[] else error("not a page of files") end ] | length' 2>/dev/null); then
+    echo "error: could not read the changed files of $URL" >&2
+    return 1
+  fi
+  if [ "$listed" != "$count" ]; then
+    echo "error: GitHub listed $listed of the $count files $URL changes" >&2
+    return 1
+  fi
+  if ! paths=$(printf '%s' "$listing" | jq -rs '
+      .[][]
+      | if type == "object" then . else error("unreadable file entry") end
+      | .filename, (.previous_filename // empty)
+      | if type == "string" and length > 0
+           and (explode | any(. < 32 or . == 127) | not)
+        then . else error("unreadable path") end' 2>/dev/null) \
+    || [ -z "$paths" ]; then
+    echo "error: a changed path of $URL is missing or carries a control character" >&2
+    return 1
+  fi
+  if ! after=$(github_head_and_file_count) || [ "$after" != "$before" ]; then
+    echo "error: $URL changed while its files were being read" >&2
+    return 1
+  fi
+  FM_PR_TIER_PATHS=$paths
+  FM_PR_TIER_FILE_COUNT=$count
+}
+
+# The low-risk tier's merge gate: the changed files at the verified head must
+# all be low risk for the declaration read before anything was recorded.
+github_require_low_risk_tier() {
+  if ! github_read_changed_files; then
+    printf 'error: refusing a low-risk merge of %s: its changed files could not be read in full, so this merge waits for the captain\n' \
+      "$URL" >&2
+    return 1
+  fi
+  if fm_merge_tier_judge <<< "$FM_PR_TIER_PATHS"; then
+    printf 'verified: all %s changed files of %s at head %s are in the low-risk tier for %s\n' \
+      "$FM_PR_TIER_FILE_COUNT" "$URL" "$FM_PR_MERGE_HEAD" "$TIER_PROJECT" >&2
+    return 0
+  fi
+  printf 'error: refusing a low-risk merge of %s: %s changed path(s) fall outside the low-risk tier for %s, so this merge waits for the captain\n' \
+    "$URL" "$FM_MERGE_TIER_BLOCKED_COUNT" "$TIER_PROJECT" >&2
+  printf '%s' "$FM_MERGE_TIER_BLOCKERS" >&2
+  return 1
+}
+
 # Read one live GitHub pull request view after gh returns. The selected
 # fields distinguish a landed pull request from a merge-queue entry and retain
 # the concrete state needed for a refusal. gh supplies the complete queue-aware
@@ -1687,6 +1855,9 @@ case "$PROVIDER" in
         printf 'error: mergeability for %s is still being computed by GitHub; retry shortly\n' "$URL" >&2
       fi
       exit 1
+    fi
+    if [ "$LOW_RISK" = true ]; then
+      github_require_low_risk_tier || exit 4
     fi
     # The away record is locked first, so this last presence and authority read
     # and the forge command below share one live-owner critical section.

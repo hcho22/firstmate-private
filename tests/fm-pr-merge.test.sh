@@ -255,6 +255,24 @@ case "${1:-} ${2:-}" in
     # The required-check reads: the branch itself, and its rules read without
     # the merge-queue filter the queue reader below applies.
     case " $* " in
+      # The low-risk tier's reads: the changed-file pages, and the REST pull
+      # request read before and after them, answered one line of the
+      # pr-rest file per call (the last line repeats; FAIL fails that read).
+      *" repos/"*"/pulls/"*"/files"*)
+        [ ! -f "${FM_TEST_GH_FILES_FAIL:-}" ] || exit 1
+        cat "$FM_TEST_GH_FILES"
+        exit $?
+        ;;
+      *" repos/"*"/pulls/"[0-9]*" "*)
+        [ -f "${FM_TEST_GH_PR_REST:-}" ] || exit 1
+        call_n=$(( $(cat "$FM_TEST_GH_PR_REST_CALLS" 2>/dev/null || echo 0) + 1 ))
+        printf '%s\n' "$call_n" > "$FM_TEST_GH_PR_REST_CALLS"
+        rest_line=$(sed -n "${call_n}p" "$FM_TEST_GH_PR_REST")
+        [ -n "$rest_line" ] || rest_line=$(tail -n1 "$FM_TEST_GH_PR_REST")
+        [ "$rest_line" != FAIL ] || exit 1
+        printf '%s\n' "$rest_line"
+        exit 0
+        ;;
       *" repos/"*"/commits/"*"/check-runs"*)
         case "$*" in
           *"/commits/$(cat "$FM_TEST_GH_HEAD")/check-runs"*) ;;
@@ -683,6 +701,10 @@ run_pr_merge() {
   FM_TEST_GH_BRANCH_FAIL="$case_dir/github-branch-fail" \
   FM_TEST_GH_REQUIRED_RULES="$case_dir/github-required-rules.json" \
   FM_TEST_GH_REQUIRED_RULES_FAIL="$case_dir/github-required-rules-fail" \
+  FM_TEST_GH_FILES="$case_dir/github-files.json" \
+  FM_TEST_GH_FILES_FAIL="$case_dir/github-files-fail" \
+  FM_TEST_GH_PR_REST="$case_dir/github-pr-rest" \
+  FM_TEST_GH_PR_REST_CALLS="$case_dir/github-pr-rest-calls" \
   FM_TEST_META_AT_MERGE="$case_dir/meta-at-merge" \
   FM_TEST_AWAY_RECORD_AFTER_VIEW="$case_dir/away-record-after-view" \
   FM_TEST_ROOT="$ROOT" \
@@ -4498,6 +4520,386 @@ test_allow_no_pipeline_is_attended_only_and_gitlab_only() {
   pass "fm-pr-merge --allow-no-pipeline is attended-only, takes no value, and applies only to GitLab"
 }
 
+# The low-risk tier's declaration for the case's home; make_case records the
+# task's project clone as .../project, so rules name the project "project".
+# Args: case_dir line...
+write_merge_tiers() {
+  local case_dir=$1
+  shift
+  printf '%s\n' "$@" > "$case_dir/home/config/merge-tiers"
+}
+
+# The pull request's changed files as GitHub's REST API reports them: one page
+# of entries in github-files.json, and a REST pull request read in
+# github-pr-rest that names the head and the same changed-file count. A path
+# written old=>new is a rename. Args: case_dir head path...
+write_github_files() {
+  local case_dir=$1 head=$2 spec entries='' n=0
+  shift 2
+  for spec in "$@"; do
+    n=$((n + 1))
+    case "$spec" in
+      *'=>'*)
+        entries="${entries:+$entries,}$(jq -cn --arg f "${spec#*=>}" --arg p "${spec%%=>*}" \
+          '{filename: $f, previous_filename: $p, status: "renamed"}')"
+        ;;
+      *)
+        entries="${entries:+$entries,}$(jq -cn --arg f "$spec" '{filename: $f, status: "modified"}')"
+        ;;
+    esac
+  done
+  printf '[%s]\n' "$entries" > "$case_dir/github-files.json"
+  printf '{"head":{"sha":"%s"},"changed_files":%s}\n' "$head" "$n" > "$case_dir/github-pr-rest"
+}
+
+# Run one low-risk merge of pull request 70 and leave its exit status in rc.
+run_low_risk_merge() {
+  local case_dir=$1
+  shift
+  set +e
+  run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/70 --low-risk "$@" \
+    > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+}
+
+test_low_risk_merges_when_every_changed_path_is_low_risk() {
+  local case_dir rc head=7070707070707070707070707070707070707070
+  case_dir=$(make_case low-risk-all-match)
+  mkdir -p "$case_dir/wt"
+  add_gh_mocks "$case_dir" "$head"
+  write_merge_tiers "$case_dir" \
+    '# docs and tests merge on green' \
+    'project low-risk docs/**' \
+    'project low-risk **/*.md' \
+    'project low-risk tests/*.test.sh' \
+    'other-project always-ask **'
+  write_github_files "$case_dir" "$head" docs/guide.md README.md tests/a.test.sh 'docs/old.md=>docs/new.md'
+  # GitHub pages the listing; the read must take every page.
+  jq -c '.[:2], .[2:]' "$case_dir/github-files.json" > "$case_dir/github-files.paged"
+  mv "$case_dir/github-files.paged" "$case_dir/github-files.json"
+
+  run_low_risk_merge "$case_dir"
+
+  expect_code 0 "$rc" "low-risk-all-match: an all-low-risk pull request should merge"
+  assert_logged_gh_merge "$case_dir" 70 example/repo --squash
+  assert_grep "verified: all 4 changed files of https://github.com/example/repo/pull/70 at head $head are in the low-risk tier for project" \
+    "$case_dir/stderr" "low-risk-all-match: the tier verdict was not reported"
+  assert_grep 'api --paginate repos/example/repo/pulls/70/files?per_page=100' "$case_dir/gh.log" \
+    "low-risk-all-match: the changed files were not read across every page"
+  assert_grep 'pr=https://github.com/example/repo/pull/70' "$case_dir/state/task-x1.meta" \
+    "low-risk-all-match: pr= was not recorded"
+  pass "fm-pr-merge --low-risk merges a green pull request whose every changed path, renames included, is in the project's low-risk tier"
+}
+
+test_low_risk_refuses_naming_unmatched_and_always_ask_paths() {
+  local case_dir rc head=7171717171717171717171717171717171717171
+  case_dir=$(make_case low-risk-refuses-unmatched)
+  mkdir -p "$case_dir/wt"
+  add_gh_mocks "$case_dir" "$head"
+  write_merge_tiers "$case_dir" \
+    'project low-risk docs/**' \
+    'project always-ask docs/legal/**'
+  write_github_files "$case_dir" "$head" docs/guide.md src/app.py docs/legal/terms.md \
+    'src/payments.py=>docs/payments.md'
+
+  run_low_risk_merge "$case_dir"
+
+  expect_code 4 "$rc" "low-risk-refuses-unmatched: a path outside the tier must refuse with the tier status"
+  assert_no_grep 'pr merge' "$case_dir/gh.log" \
+    "low-risk-refuses-unmatched: gh pr merge ran for a pull request outside the tier"
+  assert_grep '3 changed path(s) fall outside the low-risk tier for project, so this merge waits for the captain' \
+    "$case_dir/stderr" "low-risk-refuses-unmatched: the refusal did not count the paths or name the captain's call"
+  assert_grep '  - src/app.py (matches no low-risk pattern)' "$case_dir/stderr" \
+    "low-risk-refuses-unmatched: the unmatched path was not named"
+  assert_grep '  - docs/legal/terms.md (always ask: matches docs/legal/**)' "$case_dir/stderr" \
+    "low-risk-refuses-unmatched: the always-ask path was not named with its rule"
+  assert_grep '  - src/payments.py (matches no low-risk pattern)' "$case_dir/stderr" \
+    "low-risk-refuses-unmatched: a rename was judged only on its new path"
+  assert_no_grep 'docs/guide.md' "$case_dir/stderr" \
+    "low-risk-refuses-unmatched: a low-risk path was named as a cause"
+  pass "fm-pr-merge --low-risk refuses one unmatched or always-ask path, a rename's old path included, and names each"
+}
+
+# The built-in always-ask paths hold even when a project's own rules would
+# call them low risk, case-folded instruction files included.
+test_low_risk_builtin_always_ask_paths_cannot_be_overridden() {
+  local case_dir rc path head=7272727272727272727272727272727272727272
+  case_dir=$(make_case low-risk-builtins)
+  mkdir -p "$case_dir/wt"
+  add_gh_mocks "$case_dir" "$head"
+  write_merge_tiers "$case_dir" \
+    'project low-risk **' \
+    'project low-risk .github/workflows/**' \
+    'project low-risk AGENTS.md'
+  write_github_files "$case_dir" "$head" docs/a.md .github/workflows/ci.yml .gitlab-ci.yml \
+    .forgejo/workflows/ci.yml .gitea/workflows/ci.yml AGENTS.md pkg/CLAUDE.md docs/Agents.md
+
+  run_low_risk_merge "$case_dir"
+
+  expect_code 4 "$rc" "low-risk-builtins: a built-in always-ask path must refuse"
+  assert_no_grep 'pr merge' "$case_dir/gh.log" "low-risk-builtins: gh pr merge ran"
+  for path in .github/workflows/ci.yml .gitlab-ci.yml .forgejo/workflows/ci.yml .gitea/workflows/ci.yml; do
+    assert_grep "  - $path (always ask: a CI workflow file)" "$case_dir/stderr" \
+      "low-risk-builtins: $path was not refused as a CI workflow file"
+  done
+  for path in AGENTS.md pkg/CLAUDE.md docs/Agents.md; do
+    assert_grep "  - $path (always ask: an agent instruction file)" "$case_dir/stderr" \
+      "low-risk-builtins: $path was not refused as an agent instruction file"
+  done
+  assert_no_grep '  - docs/a.md' "$case_dir/stderr" "low-risk-builtins: a low-risk path was named"
+  pass "fm-pr-merge --low-risk always refuses CI workflow and agent instruction files, whatever the project's rules say"
+}
+
+# A changed-file list that cannot be read in full is never judged as complete.
+test_low_risk_refuses_an_unreadable_or_truncated_file_list() {
+  local case_dir rc label expected head=7373737373737373737373737373737373737373
+  local moved=7474747474747474747474747474747474747474
+  for label in files-fail truncated over-cap head-moved changed-during-read control-char \
+    rest-fail no-files not-a-page; do
+    case_dir=$(make_case "low-risk-unreadable-$label")
+    mkdir -p "$case_dir/wt"
+    add_gh_mocks "$case_dir" "$head"
+    write_merge_tiers "$case_dir" 'project low-risk **'
+    write_github_files "$case_dir" "$head" docs/a.md docs/b.md docs/c.md
+    case "$label" in
+      files-fail)
+        : > "$case_dir/github-files-fail"
+        expected='could not read the changed files of'
+        ;;
+      truncated)
+        jq -c '.[:2]' "$case_dir/github-files.json" > "$case_dir/github-files.short"
+        mv "$case_dir/github-files.short" "$case_dir/github-files.json"
+        expected='GitHub listed 2 of the 3 files'
+        ;;
+      over-cap)
+        printf '{"head":{"sha":"%s"},"changed_files":3001}\n' "$head" > "$case_dir/github-pr-rest"
+        expected='changes 3001 files, more than the 3000 GitHub lists'
+        ;;
+      head-moved)
+        printf '{"head":{"sha":"%s"},"changed_files":3}\n' "$moved" > "$case_dir/github-pr-rest"
+        expected="moved from $head to $moved after it was verified"
+        ;;
+      changed-during-read)
+        printf '{"head":{"sha":"%s"},"changed_files":4}\n' "$head" >> "$case_dir/github-pr-rest"
+        expected='changed while its files were being read'
+        ;;
+      control-char)
+        write_github_files "$case_dir" "$head" docs/a.md "docs/b"$'\n'"src/evil.py" docs/c.md
+        expected='carries a control character'
+        ;;
+      rest-fail)
+        printf 'FAIL\n' > "$case_dir/github-pr-rest"
+        expected='could not read the changed-file count of'
+        ;;
+      no-files)
+        write_github_files "$case_dir" "$head"
+        expected='GitHub reports no changed file for'
+        ;;
+      not-a-page)
+        printf '{"filename":"docs/a.md"}\n' > "$case_dir/github-files.json"
+        printf '{"head":{"sha":"%s"},"changed_files":1}\n' "$head" > "$case_dir/github-pr-rest"
+        expected='could not read the changed files of'
+        ;;
+    esac
+
+    run_low_risk_merge "$case_dir"
+
+    expect_code 4 "$rc" "low-risk-unreadable-$label: an incomplete file list must refuse with the tier status"
+    assert_no_grep 'pr merge' "$case_dir/gh.log" "low-risk-unreadable-$label: gh pr merge ran"
+    assert_grep "$expected" "$case_dir/stderr" "low-risk-unreadable-$label: the refusal did not say why"
+    assert_grep 'its changed files could not be read in full, so this merge waits for the captain' \
+      "$case_dir/stderr" "low-risk-unreadable-$label: the refusal did not name the captain's call"
+  done
+  case_dir="$TMP_ROOT/low-risk-unreadable-over-cap"
+  assert_no_grep '/files' "$case_dir/gh.log" \
+    "low-risk-unreadable-over-cap: a listing GitHub cannot complete was still read"
+  pass "fm-pr-merge --low-risk refuses a failed, truncated, oversized, moved, or unreadable changed-file list"
+}
+
+test_low_risk_requires_a_declared_tier() {
+  local case_dir rc label expected head=7575757575757575757575757575757575757575
+  for label in absent other-project always-ask-only bad-kind bad-pattern short-line; do
+    case_dir=$(make_case "low-risk-undeclared-$label")
+    mkdir -p "$case_dir/wt"
+    add_gh_mocks "$case_dir" "$head"
+    write_github_files "$case_dir" "$head" docs/a.md
+    case "$label" in
+      absent)
+        expected='no low-risk merge tier is declared for project:'
+        ;;
+      other-project)
+        write_merge_tiers "$case_dir" 'other-project low-risk **'
+        expected='has no low-risk rule for it, so this merge waits for the captain'
+        ;;
+      always-ask-only)
+        write_merge_tiers "$case_dir" 'project always-ask src/**'
+        expected='has no low-risk rule for it, so this merge waits for the captain'
+        ;;
+      bad-kind)
+        write_merge_tiers "$case_dir" 'project low-risk docs/**' 'other-project lowrisk docs/**'
+        expected='line 2 names kind "lowrisk"; the kinds are low-risk and always-ask; until it is corrected every low-risk merge in this home waits for the captain'
+        ;;
+      bad-pattern)
+        write_merge_tiers "$case_dir" '' 'project low-risk docs/' 'project low-risk **'
+        expected='line 2: pattern "docs/" ends with /; write docs/** for everything under that directory'
+        ;;
+      short-line)
+        write_merge_tiers "$case_dir" 'project low-risk docs/**' 'docs/**'
+        expected='line 2 is not "<project> low-risk <pattern>" or "<project> always-ask <pattern>"'
+        ;;
+    esac
+
+    run_low_risk_merge "$case_dir"
+
+    expect_code 4 "$rc" "low-risk-undeclared-$label: an undeclared or unreadable tier must refuse with the tier status"
+    assert_grep "$expected" "$case_dir/stderr" "low-risk-undeclared-$label: the refusal did not name the declaration problem"
+    [ ! -s "$case_dir/gh.log" ] || fail "low-risk-undeclared-$label: the forge was read before the declaration refused"
+    assert_no_grep 'pr=' "$case_dir/state/task-x1.meta" \
+      "low-risk-undeclared-$label: pr= was recorded before the declaration refused"
+  done
+  pass "fm-pr-merge --low-risk refuses before anything is recorded when the project has no low-risk rule or the declaration is malformed"
+}
+
+test_low_risk_takes_no_attended_waiver() {
+  local case_dir rc label
+  for label in allow-red attended-override allow-missing with-value; do
+    case_dir=$(make_case "low-risk-waiver-$label")
+    mkdir -p "$case_dir/wt"
+    add_gh_mocks "$case_dir" 7676767676767676767676767676767676767676
+    write_merge_tiers "$case_dir" 'project low-risk **'
+    set +e
+    case "$label" in
+      allow-red) run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/70 --low-risk --allow-red ci ;;
+      attended-override) run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/70 --attended-override --low-risk ;;
+      allow-missing) run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/70 --low-risk --allow-missing ci ;;
+      with-value) run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/70 --low-risk=yes ;;
+    esac > "$case_dir/stdout" 2> "$case_dir/stderr"
+    rc=$?
+    set -e
+    expect_code 2 "$rc" "low-risk-waiver-$label: --low-risk must refuse an attended waiver"
+    [ ! -s "$case_dir/gh.log" ] || fail "low-risk-waiver-$label: the forge was read"
+  done
+  assert_grep 'takes no attended waiver' "$TMP_ROOT/low-risk-waiver-allow-red/stderr" \
+    "low-risk-waiver-allow-red: the refusal did not say why"
+  pass "fm-pr-merge --low-risk takes no value and no attended waiver"
+}
+
+test_low_risk_is_github_only() {
+  local case_dir rc
+  case_dir=$(make_case low-risk-gitlab)
+  mkdir -p "$case_dir/wt"
+  add_glab_mock "$case_dir"
+  write_mr_json "$case_dir/mr.json"
+  write_merge_tiers "$case_dir" 'project low-risk **'
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$MR_URL" --low-risk > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 4 "$rc" "low-risk-gitlab: a GitLab low-risk merge must refuse with the tier status"
+  assert_grep 'reads changed files only from GitHub, so this merge waits for the captain' "$case_dir/stderr" \
+    "low-risk-gitlab: the refusal did not name the GitHub-only read"
+  [ ! -s "$case_dir/glab.log" ] || fail "low-risk-gitlab: glab ran"
+  pass "fm-pr-merge --low-risk refuses a GitLab merge request, whose changed files it does not read"
+}
+
+test_low_risk_still_requires_green() {
+  local case_dir rc head=7777777777777777777777777777777777777777
+  case_dir=$(make_case low-risk-red)
+  mkdir -p "$case_dir/wt"
+  add_gh_mocks "$case_dir" "$head"
+  write_github_red_json "$case_dir" "$head" lint
+  write_merge_tiers "$case_dir" 'project low-risk **'
+  write_github_files "$case_dir" "$head" docs/a.md
+
+  run_low_risk_merge "$case_dir"
+
+  expect_code 1 "$rc" "low-risk-red: a red low-risk pull request must refuse as red"
+  assert_grep "check 'lint' is not green" "$case_dir/stderr" "low-risk-red: the red check was not named"
+  assert_no_grep 'pr merge' "$case_dir/gh.log" "low-risk-red: gh pr merge ran on a red pull request"
+  pass "fm-pr-merge --low-risk never merges a red pull request"
+}
+
+# Without --low-risk the declaration and the changed files are never read, so
+# a merge on the captain's word or yolo behaves exactly as before the tier.
+test_without_low_risk_the_tier_is_never_consulted() {
+  local case_dir rc yolo
+  for yolo in off on; do
+    case_dir=$(make_case "low-risk-not-asked-yolo-$yolo")
+    mkdir -p "$case_dir/wt"
+    printf 'yolo=%s\n' "$yolo" >> "$case_dir/state/task-x1.meta"
+    add_gh_mocks "$case_dir" 7878787878787878787878787878787878787878
+    write_merge_tiers "$case_dir" 'project lowrisk docs/'
+    : > "$case_dir/github-files-fail"
+    set +e
+    run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/71 \
+      > "$case_dir/stdout" 2> "$case_dir/stderr"
+    rc=$?
+    set -e
+    expect_code 0 "$rc" "low-risk-not-asked-yolo-$yolo: an ordinary merge should not depend on the tier"
+    assert_logged_gh_merge "$case_dir" 71 example/repo --squash
+    assert_no_grep '/pulls/71' "$case_dir/gh.log" \
+      "low-risk-not-asked-yolo-$yolo: the changed files were read without --low-risk"
+    assert_no_grep 'low-risk' "$case_dir/stderr" \
+      "low-risk-not-asked-yolo-$yolo: the malformed declaration was read without --low-risk"
+  done
+  pass "fm-pr-merge without --low-risk never reads the tier, so yolo on and off merge as before"
+}
+
+# The pattern grammar, judged through the library's own verdicts.
+test_merge_tier_pattern_grammar() {
+  local dir out
+  dir="$TMP_ROOT/merge-tier-grammar"
+  mkdir -p "$dir"
+  printf '%s\n' \
+    'my  project low-risk docs/**' \
+    'my project low-risk **/*.md' \
+    'my project low-risk tests/*_test.go' \
+    'my project low-risk a/**/b' \
+    'my project low-risk v?.txt' \
+    'my project low-risk lib/x.y+(z)' \
+    'my project always-ask docs/legal/**' \
+    'my project always-ask **/secrets.md' > "$dir/merge-tiers"
+  out=$(bash -c '
+    . "$1/bin/fm-merge-tier-lib.sh"
+    fm_merge_tier_load "$2" "my project" || { echo "load failed: $FM_MERGE_TIER_ERROR"; exit 1; }
+    shift 2
+    for path in "$@"; do
+      fm_merge_tier_verdict "$path"
+      printf "%s=%s\n" "$path" "$FM_MERGE_TIER_VERDICT"
+    done' _ "$ROOT" "$dir" \
+    docs/a.md docs/deep/er/x.png docs README.md x/y/z.md x/y/z.mdx tests/a_test.go \
+    tests/sub/a_test.go a/b a/x/y/b ab v1.txt v10.txt lib/x.y+\(z\) lib/xxy+\(z\) \
+    docs/legal/tos.md pkg/secrets.md src/main.go) || fail "merge-tier-grammar: $out"
+  assert_equals 'docs/a.md=low-risk
+docs/deep/er/x.png=low-risk
+docs=unmatched
+README.md=low-risk
+x/y/z.md=low-risk
+x/y/z.mdx=unmatched
+tests/a_test.go=low-risk
+tests/sub/a_test.go=unmatched
+a/b=low-risk
+a/x/y/b=low-risk
+ab=unmatched
+v1.txt=low-risk
+v10.txt=unmatched
+lib/x.y+(z)=low-risk
+lib/xxy+(z)=unmatched
+docs/legal/tos.md=always-ask
+pkg/secrets.md=always-ask
+src/main.go=unmatched' "$out" "merge-tier-grammar: verdicts"
+
+  for pattern in /docs '!docs/**' docs/ 'a//b' ./a 'a/../b' 'a**' '**.md' '**/**' 'a/[b]' '*.{md,txt}' 'a\b'; do
+    printf 'project low-risk %s\n' "$pattern" > "$dir/merge-tiers"
+    out=$(bash -c '. "$1/bin/fm-merge-tier-lib.sh"; fm_merge_tier_load "$2" project; echo "rc=$? $FM_MERGE_TIER_ERROR"' \
+      _ "$ROOT" "$dir")
+    assert_contains "$out" 'rc=2 ' "merge-tier-grammar: pattern '$pattern' was not refused as malformed"
+    assert_contains "$out" 'line 1: ' "merge-tier-grammar: the refusal of '$pattern' did not name its line"
+  done
+  pass "fm-merge-tier-lib.sh anchors patterns at the root, reads * ? and ** by segment, and refuses every unsupported spelling"
+}
+
 # Every case builds its own home, worktree, and forge mocks under $TMP_ROOT/<name>,
 # so the cases share nothing and run in the concurrent lanes
 # tests/case-lanes-helpers.sh owns.
@@ -4626,4 +5028,14 @@ fm_test_run_cases \
   test_allow_red_refused_on_forgejo \
   test_allow_missing_refused_on_forgejo \
   test_allow_no_pipeline_merges_only_a_null_head_pipeline \
-  test_allow_no_pipeline_is_attended_only_and_gitlab_only
+  test_allow_no_pipeline_is_attended_only_and_gitlab_only \
+  test_low_risk_merges_when_every_changed_path_is_low_risk \
+  test_low_risk_refuses_naming_unmatched_and_always_ask_paths \
+  test_low_risk_builtin_always_ask_paths_cannot_be_overridden \
+  test_low_risk_refuses_an_unreadable_or_truncated_file_list \
+  test_low_risk_requires_a_declared_tier \
+  test_low_risk_takes_no_attended_waiver \
+  test_low_risk_is_github_only \
+  test_low_risk_still_requires_green \
+  test_without_low_risk_the_tier_is_never_consulted \
+  test_merge_tier_pattern_grammar
