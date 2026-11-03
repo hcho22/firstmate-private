@@ -59,12 +59,15 @@ The absence of a routed work item is not a divergence and the guard never requir
 
 1. Read the complete investigation result and complete the visual review before declaring either complete.
 2. Inventory only genuine unresolved choices that require the captain, and find the task each one gates.
+   Name each choice's kind from `bin/fm-scorebook.sh kinds`; when `bin/fm-scorebook.sh granted <kind>` exits 0, the captain has said yes to handing that kind to firstmate, so decide it yourself as you would have recommended and leave it out of the inventory.
 3. Hold that task - or create one captain-held task for the review's open questions - with a concise reason carrying the question and options, then, unless a parent channel carries it to the captain, record it with `bin/fm-scorebook.sh ask --held <task-id>`, its kind, and your recommendation.
+   When one held task carries several questions, record the first with `--held` and each further question as its own chat question with `--question` and `--task <task-id>`, so each is counted with its own kind, recommendation, and answer.
 4. Run `complete` with the full captain-held inventory for that review pass.
 5. Relay the choices to the captain as decisions from Bearings' Captain's Call section under `AGENTS.md` section 9; do not use the word hold in captain chat.
 6. Close each call only through `answer` (or a channel that feeds `answers`), close a board-requested moot call through evidence-backed `reconcile close`, record a still-active reconciliation through `reconcile note`, use `--until` when the captain defers it, or confirm a channel already closed it.
-   Once a recorded call is answered, record whether the answer matched your recommendation with `bin/fm-scorebook.sh answer <task-id> --matched yes|no`; once it is reconciled as moot, `withdraw` it instead.
+   Once a recorded call is answered, record whether the answer matched your recommendation with `bin/fm-scorebook.sh answer <task-id> --matched yes|no`, and for each further question recorded on it with `answer <chat-id> --matched yes|no --answer <his words>`; once it is reconciled as moot, `withdraw` them instead.
    `bin/fm-scorebook.sh pending` lists the recorded questions still waiting for that, for example after a restart.
+   When `answer` reports that a kind newly qualifies for hand-off, offer the captain that kind once in your next natural reply, citing its count, and record it with `grant` only on his yes.
 7. Confirm Bearings reflects the outcome: answered or reconciled-moot calls leave Captain's Call, released work resumes, active reconciliations remain held, and deferred calls sit in Charted Next with their date.
 
 `bin/fm-captain-hold.sh --help` owns command syntax, close modes, legacy-identity compatibility, completion attestation, retry behavior, and close ordering.

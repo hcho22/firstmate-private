@@ -17,13 +17,16 @@
 #   fm-scorebook.sh granted <kind>
 #
 # The policy for when to record and how a granted kind is decided is owned by
-# .agents/skills/ask-user-authority/SKILL.md and
-# .agents/skills/captain-hold-lifecycle/SKILL.md; this script owns the kinds,
-# the record, the threshold, and the grant check.
+# .agents/skills/ask-user-authority/SKILL.md for review findings,
+# .agents/skills/captain-hold-lifecycle/SKILL.md for calls held for the
+# captain, and AGENTS.md section 9 for any other question put to him; this
+# script owns the kinds, the record, the threshold, and the grant check.
 #
-# Kinds. `kinds` prints this set. Only the review-finding kinds can be handed
-# to firstmate, because ask-user-authority is the one owner that reads grants;
-# the others are recorded for the report and always stay with the captain.
+# Kinds. `kinds` prints this set and whether each can be handed to firstmate.
+# merge, credential, and destructive always stay with the captain, because
+# AGENTS.md requires his own words for those; every other kind can be handed
+# off, and each policy owner above checks `granted` before putting a question
+# of that kind to him.
 #   finding-scope    an ask-user review finding whose fix would expand the
 #                    accepted contract
 #   finding-design   an ask-user review finding that needs a product or
@@ -39,14 +42,17 @@
 #   other            any other question
 #
 # `ask` records one question and prints its id. A question carried by a task
-# held for the captain (bin/fm-captain-hold.sh) passes `--held <task-id>`: the
-# task must be an open captain call, the question id is the task id, the
-# question text is not copied because the hold reason already records it, and
-# the call's lifecycle identity (bin/fm-captain-hold.sh open --identity) is
-# recorded so `answer` can tell when an answer lands on it. A question asked only
-# in chat passes `--question` and gets a fresh `chat-` id. An id with an
-# unanswered question is refused, so a re-held task records a new question
-# only after its earlier one was answered or withdrawn.
+# held for the captain in this home (bin/fm-captain-hold.sh) passes
+# `--held <task-id>`: the task must be an open captain call here, the question
+# id is the task id, the question text is not copied because the hold reason
+# already records it, and the call's lifecycle identity
+# (bin/fm-captain-hold.sh open --identity) is recorded so `answer` can tell when
+# an answer lands on it. Any other question passes `--question` and gets a fresh
+# `chat-` id: one asked only in chat, one relayed from a secondmate home whose
+# backlog holds its task, or each further question on a held task that already
+# carries one, with `--task` naming that task. An id with an unanswered question
+# is refused, so a re-held task records a new question only after its earlier
+# one was answered or withdrawn.
 #
 # `answer` closes the latest open question with that id and records whether the
 # captain's answer matched firstmate's recommendation, which is firstmate's
@@ -76,9 +82,9 @@
 # that specific kind. `grant` records his exact words from a non-empty file of
 # at most 8192 bytes and is refused for a kind that cannot be handed off;
 # firstmate never runs it without his yes. `revoke` takes the kind back on
-# anyone's word. `granted` is the check ask-user-authority runs: exit 0 when
-# the kind's latest grant or revoke is a grant and the kind can be handed off,
-# 1 when it is not granted, 2 on bad usage or an unreadable record.
+# anyone's word. `granted` is that check: exit 0 when the kind's latest grant
+# or revoke is a grant and the kind can be handed off, 1 when it is not
+# granted, 2 on bad usage or an unreadable record.
 #
 # Record. One JSON object per line, appended to data/captain-scorebook.jsonl in
 # the active home (FM_HOME, or FM_DATA_OVERRIDE), never a tracked path: before
@@ -109,7 +115,7 @@ LOCK="$STATE/.captain-scorebook.lock"
 . "$SCRIPT_DIR/fm-wake-lib.sh"
 
 KINDS='finding-scope finding-design finding-repeat design merge credential destructive other'
-HANDOFF_KINDS='finding-scope finding-design finding-repeat'
+HANDOFF_KINDS='finding-scope finding-design finding-repeat design other'
 THRESHOLD=10
 MAX_WORDS_BYTES=8192
 
@@ -231,7 +237,7 @@ command_ask() {
     call_identity=$("$SCRIPT_DIR/fm-captain-hold.sh" open "$held" --identity) || rc=$?
     case "$rc" in
       0) ;;
-      1) fail "task $held is not an open captain call; hold it first or record a chat question" ;;
+      1) fail "task $held is not held for the captain in this home; record a question asked in chat or relayed from another home with --question" ;;
       *) fail "could not tell whether task $held is an open captain call" ;;
     esac
     id=$held

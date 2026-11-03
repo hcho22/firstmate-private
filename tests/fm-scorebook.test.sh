@@ -2,12 +2,14 @@
 # Behavior tests for bin/fm-scorebook.sh through its public commands: a
 # question put to the captain round-trips through ask, answer, and report; the
 # match flag and the hand-off threshold count the way the header documents;
-# `answer` announces a kind once, on the answer that makes it newly qualify; a
+# `answer` announces a kind once, on the answer that makes it newly qualify;
+# every kind but merge, credential, and destructive can be handed off, and a
 # kind without the captain's recorded yes still reaches him; and the record
 # never lands on a path a git work tree tracks. Questions carried by a task held
 # for the captain run against a real backlog through bin/fm-captain-hold.sh,
-# including a task released and held again for a new question, and skip with a
-# reason when tasks-axi is missing.
+# including a further question on a held task recorded as a chat question and a
+# task released and held again for a new question, and skip with a reason when
+# tasks-axi is missing.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -82,7 +84,7 @@ test_chat_round_trip() {
   assert_equals 1 "$(report_field "$home" design asked)" "report lost the asked question"
   assert_equals 1 "$(report_field "$home" design answered)" "report did not count the answer"
   assert_equals 0 "$(report_field "$home" design matched)" "a mismatched answer counted as matched"
-  assert_equals captain-only "$(report_field "$home" design status)" "design is not a hand-off kind"
+  assert_equals not-yet "$(report_field "$home" design status)" "a design kind with one answer did not report not-yet"
   out=$(jq -c "select(.id == \"$id\")" "$home/data/captain-scorebook.jsonl")
   assert_contains "$out" '"recommendation":"option A"' "the record lost the recommendation"
   assert_contains "$out" '"answer":"Option B instead"' "the record lost the captain's answer"
@@ -134,6 +136,10 @@ test_threshold() {
     "a kind did not qualify again once the mismatch left the recent window"
   assert_contains "$out" "finding-design newly qualifies for hand-off" \
     "a kind that qualified again after a mismatch was not announced"
+  out=$(answer_n "$home" design 10 yes) || fail "recording answers failed"
+  assert_equals qualifies "$(report_field "$home" design status)" \
+    "a design kind with 10 matching answers did not qualify"
+  assert_contains "$out" "design newly qualifies for hand-off" "a qualifying design kind was not announced"
   out=$(answer_n "$home" merge 10 yes) || fail "recording answers failed"
   assert_equals captain-only "$(report_field "$home" merge status)" \
     "a captain-only kind qualified for hand-off"
@@ -167,6 +173,12 @@ test_grant_requires_captain_yes() {
   rc=0
   score "$home" grant destructive --captain-words-file "$home/yes.txt" >/dev/null 2>&1 || rc=$?
   expect_code 1 "$rc" "grant of a captain-only kind"
+  rc=0
+  score "$home" grant credential --captain-words-file "$home/yes.txt" >/dev/null 2>&1 || rc=$?
+  expect_code 1 "$rc" "grant of the credential kind"
+  printf 'Yes, pick the investigation designs yourself.\n' > "$home/design-yes.txt"
+  score "$home" grant design --captain-words-file "$home/design-yes.txt" || fail "grant refused the captain's yes to design"
+  score "$home" granted design || fail "a design kind with the captain's recorded yes is not granted"
   printf '{"event":"grant","at":"2026-01-01T00:00:00Z","kind":"merge","captain_words":"x"}\n' \
     >> "$home/data/captain-scorebook.jsonl"
   rc=0
@@ -216,7 +228,7 @@ test_record_stays_off_tracked_paths() {
 }
 
 test_held_questions_reuse_hold_records() {
-  local home fakebin id rc
+  local home fakebin id further rc
   if [ -z "$TASKS_AXI_BIN" ]; then
     echo "skip: tasks-axi not found; held-question cases need a real backlog"
     return 0
@@ -237,8 +249,10 @@ test_held_questions_reuse_hold_records() {
 
   rc=0
   heldscore ask --kind finding-design --recommend "keep the queue" --held sample-call \
-    >/dev/null 2>&1 || rc=$?
-  expect_code 1 "$rc" "ask --held accepted a task that is not held for the captain"
+    >/dev/null 2>"$home/not-held.err" || rc=$?
+  expect_code 1 "$rc" "ask --held accepted a task that is not held for the captain in this home"
+  assert_grep "--question" "$home/not-held.err" \
+    "the refusal does not route a question held in another home to --question"
 
   captain hold sample-call --title "Pick the queue shape" \
     --reason "captain picks the queue shape" --repo sample >/dev/null || fail "could not hold the fixture task"
@@ -250,6 +264,10 @@ test_held_questions_reuse_hold_records() {
   rc=0
   heldscore ask --kind finding-design --recommend again --held sample-call >/dev/null 2>&1 || rc=$?
   expect_code 1 "$rc" "a second open question on the same held task"
+  further=$(heldscore ask --kind design --recommend "ship now" --question "Ship now or after X?" \
+    --task sample-call) || fail "ask refused a further question on a held task as a chat question"
+  assert_contains "$(heldscore pending)" "$further"$'\t'"design"$'\t'"chat" \
+    "the further question on the held task is not pending beside it"
 
   rc=0
   heldscore answer sample-call --matched yes >/dev/null 2>&1 || rc=$?
@@ -260,7 +278,10 @@ test_held_questions_reuse_hold_records() {
   heldscore answer sample-call --matched yes --answer "Keep the queue." >/dev/null 2>&1 || rc=$?
   expect_code 1 "$rc" "a held answer copied the captain's words into the record"
   heldscore answer sample-call --matched yes || fail "answer refused a held question the captain answered"
+  heldscore answer "$further" --matched yes --answer "Ship now." \
+    || fail "answer refused the further question on the held task"
   assert_equals 1 "$(report_field "$home" finding-design matched)" "the held answer did not count"
+  assert_equals 1 "$(report_field "$home" design matched)" "the further question's answer did not count on its own"
   assert_no_grep 'Keep the queue.' "$home/data/captain-scorebook.jsonl" \
     "the captain's words were written twice"
   pass "a held question reuses the hold reason and the recorded answer"
@@ -341,6 +362,7 @@ test_unknown_kind_and_help() {
   expect_code 2 "$rc" "ask accepted an unknown kind"
   assert_contains "$(score "$home" kinds)" "finding-scope"$'\t'"hand-off" "kinds does not mark hand-off kinds"
   assert_contains "$(score "$home" kinds)" "credential"$'\t'"captain-only" "kinds does not mark captain-only kinds"
+  assert_contains "$(score "$home" kinds)" "other"$'\t'"hand-off" "kinds does not let the other kind be handed off"
   assert_contains "$(score "$home" --help)" "fm-scorebook.sh report" "help does not show usage"
   assert_absent "$home/data/captain-scorebook.jsonl" "a refused or read-only command wrote the record"
   pass "unknown kinds are refused and read-only commands write nothing"

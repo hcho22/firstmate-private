@@ -41,8 +41,8 @@ When `bin/fm-scorebook.sh granted <kind>` exits 0, the captain has said yes to h
 Any other exit means the kind is still the captain's, so escalate it.
 Only the captain's own yes to that specific kind may be recorded with `grant`; firstmate never grants itself a kind, and destructive, irreversible, and security-sensitive findings always escalate.
 Each home keeps its own scorebook and grants, so a grant given in the main home does not apply in a secondmate home.
-In the home that puts the finding to the captain, record it with `bin/fm-scorebook.sh ask` before sending it, passing the recommendation below and `--held <task-id>` when a task held for the captain carries it, and record whether the captain's answer matched it with `answer` once he gives it.
-A secondmate home that escalates through its parent channel does not record the finding; the main home records it when it asks the captain.
+In the home that puts the finding to the captain, record it with `bin/fm-scorebook.sh ask` before sending it, passing the recommendation below and `--held <task-id>` only when a task held for the captain in this home carries it, otherwise `--question`, and record whether the captain's answer matched it with `answer` once he gives it, adding his words with `--answer` for a `--question` record.
+A secondmate home that escalates through its parent channel does not record the finding; the main home records it with `--question` when it asks the captain, because the task that carries it is held in the secondmate's backlog, never with `--held`.
 When `answer` reports that a kind newly qualifies for hand-off, offer the captain that kind once in your next natural reply, citing its count, and record it with `grant` only on his yes.
 
 ## Captain-facing escalation
