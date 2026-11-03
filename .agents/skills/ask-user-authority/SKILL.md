@@ -39,7 +39,7 @@ It stops at the finding, routes the decision to firstmate, and applies only the 
 A `needs-decision` reading `fix-round cap rounds=<n>` means one validation step already took its capped fix rounds in one run, and the worker stopped instead of sending another fix; `bin/fm-nm-rounds.sh` owns what counts as a fix round and the cap's default of 3.
 Firstmate never decides it alone, even when every finding in it looks in scope: review that keeps finding something after three fixes is evidence about the approach, not about any one finding.
 Ask the captain whether to rethink the approach, approve the step as it stands, or allow more rounds, and name how many.
-Lead with the step, the round count, and the findings that kept returning from the escalation's rounds file, then each option's consequence and a recommendation.
+Lead with the step and the round count, and point at the escalation's rounds file for every round's findings verbatim, then each option's consequence and a recommendation.
 The same-theme rule above still applies below the cap: a returning theme that preserves a questionable abstraction escalates at whatever round it appears.
 `validation-supervision` owns relaying the captain's answer to the gate.
 

@@ -48,17 +48,15 @@
 #   verdict      under-cap, cap-reached (fix_rounds >= cap), or unknown
 #   reason       why the verdict is unknown (unknown only)
 #   findings     the newest round's finding ids, comma separated, or none
-#   returning    finding ids that appear in more than one round of the step
-#   file         the rounds history it wrote (cap-reached with --out-dir)
+#   file        the rounds history it wrote (cap-reached with --out-dir)
 #   escalation   the exact status line to append (cap-reached only):
 #     needs-decision [at=<epoch>] [key=nm-<run>-<step>]: fix-round cap rounds=<n> findings=<ids> file=<file>
 #     The key is the brief's ask-user key, so the decision binds to the run
 #     exactly as an ask-user gate does; without --out-dir it has no file=.
 # With --out-dir and the cap reached, it writes <dir>/nm-<run>-<step>-rounds.txt:
 # every round of the step oldest first, whether it was a fix round, and each
-# finding verbatim (id, severity, file, line, action, description), then the
-# returning ids, so the findings that kept returning can be read without the
-# pipeline.
+# finding verbatim (id, severity, file, line, action, description), so every
+# round can be read without the pipeline.
 # The default cap is 3; --cap raises it when a captain decision allows more
 # rounds. Exit status: 0 under-cap, 3 cap-reached, 1 unknown, 2 bad usage.
 #
@@ -257,14 +255,7 @@ if not steps:
     say("verdict", "unknown"); say("reason", "run %s has no recorded round of step %s" % (run_id, step_name))
     sys.exit(1)
 step = steps[0]
-seen = {}
-for r in step["rounds"]:
-    for f in r["findings"]:
-        fid = str(f.get("id", ""))
-        if fid:
-            seen.setdefault(fid, set()).add(r["round"])
 current = [str(f.get("id")) for f in step["rounds"][-1]["findings"] if f.get("id")]
-returning = [fid for fid in seen if len(seen[fid]) > 1]
 reached = step["fix_rounds"] >= cap
 say("run", run_id)
 say("step", step_name)
@@ -272,15 +263,13 @@ say("fix_rounds", step["fix_rounds"])
 say("cap", cap)
 say("verdict", "cap-reached" if reached else "under-cap")
 say("findings", ",".join(current) or "none")
-say("returning", ",".join(returning) or "none")
 if not reached:
     sys.exit(0)
 path = ""
 if out_dir:
     path = "%s/nm-%s-%s-rounds.txt" % (out_dir, run_id, step_name)
     lines = ["run: %s" % run_id, "step: %s" % step_name,
-             "fix_rounds: %d" % step["fix_rounds"],
-             "returning: %s" % (",".join(returning) or "none"), ""]
+             "fix_rounds: %d" % step["fix_rounds"], ""]
     for r in step["rounds"]:
         lines.append("## round %s (%s)" % (r["round"], "fix" if r["trigger"] == "auto_fix" else r["trigger"]))
         if not r["findings"]:
@@ -291,7 +280,6 @@ if out_dir:
             lines.append("  severity: %s" % f.get("severity", ""))
             lines.append("  file: %s%s" % (f.get("file", ""), ":%s" % line if line not in (None, "") else ""))
             lines.append("  action: %s" % f.get("action", ""))
-            lines.append("  seen_in_rounds: %s" % ",".join(str(n) for n in sorted(seen.get(str(f.get("id", "")), ()))))
             lines.append("  description: |")
             lines.extend("    " + d for d in str(f.get("description", "")).splitlines())
         lines.append("")

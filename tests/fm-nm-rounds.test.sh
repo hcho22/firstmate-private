@@ -127,12 +127,12 @@ EOF
   [ "$(value "$out" fix_rounds)" = 3 ] \
     || fail "three rounds: worker and pipeline fix rounds are not all counted: $out"
   [ "$(value "$out" findings)" = r4-1,review-2 ] || fail "three rounds: current findings are wrong: $out"
-  [ "$(value "$out" returning)" = review-2 ] || fail "three rounds: the returning finding is not named: $out"
   file=$(value "$out" file)
   [ "$file" = "$d/out/nm-run3-review-rounds.txt" ] || fail "three rounds: wrong history file: $out"
   grep -q '^## round 1 (initial)$' "$file" || fail "three rounds: history lacks the initial round: $(cat "$file")"
   grep -q '^## round 4 (fix)$' "$file" || fail "three rounds: history lacks a fix round: $(cat "$file")"
-  grep -q 'seen_in_rounds: 1,2,4' "$file" || fail "three rounds: history lacks the recurrence: $(cat "$file")"
+  awk '/^## round 4 /{on=1; next} /^## round /{on=0} on' "$file" | grep -q '^- id: review-2$' \
+    || fail "three rounds: history does not list a round's findings under that round: $(cat "$file")"
   grep -q '    finding r2-1' "$file" || fail "three rounds: history lacks a verbatim finding: $(cat "$file")"
   printf '%s\n' "$(value "$out" escalation)" | grep -Eq \
     "^needs-decision \[at=[0-9]+\] \[key=nm-run3-review\]: fix-round cap rounds=3 findings=r4-1,review-2 file=$d/out/nm-run3-review-rounds.txt$" \
