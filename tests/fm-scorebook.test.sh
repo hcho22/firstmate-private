@@ -3,8 +3,9 @@
 # question put to the captain round-trips through ask, answer, and report; the
 # match flag and the hand-off threshold count the way the header documents;
 # `answer` announces a kind once, on the answer that makes it newly qualify;
-# every kind but merge, credential, and destructive can be handed off, and a
-# kind without the captain's recorded yes still reaches him; and the record
+# every kind but merge, credential, destructive, and authority can be handed
+# off, so a project-write approval never can, and a kind without the captain's
+# recorded yes still reaches him; and the record
 # never lands on a path a git work tree tracks. Questions carried by a task held
 # for the captain run against a real backlog through bin/fm-captain-hold.sh,
 # including a further question on a held task recorded as a chat question and a
@@ -251,6 +252,8 @@ test_held_questions_reuse_hold_records() {
   heldscore ask --kind finding-design --recommend "keep the queue" --held sample-call \
     >/dev/null 2>"$home/not-held.err" || rc=$?
   expect_code 1 "$rc" "ask --held accepted a task that is not held for the captain in this home"
+  assert_grep "not in this home's backlog" "$home/not-held.err" \
+    "the refusal does not say the task is absent from this home"
   assert_grep "--question" "$home/not-held.err" \
     "the refusal does not route a question held in another home to --question"
 
@@ -268,6 +271,12 @@ test_held_questions_reuse_hold_records() {
     --task sample-call) || fail "ask refused a further question on a held task as a chat question"
   assert_contains "$(heldscore pending)" "$further"$'\t'"design"$'\t'"chat" \
     "the further question on the held task is not pending beside it"
+  assert_equals "sample-call"$'\t'"ship now" \
+    "$(heldscore pending | awk -F '\t' -v id="$further" '$1 == id { print $5 "\t" $6 }')" \
+    "pending does not show the further question's task and recommendation"
+  assert_equals "sample-call"$'\t'"keep the queue" \
+    "$(heldscore pending | awk -F '\t' '$1 == "sample-call" { print $5 "\t" $6 }')" \
+    "pending does not show the held question's task and recommendation"
 
   rc=0
   heldscore answer sample-call --matched yes >/dev/null 2>&1 || rc=$?
@@ -284,7 +293,38 @@ test_held_questions_reuse_hold_records() {
   assert_equals 1 "$(report_field "$home" design matched)" "the further question's answer did not count on its own"
   assert_no_grep 'Keep the queue.' "$home/data/captain-scorebook.jsonl" \
     "the captain's words were written twice"
+  rc=0
+  heldscore ask --kind finding-design --recommend r --held sample-call >/dev/null 2>"$home/closed.err" || rc=$?
+  expect_code 1 "$rc" "ask --held accepted a local task that is no longer held for the captain"
+  assert_grep "hold it first" "$home/closed.err" "the refusal for a local task does not say to hold it first"
+  assert_no_grep "not in this home's backlog" "$home/closed.err" \
+    "the refusal for a local task says it is absent from this home"
   pass "a held question reuses the hold reason and the recorded answer"
+}
+
+test_authority_stays_with_captain() {
+  local home i id out rc
+  home=$(make_home authority)
+  out=''
+  i=0
+  while [ "$i" -lt 10 ]; do
+    id=$(score "$home" ask --kind authority --recommend "yes, fix it directly" \
+      --question "May I fix the typo in projects/x/README directly?") || fail "ask refused an authority question"
+    out=$out$(score "$home" answer "$id" --matched yes --answer "Yes, fix it.") || fail "answer failed for $id"
+    i=$((i + 1))
+  done
+  assert_equals 10 "$(report_field "$home" authority matched)" "the project-write approvals did not all count"
+  assert_equals captain-only "$(report_field "$home" authority status)" \
+    "project-write approvals recorded as authority qualified for hand-off"
+  assert_equals "" "$out" "the authority kind was announced for hand-off"
+  printf 'Yes, approve project writes yourself.\n' > "$home/yes.txt"
+  rc=0
+  score "$home" grant authority --captain-words-file "$home/yes.txt" >/dev/null 2>&1 || rc=$?
+  expect_code 1 "$rc" "grant of the authority kind"
+  rc=0
+  score "$home" granted authority || rc=$?
+  expect_code 1 "$rc" "the authority kind read as granted"
+  pass "project-write approvals recorded as authority stay with the captain after 10 matching answers"
 }
 
 test_held_question_survives_release_and_rehold() {
@@ -363,6 +403,7 @@ test_unknown_kind_and_help() {
   assert_contains "$(score "$home" kinds)" "finding-scope"$'\t'"hand-off" "kinds does not mark hand-off kinds"
   assert_contains "$(score "$home" kinds)" "credential"$'\t'"captain-only" "kinds does not mark captain-only kinds"
   assert_contains "$(score "$home" kinds)" "other"$'\t'"hand-off" "kinds does not let the other kind be handed off"
+  assert_contains "$(score "$home" kinds)" "authority"$'\t'"captain-only" "kinds does not keep authority with the captain"
   assert_contains "$(score "$home" --help)" "fm-scorebook.sh report" "help does not show usage"
   assert_absent "$home/data/captain-scorebook.jsonl" "a refused or read-only command wrote the record"
   pass "unknown kinds are refused and read-only commands write nothing"
@@ -375,4 +416,5 @@ test_grant_requires_captain_yes
 test_record_stays_off_tracked_paths
 test_held_questions_reuse_hold_records
 test_held_question_survives_release_and_rehold
+test_authority_stays_with_captain
 test_unknown_kind_and_help

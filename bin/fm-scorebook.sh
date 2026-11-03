@@ -23,10 +23,12 @@
 # script owns the kinds, the record, the threshold, and the grant check.
 #
 # Kinds. `kinds` prints this set and whether each can be handed to firstmate.
-# merge, credential, and destructive always stay with the captain, because
-# AGENTS.md requires his own words for those; every other kind can be handed
-# off, and each policy owner above checks `granted` before putting a question
-# of that kind to him.
+# merge, credential, destructive, and authority always stay with the captain:
+# AGENTS.md's hard rules and captain-instruction precedence require his own
+# concrete word for each such action and forbid turning one yes into standing
+# authority, which a grant would be. Every other kind can be handed off, and
+# each policy owner above checks `granted` before putting a question of that
+# kind to him.
 #   finding-scope    an ask-user review finding whose fix would expand the
 #                    accepted contract
 #   finding-design   an ask-user review finding that needs a product or
@@ -39,15 +41,21 @@
 #                    posture, not this record, is the only standing relaxation
 #   credential       a credential or login only the captain can supply
 #   destructive      a destructive, irreversible, or security-sensitive action
-#   other            any other question
+#   authority        any other action AGENTS.md's hard rules or
+#                    captain-instruction precedence reserve for his own
+#                    concrete word, such as a direct project write under hard
+#                    rule 1
+#   other            any other question no AGENTS.md rule reserves for his
+#                    own word
 #
 # `ask` records one question and prints its id. A question carried by a task
 # held for the captain in this home (bin/fm-captain-hold.sh) passes
-# `--held <task-id>`: the task must be an open captain call here, the question
-# id is the task id, the question text is not copied because the hold reason
-# already records it, and the call's lifecycle identity
-# (bin/fm-captain-hold.sh open --identity) is recorded so `answer` can tell when
-# an answer lands on it. Any other question passes `--question` and gets a fresh
+# `--held <task-id>`: the task must be an open captain call here, and the
+# refusal says to hold it first, or to use `--question` for a task this home's
+# backlog does not carry. The question id is the task id, the question text is
+# not copied because the hold reason already records it, and the call's
+# lifecycle identity (bin/fm-captain-hold.sh open --identity) is recorded so
+# `answer` can tell when an answer lands on it. Any other question passes `--question` and gets a fresh
 # `chat-` id: one asked only in chat, one relayed from a secondmate home whose
 # backlog holds its task, or each further question on a held task that already
 # carries one, with `--task` naming that task. An id with an unanswered question
@@ -69,8 +77,9 @@
 # `withdraw` closes a question that dissolved without his answer, such as a
 # call reconciled as moot; it never counts toward agreement.
 # `pending` lists open questions, one per line: id, kind, held or chat, asked
-# at. captain-hold-lifecycle uses it to find questions still waiting for an
-# answer to record, for example after a restart.
+# at, task (empty when none), and recommendation. captain-hold-lifecycle uses
+# it to find questions still waiting for an answer to record, and the task and
+# recommendation each belongs to, for example after a restart.
 #
 # Threshold. A hand-off kind qualifies when it has at least 10 answered
 # questions and the 10 most recently answered all matched. Withdrawn and open
@@ -114,7 +123,7 @@ LOCK="$STATE/.captain-scorebook.lock"
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/fm-wake-lib.sh"
 
-KINDS='finding-scope finding-design finding-repeat design merge credential destructive other'
+KINDS='finding-scope finding-design finding-repeat design merge credential destructive authority other'
 HANDOFF_KINDS='finding-scope finding-design finding-repeat design other'
 THRESHOLD=10
 MAX_WORDS_BYTES=8192
@@ -234,10 +243,11 @@ command_ask() {
   require_jq
   if [ -n "$held" ]; then
     local rc=0
-    call_identity=$("$SCRIPT_DIR/fm-captain-hold.sh" open "$held" --identity) || rc=$?
+    call_identity=$("$SCRIPT_DIR/fm-captain-hold.sh" open "$held" --identity --distinguish-absent) || rc=$?
     case "$rc" in
       0) ;;
-      1) fail "task $held is not held for the captain in this home; record a question asked in chat or relayed from another home with --question" ;;
+      1) fail "task $held is not held for the captain yet; hold it first with fm-captain-hold.sh hold, or record a chat question with --question" ;;
+      3) fail "task $held is not in this home's backlog; record a question asked in chat or relayed from another home with --question" ;;
       *) fail "could not tell whether task $held is an open captain call" ;;
     esac
     id=$held
@@ -403,7 +413,7 @@ command_pending() {
       elif $e.event == "answer" or $e.event == "withdraw" then del(.[$e.id])
       else . end))
     | to_entries | sort_by(.value.at) | .[].value
-    | [.id, .kind, (if .held then "held" else "chat" end), .at] | @tsv'
+    | [.id, .kind, (if .held then "held" else "chat" end), .at, (.task // ""), .recommendation] | @tsv'
 }
 
 command_grant() {
@@ -417,7 +427,8 @@ command_grant() {
     esac
   done
   require_kind "$kind"
-  in_list "$kind" "$HANDOFF_KINDS" || fail "kind $kind always stays with the captain and cannot be handed to firstmate"
+  in_list "$kind" "$HANDOFF_KINDS" \
+    || fail "kind $kind always stays with the captain: AGENTS.md reserves it for his own concrete word, so it cannot be handed to firstmate"
   [ -n "$file" ] || bad_usage "grant needs --captain-words-file with the captain's own yes"
   [ -f "$file" ] && [ -s "$file" ] || fail "captain words file is missing or empty: $file"
   size=$(wc -c < "$file" | tr -d ' ')
