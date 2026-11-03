@@ -1331,7 +1331,7 @@ It is a standing merge posture between yolo off, where the captain approves ever
 Without the file, or without a low-risk rule for a project, that project's merges wait for the captain exactly as before.
 Firstmate adds or changes a rule only on the captain's explicit instruction.
 Start a project narrow and widen its rules only as its merges under the tier prove safe.
-The example is this repository's own declaration, under which only its tests merge on green.
+The example is this repository's own declaration, under which its tests merge on green, except the one test script the validation gate runs as its lint phase.
 
 ```text
 # tests merge on green
@@ -1341,6 +1341,8 @@ firstmate always-ask bin/**
 firstmate always-ask skills/**
 firstmate always-ask docs/supervision-protocols/**
 firstmate always-ask docs/configuration.md
+# the validation gate runs this script as its lint phase
+firstmate always-ask tests/fm-pi-primary-types.test.sh
 ```
 
 Each line holds the project's registered name, the kind `low-risk` or `always-ask`, and one path pattern.
@@ -1349,11 +1351,14 @@ A pattern is anchored at the repository root: `*` and `?` stay within one path s
 A merge under the tier runs only through `bin/fm-pr-merge.sh --low-risk`, which reads the pull request's changed files live from GitHub at the head it verified green.
 It merges only when every changed path, a renamed file's old path included, matches a low-risk rule and no always-ask rule.
 Agent instructions and settings, CI and forge configuration, and the validation gate's configuration always wait for the captain, and no project rule can make them low risk; [Built-in always-ask paths](#built-in-always-ask-paths) lists them.
-Keep each low-risk rule to a directory that holds no instruction surface, such as `tests/**`, rather than a file kind across the tree, because a blanket rule such as `**/*.md` also reaches instruction files outside the built-in paths.
+Keep each low-risk rule to a directory, such as `tests/**`, rather than a file kind across the tree, because a blanket rule such as `**/*.md` also reaches instruction files outside the built-in paths.
+A script the validation gate itself runs belongs with the gate's configuration rather than with the tests, even inside such a directory, because a change to it alters how the gate checks every later change.
+The built-in paths cannot know which scripts a project's gate runs, so list each as always-ask: this repository's `.no-mistakes.yaml` runs `tests/fm-pi-primary-types.test.sh` as its lint phase, so the example lists that script.
 A `docs/**` rule is not narrow in a project whose agents read its docs as instructions, as Firstmate does.
 A project's own instruction surfaces belong on its always-ask list, so that no later widening of its low-risk rules reaches them.
-In this repository they are `bin/`, whose scripts carry Firstmate's behavior; `skills/`, whose skill folders can hold references and scripts beside each built-in `SKILL.md`; `docs/supervision-protocols/`, which `bin/fm-supervision-instructions.sh` emits as Firstmate's session-start supervision block; and `docs/configuration.md` and every other doc `AGENTS.md` names as a contract owner, because Firstmate follows the rules they hold.
-List every other path that must always reach the captain as `always-ask` too, such as release, payment, sign-in, or stored-data code, and scripts a CI pipeline runs from elsewhere in the tree.
+In this repository they are `bin/`, whose scripts carry Firstmate's behavior; `skills/`, whose skill folders can hold references and scripts beside each built-in `SKILL.md`; `docs/supervision-protocols/`, which `bin/fm-supervision-instructions.sh` emits as Firstmate's session-start supervision block; and `docs/configuration.md`, whose contracts Firstmate follows.
+Every other doc `AGENTS.md` names as a contract owner, such as `docs/architecture.md`, stays outside every low-risk rule in the example and so waits for the captain; list it as always-ask before widening a rule to reach it.
+List every other path that must always reach the captain as `always-ask` too, such as release, payment, sign-in, or stored-data code, and scripts a CI pipeline runs as its own build, release, or deploy steps from elsewhere in the tree.
 A path outside the low-risk rules, an always-ask path, or a changed-file list GitHub cannot return in full refuses the merge, names the paths that caused it, and leaves the merge to the captain.
 The tier reads changed files from GitHub only, so a GitLab or Forgejo project's merges keep waiting for the captain.
 A malformed line, an unknown kind, or an unsupported pattern spelling makes the whole file unreadable, and every low-risk merge in the home refuses, naming the line, until it is corrected.

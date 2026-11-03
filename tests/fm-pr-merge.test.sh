@@ -5002,12 +5002,14 @@ test_merge_tier_documented_example() {
       fm_merge_tier_verdict "$path"
       printf "%s=%s\n" "$path" "$FM_MERGE_TIER_REASON"
     done' _ "$ROOT" "$dir" \
-    tests/fm-pr-merge.test.sh docs/supervision-protocols/codex.md docs/configuration.md \
-    docs/architecture.md README.md bin/fm-pr-merge.sh skills/stow/notes.md \
+    tests/fm-pr-merge.test.sh tests/fm-pi-primary-types.test.sh docs/supervision-protocols/codex.md \
+    docs/supervision-protocols/supervision-host.md docs/configuration.md docs/architecture.md README.md bin/fm-pr-merge.sh skills/stow/notes.md \
     .agents/skills/ship-landing/SKILL.md docs/CLAUDE.md tests/.claude/settings.json) \
     || fail "merge-tier-documented-example: $out"
   assert_equals 'tests/fm-pr-merge.test.sh=low risk: matches tests/**
+tests/fm-pi-primary-types.test.sh=always ask: matches tests/fm-pi-primary-types.test.sh
 docs/supervision-protocols/codex.md=always ask: matches docs/supervision-protocols/**
+docs/supervision-protocols/supervision-host.md=always ask: matches docs/supervision-protocols/**
 docs/configuration.md=always ask: matches docs/configuration.md
 docs/architecture.md=matches no low-risk pattern
 README.md=matches no low-risk pattern
@@ -5016,7 +5018,7 @@ skills/stow/notes.md=always ask: matches skills/**
 .agents/skills/ship-landing/SKILL.md=always ask: agent instructions or settings
 docs/CLAUDE.md=always ask: agent instructions or settings
 tests/.claude/settings.json=always ask: agent instructions or settings' "$out" "merge-tier-documented-example: verdicts"
-  pass "the documented merge-tiers example merges only tests, and keeps Firstmate's docs, scripts, skills, and every other instruction surface with the captain"
+  pass "the documented merge-tiers example merges tests, and keeps the gate's lint script, Firstmate's docs, scripts, skills, and every other instruction surface with the captain"
 }
 
 # Every case builds its own home, worktree, and forge mocks under $TMP_ROOT/<name>,
