@@ -197,9 +197,8 @@ stop_home_processes() {  # <home>
 # and sessions it left keep polling for the rest of the suite, and their load
 # pushes later cases past their fixed waits.
 HOMES_STOPPED=0
-run_case() {  # <case-function>
+stop_unstopped_homes() {
   local home n=0
-  "$1"
   while IFS= read -r home; do
     n=$((n + 1))
     [ "$n" -gt "$HOMES_STOPPED" ] || continue
@@ -207,11 +206,12 @@ run_case() {  # <case-function>
   done < <(cat "$HOMES_FILE" 2>/dev/null)
   HOMES_STOPPED=$n
 }
+run_case() {  # <case-function>
+  "$1"
+  stop_unstopped_homes
+}
 suite_cleanup() {
-  local home
-  while IFS= read -r home; do
-    [ -n "$home" ] && stop_home_processes "$home"
-  done < <(cat "$HOMES_FILE" 2>/dev/null)
+  stop_unstopped_homes
   fm_test_cleanup
 }
 trap suite_cleanup EXIT

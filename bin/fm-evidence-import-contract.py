@@ -65,9 +65,6 @@ import sys
 MAX_JSON_BYTES = 1048576
 MAX_JSON_DEPTH = 512
 MAX_ARTIFACTS = 256
-# Strings are removed before nesting is counted so brackets inside them do not
-# count. Malformed input that this misreads still fails decoding afterwards.
-JSON_STRING = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"', re.DOTALL)
 
 
 class JsonIntegerToken:
@@ -179,9 +176,22 @@ def json_value(value):
 
 
 def reject_deep_nesting(text):
+    # Brackets inside strings do not count. Malformed input that this misreads
+    # still fails decoding afterwards.
     depth = 0
-    for character in JSON_STRING.sub("", text):
-        if character in "[{":
+    in_string = False
+    escaped = False
+    for character in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+        elif character == '"':
+            in_string = True
+        elif character in "[{":
             depth += 1
             if depth > MAX_JSON_DEPTH:
                 refuse(

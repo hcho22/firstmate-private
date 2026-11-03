@@ -371,6 +371,7 @@ teardown_require_backend_prerequisites() {  # <backend> <task-id>
 for _teardown_source in \
   fm-tasks-axi-lib.sh \
   fm-backlog-transition-lib.sh \
+  fm-mkdir-lib.sh \
   fm-timeout-lib.sh \
   fm-backend.sh \
   fm-control-lib.sh \
