@@ -148,10 +148,12 @@
 # asked again. A GitHub or GitLab auto-merge, requested here or already set on
 # a GitLab merge request, is refused with a pointer to merge once the checks
 # are green instead, and GitLab is passed a final --auto-merge=false. A GitHub
-# base branch whose rules do not prove the absence of a merge queue is refused
-# too, so a base branch that requires a merge queue takes no merge bound to a
-# head; that needs a later design. A yolo merge with no recorded head is bound
-# to none and keeps the asynchronous paths above.
+# pull request whose isMergeQueueEnabled or base-branch rules do not prove the
+# absence of a merge queue is refused too, naming an unreadable answer apart
+# from a queue, and one that enters a queue anyway is refused rather than
+# reported as queued, so a base branch that requires a merge queue takes no
+# merge bound to a head; that needs a later design. A yolo merge with no
+# recorded head is bound to none and keeps the asynchronous paths above.
 #
 # Before either forge merge, the task's existing per-task control lock
 # serializes the captain-hold check through the forge command. A still-held or
@@ -1375,6 +1377,29 @@ METHODS
   fi
 }
 
+# Whether gh would hand this merge to a merge queue instead of landing it now.
+# gh enqueues a merge when the pull request reports isMergeQueueEnabled, which
+# a queue required by classic branch protection sets as well as a ruleset's
+# merge_queue rule, so an immediate merge is proven only when that field reads
+# false and github_read_queue_method finds no merge_queue rule. Sets
+# FM_PR_GITHUB_MERGE_QUEUE to absent, present, or unreadable; a queue either
+# read shows is present even when the other read failed.
+FM_PR_GITHUB_MERGE_QUEUE=unreadable
+github_read_merge_queue() {
+  local enabled
+  # shellcheck disable=SC2016  # GraphQL variables are literal query syntax.
+  enabled=$(gh api graphql \
+    -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){isMergeQueueEnabled}}}' \
+    -F "owner=$PR_OWNER" -F "repo=$PR_REPO" -F "number=$PR_NUMBER" \
+    --jq '.data.repository.pullRequest.isMergeQueueEnabled' 2>/dev/null) || enabled=
+  github_read_queue_method
+  case "$enabled:$FM_PR_GITHUB_QUEUE_STATUS" in
+    true:* | *:single | *:conflicting | *:unrecognised) FM_PR_GITHUB_MERGE_QUEUE=present ;;
+    false:none) FM_PR_GITHUB_MERGE_QUEUE=absent ;;
+    *) FM_PR_GITHUB_MERGE_QUEUE=unreadable ;;
+  esac
+}
+
 record_pr_metadata() {
   if ! FM_PR_CHECK_MERGE=1 "$SCRIPT_DIR/fm-pr-check.sh" "$ID" "$URL"; then
     return 1
@@ -1443,8 +1468,8 @@ require_approved_head() {
 
 # A forge asked to merge later lands whatever the head is by then, so a merge
 # bound to the captain-approved head refuses every such request before the
-# forge command. The GitHub queue read is the one refuse_github_queue_while_away
-# makes, and it refuses on anything short of proving no queue the same way.
+# forge command. The GitHub queue read is github_read_merge_queue, shared with
+# refuse_github_queue_while_away, and anything short of proving no queue refuses.
 refuse_deferred_bound_merge() {
   case "$PROVIDER" in
     github)
@@ -1453,10 +1478,18 @@ refuse_deferred_bound_merge() {
           "$URL" >&2
         return 1
       fi
-      github_read_queue_method
-      [ "$FM_PR_GITHUB_QUEUE_STATUS" != none ] || return 0
-      printf 'error: refusing to merge %s: the merge is bound to the captain-approved head, but the merge-queue state of base branch %s does not prove an immediate merge, and a queued merge would land with any push made by then; nothing was handed to the forge, and a base branch that requires a merge queue needs a later design\n' \
-        "$URL" "$FM_PR_GITHUB_BASE" >&2
+      github_read_merge_queue
+      case "$FM_PR_GITHUB_MERGE_QUEUE" in
+        absent) return 0 ;;
+        present)
+          printf 'error: refusing to merge %s: the merge is bound to the captain-approved head, but base branch %s requires a merge queue, and a queued merge would land with any push made by then; nothing was handed to the forge, and a base branch that requires a merge queue needs a later design\n' \
+            "$URL" "$FM_PR_GITHUB_BASE" >&2
+          ;;
+        *)
+          printf 'error: refusing to merge %s: the merge is bound to the captain-approved head, but whether base branch %s requires a merge queue could not be read, so an immediate merge is not proven; nothing was handed to the forge, and the merge can be retried once that state reads\n' \
+            "$URL" "$FM_PR_GITHUB_BASE" >&2
+          ;;
+      esac
       return 1
       ;;
     gitlab)
@@ -1543,12 +1576,12 @@ persist_accepted_merge_authority() {
   return 1
 }
 
-# While away, a merge proceeds only when the base branch's rules prove no
+# While away, a merge proceeds only when github_read_merge_queue proves no
 # merge queue, because a queued merge can land after its away authority
 # lapses with the record's archive. A repository whose
 # plan does not expose branch rules at all (GitHub's "Upgrade to GitHub Pro or
-# make this repository public" 403) proves that on its own, since such a
-# repository cannot have a merge_queue rule either; see
+# make this repository public" 403) proves the rules side on its own, since
+# such a repository cannot have a merge_queue rule either; see
 # github_read_queue_method, which resolves that specific 403 to status=none.
 # Every other failure to read the queue state (auth, rate limit, network, a
 # 404, or an unrelated 403) stays unreadable and refuses the merge. The merge
@@ -1559,9 +1592,18 @@ refuse_github_queue_while_away() {
   # Accepted confused-agent-grade limitation, as in bin/fm-lease-lib.sh, not an
   # oversight: a queue rule or PR base change after this preflight can still
   # enqueue the merge, which can land after its away authority lapses.
-  github_read_queue_method
-  [ "$FM_PR_GITHUB_QUEUE_STATUS" = none ] && return 0
-  echo "error: GitHub merge refused while away because the base branch's merge-queue state does not prove an immediate merge; nothing was handed to the forge" >&2
+  github_read_merge_queue
+  case "$FM_PR_GITHUB_MERGE_QUEUE" in
+    absent) return 0 ;;
+    present)
+      printf 'error: GitHub merge refused while away because base branch %s requires a merge queue, so its merge-queue state does not prove an immediate merge; nothing was handed to the forge\n' \
+        "$FM_PR_GITHUB_BASE" >&2
+      ;;
+    *)
+      printf 'error: GitHub merge refused while away because whether base branch %s requires a merge queue could not be read, so its merge-queue state does not prove an immediate merge; nothing was handed to the forge, and the merge can be retried once that state reads\n' \
+        "$FM_PR_GITHUB_BASE" >&2
+      ;;
+  esac
   return 2
 }
 
@@ -1826,6 +1868,11 @@ case "$PROVIDER" in
       printf 'verified: %s is merged (state=%s, merged=%s, isInMergeQueue=%s)\n' \
         "$URL" "$FM_PR_GITHUB_STATE" "$FM_PR_GITHUB_MERGED" "$FM_PR_GITHUB_QUEUED"
     elif [ "$FM_PR_GITHUB_QUEUED" = true ]; then
+      if [ "$FM_PR_HEAD_BOUND" = true ]; then
+        printf 'error: %s entered the merge queue instead of merging (state=%s, merged=%s, isInMergeQueue=%s), but the merge is bound to the captain-approved head, and a queued merge would land with any push made by then; take it out of the merge queue and tell the captain, because a base branch that requires a merge queue needs a later design\n' \
+          "$URL" "$FM_PR_GITHUB_STATE" "$FM_PR_GITHUB_MERGED" "$FM_PR_GITHUB_QUEUED" >&2
+        exit 1
+      fi
       printf 'verified: %s is queued (state=%s, merged=%s, isInMergeQueue=%s)\n' \
         "$URL" "$FM_PR_GITHUB_STATE" "$FM_PR_GITHUB_MERGED" "$FM_PR_GITHUB_QUEUED"
       exit 0

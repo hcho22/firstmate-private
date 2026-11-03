@@ -247,6 +247,20 @@ case "${1:-} ${2:-}" in
     exit "$merge_rc"
     ;;
   "api graphql")
+    # The pull request's own merge-queue read answers false unless the case
+    # writes true, or fail for a read that cannot reach the API.
+    case " $* " in
+      *isMergeQueueEnabled*)
+        queue_enabled=false
+        [ ! -f "${FM_TEST_GH_QUEUE_ENABLED:-}" ] || queue_enabled=$(cat "$FM_TEST_GH_QUEUE_ENABLED")
+        if [ "$queue_enabled" = fail ]; then
+          echo 'error: could not reach the GitHub API' >&2
+          exit 1
+        fi
+        printf '%s\n' "$queue_enabled"
+        exit 0
+        ;;
+    esac
     if [ -f "${FM_TEST_GH_GRAPHQL_FAIL:-}" ]; then
       echo 'error: could not reach the GitHub API' >&2
       exit 1
@@ -682,6 +696,7 @@ run_pr_merge() {
   FM_TEST_GH_MERGE_RC_FILE="$case_dir/github-merge-rc" \
   FM_TEST_GH_MERGE_OUTPUT="$(cat "$case_dir/github-merge-output" 2>/dev/null || true)" \
   FM_TEST_GH_GRAPHQL_FAIL="$case_dir/github-graphql-fail" \
+  FM_TEST_GH_QUEUE_ENABLED="$case_dir/github-queue-enabled" \
   FM_TEST_GH_RULES_FAIL="$case_dir/github-rules-fail" \
   FM_TEST_GH_RULES_FAIL_BODY="$case_dir/github-rules-fail-body" \
   FM_TEST_GH_BRANCH="$case_dir/github-branch.json" \
@@ -3696,6 +3711,24 @@ test_away_posture_refuses_asynchronous_merge_paths() {
   assert_no_grep 'pr merge' "$case_dir/gh.log" \
     "away-queue-refused: gh received a merge that could enter its queue"
 
+  # A queue required by classic branch protection is no ruleset rule, but the
+  # pull request still reports it, and gh would enqueue the merge.
+  case_dir=$(make_case away-classic-queue-refused)
+  mkdir -p "$case_dir/wt"
+  add_gh_mocks "$case_dir" "$head"
+  printf 'true\n' > "$case_dir/github-queue-enabled"
+  write_away_record "$case_dir" --words 'merge task-x1 when green'
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$url" \
+    > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 2 "$rc" "away-classic-queue-refused: a classic merge queue must refuse before submission"
+  assert_grep 'because base branch main requires a merge queue' "$case_dir/stderr" \
+    "away-classic-queue-refused: refusal did not name the merge queue"
+  assert_no_grep 'pr merge' "$case_dir/gh.log" \
+    "away-classic-queue-refused: gh received a merge that could enter its queue"
+
   case_dir=$(make_gitlab_case away-gitlab-auto)
   write_away_record "$case_dir" --words 'merge task-x1 when green'
   set +e
@@ -4980,11 +5013,54 @@ test_approved_head_refuses_a_deferred_merge() {
   write_approved_meta "$case_dir" "$head" "$url"
   expect_code 1 "$(approved_head_merge "$case_dir" "$url")" \
     "approved-head-github-queue: a merge bound to the approved head was handed to a merge-queue base"
-  assert_grep "the merge-queue state of base branch main does not prove an immediate merge" "$case_dir/stderr" \
+  assert_grep "but base branch main requires a merge queue" "$case_dir/stderr" \
     "approved-head-github-queue: the refusal did not name the merge queue"
   assert_grep 'a base branch that requires a merge queue needs a later design' "$case_dir/stderr" \
     "approved-head-github-queue: the refusal did not say a merge queue needs a later design"
   assert_no_gh_merge "$case_dir" approved-head-github-queue
+
+  # A queue required by classic branch protection is no ruleset rule, but the
+  # pull request still reports it, and gh would enqueue the merge.
+  case_dir=$(make_case approved-head-github-classic-queue)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  printf 'true\n' > "$case_dir/github-queue-enabled"
+  write_approved_meta "$case_dir" "$head" "$url"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$url")" \
+    "approved-head-github-classic-queue: a merge bound to the approved head was handed to a classic merge-queue base"
+  assert_grep "but base branch main requires a merge queue" "$case_dir/stderr" \
+    "approved-head-github-classic-queue: the refusal did not name the merge queue"
+  assert_no_gh_merge "$case_dir" approved-head-github-classic-queue
+
+  # A merge-queue state that cannot be read is named as unreadable, not as a queue.
+  case_dir=$(make_case approved-head-github-queue-unreadable)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  printf 'fail\n' > "$case_dir/github-queue-enabled"
+  write_approved_meta "$case_dir" "$head" "$url"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$url")" \
+    "approved-head-github-queue-unreadable: a merge bound to the approved head merged with its queue state unread"
+  assert_grep "whether base branch main requires a merge queue could not be read" "$case_dir/stderr" \
+    "approved-head-github-queue-unreadable: the refusal did not name the unreadable state"
+  assert_grep 'the merge can be retried once that state reads' "$case_dir/stderr" \
+    "approved-head-github-queue-unreadable: the refusal did not say the merge can be retried"
+  assert_no_grep 'needs a later design' "$case_dir/stderr" \
+    "approved-head-github-queue-unreadable: an unreadable state was reported as a required merge queue"
+  assert_no_gh_merge "$case_dir" approved-head-github-queue-unreadable
+
+  # A merge that enters a queue anyway is refused rather than reported queued.
+  case_dir=$(make_case approved-head-github-queued)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  write_github_outcome "$case_dir" OPEN false true main
+  write_approved_meta "$case_dir" "$head" "$url"
+  expect_code 1 "$(approved_head_merge "$case_dir" "$url")" \
+    "approved-head-github-queued: a merge bound to the approved head that entered the queue succeeded"
+  assert_logged_gh_merge "$case_dir" 83 example/repo --squash
+  assert_grep "error: $url entered the merge queue instead of merging" "$case_dir/stderr" \
+    "approved-head-github-queued: the refusal did not say the merge was queued"
+  assert_no_grep "is queued" "$case_dir/stdout" \
+    "approved-head-github-queued: a queued merge bound to the approved head was reported as verified"
 
   # A direct merge that leaves the pull request open offers no queue retry.
   case_dir=$(make_case approved-head-github-unlanded)
