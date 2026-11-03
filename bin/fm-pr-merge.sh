@@ -140,7 +140,8 @@
 # any forge's merge command; bin/fm-approved-head.sh owns that record, the
 # clean catch-up definition, and the rule for a task with no recorded head.
 # An away-authority merge is not bound to a head, because no captain word named
-# one.
+# one. In a secondmate home a refusal publishes the child's PR-ready line with
+# the live head on the parent channel, so the parent can present that head.
 #
 # Before either forge merge, the task's existing per-task control lock
 # serializes the captain-hold check through the forge command. A still-held or
@@ -1396,14 +1397,28 @@ require_released_captain_hold() {
 # runs once before the away-record lock, where its fetch need not hold that
 # lock, and is called again after the final authority read under the lock,
 # where it is a no-op for the head it already passed and runs only when that
-# earlier read was away and the record has since been archived.
+# earlier read was away and the record has since been archived. In a secondmate
+# home a refusal publishes the child's PR-ready line with the live head, which
+# is what the parent presents to the captain again; bin/fm-pr-check.sh's
+# merge-time registration publishes no ready line of its own.
 FM_PR_APPROVED_HEAD_VERIFIED=
 require_approved_head() {
+  local verify_status=0 ready_rc=0
   [ "$FM_PR_AWAY_POSTURE" != true ] || return 0
   [ "$FM_PR_APPROVED_HEAD_VERIFIED" != "$FM_PR_MERGE_HEAD" ] || return 0
   FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
     "$SCRIPT_DIR/fm-approved-head.sh" verify "$ID" "$URL" "$FM_PR_MERGE_HEAD" "$FM_PR_MERGE_BASE" \
-    || return 1
+    || verify_status=$?
+  if [ "$verify_status" -eq 1 ]; then
+    fm_parent_channel_report "$FM_HOME" "$STATE" \
+      "$(fm_parent_channel_pr_ready_line "$ID" "$URL" "$META" "$FM_PR_MERGE_HEAD")" || ready_rc=$?
+    case "$ready_rc" in
+      0|1) ;;
+      *) printf 'actionable: the refused head %s of %s did not reach the parent channel (rc=%s)\n' \
+        "$FM_PR_MERGE_HEAD" "$URL" "$ready_rc" >&2 ;;
+    esac
+  fi
+  [ "$verify_status" -eq 0 ] || return 1
   FM_PR_APPROVED_HEAD_VERIFIED=$FM_PR_MERGE_HEAD
 }
 

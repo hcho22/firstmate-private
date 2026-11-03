@@ -13,7 +13,7 @@
 #
 # build      Validate the payload, drop the Captain's Call cards whose subject
 #            already landed, give every surviving decision card the standard
-#            reconcile choice, bind every merge card to the head it shows, and
+#            reconcile choice, give every merge card the head it shows, and
 #            inject the result into a fresh copy of the shipped template at the
 #            stable board path. Establish the Lavish session on that board and
 #            PROVE it is live BEFORE binding and arming its answer source, so a
@@ -56,14 +56,17 @@
 # rebuild effect rather than a committed migration or direct state mutation.
 #
 # MERGE CARD BINDING. A "Merge now" click is the captain's merge word, and a
-# merge word covers only the head it was given at. So build records the PR's
-# live head as the captain-approved head of the card's task through
-# bin/fm-approved-head.sh record <task-id> <pr_url>, where a merge card's key is
-# merge.<task-id> and its pr_url must be the PR that task records, and sets the
-# card's `head` to that head, which the template shows. bin/fm-pr-merge.sh then
-# merges only that head or a clean catch-up of it. A card whose head cannot be
-# recorded, such as a secondmate child's PR with no task record in this home, is
-# dropped, because a click on it would bind to no head or to one it never showed.
+# merge word covers only the head it was given at. So build reads the PR's live
+# head through bin/fm-approved-head.sh live <task-id> <pr_url>, where a merge
+# card's key is merge.<task-id> and its pr_url must be the PR that task records,
+# and sets the card's `head` to it. The template shows that head and carries it
+# in the card's answer context, so a click names the head its own card showed;
+# the board-wake handler records exactly that head right before merging
+# (bearings skill), and bin/fm-pr-merge.sh then merges only that head or a clean
+# catch-up of it. Build records nothing, so a rebuild never rebinds a merge word
+# the captain gave in chat or on an earlier card. A card whose head cannot be
+# read, such as a secondmate child's PR with no task record in this home, is
+# dropped, because a click on it would carry no head its task could record.
 #
 # THE RECONCILE CHOICE. Every decision card carries the standard `reconcile`
 # option, injected here so the guarantee does not depend on the composer's
@@ -306,9 +309,9 @@ decision_card_is_stale() {  # <task-id> <landed-0-or-1>
 # standard reconcile choice. Injecting it here is what makes "every decision
 # card offers reconcile" a property of the board rather than of the composer's
 # memory; the validator prevents duplicate decision options. Every merge card is
-# then bound to the head it shows, or dropped (see MERGE CARD BINDING above).
+# then given the head it shows, or dropped (see MERGE CARD BINDING above).
 effective_payload() {  # <data.json> <dest.json>
-  local data=$1 dest=$2 landed_keys key reason drop='' tmp landed=0 url out head heads='{}'
+  local data=$1 dest=$2 landed_keys key reason drop='' tmp landed=0 url out heads='{}'
   landed_keys=$(jq -c '
     def version_parts: split(".") | map(tonumber);
     . as $payload
@@ -338,13 +341,12 @@ effective_payload() {  # <data.json> <dest.json>
   tmp=$(printf '%s' "$drop" | jq -R -s 'split("\n") | map(select(length > 0))') || return 1
   while IFS=$'\t' read -r key url; do
     [ -n "$key" ] || continue
-    if out=$(FM_HOME="$FM_HOME" "$SCRIPT_DIR/fm-approved-head.sh" record "${key#merge.}" "$url" 2>&1) \
-      && head=$(printf '%s\n' "$out" | sed -n 's/^recorded: approved head \([0-9a-f]*\) for .*/\1/p') \
-      && [ -n "$head" ]; then
-      heads=$(jq -c --arg key "$key" --arg head "$head" '. + {($key): $head}' <<< "$heads") || return 1
+    if out=$(FM_HOME="$FM_HOME" "$SCRIPT_DIR/fm-approved-head.sh" live "${key#merge.}" "$url" 2>&1) \
+      && [[ "$out" =~ ^[0-9a-f]{40}$|^[0-9a-f]{64}$ ]]; then
+      heads=$(jq -c --arg key "$key" --arg head "$out" '. + {($key): $head}' <<< "$heads") || return 1
     else
       reason=${out##*$'\n'}
-      printf 'dropped-unbound-merge-card: %s (its head could not be recorded: %s)\n' "$key" "${reason#error: }" >&2
+      printf 'dropped-unbound-merge-card: %s (its head could not be read: %s)\n' "$key" "${reason#error: }" >&2
     fi
   done < <(jq -r '.captains_call[]? | select(.type == "merge") | [.key, .pr_url] | @tsv' "$data")
   jq --argjson dropped "$tmp" --argjson heads "$heads" '

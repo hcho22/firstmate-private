@@ -2671,10 +2671,10 @@ test_secondmate_merge_reports_upward_once() {
     "secondmate-merge-reports: the landed PR was not reported upward"
   [ "$(grep -c 'merged-task-x1' "$replies")" -eq 1 ] \
     || fail "secondmate-merge-reports: one merge produced more than one upward merge line"
-  # The merge path registers the PR first, and that registration publishes the
-  # child's ready line on the same channel from fm-pr-check itself.
-  assert_grep "done [key=child-pr-task-x1]: child task-x1 PR ready: $url" <(sed -E 's/ \[at=[0-9]+\]//' "$replies") \
-    "secondmate-merge-reports: the registration's ready line was not reported upward"
+  # The merge path registers the PR first, but that merge-time registration is
+  # not a new review-ready PR, so it publishes no ready line.
+  assert_no_grep "child-pr-task-x1" "$replies" \
+    "secondmate-merge-reports: the merge-time registration published a ready line"
 
   # The same merge again: the forge accepts it in this fixture, so only the
   # at-most-once contract can keep the parent from being told twice.
@@ -2682,7 +2682,7 @@ test_secondmate_merge_reports_upward_once() {
     >"$case_dir/stdout2" 2>"$case_dir/stderr2" || fail "secondmate-merge-reports: repeat merge failed"
   [ "$(grep -c 'merged-task-x1' "$replies")" -eq 1 ] \
     || fail "secondmate-merge-reports: a repeat merge of the same PR duplicated the upward line"
-  [ "$(parent_reply_lines "$replies" "$url")" -eq 2 ] \
+  [ "$(parent_reply_lines "$replies" "$url")" -eq 1 ] \
     || fail "secondmate-merge-reports: a repeat merge changed the upward lines: $(cat "$replies")"
   pass "a merge a secondmate home performs itself is reported upward exactly once"
 }
@@ -2719,10 +2719,10 @@ test_failed_merge_reports_nothing() {
   set -e
 
   expect_code 1 "$rc" "failed-merge-silent: a failed merge should propagate"
-  # The registration's ready line is a fact of its own; only a merge line
-  # would misreport the unlanded merge.
-  assert_no_grep 'merged-task-x1' "$case_dir/state/parent-replies.status" \
-    "failed-merge-silent: a merge that never landed was reported as landed"
+  # The merge-time registration publishes no ready line, so a merge that never
+  # landed leaves nothing upward, least of all a merged line.
+  [ ! -s "$case_dir/state/parent-replies.status" ] \
+    || fail "failed-merge-silent: a merge that never landed reported upward: $(cat "$case_dir/state/parent-replies.status")"
   pass "a refused or failed merge reports no outcome"
 }
 
@@ -2740,10 +2740,10 @@ test_gitlab_refusal_reports_nothing() {
   set -e
 
   expect_code 1 "$rc" "gitlab-refusal-silent: a refused GitLab merge should exit non-zero"
-  # Registration succeeds before the later GitLab pre-merge refusal, so the
-  # PR-ready fact is expected; only a merged outcome would be false.
-  assert_no_grep 'merged-task-x1' "$case_dir/state/parent-replies.status" \
-    "gitlab-refusal-silent: a refused merge request was reported as landed"
+  # Registration succeeds before the later GitLab pre-merge refusal, but the
+  # merge-time registration publishes no ready line, and nothing landed.
+  [ ! -s "$case_dir/state/parent-replies.status" ] \
+    || fail "gitlab-refusal-silent: a refused merge request reported upward: $(cat "$case_dir/state/parent-replies.status")"
   pass "a GitLab merge refused before the forge call reports no outcome"
 }
 
@@ -4819,7 +4819,8 @@ test_approved_head_missing_follows_the_documented_rule() {
 # A secondmate child's PR has no task record in the main home. The mate's
 # registration publishes the head it reported, the main firstmate presents that
 # head and relays the captain's merge word with it, and the mate records it
-# before merging, so a push after the captain saw the pull request still refuses.
+# before merging, so a push after the captain saw the pull request still refuses
+# and the refusal gives the parent the new head to present.
 test_approved_head_relayed_child_head_binds_the_mate_merge() {
   local case_dir url=https://github.com/example/repo/pull/81 replies shown relayed live rc
   case_dir=$(make_home_case approved-head-relayed remote)
@@ -4856,11 +4857,39 @@ test_approved_head_relayed_child_head_binds_the_mate_merge() {
   assert_grep "$live fix: pushed after the captain saw it (a commit added to the pull request)" "$case_dir/stderr" \
     "approved-head-relayed: the refusal did not name the pushed commit"
   assert_no_gh_merge "$case_dir" approved-head-relayed
-  # The merge's own registration told the parent the new head to present.
+  # The refusal told the parent the new head to present; the merge's own
+  # registration published nothing.
   assert_grep "done [key=child-pr-task-x1]: child task-x1 PR ready: $url mode=no-mistakes yolo=off head=$live" \
     <(sed -E 's/ \[at=[0-9]+\]//' "$replies") \
     "approved-head-relayed: the parent was not given the new head to present again"
-  pass "a relayed child head binds the mate's merge, so a later push still refuses"
+  [ "$(grep -c 'child-pr-task-x1' "$replies")" -eq 2 ] \
+    || fail "approved-head-relayed: the parent was not told exactly the registered and the refused heads: $(cat "$replies")"
+  pass "a relayed child head binds the mate's merge, so a later push still refuses and names the new head upward"
+}
+
+# A mate merge that proceeds publishes no PR-ready line, so the parent is never
+# asked to present a pull request that has just merged.
+test_approved_head_mate_clean_catch_up_publishes_no_ready_line() {
+  local case_dir url=https://github.com/example/repo/pull/82 replies approved live
+  case_dir=$(make_home_case approved-head-mate-catch-up remote)
+  replies="$case_dir/state/parent-replies.status"
+  approved=$(make_pr_repos "$case_dir" refs/pull/82/head)
+  push_base_commit "$case_dir" other.txt 'other' 'base: an unrelated change'
+  git -C "$case_dir/author" merge -q --no-edit main >/dev/null 2>&1
+  live=$(push_pr_head "$case_dir" refs/pull/82/head)
+  add_gh_mocks "$case_dir" "$live"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" "$approved" "$url"
+  expect_code 0 "$(approved_head_merge "$case_dir" "$url")" \
+    "approved-head-mate-catch-up: a clean catch-up of the relayed head refused"
+  assert_grep "adds only a clean catch-up with main to the captain-approved head $approved" "$case_dir/stderr" \
+    "approved-head-mate-catch-up: the catch-up was not reported as verified"
+  assert_logged_gh_merge "$case_dir" 82 example/repo --squash
+  assert_grep "done [key=merged-task-x1]: merged task-x1 $url" <(sed -E 's/ \[at=[0-9]+\]//' "$replies") \
+    "approved-head-mate-catch-up: the merge was not reported upward"
+  assert_no_grep "PR ready" "$replies" \
+    "approved-head-mate-catch-up: a merge that proceeded published a PR-ready line"
+  pass "a mate merge that proceeds as a clean catch-up publishes no PR-ready line"
 }
 
 test_approved_head_away_merge_is_not_bound() {
@@ -5063,5 +5092,6 @@ fm_test_run_cases \
   test_approved_head_rewritten_history_refuses \
   test_approved_head_missing_follows_the_documented_rule \
   test_approved_head_relayed_child_head_binds_the_mate_merge \
+  test_approved_head_mate_clean_catch_up_publishes_no_ready_line \
   test_approved_head_away_merge_is_not_bound \
   test_approved_head_gitlab_and_forgejo

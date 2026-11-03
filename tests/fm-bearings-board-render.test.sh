@@ -266,8 +266,9 @@ test_charted_rows_without_a_filed_date_follow_the_dated_rows_in_payload_order() 
   pass "charted rows with no filed date follow the dated rows in payload order"
 }
 
-# A merge card shows the head build recorded as the captain-approved head, so the
-# captain sees which commit a Merge now click covers.
+# A merge card shows the live head build read for it, and its Merge now answer
+# carries that full head, so the captain sees which commit a click covers and
+# the board-wake handler records exactly that commit.
 test_a_merge_card_shows_the_short_head_a_click_binds_to() {
   local home data out head=9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e url=https://github.com/example/sample/pull/3
   home=$(make_home merge-head)
@@ -302,7 +303,15 @@ SH
       and (.call[0] | .title == "Merge: sample change"
         and .head == ("head " + $head[0:7]) and .head_title == $head)
   ' >/dev/null || fail "the merge card did not show the short head a click binds to: $out"
-  pass "a merge card shows the short head a Merge now click binds to"
+  ! grep -q '^approved_head=' "$home/state/sample-task.meta" \
+    || fail "the build recorded an approved head: $(cat "$home/state/sample-task.meta")"
+  out=$(node "$HARNESS" "$home/.lavish/bearings-board.html" --answer merge.sample-task=merge) \
+    || fail "the merge card could not be answered"
+  printf '%s' "$out" | jq -e --arg head "$head" '
+    [.queued[].data] == [{schema: "fm-bearings-answer.v1", question: "merge.sample-task",
+      selection: "merge", note: "", head: $head}]
+  ' >/dev/null || fail "the Merge now answer did not carry the head its card showed: $out"
+  pass "a merge card shows the short head a Merge now click binds to, and its answer carries that head"
 }
 
 test_an_underway_row_leads_with_the_task_name_and_keeps_its_run_status

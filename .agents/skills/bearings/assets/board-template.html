@@ -578,7 +578,8 @@ __FM_BEARINGS_BOARD_DATA__
       }
       if (window.lavish && window.lavish.queuePrompt) {
         /* The versioned context keeps the selected option separate from its
-           note, while close carries the composer-declared completion mode. */
+           note, close carries the composer-declared completion mode, and a
+           merge card's head is the commit it showed, which its merge word covers. */
         var ctxData = {
           schema: "fm-bearings-answer.v1",
           question: item.key,
@@ -586,6 +587,7 @@ __FM_BEARINGS_BOARD_DATA__
           note: note
         };
         if (item.close) ctxData.close = item.close;
+        if (item.type === "merge" && item.head) ctxData.head = item.head;
         window.lavish.queuePrompt(
           "Captain's Call answer - " + item.title + ": " + displayAnswer,
           { tag: "choice", text: item.title + " -> " + displayAnswer, element: form,

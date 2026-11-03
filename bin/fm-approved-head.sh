@@ -3,20 +3,29 @@
 # the captain, so an attended merge lands only the commits that were approved.
 #
 # record <task-id> <pr-url> [<head>]
-#   Run when presenting a PR for the captain's merge word. Stores the head the
-#   captain is shown in the task metadata as
+#   Run when presenting a PR for the captain's merge word in chat, or when a
+#   merge word arrives from a surface that carries the head it showed. Stores
+#   that head in the task metadata as
 #     approved_head=<sha> <canonical-pr-url>
 #   atomically under the meta lock, placed before the pr= line because
 #   bin/fm-pr-lib.sh's metadata identity parse accepts only pr_head= after it;
 #   bin/fm-pr-check.sh's rewrite keeps that order. With no <head> it reads the
 #   pull request's live head from the forge, which is the head the presentation
 #   then shows. With <head> it records exactly that head and reads nothing, for
-#   a head shown elsewhere: the one a secondmate child's PR-ready line carries,
-#   relayed with the captain's merge word, or the one a refusal below names. The
+#   a head shown elsewhere: the one a bearings board merge card showed, carried
+#   by its Merge now answer; the one a secondmate child's PR-ready line carries,
+#   relayed with the captain's merge word; or the one a refusal below names. The
 #   task must already record pr= for the same URL (bin/fm-pr-check.sh), so a head
 #   is never bound to a PR the task does not own. Recording again replaces the
 #   previous head, which is how a re-asked approval moves forward. Prints the
 #   recorded head.
+#
+# live <task-id> <pr-url>
+#   Prints the pull request's live head for a task that records pr= for that
+#   URL, and records nothing. A presentation whose answer carries the head it
+#   showed, such as a bearings board merge card (bin/fm-bearings-board.sh),
+#   reads its head here, so presenting a PR never rebinds a merge word already
+#   given at another head; that answer is recorded when it arrives.
 #
 # verify <task-id> <pr-url> <live-head> <base-branch>
 #   Called by bin/fm-pr-merge.sh on an attended merge, after its own live read
@@ -56,6 +65,7 @@
 #   only asked again while a wrong pass lands commits nobody approved.
 #
 # Usage: fm-approved-head.sh record <task-id> <pr-url> [<head>]
+#        fm-approved-head.sh live <task-id> <pr-url>
 #        fm-approved-head.sh verify <task-id> <pr-url> <live-head> <base-branch>
 set -eu
 
@@ -71,12 +81,14 @@ STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 
 usage() {
   echo "usage: fm-approved-head.sh record <task-id> <pr-url> [<head>]" >&2
+  echo "       fm-approved-head.sh live <task-id> <pr-url>" >&2
   echo "       fm-approved-head.sh verify <task-id> <pr-url> <live-head> <base-branch>" >&2
 }
 
 case "${1:-}" in
   -h|--help) usage; exit 0 ;;
   record) [ "$#" -eq 3 ] || [ "$#" -eq 4 ] || { usage; exit 2; } ;;
+  live) [ "$#" -eq 3 ] || { usage; exit 2; } ;;
   verify) [ "$#" -eq 5 ] || { usage; exit 2; } ;;
   *) usage; exit 2 ;;
 esac
@@ -105,12 +117,20 @@ meta_value() {  # <key>
 RECORD_CMD="$SCRIPT_DIR/fm-approved-head.sh record $ID $URL"
 REPRESENT_REMEDY="present the pull request to the captain again and record the head shown then with: $RECORD_CMD <head-shown>"
 
+require_task_pr() {
+  [ "$(meta_value pr)" = "$URL" ] && return 0
+  echo "error: task $ID does not record pr=$URL; register the PR with bin/fm-pr-check.sh before presenting it for the captain's merge word" >&2
+  return 1
+}
+
+print_live_head() {
+  require_task_pr || return 1
+  fm_pr_live_head "$PROVIDER" "$URL" "$HOST" "$PROJECT_PATH" "$NUMBER"
+}
+
 record_approved_head() {  # [<head>]
   local head=${1-} line state_device inserted=0
-  if [ "$(meta_value pr)" != "$URL" ]; then
-    echo "error: task $ID does not record pr=$URL; register the PR with bin/fm-pr-check.sh before recording the head shown to the captain" >&2
-    return 1
-  fi
+  require_task_pr || return 1
   if [ -z "$head" ]; then
     head=$(fm_pr_live_head "$PROVIDER" "$URL" "$HOST" "$PROJECT_PATH" "$NUMBER") || return 1
   fi
@@ -322,6 +342,7 @@ trap 'exit 1' HUP INT TERM
 
 case "$COMMAND" in
   record) record_approved_head "${4-}" || exit 1 ;;
+  live) print_live_head || exit 1 ;;
   verify)
     status=0
     verify_approved_head "$4" "$5" || status=$?
