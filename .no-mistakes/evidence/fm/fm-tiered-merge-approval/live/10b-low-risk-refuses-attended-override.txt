@@ -1,0 +1,21 @@
+### --low-risk refuses --attended-override
+date: 2026-11-03T22:38:03Z   jq on PATH: /Users/hcho/opt/anaconda3/bin/jq (jq-1.6)
+pull request (real, read live from github.com): https://github.com/mindersec/minder/pull/7053
+
+$LAB/config/merge-tiers:
+  minder low-risk **
+
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lr-s10b-override https://github.com/mindersec/minder/pull/7053 --attended-override --low-risk
+  error: --low-risk takes no attended waiver: --attended-override, --allow-red, --allow-missing, and --allow-no-pipeline need an explicit captain instruction, and a merge on one is not a low-risk merge
+exit status: 2
+
+GitHub calls fm-pr-merge.sh made (through the read-only guard):
+  (none)
+
+task meta after the run:
+  window=fm-lr-s10b-override
+  worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/wt/lr-s10b-override
+  project=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/projects/minder
+  kind=ship
+  mode=no-mistakes
+

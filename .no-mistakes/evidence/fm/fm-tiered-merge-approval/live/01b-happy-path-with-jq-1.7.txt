@@ -1,0 +1,40 @@
+### Same happy path with jq 1.7.1 first on PATH
+date: 2026-11-03T22:38:24Z   jq on PATH: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/jq17/jq (jq-1.7.1-apple)
+pull request (real, read live from github.com): https://github.com/mindersec/minder/pull/7053
+
+$LAB/config/merge-tiers:
+  # minder docs merge on green
+  minder low-risk docs/**
+  other-project always-ask **
+
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lr-s1b-happy-jq17 https://github.com/mindersec/minder/pull/7053 --low-risk
+  WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+  armed: state/lr-s1b-happy-jq17.check.sh
+  verified: https://github.com/mindersec/minder/pull/7053 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 8cd6f87fb2a819a2d703d347f001c13d8a588727
+  verified: all 3 changed files of https://github.com/mindersec/minder/pull/7053 at head 8cd6f87fb2a819a2d703d347f001c13d8a588727 are in the low-risk tier for minder
+  live-test guard: blocked mutating call: gh pr merge 7053 --repo mindersec/minder --match-head-commit 8cd6f87fb2a819a2d703d347f001c13d8a588727 --squash
+  error: GitHub merge outcome was not successful: state=OPEN, merged=false, isInMergeQueue=false
+exit status: 1
+
+GitHub calls fm-pr-merge.sh made (through the read-only guard):
+  gh pr view https://github.com/mindersec/minder/pull/7053 --json headRefOid -q .headRefOid
+  gh pr view https://github.com/mindersec/minder/pull/7053 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+  gh api repos/mindersec/minder/branches/main
+  gh api --paginate repos/mindersec/minder/rules/branches/main
+  gh api repos/mindersec/minder/pulls/7053
+  gh api --paginate repos/mindersec/minder/pulls/7053/files?per_page=100
+  gh api repos/mindersec/minder/pulls/7053
+  gh pr merge 7053 --repo mindersec/minder --match-head-commit 8cd6f87fb2a819a2d703d347f001c13d8a588727 --squash
+    -> BLOCKED by live-test guard (no GitHub mutation allowed)
+  gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged isInMergeQueue baseRefName}}} -F owner=mindersec -F repo=minder -F number=7053 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring), "queued=" + (.isInMergeQueue | tostring), "base=" + (.baseRefName // "")
+  gh api --paginate repos/mindersec/minder/rules/branches/main --jq .[] | select(.type == "merge_queue") | "merge_method=" + (.parameters.merge_method // "")
+
+task meta after the run:
+  window=fm-lr-s1b-happy-jq17
+  worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/wt/lr-s1b-happy-jq17
+  project=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/projects/minder
+  kind=ship
+  mode=no-mistakes
+  pr=https://github.com/mindersec/minder/pull/7053
+  pr_head=8cd6f87fb2a819a2d703d347f001c13d8a588727
+

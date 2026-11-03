@@ -1,0 +1,33 @@
+### A CI workflow file stays always-ask under a project rule of **
+date: 2026-11-03T22:36:52Z   jq on PATH: /Users/hcho/opt/anaconda3/bin/jq (jq-1.6)
+pull request (real, read live from github.com): https://github.com/padok-team/github-workflows/pull/39
+
+$LAB/config/merge-tiers:
+  github-workflows low-risk **
+
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lr-s3b-workflow https://github.com/padok-team/github-workflows/pull/39 --low-risk
+  WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+  armed: state/lr-s3b-workflow.check.sh
+  verified: https://github.com/padok-team/github-workflows/pull/39 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 2d0c4e3cf3a0584858f4f631058d1cc96b3dbac3
+  error: refusing a low-risk merge of https://github.com/padok-team/github-workflows/pull/39: 1 changed path(s) fall outside the low-risk tier for github-workflows, so this merge waits for the captain
+    - .github/workflows/terraform-docs.yml (always ask: CI or forge configuration)
+exit status: 4
+
+GitHub calls fm-pr-merge.sh made (through the read-only guard):
+  gh pr view https://github.com/padok-team/github-workflows/pull/39 --json headRefOid -q .headRefOid
+  gh pr view https://github.com/padok-team/github-workflows/pull/39 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+  gh api repos/padok-team/github-workflows/branches/main
+  gh api --paginate repos/padok-team/github-workflows/rules/branches/main
+  gh api repos/padok-team/github-workflows/pulls/39
+  gh api --paginate repos/padok-team/github-workflows/pulls/39/files?per_page=100
+  gh api repos/padok-team/github-workflows/pulls/39
+
+task meta after the run:
+  window=fm-lr-s3b-workflow
+  worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/wt/lr-s3b-workflow
+  project=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/projects/github-workflows
+  kind=ship
+  mode=no-mistakes
+  pr=https://github.com/padok-team/github-workflows/pull/39
+  pr_head=2d0c4e3cf3a0584858f4f631058d1cc96b3dbac3
+

@@ -1,0 +1,13 @@
+Guard self-test: mutating calls never reach GitHub; reads pass through.
+$ gh pr merge 7053 --repo mindersec/minder --squash
+live-test guard: blocked mutating call: gh pr merge 7053 --repo mindersec/minder --squash
+exit: 1
+$ gh api -X PUT repos/mindersec/minder/pulls/7053/merge
+live-test guard: blocked mutating call: gh api -X PUT repos/mindersec/minder/pulls/7053/merge
+exit: 1
+$ gh api graphql -f query=mutation{...}
+live-test guard: blocked mutating call: gh api graphql -f query=mutation{mergePullRequest(input:{pullRequestId:"x"}){clientMutationId}}
+exit: 1
+$ gh api repos/mindersec/minder/pulls/7053 --jq .state
+open
+exit: 0

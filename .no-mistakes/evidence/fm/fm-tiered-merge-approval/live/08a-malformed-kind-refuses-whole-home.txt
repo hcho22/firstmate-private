@@ -1,0 +1,22 @@
+### A malformed line anywhere in the file, even for another project, refuses every low-risk merge and names the line
+date: 2026-11-03T22:37:58Z   jq on PATH: /Users/hcho/opt/anaconda3/bin/jq (jq-1.6)
+pull request (real, read live from github.com): https://github.com/mindersec/minder/pull/7053
+
+$LAB/config/merge-tiers:
+  minder low-risk docs/**
+  other-project lowrisk docs/**
+
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lr-s8a-badkind https://github.com/mindersec/minder/pull/7053 --low-risk
+  error: refusing a low-risk merge of https://github.com/mindersec/minder/pull/7053: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/config/merge-tiers line 2 names kind "lowrisk"; the kinds are low-risk and always-ask; until it is corrected every low-risk merge in this home waits for the captain
+exit status: 4
+
+GitHub calls fm-pr-merge.sh made (through the read-only guard):
+  (none)
+
+task meta after the run:
+  window=fm-lr-s8a-badkind
+  worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/wt/lr-s8a-badkind
+  project=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/projects/minder
+  kind=ship
+  mode=no-mistakes
+

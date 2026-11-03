@@ -1,0 +1,38 @@
+### A 951-file pull request is read across all 10 pages, and only its two built-in .github paths refuse under **
+date: 2026-11-03T22:37:19Z   jq on PATH: /Users/hcho/opt/anaconda3/bin/jq (jq-1.6)
+pull request (real, read live from github.com): https://github.com/tosunlab/migr/pull/4
+
+$LAB/config/merge-tiers:
+  migr low-risk **
+
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lr-s6a-paged https://github.com/tosunlab/migr/pull/4 --low-risk
+  WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+  armed: state/lr-s6a-paged.check.sh
+  verified: https://github.com/tosunlab/migr/pull/4 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 9d216227ad92c107b0bff8482a06fb798bd30eea
+  error: refusing a low-risk merge of https://github.com/tosunlab/migr/pull/4: 6 changed path(s) fall outside the low-risk tier for migr, so this merge waits for the captain
+    - .github/workflows/ci.yml (always ask: CI or forge configuration)
+    - .github/workflows/release.yml (always ask: CI or forge configuration)
+    - examples/go-postgres/.github/workflows/migrations.yml (always ask: CI or forge configuration)
+    - examples/mixed-sqlite/.github/workflows/migrations.yml (always ask: CI or forge configuration)
+    - examples/ts-mysql/.github/workflows/migrations.yml (always ask: CI or forge configuration)
+    - examples/zero-downtime/.github/workflows/migrations.yml (always ask: CI or forge configuration)
+exit status: 4
+
+GitHub calls fm-pr-merge.sh made (through the read-only guard):
+  gh pr view https://github.com/tosunlab/migr/pull/4 --json headRefOid -q .headRefOid
+  gh pr view https://github.com/tosunlab/migr/pull/4 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+  gh api repos/tosunlab/migr/branches/main
+  gh api --paginate repos/tosunlab/migr/rules/branches/main
+  gh api repos/tosunlab/migr/pulls/4
+  gh api --paginate repos/tosunlab/migr/pulls/4/files?per_page=100
+  gh api repos/tosunlab/migr/pulls/4
+
+task meta after the run:
+  window=fm-lr-s6a-paged
+  worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/wt/lr-s6a-paged
+  project=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/projects/migr
+  kind=ship
+  mode=no-mistakes
+  pr=https://github.com/tosunlab/migr/pull/4
+  pr_head=9d216227ad92c107b0bff8482a06fb798bd30eea
+

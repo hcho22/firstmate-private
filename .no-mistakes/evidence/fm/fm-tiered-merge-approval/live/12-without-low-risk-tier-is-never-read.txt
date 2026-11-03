@@ -1,0 +1,34 @@
+### Without --low-risk the tier file (here malformed) and the changed files are never read; the ordinary merge path runs as before
+date: 2026-11-03T22:38:03Z   jq on PATH: /Users/hcho/opt/anaconda3/bin/jq (jq-1.6)
+pull request (real, read live from github.com): https://github.com/mindersec/minder/pull/7053
+
+$LAB/config/merge-tiers:
+  minder lowrisk docs/
+
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lr-s12-plain https://github.com/mindersec/minder/pull/7053 
+  WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+  armed: state/lr-s12-plain.check.sh
+  verified: https://github.com/mindersec/minder/pull/7053 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 8cd6f87fb2a819a2d703d347f001c13d8a588727
+  live-test guard: blocked mutating call: gh pr merge 7053 --repo mindersec/minder --match-head-commit 8cd6f87fb2a819a2d703d347f001c13d8a588727 --squash
+  error: GitHub merge outcome was not successful: state=OPEN, merged=false, isInMergeQueue=false
+exit status: 1
+
+GitHub calls fm-pr-merge.sh made (through the read-only guard):
+  gh pr view https://github.com/mindersec/minder/pull/7053 --json headRefOid -q .headRefOid
+  gh pr view https://github.com/mindersec/minder/pull/7053 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+  gh api repos/mindersec/minder/branches/main
+  gh api --paginate repos/mindersec/minder/rules/branches/main
+  gh pr merge 7053 --repo mindersec/minder --match-head-commit 8cd6f87fb2a819a2d703d347f001c13d8a588727 --squash
+    -> BLOCKED by live-test guard (no GitHub mutation allowed)
+  gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged isInMergeQueue baseRefName}}} -F owner=mindersec -F repo=minder -F number=7053 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring), "queued=" + (.isInMergeQueue | tostring), "base=" + (.baseRefName // "")
+  gh api --paginate repos/mindersec/minder/rules/branches/main --jq .[] | select(.type == "merge_queue") | "merge_method=" + (.parameters.merge_method // "")
+
+task meta after the run:
+  window=fm-lr-s12-plain
+  worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/wt/lr-s12-plain
+  project=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/projects/minder
+  kind=ship
+  mode=no-mistakes
+  pr=https://github.com/mindersec/minder/pull/7053
+  pr_head=8cd6f87fb2a819a2d703d347f001c13d8a588727
+

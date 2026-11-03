@@ -1,0 +1,35 @@
+### A project always-ask rule wins over a broader low-risk rule and is named in the refusal
+date: 2026-11-03T22:36:58Z   jq on PATH: /Users/hcho/opt/anaconda3/bin/jq (jq-1.6)
+pull request (real, read live from github.com): https://github.com/mindersec/minder/pull/7053
+
+$LAB/config/merge-tiers:
+  minder low-risk docs/**
+  minder always-ask docs/docs/integrations/**
+
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lr-s4-always-ask https://github.com/mindersec/minder/pull/7053 --low-risk
+  WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+  armed: state/lr-s4-always-ask.check.sh
+  verified: https://github.com/mindersec/minder/pull/7053 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 8cd6f87fb2a819a2d703d347f001c13d8a588727
+  error: refusing a low-risk merge of https://github.com/mindersec/minder/pull/7053: 2 changed path(s) fall outside the low-risk tier for minder, so this merge waits for the captain
+    - docs/docs/integrations/provider_integrations/dockerhub.md (always ask: matches docs/docs/integrations/**)
+    - docs/docs/integrations/provider_integrations/quay.md (always ask: matches docs/docs/integrations/**)
+exit status: 4
+
+GitHub calls fm-pr-merge.sh made (through the read-only guard):
+  gh pr view https://github.com/mindersec/minder/pull/7053 --json headRefOid -q .headRefOid
+  gh pr view https://github.com/mindersec/minder/pull/7053 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+  gh api repos/mindersec/minder/branches/main
+  gh api --paginate repos/mindersec/minder/rules/branches/main
+  gh api repos/mindersec/minder/pulls/7053
+  gh api --paginate repos/mindersec/minder/pulls/7053/files?per_page=100
+  gh api repos/mindersec/minder/pulls/7053
+
+task meta after the run:
+  window=fm-lr-s4-always-ask
+  worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/wt/lr-s4-always-ask
+  project=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/projects/minder
+  kind=ship
+  mode=no-mistakes
+  pr=https://github.com/mindersec/minder/pull/7053
+  pr_head=8cd6f87fb2a819a2d703d347f001c13d8a588727
+

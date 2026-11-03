@@ -1,0 +1,33 @@
+### A red pull request refuses as red under --low-risk, before its files are read
+date: 2026-11-03T22:37:58Z   jq on PATH: /Users/hcho/opt/anaconda3/bin/jq (jq-1.6)
+pull request (real, read live from github.com): https://github.com/hcho22/firstmate-private/pull/24
+
+$LAB/config/merge-tiers:
+  firstmate-private low-risk **
+
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lr-s9-red https://github.com/hcho22/firstmate-private/pull/24 --low-risk
+  WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+  armed: state/lr-s9-red.check.sh
+  error: refusing to merge https://github.com/hcho22/firstmate-private/pull/24
+    - check 'Behavior portable serial 2' is not green
+    - check 'Behavior portable serial 3' is not green
+    - check 'Behavior portable serial 7' is not green
+    - check 'Behavior portable serial 8' is not green
+  error: these checks are not green: Behavior portable serial 2, Behavior portable serial 3, Behavior portable serial 7, Behavior portable serial 8
+exit status: 1
+
+GitHub calls fm-pr-merge.sh made (through the read-only guard):
+  gh pr view https://github.com/hcho22/firstmate-private/pull/24 --json headRefOid -q .headRefOid
+  gh pr view https://github.com/hcho22/firstmate-private/pull/24 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+  gh api repos/hcho22/firstmate-private/branches/main
+  gh api --paginate repos/hcho22/firstmate-private/rules/branches/main
+
+task meta after the run:
+  window=fm-lr-s9-red
+  worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/wt/lr-s9-red
+  project=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/projects/firstmate-private
+  kind=ship
+  mode=no-mistakes
+  pr=https://github.com/hcho22/firstmate-private/pull/24
+  pr_head=c6bc0324db162cf2b2be2e9bf883a5218f6d2051
+

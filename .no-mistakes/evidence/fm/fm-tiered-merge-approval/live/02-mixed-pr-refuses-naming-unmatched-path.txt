@@ -1,0 +1,34 @@
+### One changed file outside the tier refuses the merge and names only that file
+date: 2026-11-03T22:36:38Z   jq on PATH: /Users/hcho/opt/anaconda3/bin/jq (jq-1.6)
+pull request (real, read live from github.com): https://github.com/stripe/ai/pull/604
+
+$LAB/config/merge-tiers:
+  ai low-risk **/*.md
+
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lr-s2-mixed https://github.com/stripe/ai/pull/604 --low-risk
+  WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+  armed: state/lr-s2-mixed.check.sh
+  verified: https://github.com/stripe/ai/pull/604 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 55c7b00feace3c8f58394afc3d36ef0b01654188
+  error: refusing a low-risk merge of https://github.com/stripe/ai/pull/604: 1 changed path(s) fall outside the low-risk tier for ai, so this merge waits for the captain
+    - llm/token-meter/examples/anthropic.ts (matches no low-risk pattern)
+exit status: 4
+
+GitHub calls fm-pr-merge.sh made (through the read-only guard):
+  gh pr view https://github.com/stripe/ai/pull/604 --json headRefOid -q .headRefOid
+  gh pr view https://github.com/stripe/ai/pull/604 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+  gh api repos/stripe/ai/branches/main
+  gh api --paginate repos/stripe/ai/rules/branches/main
+  gh api --paginate repos/stripe/ai/commits/55c7b00feace3c8f58394afc3d36ef0b01654188/check-runs
+  gh api repos/stripe/ai/pulls/604
+  gh api --paginate repos/stripe/ai/pulls/604/files?per_page=100
+  gh api repos/stripe/ai/pulls/604
+
+task meta after the run:
+  window=fm-lr-s2-mixed
+  worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/wt/lr-s2-mixed
+  project=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/projects/ai
+  kind=ship
+  mode=no-mistakes
+  pr=https://github.com/stripe/ai/pull/604
+  pr_head=55c7b00feace3c8f58394afc3d36ef0b01654188
+

@@ -1,0 +1,54 @@
+### A rename is judged on its old path too: files moved into a low-risk directory still refuse on where they came from
+date: 2026-11-03T22:37:14Z   jq on PATH: /Users/hcho/opt/anaconda3/bin/jq (jq-1.6)
+pull request (real, read live from github.com): https://github.com/ankidroid/ankidroiddocs/pull/192
+
+$LAB/config/merge-tiers:
+  ankidroiddocs low-risk docs.ankidroid.org/**
+  ankidroiddocs low-risk README.md
+
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lr-s5-rename https://github.com/ankidroid/ankidroiddocs/pull/192 --low-risk
+  WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+  armed: state/lr-s5-rename.check.sh
+  verified: https://github.com/ankidroid/ankidroiddocs/pull/192 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 9609e10eefda829227bead4f5a7031fe87c38143
+  error: refusing a low-risk merge of https://github.com/ankidroid/ankidroiddocs/pull/192: 57 changed path(s) fall outside the low-risk tier for ankidroiddocs, so this merge waits for the captain
+    - .github/workflows/publish.yml (always ask: CI or forge configuration)
+    - .github/workflows/render_docs.yml (always ask: CI or forge configuration)
+    - changelog.asc (matches no low-risk pattern)
+    - docinfo.html (matches no low-risk pattern)
+    - help-ar.asc (matches no low-risk pattern)
+    - help-ja.asc (matches no low-risk pattern)
+    - help-ro.asc (matches no low-risk pattern)
+    - help-ru.asc (matches no low-risk pattern)
+    - help-zh-CN.asc (matches no low-risk pattern)
+    - help.asc (matches no low-risk pattern)
+    - icons/android-chrome-144x144.png (matches no low-risk pattern)
+    - icons/android-chrome-192x192.png (matches no low-risk pattern)
+    - icons/android-chrome-36x36.png (matches no low-risk pattern)
+    - icons/android-chrome-48x48.png (matches no low-risk pattern)
+    - icons/android-chrome-72x72.png (matches no low-risk pattern)
+    - icons/android-chrome-96x96.png (matches no low-risk pattern)
+    - icons/apple-touch-icon-114x114.png (matches no low-risk pattern)
+    - icons/apple-touch-icon-120x120.png (matches no low-risk pattern)
+    - icons/apple-touch-icon-144x144.png (matches no low-risk pattern)
+    - icons/apple-touch-icon-152x152.png (matches no low-risk pattern)
+    - and 37 more
+exit status: 4
+
+GitHub calls fm-pr-merge.sh made (through the read-only guard):
+  gh pr view https://github.com/ankidroid/ankidroiddocs/pull/192 --json headRefOid -q .headRefOid
+  gh pr view https://github.com/ankidroid/ankidroiddocs/pull/192 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+  gh api repos/ankidroid/ankidroiddocs/branches/main
+  gh api --paginate repos/ankidroid/ankidroiddocs/rules/branches/main
+  gh api repos/ankidroid/ankidroiddocs/pulls/192
+  gh api --paginate repos/ankidroid/ankidroiddocs/pulls/192/files?per_page=100
+  gh api repos/ankidroid/ankidroiddocs/pulls/192
+
+task meta after the run:
+  window=fm-lr-s5-rename
+  worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/wt/lr-s5-rename
+  project=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/projects/ankidroiddocs
+  kind=ship
+  mode=no-mistakes
+  pr=https://github.com/ankidroid/ankidroiddocs/pull/192
+  pr_head=9609e10eefda829227bead4f5a7031fe87c38143
+

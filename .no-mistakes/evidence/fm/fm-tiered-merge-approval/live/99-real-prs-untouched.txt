@@ -1,0 +1,5 @@
+https://github.com/mindersec/minder/pull/7053 state=open merged=false
+https://github.com/stripe/ai/pull/604 state=open merged=false
+https://github.com/tosunlab/migr/pull/4 state=open merged=false
+https://github.com/ankidroid/ankidroiddocs/pull/192 state=open merged=false
+https://github.com/hcho22/firstmate-private/pull/24 state=open merged=false

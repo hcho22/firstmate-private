@@ -1,0 +1,21 @@
+### A GitLab merge request under --low-risk refuses: the tier reads changed files only from GitHub
+date: 2026-11-03T22:38:03Z   jq on PATH: /Users/hcho/opt/anaconda3/bin/jq (jq-1.6)
+pull request (real, read live from github.com): https://gitlab.com/gitlab-org/gitlab/-/merge_requests/1
+
+$LAB/config/merge-tiers:
+  minder low-risk **
+
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lr-s11-gitlab https://gitlab.com/gitlab-org/gitlab/-/merge_requests/1 --low-risk
+  error: refusing a low-risk merge of https://gitlab.com/gitlab-org/gitlab/-/merge_requests/1: the low-risk tier reads changed files only from GitHub, so this merge waits for the captain
+exit status: 4
+
+GitHub calls fm-pr-merge.sh made (through the read-only guard):
+  (none)
+
+task meta after the run:
+  window=fm-lr-s11-gitlab
+  worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/wt/lr-s11-gitlab
+  project=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/projects/gitlab
+  kind=ship
+  mode=no-mistakes
+

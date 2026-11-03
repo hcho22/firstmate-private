@@ -1,0 +1,21 @@
+### With no config/merge-tiers file, --low-risk refuses before reading GitHub or recording pr=
+date: 2026-11-03T22:37:57Z   jq on PATH: /Users/hcho/opt/anaconda3/bin/jq (jq-1.6)
+pull request (real, read live from github.com): https://github.com/mindersec/minder/pull/7053
+
+$LAB/config/merge-tiers:
+  (file absent)
+
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lr-s7a-absent https://github.com/mindersec/minder/pull/7053 --low-risk
+  error: refusing a low-risk merge of https://github.com/mindersec/minder/pull/7053: no low-risk merge tier is declared for minder: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/config/merge-tiers does not exist, so this merge waits for the captain
+exit status: 4
+
+GitHub calls fm-pr-merge.sh made (through the read-only guard):
+  (none)
+
+task meta after the run:
+  window=fm-lr-s7a-absent
+  worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/wt/lr-s7a-absent
+  project=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/projects/minder
+  kind=ship
+  mode=no-mistakes
+

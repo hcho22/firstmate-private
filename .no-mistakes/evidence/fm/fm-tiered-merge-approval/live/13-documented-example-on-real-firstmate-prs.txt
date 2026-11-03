@@ -1,0 +1,55 @@
+Documented example (docs/configuration.md "Low-risk merge tier") loaded by the real loader, judged against the live changed files of the open firstmate-private PRs:
+  # tests merge on green
+  firstmate low-risk tests/**
+  # Firstmate's own instruction surfaces always reach the captain
+  firstmate always-ask bin/**
+  firstmate always-ask skills/**
+  firstmate always-ask docs/supervision-protocols/**
+  firstmate always-ask docs/configuration.md
+  # the validation gate runs this script as its lint phase
+  firstmate always-ask tests/fm-pi-primary-types.test.sh
+
+== https://github.com/hcho22/firstmate-private/pull/23
+  always-ask .agents/skills/ask-user-authority/SKILL.md (always ask: agent instructions or settings)
+  always-ask .agents/skills/captain-hold-lifecycle/SKILL.md (always ask: agent instructions or settings)
+  always-ask .agents/skills/operational-home-layout/SKILL.md (always ask: agent instructions or settings)
+  always-ask AGENTS.md (always ask: agent instructions or settings)
+  always-ask bin/fm-scorebook.sh (always ask: matches bin/**)
+  always-ask docs/configuration.md (always ask: matches docs/configuration.md)
+  unmatched  docs/scripts.md (matches no low-risk pattern)
+  low-risk   tests/fm-scorebook.test.sh (low risk: matches tests/**)
+  => waits for the captain (7 of 8 paths outside the tier)
+== https://github.com/hcho22/firstmate-private/pull/24
+  always-ask .agents/skills/project-management/SKILL.md (always ask: agent instructions or settings)
+  always-ask .agents/skills/ship-landing/SKILL.md (always ask: agent instructions or settings)
+  always-ask AGENTS.md (always ask: agent instructions or settings)
+  always-ask bin/fm-merge-tier-lib.sh (always ask: matches bin/**)
+  always-ask bin/fm-pr-merge.sh (always ask: matches bin/**)
+  always-ask docs/configuration.md (always ask: matches docs/configuration.md)
+  unmatched  docs/scripts.md (matches no low-risk pattern)
+  low-risk   tests/fm-pr-merge.test.sh (low risk: matches tests/**)
+  => waits for the captain (7 of 8 paths outside the tier)
+== https://github.com/hcho22/firstmate-private/pull/25
+  always-ask .agents/skills/bearings/SKILL.md (always ask: agent instructions or settings)
+  always-ask .agents/skills/bearings/assets/board-template.html (always ask: agent instructions or settings)
+  always-ask .agents/skills/ship-landing/SKILL.md (always ask: agent instructions or settings)
+  always-ask bin/fm-approved-head.sh (always ask: matches bin/**)
+  always-ask bin/fm-bearings-board.sh (always ask: matches bin/**)
+  always-ask bin/fm-parent-channel-lib.sh (always ask: matches bin/**)
+  always-ask bin/fm-pr-check.sh (always ask: matches bin/**)
+  always-ask bin/fm-pr-lib.sh (always ask: matches bin/**)
+  always-ask bin/fm-pr-merge.sh (always ask: matches bin/**)
+  always-ask bin/fm-procevent-lavish.sh (always ask: matches bin/**)
+  unmatched  docs/architecture.md (matches no low-risk pattern)
+  unmatched  docs/scripts.md (matches no low-risk pattern)
+  unmatched  docs/secondmate-parent-channel.md (matches no low-risk pattern)
+  unmatched  docs/verification/secondmate-parent-channel.md (matches no low-risk pattern)
+  low-risk   tests/assets/board-render-harness.mjs (low risk: matches tests/**)
+  low-risk   tests/captain-hold-helpers.sh (low risk: matches tests/**)
+  low-risk   tests/fm-bearings-board-render.test.sh (low risk: matches tests/**)
+  low-risk   tests/fm-bearings-board.test.sh (low risk: matches tests/**)
+  low-risk   tests/fm-captain-hold-lifecycle.test.sh (low risk: matches tests/**)
+  low-risk   tests/fm-pr-check-security.test.sh (low risk: matches tests/**)
+  low-risk   tests/fm-pr-merge.test.sh (low risk: matches tests/**)
+  low-risk   tests/fm-teardown.test.sh (low risk: matches tests/**)
+  => waits for the captain (14 of 22 paths outside the tier)

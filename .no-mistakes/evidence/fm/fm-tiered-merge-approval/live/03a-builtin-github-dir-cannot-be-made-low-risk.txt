@@ -1,0 +1,35 @@
+### A .github file stays always-ask even when the project declares ** and .github/** low risk
+date: 2026-11-03T22:36:45Z   jq on PATH: /Users/hcho/opt/anaconda3/bin/jq (jq-1.6)
+pull request (real, read live from github.com): https://github.com/Azure/karpenter-provider-azure/pull/2045
+
+$LAB/config/merge-tiers:
+  karpenter-provider-azure low-risk **
+  karpenter-provider-azure low-risk .github/**
+
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lr-s3a-builtin https://github.com/Azure/karpenter-provider-azure/pull/2045 --low-risk
+  WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+  armed: state/lr-s3a-builtin.check.sh
+  verified: https://github.com/Azure/karpenter-provider-azure/pull/2045 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 913763470ca121c058f636f1c118fc2dc4fe6935
+  error: refusing a low-risk merge of https://github.com/Azure/karpenter-provider-azure/pull/2045: 1 changed path(s) fall outside the low-risk tier for karpenter-provider-azure, so this merge waits for the captain
+    - .github/pull-request-template.md (always ask: CI or forge configuration)
+exit status: 4
+
+GitHub calls fm-pr-merge.sh made (through the read-only guard):
+  gh pr view https://github.com/Azure/karpenter-provider-azure/pull/2045 --json headRefOid -q .headRefOid
+  gh pr view https://github.com/Azure/karpenter-provider-azure/pull/2045 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+  gh api repos/Azure/karpenter-provider-azure/branches/main
+  gh api --paginate repos/Azure/karpenter-provider-azure/rules/branches/main
+  gh api --paginate repos/Azure/karpenter-provider-azure/commits/913763470ca121c058f636f1c118fc2dc4fe6935/check-runs
+  gh api repos/Azure/karpenter-provider-azure/pulls/2045
+  gh api --paginate repos/Azure/karpenter-provider-azure/pulls/2045/files?per_page=100
+  gh api repos/Azure/karpenter-provider-azure/pulls/2045
+
+task meta after the run:
+  window=fm-lr-s3a-builtin
+  worktree=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/wt/lr-s3a-builtin
+  project=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.BPjTra/projects/karpenter-provider-azure
+  kind=ship
+  mode=no-mistakes
+  pr=https://github.com/Azure/karpenter-provider-azure/pull/2045
+  pr_head=913763470ca121c058f636f1c118fc2dc4fe6935
+
