@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Behavior tests for bin/fm-scorebook.sh through its public commands: a
 # question put to the captain round-trips through ask, answer, and report; the
-# match flag and the hand-off threshold count the way the header documents; a
+# match flag and the hand-off threshold count the way the header documents;
+# `answer` announces a kind once, on the answer that makes it newly qualify; a
 # kind without the captain's recorded yes still reaches him; and the record
 # never lands on a path a git work tree tracks. Questions carried by a task held
-# for the captain run against a real backlog through bin/fm-captain-hold.sh and
-# skip with a reason when tasks-axi is missing.
+# for the captain run against a real backlog through bin/fm-captain-hold.sh,
+# including a task released and held again for a new question, and skip with a
+# reason when tasks-axi is missing.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -31,8 +33,11 @@ score() {  # <home> <command args...>
     FM_CONFIG_OVERRIDE="$home/config" "$SCOREBOOK" "$@"
 }
 
-report_field() {  # <home> <kind> <field>
-  score "$1" report --json | jq -r --arg k "$2" --arg f "$3" '.[] | select(.kind == $k) | .[$f]'
+# One cell of the text report, found by its header column and kind row.
+report_field() {  # <home> <kind> <column>
+  score "$1" report | awk -v k="$2" -v c="$3" '
+    NR == 1 { for (i = 1; i <= NF; i++) col[$i] = i; next }
+    $1 == k { print $col[c] }'
 }
 
 # Records <n> chat questions of <kind>, each answered with <matched>.
@@ -107,32 +112,41 @@ test_match_flag_and_withdraw() {
 }
 
 test_threshold() {
-  local home
+  local home out
   home=$(make_home threshold)
-  answer_n "$home" finding-design 9 yes
+  out=$(answer_n "$home" finding-design 9 yes) || fail "recording answers failed"
+  assert_equals "" "$out" "an answer below the threshold announced a qualifying kind"
   assert_equals not-yet "$(report_field "$home" finding-design status)" "a kind qualified below the threshold"
-  answer_n "$home" finding-design 1 yes
+  out=$(answer_n "$home" finding-design 1 yes) || fail "recording answers failed"
   assert_equals qualifies "$(report_field "$home" finding-design status)" \
     "a kind with 10 matching answers did not qualify"
+  assert_contains "$out" "finding-design newly qualifies for hand-off: its 10 most recent answers all matched" \
+    "the answer that made a kind qualify did not announce it"
+  assert_contains "$out" "(10 answered, 10 matched)" "the announcement does not cite the kind's count"
+  out=$(answer_n "$home" finding-design 1 yes) || fail "recording answers failed"
+  assert_equals "" "$out" "a kind that already qualified was announced again"
   answer_n "$home" finding-design 1 no
   assert_equals not-yet "$(report_field "$home" finding-design status)" \
     "a kind still qualified with a mismatch among its 10 most recent answers"
-  assert_equals 9 "$(report_field "$home" finding-design recent_matched)" "the recent window is wrong"
-  answer_n "$home" finding-design 10 yes
+  assert_equals 9/10 "$(report_field "$home" finding-design recent)" "the recent window is wrong"
+  out=$(answer_n "$home" finding-design 10 yes) || fail "recording answers failed"
   assert_equals qualifies "$(report_field "$home" finding-design status)" \
     "a kind did not qualify again once the mismatch left the recent window"
-  answer_n "$home" merge 10 yes
+  assert_contains "$out" "finding-design newly qualifies for hand-off" \
+    "a kind that qualified again after a mismatch was not announced"
+  out=$(answer_n "$home" merge 10 yes) || fail "recording answers failed"
   assert_equals captain-only "$(report_field "$home" merge status)" \
     "a captain-only kind qualified for hand-off"
+  assert_equals "" "$out" "a captain-only kind was announced for hand-off"
   assert_contains "$(score "$home" report)" "qualifies at 10 answered questions" \
     "the text report does not state the threshold"
-  pass "a hand-off kind qualifies only with 10 recent answers all matched"
+  pass "a hand-off kind qualifies only with 10 recent answers all matched, announced once when it does"
 }
 
 test_grant_requires_captain_yes() {
   local home rc
   home=$(make_home grant)
-  answer_n "$home" finding-repeat 10 yes
+  answer_n "$home" finding-repeat 10 yes >/dev/null
   assert_equals qualifies "$(report_field "$home" finding-repeat status)" "fixture did not qualify"
   rc=0
   score "$home" granted finding-repeat || rc=$?
@@ -252,6 +266,55 @@ test_held_questions_reuse_hold_records() {
   pass "a held question reuses the hold reason and the recorded answer"
 }
 
+test_held_question_survives_release_and_rehold() {
+  local home fakebin id rc
+  if [ -z "$TASKS_AXI_BIN" ]; then
+    echo "skip: tasks-axi not found; held-question cases need a real backlog"
+    return 0
+  fi
+  home=$(make_home rehold)
+  fm_test_tasks_toml "$home/.tasks.toml"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
+  fakebin=$(fm_fakebin "$home")
+  fm_shared_stub_exit0 "$fakebin" tmux treehouse no-mistakes gh gh-axi
+  captain() {
+    PATH="$home/fakebin:$PATH" REAL_TASKS_AXI="$TASKS_AXI_BIN" \
+      FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
+      FM_CONFIG_OVERRIDE="$home/config" "$ROOT/bin/fm-captain-hold.sh" "$@"
+  }
+  heldscore() {
+    PATH="$home/fakebin:$PATH" REAL_TASKS_AXI="$TASKS_AXI_BIN" score "$home" "$@"
+  }
+
+  captain hold sample-work --title "Build the queue" \
+    --reason "captain picks the queue shape" --repo sample >/dev/null || fail "could not hold the fixture task"
+  heldscore ask --kind finding-scope --recommend "keep the queue" --held sample-work >/dev/null \
+    || fail "ask --held refused the first captain call"
+  printf 'Keep the queue.\n' > "$home/first.txt"
+  captain answer sample-work --decision-file "$home/first.txt" --release >/dev/null \
+    || fail "captain-hold answer --release failed"
+  captain hold sample-work --reason "captain picks the retry policy" >/dev/null \
+    || fail "could not hold the released task again"
+  captain open sample-work || fail "fixture: the re-held task is not an open captain call"
+
+  heldscore answer sample-work --matched yes \
+    || fail "the first question was refused after its call was answered and the task held again"
+  id=$(heldscore ask --kind finding-scope --recommend "retry twice" --held sample-work) \
+    || fail "ask --held refused the second call on the re-held task"
+  assert_equals sample-work "$id" "the second question's id is not its task id"
+  rc=0
+  heldscore answer sample-work --matched no >/dev/null 2>&1 || rc=$?
+  expect_code 1 "$rc" "the second question was answered while its own call was still open"
+
+  printf 'Retry three times.\n' > "$home/second.txt"
+  captain answer sample-work --decision-file "$home/second.txt" >/dev/null || fail "captain-hold answer failed"
+  heldscore answer sample-work --matched no || fail "answer refused the second question once its call was answered"
+  assert_equals 2 "$(report_field "$home" finding-scope answered)" "the two calls on one task did not both count"
+  assert_equals 1 "$(report_field "$home" finding-scope matched)" "the two calls' match flags were mixed up"
+  assert_equals 0 "$(report_field "$home" finding-scope withdrawn)" "a call on the re-held task was withdrawn"
+  pass "a held question is bound to its call, so a released and re-held task records both answers"
+}
+
 test_unknown_kind_and_help() {
   local home rc
   home=$(make_home usage)
@@ -271,4 +334,5 @@ test_threshold
 test_grant_requires_captain_yes
 test_record_stays_off_tracked_paths
 test_held_questions_reuse_hold_records
+test_held_question_survives_release_and_rehold
 test_unknown_kind_and_help

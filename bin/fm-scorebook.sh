@@ -11,7 +11,7 @@
 #   fm-scorebook.sh answer <question-id> --matched yes|no [--answer <text>]
 #   fm-scorebook.sh withdraw <question-id> --reason <text>
 #   fm-scorebook.sh pending
-#   fm-scorebook.sh report [--json]
+#   fm-scorebook.sh report
 #   fm-scorebook.sh grant <kind> --captain-words-file <path>
 #   fm-scorebook.sh revoke <kind> --reason <text>
 #   fm-scorebook.sh granted <kind>
@@ -40,28 +40,36 @@
 #
 # `ask` records one question and prints its id. A question carried by a task
 # held for the captain (bin/fm-captain-hold.sh) passes `--held <task-id>`: the
-# task must be an open captain call, the question id is the task id, and the
-# question text is not copied because the hold reason already records it. A
-# question asked only in chat passes `--question` and gets a fresh `chat-` id.
-# An id with an unanswered question is refused, so a re-held task records a new
-# question only after its earlier one was answered or withdrawn.
+# task must be an open captain call, the question id is the task id, the
+# question text is not copied because the hold reason already records it, and
+# the call's lifecycle identity (bin/fm-captain-hold.sh open --identity) is
+# recorded so the question stays bound to that one call. A question asked only
+# in chat passes `--question` and gets a fresh `chat-` id. An id with an
+# unanswered question is refused, so a re-held task records a new question
+# only after its earlier one was answered or withdrawn.
 #
 # `answer` closes the latest open question with that id and records whether the
 # captain's answer matched firstmate's recommendation, which is firstmate's
 # judgment and never inferred here. A held question's answer is the captain's
 # words already recorded on the task by bin/fm-captain-hold.sh answer, so it
-# is refused while the task is still an open captain call and `--answer` is
-# refused for it; a chat question requires `--answer` with his words.
+# is refused while the task is still the open captain call the question was
+# asked on, and `--answer` is refused for it; once that call is answered, even
+# if the task was released and held again for a new question, the answer is
+# accepted. A chat question requires `--answer` with his words. When the
+# answer makes its kind newly qualify for hand-off, `answer` prints one line
+# naming the kind and its count; later answers that keep it qualifying print
+# nothing.
 # `withdraw` closes a question that dissolved without his answer, such as a
 # call reconciled as moot; it never counts toward agreement.
-# `pending` lists open questions, one per line: id, kind, held or chat, asked at.
+# `pending` lists open questions, one per line: id, kind, held or chat, asked
+# at. captain-hold-lifecycle uses it to find questions still waiting for an
+# answer to record, for example after a restart.
 #
 # Threshold. A hand-off kind qualifies when it has at least 10 answered
 # questions and the 10 most recently answered all matched. Withdrawn and open
 # questions do not count. `report` prints, for every kind: asked, answered,
 # matched, open, withdrawn, the most recent answers as matched/considered, and
-# a status of granted, qualifies, not-yet, or captain-only. `--json` prints the
-# same rows as a JSON array.
+# a status of granted, qualifies, not-yet, or captain-only.
 #
 # Grants. A qualifying kind still stays with the captain until he says yes to
 # that specific kind. `grant` records his exact words from a non-empty file of
@@ -74,11 +82,14 @@
 # Record. One JSON object per line, appended to data/captain-scorebook.jsonl in
 # the active home (FM_HOME, or FM_DATA_OVERRIDE), never a tracked path: before
 # writing, a record inside a git work tree must be ignored by it, or the write
-# is refused. Fields: event (ask, answer, withdraw, grant, revoke), at (UTC);
-# ask adds id, kind, recommendation, held (bool), question (chat only), task,
-# and project; answer adds id, matched (bool), and answer (chat only); withdraw
-# adds id and reason; grant adds kind and captain_words; revoke adds kind and
-# reason. Writers serialize on state/.captain-scorebook.lock.
+# is refused. Each home keeps its own record and grants and never reads
+# another's: only the home that puts a question to the captain records it, and
+# a grant given in the main home does not apply in a secondmate home.
+# Fields: event (ask, answer, withdraw, grant, revoke), at (UTC); ask adds id,
+# kind, recommendation, held (bool), call_identity (held only), question (chat
+# only), task, and project; answer adds id, matched (bool), and answer (chat
+# only); withdraw adds id and reason; grant adds kind and captain_words; revoke
+# adds kind and reason. Writers serialize on state/.captain-scorebook.lock.
 #
 # Exit status: 0 on success, 1 on a refused or failed command, 2 on bad usage.
 set -eu
@@ -187,7 +198,7 @@ command_kinds() {
 }
 
 command_ask() {
-  local kind='' recommend='' held='' question='' task='' project='' id event open
+  local kind='' recommend='' held='' question='' task='' project='' call_identity='' id event open
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --kind|--recommend|--held|--question|--task|--project)
@@ -216,7 +227,7 @@ command_ask() {
   require_jq
   if [ -n "$held" ]; then
     local rc=0
-    "$SCRIPT_DIR/fm-captain-hold.sh" open "$held" || rc=$?
+    call_identity=$("$SCRIPT_DIR/fm-captain-hold.sh" open "$held" --identity) || rc=$?
     case "$rc" in
       0) ;;
       1) fail "task $held is not an open captain call; hold it first or record a chat question" ;;
@@ -232,9 +243,10 @@ command_ask() {
   [ -z "$open" ] || fail "question $id is already open; answer or withdraw it first"
   event=$(jq -cn --arg at "$(now_utc)" --arg id "$id" --arg kind "$kind" \
     --arg recommendation "$recommend" --arg question "$question" \
-    --arg task "$task" --arg project "$project" --argjson held "$([ -n "$held" ] && echo true || echo false)" '
+    --arg task "$task" --arg project "$project" --arg call_identity "$call_identity" \
+    --argjson held "$([ -n "$held" ] && echo true || echo false)" '
     {event: "ask", at: $at, id: $id, kind: $kind, recommendation: $recommendation, held: $held}
-    + (if $held then {} else {question: $question} end)
+    + (if $held then {call_identity: $call_identity} else {question: $question} end)
     + {task: (if $task == "" then null else $task end),
        project: (if $project == "" then null else $project end)}')
   append_event "$event"
@@ -243,7 +255,7 @@ command_ask() {
 }
 
 command_answer() {
-  local id='' matched='' answer='' answer_set=0 open event
+  local id='' matched='' answer='' answer_set=0 open event kind before row
   [ "$#" -gt 0 ] || bad_usage "answer needs a question id"
   id=$1
   shift
@@ -265,22 +277,31 @@ command_answer() {
   [ -n "$open" ] || fail "no open question with id $id"
   if [ "$(printf '%s' "$open" | jq -r .held)" = true ]; then
     [ "$answer_set" = 0 ] || fail "question $id is held on its task: record the captain's words with fm-captain-hold.sh answer, not --answer"
-    local rc=0
-    "$SCRIPT_DIR/fm-captain-hold.sh" open "$id" || rc=$?
+    local rc=0 current
+    current=$("$SCRIPT_DIR/fm-captain-hold.sh" open "$id" --identity) || rc=$?
     case "$rc" in
       1) ;;
-      0) fail "task $id is still an open captain call; record his answer with fm-captain-hold.sh answer first" ;;
+      0)
+        [ "$current" != "$(printf '%s' "$open" | jq -r .call_identity)" ] \
+          || fail "task $id is still the open captain call this question was asked on; record his answer with fm-captain-hold.sh answer first"
+        ;;
       *) fail "could not tell whether task $id is still an open captain call" ;;
     esac
   else
     [ -n "$answer" ] || fail "question $id was asked in chat: pass his answer with --answer"
   fi
+  kind=$(printf '%s' "$open" | jq -r .kind)
+  before=$(kind_row "$kind" | jq -r .status) || fail "could not build the report"
   event=$(jq -cn --arg at "$(now_utc)" --arg id "$id" --argjson matched "$matched" \
     --arg answer "$answer" --argjson set "$answer_set" '
     {event: "answer", at: $at, id: $id, matched: $matched}
     + (if $set == 1 then {answer: $answer} else {} end)')
   append_event "$event"
+  row=$(kind_row "$kind") || fail "could not build the report"
   release_lock
+  [ "$before" != qualifies ] || return 0
+  printf '%s\n' "$row" | jq -r 'select(.status == "qualifies")
+    | "\(.kind) newly qualifies for hand-off: its \(.recent) most recent answers all matched the recommendation (\(.answered) answered, \(.matched) matched)"'
 }
 
 command_withdraw() {
@@ -345,20 +366,16 @@ report_rows() {
                   else "not-yet" end)}]'
 }
 
+# The report row for <kind>, as JSON.
+kind_row() {  # <kind>
+  report_rows | jq -c --arg k "$1" '.[] | select(.kind == $k)'
+}
+
 command_report() {
-  local json=0 rows
-  case "${1:-}" in
-    '') ;;
-    --json) json=1; shift ;;
-    *) bad_usage "report: unexpected argument: $1" ;;
-  esac
+  local rows
   [ "$#" -eq 0 ] || bad_usage "report: unexpected argument: $1"
   require_jq
   rows=$(report_rows) || fail "could not build the report"
-  if [ "$json" = 1 ]; then
-    printf '%s\n' "$rows" | jq .
-    return 0
-  fi
   {
     printf 'kind\tasked\tanswered\tmatched\topen\twithdrawn\trecent\tstatus\n'
     printf '%s\n' "$rows" | jq -r '.[] | [.kind, .asked, .answered, .matched, .open,

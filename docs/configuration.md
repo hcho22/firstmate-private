@@ -78,7 +78,8 @@ Each effective `FM_HOME` contains private operational directories.
 - Project and secondmate registries.
 - Captain preferences and optional shared captain preferences.
 - Learnings, backlog, per-project task folders holding briefs and scout reports, and the optional per-task no-mistakes pipeline-spend ledger.
-- The captain-question scorebook, which records each question put to the captain and the kinds he handed to firstmate (`bin/fm-scorebook.sh`).
+- The captain-question scorebook, which records each question this home puts to the captain and the kinds he handed to firstmate in this home (`bin/fm-scorebook.sh`).
+  A secondmate home that escalates through its parent channel records nothing there, because the main home records the question when it asks the captain, and a grant given in the main home does not apply in a secondmate home.
 - Explicitly installed content-addressed extension packages under `data/extensions/packages/`.
 
 `state/` holds runtime records:
