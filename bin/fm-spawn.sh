@@ -657,6 +657,8 @@ FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 . "$SCRIPT_DIR/fm-tasks-axi-lib.sh"
 # shellcheck source=bin/fm-backlog-transition-lib.sh
 . "$SCRIPT_DIR/fm-backlog-transition-lib.sh"
+# shellcheck source=bin/fm-mkdir-lib.sh
+. "$SCRIPT_DIR/fm-mkdir-lib.sh"
 
 resolve_directory_input() {
   local name=$1 path=$2 resolved raw_bytes
@@ -5517,7 +5519,7 @@ esac
 # can plant or swap a file in it. The staged launch command lives in a sibling
 # directory namespaced by home identity, not in this shared per-id root.
 TASK_TMP="/tmp/fm-$ID"
-if (umask 077 && mkdir "$TASK_TMP") 2>/dev/null; then
+if fm_mkdir_exclusive "$TASK_TMP" 700 2>/dev/null; then
   [ "$HARNESS" != polytoken ] || SPAWN_TASK_TMP_CREATED=1
 else
   if [ -L "$TASK_TMP" ] || [ ! -d "$TASK_TMP" ] || [ ! -O "$TASK_TMP" ] ||
@@ -6693,7 +6695,7 @@ if [ "$LAUNCH_ENV_ENABLED" = 1 ]; then
   fi
   LAUNCH="$LAUNCH_ENV_PREFIX /bin/sh -c $(shell_quote "$LAUNCH")"
 fi
-if ! (umask 077 && mkdir "$LAUNCH_DIR") 2>/dev/null; then
+if ! fm_mkdir_exclusive "$LAUNCH_DIR" 700 2>/dev/null; then
   if [ -L "$LAUNCH_DIR" ] || [ ! -d "$LAUNCH_DIR" ] || [ ! -O "$LAUNCH_DIR" ] ||
     [ -n "$(find "$LAUNCH_DIR" -prune \( -perm -g=w -o -perm -o=w \) -print 2>/dev/null)" ] ||
     ! chmod 700 "$LAUNCH_DIR"; then
