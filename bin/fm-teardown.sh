@@ -374,6 +374,7 @@ teardown_require_backend_prerequisites() {  # <backend> <task-id>
 for _teardown_source in \
   fm-tasks-axi-lib.sh \
   fm-backlog-transition-lib.sh \
+  fm-mkdir-lib.sh \
   fm-timeout-lib.sh \
   fm-backend.sh \
   fm-control-lib.sh \
@@ -404,6 +405,8 @@ unset _teardown_source
 . "$SCRIPT_DIR/fm-tasks-axi-lib.sh"
 # shellcheck source=bin/fm-backlog-transition-lib.sh
 . "$SCRIPT_DIR/fm-backlog-transition-lib.sh"
+# shellcheck source=bin/fm-mkdir-lib.sh
+. "$SCRIPT_DIR/fm-mkdir-lib.sh"
 # shellcheck source=bin/fm-backend.sh
 . "$SCRIPT_DIR/fm-backend.sh"
 # shellcheck source=bin/fm-control-lib.sh
@@ -880,7 +883,7 @@ handoff_wake_retire_stage() {
   local corr=$HANDOFF_WAKE_RETIRE_CORR rec confirmation
   [ -n "$marker" ] || return 0
   [ ! -e "$stage" ] && [ ! -L "$stage" ] || return 1
-  (umask 077; mkdir -- "$stage") || return 1
+  fm_mkdir_exclusive "$stage" 700 || return 1
   HANDOFF_WAKE_RETIRE_STAGE=$stage
   printf '%s\n' "$corr" > "$stage/corr" || { handoff_wake_retire_stage_restore || true; return 1; }
   if [ -n "$corr" ]; then

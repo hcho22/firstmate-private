@@ -32,7 +32,7 @@ The local measurements had left the serial lane less aggregate headroom under th
 The session-start hint retains its pre-optimization maximum until CI measures the shorter fixture-only home-summary bound; do not discount a local speedup from CI packing weights.
 `tests/fm-captain-hold-lifecycle.test.sh` was later split into itself and `tests/fm-captain-hold-records.test.sh`, so the baseline measured both halves as one file.
 Until a CI refresh measures each half, that file's 343658 ms parallel hint is divided between them in proportion to their case counts (281688 ms and 61970 ms), and both stay in `portable-parallel-2`, the slot the one file held, so the packed lane sums are unchanged.
-Two later-added serial members carry provisional local measurements until the next CI refresh: 11767 ms for `tests/fm-remote-secondmate-e2e-interrupt.test.sh` and the 20 ms live-guard skip for `tests/fm-structural-review-guidance-live-e2e.test.sh`.
+Later-added serial members carry provisional local measurements until the next CI refresh, among them 11767 ms for `tests/fm-remote-secondmate-e2e-interrupt.test.sh`, the 20 ms live-guard skip for `tests/fm-structural-review-guidance-live-e2e.test.sh`, and a conservative 2000 ms for `tests/fm-mkdir-lib.test.sh`, which runs in about one second locally.
 
 ## Parallel lanes
 

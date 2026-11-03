@@ -50,6 +50,9 @@
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# Lanes claim cases with exclusive directories, so each case runs exactly once.
+# shellcheck source=bin/fm-mkdir-lib.sh
+. "$ROOT/bin/fm-mkdir-lib.sh"
 
 FM_TEST_CASE_LANE_PIDS=()
 FM_TEST_CASE_LANE_DIR=
@@ -115,7 +118,7 @@ fm_test_case_lane() {  # <lane>
   local i rc dir=$FM_TEST_CASE_LANE_DIR
   for i in "${!FM_TEST_CASES[@]}"; do
     [ ! -e "$dir/failed" ] || break
-    mkdir "$dir/claim/$i" 2>/dev/null || continue
+    fm_mkdir_exclusive "$dir/claim/$i" 2>/dev/null || continue
     (
       # A command substitution whose only command is sh runs sh in place of
       # its forked child, so sh's parent is this subshell.
