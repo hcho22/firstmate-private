@@ -1,0 +1,11 @@
+$ fm-pipeline-spend.sh record rt
+recorded rt lab-g1
+[exit 0]
+$ fm-nm-rounds.sh record rt
+recorded rt lab-g1
+[exit 0]
+spend  runs: ["01M6FTVN7JTNX6A4WAFRJ616Y7","01M6G4JH9C6AT2NDPSMM4V9T1M","01M6GNQR2MFM9DGX71GGBS1DC0","01M6H6W6Q59XESYNH7N86X0HTQ"]
+spend  attribution: {"repo":"/Users/hcho/Developer/FM_Private/firstmate-private/projects/RepToday","branch":"fm/reptoday-hands-free-sessions","since":"2026-11-02T23:10:54Z","source":"no-mistakes-state"}
+rounds runs: ["01M6FTVN7JTNX6A4WAFRJ616Y7","01M6G4JH9C6AT2NDPSMM4V9T1M","01M6GNQR2MFM9DGX71GGBS1DC0","01M6H6W6Q59XESYNH7N86X0HTQ"]
+rounds attribution: {"repo":"/Users/hcho/Developer/FM_Private/firstmate-private/projects/RepToday","branch":"fm/reptoday-hands-free-sessions","since":"2026-11-02T23:10:54Z","source":"no-mistakes-state"}
+SAME RUNS: yes

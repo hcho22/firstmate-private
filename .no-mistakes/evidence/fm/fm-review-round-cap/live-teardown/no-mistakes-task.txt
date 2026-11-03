@@ -1,0 +1,40 @@
+# treehouse leased task copy: pool/.treehouse/demo-a875e0/1/demo
+# before: meta=present branch=present window=anchor fm-lab-rounds-zz9 
+$ FM_HOME=<lab> bin/fm-teardown.sh lab-rounds-zz9   (mode=no-mistakes)
+fm-gate-refuse: gate agent lifecycle permitted only against lab home <lab>
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+A new version of treehouse is available: v3.1.0 → v3.1.8
+Run "treehouse update" to update
+
+🌳 Worktree returned to pool.
+demo: already current
+teardown lab-rounds-zz9 complete (window firstmate:fm-lab-rounds-zz9, worktree <lab>/pool/.treehouse/demo-a875e0/1/demo)
+Backlog: lab-rounds-zz9 is closed in <lab>/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+[exit 0]
+# after: meta=removed branch=deleted copy=present windows=anchor 
+# data/pipeline-rounds.jsonl:
+{
+  "task": "lab-rounds-zz9",
+  "spawn_gen": "lab-g1",
+  "project": "demo",
+  "pr": "https://github.com/lab/demo/pull/1",
+  "recorded_at": "2026-11-03T22:38:24Z",
+  "source": "unavailable",
+  "reason": "no-mistakes resolved no repository for the task copy: error: repo not initialized (run 'no-mistakes init' first)",
+  "repo": null,
+  "branch": "fm/lab-rounds-zz9",
+  "since": "2026-11-03T22:38:20Z",
+  "runs": [],
+  "rounds_to_pass": null
+}
+# backlog:
+task:
+  id: lab-rounds-zz9
+  title: "lab rounds teardown https://github.com/lab/demo/pull/1"
+  state: done

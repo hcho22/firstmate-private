@@ -1,0 +1,14 @@
+run: 01M6H6W6Q59XESYNH7N86X0HTQ
+step: review
+fix_rounds: 1
+
+## round 1 (initial)
+- id: stale-rep-stretch-ring-and-readme-none-tapped
+  severity: info
+  file: ios/RepToday/RepToday/Views/ActiveSession/ActiveSessionView.swift:454
+  action: auto-fix
+  description: |
+    Two pieces of text now contradict how the app behaves. (1) The `exerciseHeadline` doc comment at ActiveSessionView.swift:454 says that with "no countdown running (an idle Start-hold step, a rep-based stretch) there is no ring". Since ADR-0010, `currentStepAutoAdvances` is `currentStep != nil && holdSecondsPerSide == nil`, so a rep-based warm-up or cooldown stretch runs `WorkWindowCountdownView` and does show the ring. Only an idle hold step (after Stop hold) still has no ring. (2) README.md:81 tells users that after "Too hard", "only those step back and don't count toward moving up". It leaves out the decided case where nothing is tapped. In that case every move steps back and the session counts toward no move's advancement (`WorkoutLog.stepsBack`/`countsTowardAdvancement`, ADR-0011, CONTEXT.md "Round numbers", and the in-app copy "Tap none and everything eases off a little"). Fix (wording only): drop "a rep-based stretch" from the no-ring list at :454, and add the none-tapped clause to the README sentence.
+
+## round 2 (fix)
+no findings

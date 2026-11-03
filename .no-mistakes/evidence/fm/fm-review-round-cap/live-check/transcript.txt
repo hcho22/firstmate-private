@@ -1,0 +1,61 @@
+$ git -C <RepToday task copy> branch --show-current
+fm/reptoday-hands-free-sessions
+
+$ cd <RepToday task copy> && fm-nm-rounds.sh check --step review --out-dir /Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-check
+run: 01M6H6W6Q59XESYNH7N86X0HTQ
+step: review
+fix_rounds: 1
+cap: 3
+verdict: under-cap
+findings: none
+[exit 0]
+
+$ cd <RepToday task copy> && fm-nm-rounds.sh check --step test --out-dir /Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-check
+run: 01M6H6W6Q59XESYNH7N86X0HTQ
+step: test
+fix_rounds: 1
+cap: 3
+verdict: under-cap
+findings: hold-secondary-row-wraps
+[exit 0]
+
+$ cd <RepToday task copy> && fm-nm-rounds.sh check --step review --cap 1 --out-dir /Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-check
+run: 01M6H6W6Q59XESYNH7N86X0HTQ
+step: review
+fix_rounds: 1
+cap: 1
+verdict: cap-reached
+findings: none
+file: /Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-check/nm-01M6H6W6Q59XESYNH7N86X0HTQ-review-rounds.txt
+escalation: needs-decision [at=1793745132] [key=nm-01M6H6W6Q59XESYNH7N86X0HTQ-review]: fix-round cap rounds=1 findings=none file=/Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-check/nm-01M6H6W6Q59XESYNH7N86X0HTQ-review-rounds.txt
+[exit 3]
+
+$ cd <RepToday task copy> && fm-nm-rounds.sh check --step test --cap 1 --out-dir /Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-check
+run: 01M6H6W6Q59XESYNH7N86X0HTQ
+step: test
+fix_rounds: 1
+cap: 1
+verdict: cap-reached
+findings: hold-secondary-row-wraps
+file: /Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-check/nm-01M6H6W6Q59XESYNH7N86X0HTQ-test-rounds.txt
+escalation: needs-decision [at=1793745132] [key=nm-01M6H6W6Q59XESYNH7N86X0HTQ-test]: fix-round cap rounds=1 findings=hold-secondary-row-wraps file=/Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-check/nm-01M6H6W6Q59XESYNH7N86X0HTQ-test-rounds.txt
+[exit 3]
+
+$ cd <RepToday task copy> && fm-nm-rounds.sh check --step review --cap 2 --out-dir /Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-check
+run: 01M6H6W6Q59XESYNH7N86X0HTQ
+step: review
+fix_rounds: 1
+cap: 2
+verdict: under-cap
+findings: none
+[exit 0]
+
+$ cd <RepToday task copy> && fm-nm-rounds.sh check --step lint --out-dir /Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-check
+run: 01M6H6W6Q59XESYNH7N86X0HTQ
+step: lint
+fix_rounds: 0
+cap: 3
+verdict: under-cap
+findings: none
+[exit 0]
+

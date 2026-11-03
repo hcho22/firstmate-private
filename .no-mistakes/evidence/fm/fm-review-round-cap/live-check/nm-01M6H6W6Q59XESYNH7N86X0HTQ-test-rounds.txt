@@ -1,0 +1,31 @@
+run: 01M6H6W6Q59XESYNH7N86X0HTQ
+step: test
+fix_rounds: 1
+
+## round 1 (initial)
+- id: hands-free-session-ends-short-by-hold-setup
+  severity: error
+  file: ios/RepToday/RepToday/Services/Engine/SessionAssembly.swift:608
+  action: auto-fix
+  description: |
+    A session played with no taps ends short of the length the user chose, by the setup seconds the plan gives each timed hold. Live: a 15-minute session ran 829s, 71s short and outside the ±60s rule (Step 7, ADR-0003). A 5-minute session ran 271s (-29s). `workSecondsPerSet` prices a hold as setup + the hold itself, where setup = `estimatedTimePerSetSeconds` minus the hold (Downward Dog 10s, Superman Hold 15s per set, Deep Squat Hold 5s). Since ADR-0010 every hold starts by itself right after the 15s transition, so that setup time is never played. Summed over the 15-minute plan it predicts -70s, against -71s measured. For the brand-new user's plans it predicts about -155s at 30 min, -185s at 45 min and -200s at 60 min. ADR-0010's 'within 16 seconds' holds for the plan, not for what plays. Recommended fix: price an auto-started hold at the seconds the player runs (the hold, plus the 5s Switch sides beat for a per-side hold), so `stretchWorkWindows` fills the difference. Alternative: play each hold's setup as a short get-ready beat (at most 15s). Then add a test asserting that played seconds equal planned seconds.
+- id: continuous-circuit-uitests-walk-stale-under-adr-0010
+  severity: warning
+  file: ios/RepToday/RepTodayUITests/ContinuousCircuitUITests.swift:354
+  action: no-op
+  description: |
+    The existing UI suite went stale under ADR-0010. Its walk to 'the first rep-based strength set' stopped at the first work window, and a rep-based warm-up move like Arm Circles now runs on one. As a result, `testStrengthBlockRotatesThroughRoundsHandsFree` failed live: 'Warm-Up, exercise 2 of 7' showed no Round label. `testMidCircuitSkipRemovesExerciseFromLaterRoundsHandsFree` returned early without testing the skip. The Done and Pause cases tapped a warm-up move rather than a strength set. CI only compiles UI tests, so CI did not catch this. Fixed in the worktree, uncommitted: one shared `reachTrainingWorkWindow` helper also requires the circuit's 'Round N of M' label and replaces the four copies of the loop. All 6 cases now pass live, and the skip case does its real skip and rotation. The change needs committing.
+- id: test-3
+  severity: error
+  file: 
+  action: auto-fix
+  description: |
+    live validation verdict: no-go (10 of 11 scenarios were driven live against the product); failed: A session played with no taps lasts the length the user chose (within the app's ±60s rule)
+
+## round 2 (fix)
+- id: hold-secondary-row-wraps
+  severity: info
+  file: ios/RepToday/RepToday/Views/ActiveSession/ActiveSessionView.swift:557
+  action: no-op
+  description: |
+    Pixel note, not caused by this fix and not a failure. While any hold runs, the player's secondary row has four slots: + More time, Swap (dimmed), Complete set, Skip. On an iPhone 16 Plus at default text size, '+ More time' and 'Complete set' wrap onto two lines while 'Swap' and 'Skip' stay on one, so the row looks ragged (screenshot round2/sim-a-b/live-ui/test3_...-04-resumed-training-hold-autostarted.png). Bookend holds already showed this row before this branch. Since every training hold now starts itself, users see it on every hold. The doc comment at line 624 still says three columns on a timed movement.

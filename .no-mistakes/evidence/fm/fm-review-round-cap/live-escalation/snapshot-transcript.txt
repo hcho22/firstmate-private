@@ -1,0 +1,14 @@
+# rt-cap.status (cap escalation printed by the live check):
+needs-decision [at=1793745279] [key=nm-01M6H6W6Q59XESYNH7N86X0HTQ-test]: fix-round cap rounds=1 findings=hold-secondary-row-wraps file=/Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-escalation/nm-01M6H6W6Q59XESYNH7N86X0HTQ-test-rounds.txt
+# ctl.status (control: rule 6 ask-user escalation):
+needs-decision [key=nm-01ABC-review]: ask-user findings=f1 file=/tmp/x
+
+# fleet snapshot hints.open_decisions
+{"id":"ctl","current_state":"unknown","open_decisions":[{"key":"nm-01ABC-review","verb":"needs-decision","summary":"ask-user findings=f1 file=/tmp/x"}]}
+{"id":"rt-cap","current_state":"unknown","open_decisions":[{"key":"nm-01M6H6W6Q59XESYNH7N86X0HTQ-test","verb":"needs-decision","summary":"fix-round cap rounds=1 findings=hold-secondary-row-wraps file=/Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-escalation/nm-01M6H6W6Q59XESYNH7N86X0HTQ-test-rounds.txt"}]}
+# bearings decisions_open
+[]
+
+# after resolved [key=nm-01M6H6W6Q59XESYNH7N86X0HTQ-test]
+{"id":"ctl","open_decisions":[{"key":"nm-01ABC-review","verb":"needs-decision","summary":"ask-user findings=f1 file=/tmp/x"}]}
+{"id":"rt-cap","open_decisions":[]}

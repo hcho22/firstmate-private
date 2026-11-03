@@ -1,0 +1,35 @@
+# 1. worker side: real check from the real RepToday task copy, cap 1
+run: 01M6H6W6Q59XESYNH7N86X0HTQ
+step: test
+fix_rounds: 1
+cap: 1
+verdict: cap-reached
+findings: hold-secondary-row-wraps
+file: /Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-escalation/nm-01M6H6W6Q59XESYNH7N86X0HTQ-test-rounds.txt
+escalation: needs-decision [at=1793745279] [key=nm-01M6H6W6Q59XESYNH7N86X0HTQ-test]: fix-round cap rounds=1 findings=hold-secondary-row-wraps file=/Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-escalation/nm-01M6H6W6Q59XESYNH7N86X0HTQ-test-rounds.txt
+[exit 3]
+
+# 2. state/rt-cap.status after the worker appended the escalation verbatim
+working: validating
+needs-decision [at=1793745279] [key=nm-01M6H6W6Q59XESYNH7N86X0HTQ-test]: fix-round cap rounds=1 findings=hold-secondary-row-wraps file=/Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-escalation/nm-01M6H6W6Q59XESYNH7N86X0HTQ-test-rounds.txt
+
+# 3. firstmate's status fold (fm-classify-lib.sh status_open_decisions)
+nm-01M6H6W6Q59XESYNH7N86X0HTQ-test|needs-decision|fix-round cap rounds=1 findings=hold-secondary-row-wraps file=/Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-escalation/nm-01M6H6W6Q59XESYNH7N86X0HTQ-test-rounds.txt
+
+# 4. bearings snapshot decisions_open
+[]
+
+# 5. a later unrelated event does not mask it
+nm-01M6H6W6Q59XESYNH7N86X0HTQ-test|needs-decision|fix-round cap rounds=1 findings=hold-secondary-row-wraps file=/Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/live-escalation/nm-01M6H6W6Q59XESYNH7N86X0HTQ-test-rounds.txt
+
+# 6. firstmate answers with --resolve-key nm-01M6H6W6Q59XESYNH7N86X0HTQ-test (resolved line for that key)
+open decisions after resolve: []
+
+# 7. worker relays with the captain's --cap 2: check is under the cap again
+run: 01M6H6W6Q59XESYNH7N86X0HTQ
+step: test
+fix_rounds: 1
+cap: 2
+verdict: under-cap
+findings: hold-secondary-row-wraps
+[exit 0]

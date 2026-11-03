@@ -1,0 +1,50 @@
+## run 01M6G4M5ED85ZY2VEC9NVZ1ZSG step review
+db rounds: 1:initial 2:auto_fix 3:auto_fix
+run: 01M6G4M5ED85ZY2VEC9NVZ1ZSG
+step: review
+fix_rounds: 2
+cap: 3
+verdict: under-cap
+findings: none
+[exit 0]
+
+## run 01M6GNQR2MFM9DGX71GGBS1DC0 step review
+db rounds: 1:initial 2:auto_fix 3:auto_fix 4:auto_fix
+run: 01M6GNQR2MFM9DGX71GGBS1DC0
+step: review
+fix_rounds: 3
+cap: 3
+verdict: cap-reached
+findings: none
+file: /Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/default-cap/nm-01M6GNQR2MFM9DGX71GGBS1DC0-review-rounds.txt
+[exit 3]
+escalation: needs-decision [at=1793745386] [key=nm-01M6GNQR2MFM9DGX71GGBS1DC0-review]: fix-round cap rounds=3 findings=none file=/Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/default-cap/nm-01M6GNQR2MFM9DGX71GGBS1DC0-review-rounds.txt
+
+## run 01M4GAVTMAP2VAMWWCJKPVN41F step review
+db rounds: 1:initial 2:auto_fix 3:auto_fix 4:auto_fix 5:auto_fix 6:auto_fix 7:auto_fix 8:auto_fix 9:auto_fix 10:auto_fix 11:auto_fix 12:auto_fix 13:auto_fix 14:auto_fix 15:auto_fix 16:auto_fix 17:auto_fix 18:auto_fix 19:auto_fix 20:auto_fix
+run: 01M4GAVTMAP2VAMWWCJKPVN41F
+step: review
+fix_rounds: 19
+cap: 3
+verdict: cap-reached
+findings: review-4
+file: /Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/default-cap/nm-01M4GAVTMAP2VAMWWCJKPVN41F-review-rounds.txt
+[exit 3]
+escalation: needs-decision [at=1793745386] [key=nm-01M4GAVTMAP2VAMWWCJKPVN41F-review]: fix-round cap rounds=19 findings=review-4 file=/Users/hcho/.no-mistakes/evidence/01M6HR18JABP7EHA7FYRXQ37BB/default-cap/nm-01M4GAVTMAP2VAMWWCJKPVN41F-review-rounds.txt
+
+## run 01M683HSVZ77Z9CT4VKHKCE1SQ step review
+db rounds: 1:initial 2:auto_fix 3:initial
+run: 01M683HSVZ77Z9CT4VKHKCE1SQ
+step: review
+fix_rounds: 1
+cap: 3
+verdict: under-cap
+findings: 082-requirements-line-stale
+[exit 0]
+
+## only another branch's run (other_branch_run:) - must never be read as this copy's run
+step: review
+cap: 3
+verdict: unknown
+reason: no run on the current branch
+[exit 1]

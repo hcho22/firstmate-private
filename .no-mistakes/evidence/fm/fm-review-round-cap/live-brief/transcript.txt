@@ -1,0 +1,30 @@
+$ FM_HOME=<lab> bin/fm-brief.sh cap-no-mistakes-b1 demo --mode no-mistakes
+scaffolded: /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.hLyQ36/data/demo/cap-no-mistakes-b1/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+$ FM_HOME=<lab> bin/fm-brief.sh cap-direct-PR-b1 demo --mode direct-PR
+scaffolded: /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab.hLyQ36/data/demo/cap-direct-PR-b1/brief.md (ship, mode=direct-PR; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+
+# no-mistakes brief: firstmate-specific rules block
+Three firstmate-specific rules layer on top of that guidance:
+- ask-user findings are never yours to answer: escalate to firstmate using rule 6's ask-user format and stop.
+  Firstmate applies `ask-user-authority` and obtains any required captain decision.
+  When the decision comes back, feed it to the gate with `no-mistakes axi respond` and let the pipeline apply it - do not route the question to "the user" or implement the fix yourself.
+- Fix rounds are capped at 3 per step of one run: an agent reviewer and fixer can keep each other busy indefinitely, so after 3 the approach goes back to firstmate instead of into another fix.
+  At every gate, before you answer it with `--action fix` or escalate its ask-user findings, run `/Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18JABP7EHA7FYRXQ37BB/bin/fm-nm-rounds.sh check --step <step> --out-dir <the directory rule 6 writes its findings file to>` from this copy; it counts every fix round on that step, whether you or the pipeline's own automatic fixing started it.
+  Exit 0 lets the gate go ahead as usual.
+  Exit 3 means the step already took its 3 fix rounds: do not send the fix; append the text after `escalation: ` in its output to the status file, exactly as printed, and stop.
+  That escalation replaces rule 6's for the gate, because its file holds every round's findings verbatim, ask-user ones included.
+  Exit 1 means it could not count: count your own `--action fix` responses to that step in this run instead, and at 3 write the gate's findings verbatim to the file rule 6 names and append `needs-decision [at=<epoch>] [key=nm-<run>-<step>]: fix-round cap rounds=<n> findings=<id1>,<id2>,... file=<that file>` and stop.
+  Relaying a decision firstmate sent needs no second check; when that decision allows more rounds, pass the `--cap <n>` it names to every later check of that step.
+- NEVER pass `--yes` (or `-y`) to `no-mistakes axi run` or `no-mistakes axi respond`. It is banned fleet-wide.
+
+# direct-PR brief mentions of the cap: 0
+
+# the counter the brief names: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18JABP7EHA7FYRXQ37BB/bin/fm-nm-rounds.sh
+$ /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18JABP7EHA7FYRXQ37BB/bin/fm-nm-rounds.sh check --step review   (from a copy with no initialized pipeline)
+step: review
+cap: 3
+verdict: unknown
+reason: no-mistakes axi status failed
+[exit 1]

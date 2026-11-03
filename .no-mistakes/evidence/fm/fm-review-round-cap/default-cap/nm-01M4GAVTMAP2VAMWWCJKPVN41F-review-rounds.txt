@@ -1,0 +1,1056 @@
+run: 01M4GAVTMAP2VAMWWCJKPVN41F
+step: review
+fix_rounds: 19
+
+## round 1 (initial)
+- id: F1
+  severity: warning
+  file: src/gr0wthlab/cycle.py:487
+  action: ask-user
+  description: |
+    Nothing stops two runs from overlapping, and when they do the later run destroys the earlier run's outputs without any error. config/run.json invites this: it says the 16:00 slot leaves time to 're-run on demand' before the sitting. Concrete sequence: the scheduled run A starts at 16:00. The Founder starts on-demand run B at 16:10. B loads queue.json (L0) and takes its `before = protected_state(areas)` snapshot while A's agent is still working. A finishes and writes its items/, its report, its snapshot, and queue.json L1. B finishes next. In `undo_agent_changes` (cycle.py:120-147), B treats every file A wrote as 'added by the agent' and sets it aside. B also 'restores' queue.json to L0, and its own ledger write (cycle.py:530) clobbers L1. A's queued items are gone from `open` and are never presented. Both agents also share review-queue/incoming/, so A's `take_incoming` can consume B's half-written items. Records `prepare` in B would commit A's in-progress workspace files. A matching sibling path is records.prepare/save (records.py:121, 236), which also runs git concurrently. Smallest remedy: take an exclusive lock (for example `fcntl.flock` on a file in the log dir) at the top of `Cycle.run`, and have a second run refuse to start with a clear message. This adds a new mechanism and changes user-visible behavior (a second run is refused), so it needs authorization.
+- id: F2
+  severity: warning
+  file: src/gr0wthlab/cli.py:66
+  action: auto-fix
+  description: |
+    `check-incoming` claims to be 'the same item check the launcher applies' but leaves out rules that `Ledger.take_incoming` enforces, so it can report OK for an item the launcher then sets aside. Missing rules: (1) `supersedes` must name an open item (queue.py:172-175); (2) the slug may be at most 60 characters, and no subfolder is allowed (queue.py:163-164). Concrete sequence: the brief lists a rejected proposal and says 'do not propose again unless new Evidence answers the reason'. The agent writes a re-proposal with `supersedes: <rejected id>`. check-incoming prints `OK`. The launcher then sets the item aside as 'supersedes X, which is not an open item', the proposal is lost for the week, and a notice is queued. The exchange.py docstring also promises that both paths 'apply exactly the same rules'. Fix: move the per-file checks in take_incoming (slug, item format, supersedes target, fingerprint repeat) into one function, for example `Ledger.check_incoming_file(name, text, products, seen)`, and call it from both `take_incoming` and `cli.check_incoming`.
+- id: F3
+  severity: warning
+  file: src/gr0wthlab/queue.py:120
+  action: auto-fix
+  description: |
+    The launcher can publish an item that fails its own published-item check, and that item then loses its fingerprint for good. `publish` renders the canonical text, adding `exchange: 1`, `id: ...`, and blank lines around each section, but never re-validates it. `item_hashes` (state.py:327) later parses every ledger item with `check_item(..., published=True)`, which applies the 12000-character limit (exchange.py:171). Verified: an incoming item of exactly 12000 characters passes `check_item`, renders to 12053 characters, and the rendered text fails with 'the item is 12053 characters'. Because `item_hashes` hashes every entry, closed ones included, and the state never held a hash for this item, from then on every run (1) adds 'could not be read for its fingerprint' to `state.problems`, which queues a run-problems notice every week, and (2) has no fingerprint for the item. A word-for-word re-ask of it is therefore not refused, breaking 'never re-ask a decided item', and the run state never records it. The launcher's own run-problems notice (cycle.py:519-527) goes through `publish` with an unbounded body, so it is exposed the same way. Fix: in `publish`, run `check_item(rendered, published=True)` and refuse or set aside on failure (and keep the notice body under the limit). Alternatively, measure the length limit on the rendered form in `take_incoming`.
+- id: F4
+  severity: warning
+  file: src/gr0wthlab/exchange.py:252
+  action: auto-fix
+  description: |
+    A rejection whose reason is only whitespace is accepted as valid, which breaks US-ME07's 'A rejection requires a one-line reason' (Failure Indicator: 'a rejection has no reason'). `one_line` checks for `None`/`""` before stripping and then returns `value.strip()`. For `{"decision": "reject", "reason": "  "}`, `required` passes and `parse_decision` returns `Decision(reason="")`. `take_decisions` then closes the item as rejected with an empty reason: the evidence has `reason: ""`, the ledger entry gets no `reason`, and the report reads 'Reason: '. Fix: strip first, then apply the required/empty check (treat a blank result as missing). The same helper validates `note` in decisions and sittings.
+- id: F5
+  severity: warning
+  file: src/gr0wthlab/package.py:152
+  action: auto-fix
+  description: |
+    When a directory source fails, its files drop out of the snapshot record, so the next run's change list is wrong. Single-file sources carry their last fingerprint through a failed read (the `last_known` docstring promises this); directory sources do not. Verified: run 1 reads `pkg/dir/a.md`; in run 2 the directory is missing (reason 'missing', `files=[]`, nothing carried); in run 3 the directory is back and unchanged, but `a.md` is reported as `changed`/`added` ('new since the previous snapshot'). The single file in the same test correctly reads as unchanged. In the same branch, the `except OSError` at line 157 is dead code because `os.walk` swallows errors when `onerror` is None. An unreadable directory therefore comes back as 'holds no files' instead of its real error, and every known file under it is also listed as 'removed since the previous snapshot' (lines 164-166, surfaced in cycle.py:198-201 and in report `package_changes`). That gives a wrong reason and a wrong change list for US-ME04. Fix: when a directory source fails, carry its previous files forward (for example as failed FileResults with `previous_sha256` from `previous` under that prefix, and no `removed`). Also pass an `onerror` that raises to `os.walk` so the real reason is reported.
+- id: F6
+  severity: warning
+  file: src/gr0wthlab/queue.py:227
+  action: ask-user
+  description: |
+    `carried_over` means 'queued by an earlier run', not 'left undecided at an earlier sitting', so items are labeled carried over before the Founder has ever seen them. The PRD says 'an undecided item carries over to the next sitting and is marked as carried over'. config/run.json explicitly expects a re-run on demand between the 16:00 run and the evening sitting. Sequence: the scheduled 16:00 run queues A; an on-demand run at 17:00 makes `published_by_run != run_id`, so A gets `carried_over: true`. At A's first sitting Mandu says 'carried over from 2026-10-11' (per mandu-exchange.md step 3), and the run state starts counting it as carried (state.py:136-143). New and carried items become impossible to tell apart. A remedy, such as keying carry-over to Mandu's sitting records or to the last sitting date, changes what the label means in the exchange contract, so it needs a product decision.
+- id: F7
+  severity: warning
+  file: src/gr0wthlab/cycle.py:377
+  action: auto-fix
+  description: |
+    The Outputs table and each failed source's 'needed by' list disagree, so the report and the notice give different completeness for the same output (US-ME17: 'every output that depended on it is marked incomplete'). Example: when Mandu's exchange folder is missing while items are open, `take_decisions` marks 'Mandu decisions' failed with needs ('Founder decisions taken in', 'Review Queue') (line 204), and the notice says 'Incomplete: ... Review Queue'. `outputs()` still writes `Review Queue | complete`. In the other direction, a failed package source marks 'Package snapshot' incomplete (lines 347-353) even though its needs (line 188) do not list it, and its needs say 'Package review' while the output is titled 'Package review (contradictions)'. Fix: build `outputs()` from the failed sources' `needed_by` titles, marking any built output that a failed source names as incomplete, and use the output titles from config/run.json in the needs tuples, so both views come from one list.
+- id: F8
+  severity: warning
+  file: docs/mandu-exchange.md:149
+  action: ask-user
+  description: |
+    Simplification: the 'Reserved for later stories' section fixes three more Mandu-written formats now: `tiktok-exports/` (US-ME11), `beta-builds/` (US-ME15), and `gates/us-me18.json`. No code in this change reads them. The captain's intent describes the exchange spec as 'the item format gr0wthlab writes and the decision format it reads'. Mandu's agent implements this versioned contract, so publishing these shapes now invites Mandu to build them before gr0wthlab has a reader, and any later adjustment needs a version bump. Recommend removing the section until each story lands.
+- id: F9
+  severity: warning
+  file: src/gr0wthlab/queue.py:134
+  action: ask-user
+  description: |
+    Simplification: `Ledger.publish(..., topic=...)` writes an `entry["topic"]` field (only `"run-problems"`, from cycle.py:527) that nothing in the code or the exchange spec ever reads. Notices are deduplicated by fingerprint, not by topic. No intent requirement needs it; recommend removing the parameter and the field.
+
+## round 2 (fix)
+- id: F1
+  severity: warning
+  file: src/gr0wthlab/cycle.py:487
+  action: ask-user
+  description: |
+    Nothing stops two runs from overlapping, and when they do the later run destroys the earlier run's outputs without any error. config/run.json invites this: it says the 16:00 slot leaves time to 're-run on demand' before the sitting. Concrete sequence: the scheduled run A starts at 16:00. The Founder starts on-demand run B at 16:10. B loads queue.json (L0) and takes its `before = protected_state(areas)` snapshot while A's agent is still working. A finishes and writes its items/, its report, its snapshot, and queue.json L1. B finishes next. In `undo_agent_changes` (cycle.py:120-147), B treats every file A wrote as 'added by the agent' and sets it aside. B also 'restores' queue.json to L0, and its own ledger write (cycle.py:530) clobbers L1. A's queued items are gone from `open` and are never presented. Both agents also share review-queue/incoming/, so A's `take_incoming` can consume B's half-written items. Records `prepare` in B would commit A's in-progress workspace files. A matching sibling path is records.prepare/save (records.py:121, 236), which also runs git concurrently. Smallest remedy: take an exclusive lock (for example `fcntl.flock` on a file in the log dir) at the top of `Cycle.run`, and have a second run refuse to start with a clear message. This adds a new mechanism and changes user-visible behavior (a second run is refused), so it needs authorization.
+- id: F7
+  severity: warning
+  file: src/gr0wthlab/cycle.py:377
+  action: auto-fix
+  description: |
+    The Outputs table and each failed source's 'needed by' list disagree, so the report and the notice give different completeness for the same output (US-ME17: 'every output that depended on it is marked incomplete'). Example: when Mandu's exchange folder is missing while items are open, `take_decisions` marks 'Mandu decisions' failed with needs ('Founder decisions taken in', 'Review Queue') (line 204), and the notice says 'Incomplete: ... Review Queue'. `outputs()` still writes `Review Queue | complete`. In the other direction, a failed package source marks 'Package snapshot' incomplete (lines 347-353) even though its needs (line 188) do not list it, and its needs say 'Package review' while the output is titled 'Package review (contradictions)'. Fix: build `outputs()` from the failed sources' `needed_by` titles, marking any built output that a failed source names as incomplete, and use the output titles from config/run.json in the needs tuples, so both views come from one list.
+- id: F8
+  severity: warning
+  file: docs/mandu-exchange.md:149
+  action: ask-user
+  description: |
+    Simplification: the 'Reserved for later stories' section fixes three more Mandu-written formats now: `tiktok-exports/` (US-ME11), `beta-builds/` (US-ME15), and `gates/us-me18.json`. No code in this change reads them. The captain's intent describes the exchange spec as 'the item format gr0wthlab writes and the decision format it reads'. Mandu's agent implements this versioned contract, so publishing these shapes now invites Mandu to build them before gr0wthlab has a reader, and any later adjustment needs a version bump. Recommend removing the section until each story lands.
+- id: R2-1
+  severity: warning
+  file: src/gr0wthlab/cycle.py:394
+  action: auto-fix
+  description: |
+    Round 1's F1 fix put the run lock and the refused-run records in the shared default log folder, so other checkouts on the Mac can hide a refused production run. Both live in `launcher.default_log_dir`, which is `~/Library/Logs/gr0wthlab` for every checkout unless GR0WTHLAB_LOG_DIR is set. The cycle reads and deletes those records at cycle.py:583-587. The spike note shows that firstmate re-checks every cycle change live with `src/bin/gr0wthlab run` from a linked worktree on the Founder's Mac. Sequence: a worktree re-check is in progress when launchd fires the production run at Sunday 16:00. The production run is refused (exit 5) and writes `refused-runs/<id>.txt`. The worktree run then reaches line 583, copies that line into the worktree's own report (never pushed, never read by Mandu), and unlinks the record. Production's queue.json and next report never mention the missed weekly run, which is the silent skip US-ME17 and the F1 instruction ('never silent... the next run's report shows') forbid. Mandu's 8-day staleness check does not catch it either (see R2-2). The reverse also happens: a refused firstmate test run shows up as 'Run X was refused' in the Founder's production report. Fix: scope the lock file and the refused-runs folder to the clone, for example name both by a short hash of `canonical(repo_root)`. Alternatively, keep one global lock but write the refused run's repo root into its record, and have each run read and delete only records from its own clone. Add a test with two repos that share one log dir.
+- id: R2-2
+  severity: warning
+  file: docs/mandu-exchange.md:25
+  action: ask-user
+  description: |
+    Mandu's staleness check can never fire before the Sunday sitting after one missed weekly run. Step 1 says: 'If its `updated_at` is more than eight days old, tell the Founder first that this week's run has not happened.' The run is scheduled for Sunday 16:00 (config/run.json) and the sitting is the same evening, so when this week's run has not happened, queue.json is about 7 days and a few hours old. That is never more than eight days, and a mid-week on-demand run makes it even fresher. Concrete case from operations.md: the Mac is asleep at 16:00 and the Founder wakes it at 19:00 for the sitting. launchd starts the late run, the Founder opens Mandu at once, and Mandu presents last week's queue and report summary with no warning. The same gap hides a run refused by the run lock (R2-1). Fixing it changes the versioned contract and needs Mandu's side changed too, for example a shorter threshold such as six days, or having queue.json carry the next scheduled run time so Mandu warns once that time has passed. That is why this needs the author's decision.
+- id: R2-3
+  severity: warning
+  file: docs/spikes/us-me02-runtime-boundary.md:218
+  action: ask-user
+  description: |
+    The live evidence for the flipped US-ME07 carry-over checkbox (PRD line 247) came from code that round 1 has since changed. The 2026-10-09 live re-check rows (lines 217-218) report 'the undecided items carried over and counted in the state' and 'the carried items counted at two runs'. The fix round removed the `runs` counter (state.py) and redefined carry-over: an item now carries over only after a Mandu sitting record taken in by a later run (queue.py `mark_carried_over`). Line 218 therefore describes behavior that no longer exists. Nothing records whether those simulated exchange folders held a sitting record, so it is unknown whether the US-ME07 Validation Test still passes live under the new semantics. AGENTS.md allows flipping a checkbox only once its Validation Test passes. Recommend re-running the US-ME07 live round trip with a sitting record and updating the note. That needs the Founder's Mac, so the author decides.
+
+## round 3 (fix)
+- id: F1
+  severity: warning
+  file: src/gr0wthlab/cycle.py:487
+  action: ask-user
+  description: |
+    Nothing stops two runs from overlapping, and when they do the later run destroys the earlier run's outputs without any error. config/run.json invites this: it says the 16:00 slot leaves time to 're-run on demand' before the sitting. Concrete sequence: the scheduled run A starts at 16:00. The Founder starts on-demand run B at 16:10. B loads queue.json (L0) and takes its `before = protected_state(areas)` snapshot while A's agent is still working. A finishes and writes its items/, its report, its snapshot, and queue.json L1. B finishes next. In `undo_agent_changes` (cycle.py:120-147), B treats every file A wrote as 'added by the agent' and sets it aside. B also 'restores' queue.json to L0, and its own ledger write (cycle.py:530) clobbers L1. A's queued items are gone from `open` and are never presented. Both agents also share review-queue/incoming/, so A's `take_incoming` can consume B's half-written items. Records `prepare` in B would commit A's in-progress workspace files. A matching sibling path is records.prepare/save (records.py:121, 236), which also runs git concurrently. Smallest remedy: take an exclusive lock (for example `fcntl.flock` on a file in the log dir) at the top of `Cycle.run`, and have a second run refuse to start with a clear message. This adds a new mechanism and changes user-visible behavior (a second run is refused), so it needs authorization.
+- id: F7
+  severity: warning
+  file: src/gr0wthlab/cycle.py:377
+  action: auto-fix
+  description: |
+    The Outputs table and each failed source's 'needed by' list disagree, so the report and the notice give different completeness for the same output (US-ME17: 'every output that depended on it is marked incomplete'). Example: when Mandu's exchange folder is missing while items are open, `take_decisions` marks 'Mandu decisions' failed with needs ('Founder decisions taken in', 'Review Queue') (line 204), and the notice says 'Incomplete: ... Review Queue'. `outputs()` still writes `Review Queue | complete`. In the other direction, a failed package source marks 'Package snapshot' incomplete (lines 347-353) even though its needs (line 188) do not list it, and its needs say 'Package review' while the output is titled 'Package review (contradictions)'. Fix: build `outputs()` from the failed sources' `needed_by` titles, marking any built output that a failed source names as incomplete, and use the output titles from config/run.json in the needs tuples, so both views come from one list.
+- id: R2-1
+  severity: warning
+  file: src/gr0wthlab/cycle.py:394
+  action: auto-fix
+  description: |
+    Round 1's F1 fix put the run lock and the refused-run records in the shared default log folder, so other checkouts on the Mac can hide a refused production run. Both live in `launcher.default_log_dir`, which is `~/Library/Logs/gr0wthlab` for every checkout unless GR0WTHLAB_LOG_DIR is set. The cycle reads and deletes those records at cycle.py:583-587. The spike note shows that firstmate re-checks every cycle change live with `src/bin/gr0wthlab run` from a linked worktree on the Founder's Mac. Sequence: a worktree re-check is in progress when launchd fires the production run at Sunday 16:00. The production run is refused (exit 5) and writes `refused-runs/<id>.txt`. The worktree run then reaches line 583, copies that line into the worktree's own report (never pushed, never read by Mandu), and unlinks the record. Production's queue.json and next report never mention the missed weekly run, which is the silent skip US-ME17 and the F1 instruction ('never silent... the next run's report shows') forbid. Mandu's 8-day staleness check does not catch it either (see R2-2). The reverse also happens: a refused firstmate test run shows up as 'Run X was refused' in the Founder's production report. Fix: scope the lock file and the refused-runs folder to the clone, for example name both by a short hash of `canonical(repo_root)`. Alternatively, keep one global lock but write the refused run's repo root into its record, and have each run read and delete only records from its own clone. Add a test with two repos that share one log dir.
+- id: R3-1
+  severity: warning
+  file: src/gr0wthlab/exchange.py:262
+  action: ask-user
+  description: |
+    Version checks across the exchange require an exact match. Mandu's decision and sitting records are append-only, so every version bump this spec already plans would invalidate all history. `check_version` (exchange.py:262-264) refuses any record whose `exchange` is not exactly `EXCHANGE_VERSION`. This round's test makes that explicit: test_exchange.py:153 asserts that `exchange=1` is 'reported, not guessed at'. The spec says decision records are 'written once and never edited or deleted' (docs/mandu-exchange.md:122), and line 5 says 'Later stories extend the exchange, each with a version bump' (US-ME11, US-ME15, US-ME18).
+    
+    Concrete sequence: US-ME11 bumps `EXCHANGE_VERSION` to 3 as the spec directs. On the next production run, every past `decisions/*.json` and `sittings/*.json` written at version 2 fails `parse_records`. `decision_lines` then lists each one as 'Could not read ... exchange must be 3; got 2', and `problems_notice` queues a notice about all of them on every run. The only remedy the spec allows is for Mandu to rewrite the records (mandu-exchange.md:144), which contradicts 'never edited'.
+    
+    Sibling sites with the same exact-match rule:
+    - queue.py:68: `Ledger.load` refuses the version-2 `queue.json`, so the Review Queue is 'left untouched' on every run until someone hand-migrates it.
+    - exchange.py:109: `check_item(published=True)` fails every version-2 item file. `state.item_hashes` (state.py:319) then loses every fingerprint, so the never-re-ask check falls back to stale state, and each item adds a 'could not be read for its fingerprint' problem.
+    - mandu-exchange.md:159: the rule both sides follow.
+    
+    This round's 1→2 bump breaks nothing today, because no version-1 data exists (Mandu has no exchange folder yet, and there is no production clone). But this is the contract Mandu's agent will implement, and changing it later needs another bump. The remedy redefines the contract, for example 'a reader accepts every version up to its own for record types unchanged since' or a version per record type. That needs the author's decision.
+- id: R3-2
+  severity: warning
+  file: src/gr0wthlab/cycle.py:586
+  action: ask-user
+  description: |
+    The round-2 fix for R2-2 takes `next_run` from `config/run.json` (`report.next_due(now, config.weekly)`). The LaunchAgent's real schedule can come from a `--weekly` override that docs/operations.md:49 documents ('For another time, pass it explicitly, for example `launch-agent --weekly sunday 15:00`'). cli.py:113-115 bakes that override into the plist and into the run's own `--weekly` argument. The run uses the override to judge lateness, but `next_run` ignores it.
+    
+    Concrete sequence: the Founder moves the sitting to Saturday and installs `launch-agent --weekly saturday 16:00` as the doc suggests, leaving run.json at Sunday 16:00. Every run writes `next_run` as the coming Sunday 16:00. The Saturday run is then missed (Mac asleep, or refused by the lock). At Saturday's sitting `next_run` has not passed, so Mandu shows last week's queue and report with no warning. That is the silent stale sitting R2-2 was meant to close.
+    
+    The author specified 'from config/run.json', so this is a conflict between that choice and a documented option. Smallest remedies:
+    - drop the `--weekly` override from `launch-agent` and operations.md:49-50, so run.json is the only schedule; or
+    - have `launch-agent` refuse a weekly time that differs from run.json.
+    
+    Either changes a documented user-facing option, so the author decides.
+
+## round 4 (fix)
+- id: F1
+  severity: warning
+  file: src/gr0wthlab/cycle.py:487
+  action: ask-user
+  description: |
+    Nothing stops two runs from overlapping, and when they do the later run destroys the earlier run's outputs without any error. config/run.json invites this: it says the 16:00 slot leaves time to 're-run on demand' before the sitting. Concrete sequence: the scheduled run A starts at 16:00. The Founder starts on-demand run B at 16:10. B loads queue.json (L0) and takes its `before = protected_state(areas)` snapshot while A's agent is still working. A finishes and writes its items/, its report, its snapshot, and queue.json L1. B finishes next. In `undo_agent_changes` (cycle.py:120-147), B treats every file A wrote as 'added by the agent' and sets it aside. B also 'restores' queue.json to L0, and its own ledger write (cycle.py:530) clobbers L1. A's queued items are gone from `open` and are never presented. Both agents also share review-queue/incoming/, so A's `take_incoming` can consume B's half-written items. Records `prepare` in B would commit A's in-progress workspace files. A matching sibling path is records.prepare/save (records.py:121, 236), which also runs git concurrently. Smallest remedy: take an exclusive lock (for example `fcntl.flock` on a file in the log dir) at the top of `Cycle.run`, and have a second run refuse to start with a clear message. This adds a new mechanism and changes user-visible behavior (a second run is refused), so it needs authorization.
+- id: F7
+  severity: warning
+  file: src/gr0wthlab/cycle.py:377
+  action: auto-fix
+  description: |
+    The Outputs table and each failed source's 'needed by' list disagree, so the report and the notice give different completeness for the same output (US-ME17: 'every output that depended on it is marked incomplete'). Example: when Mandu's exchange folder is missing while items are open, `take_decisions` marks 'Mandu decisions' failed with needs ('Founder decisions taken in', 'Review Queue') (line 204), and the notice says 'Incomplete: ... Review Queue'. `outputs()` still writes `Review Queue | complete`. In the other direction, a failed package source marks 'Package snapshot' incomplete (lines 347-353) even though its needs (line 188) do not list it, and its needs say 'Package review' while the output is titled 'Package review (contradictions)'. Fix: build `outputs()` from the failed sources' `needed_by` titles, marking any built output that a failed source names as incomplete, and use the output titles from config/run.json in the needs tuples, so both views come from one list.
+- id: R2-1
+  severity: warning
+  file: src/gr0wthlab/cycle.py:394
+  action: auto-fix
+  description: |
+    Round 1's F1 fix put the run lock and the refused-run records in the shared default log folder, so other checkouts on the Mac can hide a refused production run. Both live in `launcher.default_log_dir`, which is `~/Library/Logs/gr0wthlab` for every checkout unless GR0WTHLAB_LOG_DIR is set. The cycle reads and deletes those records at cycle.py:583-587. The spike note shows that firstmate re-checks every cycle change live with `src/bin/gr0wthlab run` from a linked worktree on the Founder's Mac. Sequence: a worktree re-check is in progress when launchd fires the production run at Sunday 16:00. The production run is refused (exit 5) and writes `refused-runs/<id>.txt`. The worktree run then reaches line 583, copies that line into the worktree's own report (never pushed, never read by Mandu), and unlinks the record. Production's queue.json and next report never mention the missed weekly run, which is the silent skip US-ME17 and the F1 instruction ('never silent... the next run's report shows') forbid. Mandu's 8-day staleness check does not catch it either (see R2-2). The reverse also happens: a refused firstmate test run shows up as 'Run X was refused' in the Founder's production report. Fix: scope the lock file and the refused-runs folder to the clone, for example name both by a short hash of `canonical(repo_root)`. Alternatively, keep one global lock but write the refused run's repo root into its record, and have each run read and delete only records from its own clone. Add a test with two repos that share one log dir.
+- id: R3-2
+  severity: warning
+  file: src/gr0wthlab/cycle.py:586
+  action: ask-user
+  description: |
+    The round-2 fix for R2-2 takes `next_run` from `config/run.json` (`report.next_due(now, config.weekly)`). The LaunchAgent's real schedule can come from a `--weekly` override that docs/operations.md:49 documents ('For another time, pass it explicitly, for example `launch-agent --weekly sunday 15:00`'). cli.py:113-115 bakes that override into the plist and into the run's own `--weekly` argument. The run uses the override to judge lateness, but `next_run` ignores it.
+    
+    Concrete sequence: the Founder moves the sitting to Saturday and installs `launch-agent --weekly saturday 16:00` as the doc suggests, leaving run.json at Sunday 16:00. Every run writes `next_run` as the coming Sunday 16:00. The Saturday run is then missed (Mac asleep, or refused by the lock). At Saturday's sitting `next_run` has not passed, so Mandu shows last week's queue and report with no warning. That is the silent stale sitting R2-2 was meant to close.
+    
+    The author specified 'from config/run.json', so this is a conflict between that choice and a documented option. Smallest remedies:
+    - drop the `--weekly` override from `launch-agent` and operations.md:49-50, so run.json is the only schedule; or
+    - have `launch-agent` refuse a weekly time that differs from run.json.
+    
+    Either changes a documented user-facing option, so the author decides.
+- id: R4-1
+  severity: warning
+  file: src/gr0wthlab/cycle.py:156
+  action: auto-fix
+  description: |
+    `undo_agent_changes` can only undo changes made inside a protected folder. It cannot undo the agent replacing the folder itself, and in that case the run crashes instead of undoing the change. This defect is in the original change, not in any fix round.
+    
+    Why it happens:
+    - `Areas.files` (areas.py:85) returns nothing for a path that is a symbolic link or is not a directory.
+    - No other protected listing covers these five folders: `review-queue/items`, `review-queue/set-aside`, `evidence/decisions`, `evidence/sittings`, and `evidence/package-snapshots` (cycle.py:41-47).
+    - So the replaced entry never reaches the set-aside loop. Subfolders of `run-reports` do reach it, because `files()` lists them.
+    - The restore loop then calls `areas.write_bytes` for each file recorded in `before`.
+    
+    Concrete sequence:
+    1. During a run, the agent runs `rm -rf workspace/review-queue/items && ln -s /tmp workspace/review-queue/items`. The spike note says the sandbox allows symbolic links inside an area.
+    2. Restoring `items/<id>.md` raises ConfigError from `check_parents` (areas.py:75).
+    3. If the agent left a regular file named `items` instead, restoring raises FileExistsError from `mkdir` (areas.py:62).
+    4. This happens in the `finally` at cycle.py:553-554, so the run ends with no run report, `queue.json`, notice, run state, or records. `cli.main` turns the ConfigError into exit code 2; the FileExistsError escapes as a traceback.
+    5. Every later run fails the same way at its first write into that folder, until someone repairs it by hand.
+    
+    Other write sites that break the same way: snapshot (cycle.py:196), decision Evidence (cycle.py:242), sitting Evidence (cycle.py:273), `Ledger.publish` (queue.py:120), and `Ledger.set_aside` (queue.py:209).
+    
+    This contradicts the change's own invariant that the launcher "undoes any agent change" to its records. It also breaks US-ME17's "the run completes" and "no silent skips". Mandu's `next_run` warning is the only signal left.
+    
+    Fix: at the start of `undo_agent_changes`, check each protected directory, and the parent folder of each protected file inside an area. If one is a symbolic link or is not a real directory, set it aside or remove it the way the first loop handles added entries, then restore. Add a cycle test where the fake agent replaces `review-queue/items` with a file or a symbolic link.
+- id: R4-2
+  severity: info
+  file: src/tests/test_cycle.py:460
+  action: auto-fix
+  description: |
+    The round 3 fix for R3-2 removed the `weekly` parameter from `Cycle.run`, but this call still passes the old five positional arguments: `runner.run(path, "on-demand", None, None, [])`. They now bind as `once=None`, `argv=None`, `execve=[]`. The test passes only because the instruction is refused before `argv` or `execve` is used. If the refusal moved later, the test would fail on the bad `execve` rather than test the refusal. Fix: change the call to `runner.run(path, "on-demand", None, [])` to match `run_cycle` at line 57.
+
+## round 5 (fix)
+- id: R5-1
+  severity: error
+  file: src/gr0wthlab/areas.py:72
+  action: auto-fix
+  description: |
+    The agent can replace a whole writable area, for example `workspace/evidence`, with a symbolic link. The launcher then reads, deletes, and writes through that link from outside the sandbox. Round 4's fix for R4-1 covered the five protected subfolders and `incoming/`. It left behind the area folders themselves and the run's own `set-aside/<run id>/` folder, and on the `run-reports` area it crashes.
+    
+    Why this is reachable: a Seatbelt `subpath` write grant, which is how Codex grants a writable root, allows `rmdir` of the granted folder itself and a symlink in its place. I checked this with `sandbox-exec` on this Mac. The US-ME02 probe never tried it.
+    
+    Concrete sequence. During a run the agent runs `rm -rf workspace/evidence && ln -s ~/Mandu/projects/gr0wthlab/exchange workspace/evidence`; that path is in products.json and the docs. Then `undo_agent_changes` does this:
+    1. `areas.files(evidence/decisions)` follows the link, because only the last path component is checked (areas.py:86). Mandu's decision records look like files the agent added. `Ledger.set_aside` copies each one into `set-aside/` and `areas.remove` deletes it from Mandu.
+    2. The restore loop (cycle.py:158-164) writes each earlier `evidence/decisions/<id>.json` and `evidence/sittings/<day>.json` through the link. This overwrites Mandu's records of the same names with gr0wthlab's Evidence, and also writes `README.md` and `package-snapshots/` into Mandu. `check_parents` (areas.py:71-73) returns at the area without checking that the area is a real folder.
+    3. `records.save` commits the deletion of every tracked `workspace/evidence/` file.
+    4. On the next run, `resolve_area` (boundary.py:87, pre-existing US-ME02 code) resolves the link. Both `Areas` and the Codex permission profile (`filesystem_policy`, boundary.py:217) then treat Mandu's exchange folder as the evidence area. The agent can now write decision records the Founder never made, and the launcher takes them in as the Founder's approvals.
+    
+    This breaks US-ME04 ("Mandu is unchanged"), ADR 0001's rule that each side writes only its own repository, Guardrail G1, and areas.py's own claim that every launcher write stays inside the areas.
+    
+    Other places where the same rule is broken:
+    - cycle.py:141-144: the round-4 loop includes the `run-reports` area folder, but `areas.remove` refuses an area folder (areas.py:79 calls `check` without `area_itself`). A replaced `run-reports` therefore raises ConfigError in the `finally`, and the run ends with no report, queue, notice, or records. Before round 4, the same case wrote through the link instead. The other five area folders are never checked.
+    - cycle.py:154 and queue.py:207-209: the agent can plant a link at `review-queue/set-aside/<run id>`; the run id is in the prompt and in the brief's path. Every `set_aside` write then raises ConfigError from `check_parents`. `except (UnsafeFile, OSError)` does not catch it, so the run crashes the same way.
+    - Every other write through `Areas` follows a replaced area folder the same way: the ledger (cycle.py:592), the report (cycle.py:598), run state (state.py:302), `publish` (queue.py:120), and the next run's snapshot, decision Evidence, sitting Evidence, and brief (cycle.py:203, 249, 280, 543).
+    - Reads also go through a replaced area folder: `protected_state` and `take_incoming` read files outside the workspace (areas.py:86, queue.py:154).
+    
+    Fix at the shared boundaries:
+    1. `resolve_area` refuses an area whose path is a link or not a real folder (for example `canonical(repo_root / pure) != canonical(repo_root) / pure`). Then neither the sandbox profile nor `Areas` can ever use a link's target as an area.
+    2. `check_parents` also checks the area folder itself (lstat: a real directory, not a link).
+    3. Before restoring, `undo_agent_changes` repairs each replaced area folder and `set-aside/<run id>`: remove the link or file and recreate the folder. Then the next run is not refused.
+    
+    Add cycle tests where the fake agent links `workspace/evidence` and `workspace/run-reports` to an outside folder that holds `decisions/`. Each run should complete, leave the outside folder unchanged, and list what it undid in the report. This changes the launcher, so it needs a fresh `boundary-check` on the Founder's Mac.
+
+## round 6 (fix)
+- id: R6-1
+  severity: warning
+  file: src/gr0wthlab/cycle.py:147
+  action: auto-fix
+  description: |
+    `undo_agent_changes` never removes a directory the agent adds inside a launcher-only folder unless the directory sits at the path of a protected file. `Areas.files` yields only non-directory entries, so an empty directory is invisible to both `after` and `present`. If the agent puts a directory where the launcher will later write a record, the launcher's `os.replace` onto it raises `IsADirectoryError`; I checked this on this Mac. Nothing catches it, so the run dies with a traceback: no queue.json, no report, no notice, no records.
+    
+    This belongs to the class R4-1 and R5-1 addressed (agent tampering in launcher-only folders must not stop the run; R4-1's instruction was 'the run still completes'). The author's original undo had the gap, and both fix rounds left it. A file or link at those paths is handled (set aside), and a directory at a path that already held a record is handled (the restore loop rmtrees it). Only a new directory at a path the launcher has not written yet gets through.
+    
+    Concrete sequence: the brief lists open item `20261011-name-status-stale`. The agent runs `mkdir workspace/evidence/decisions/20261011-name-status-stale.json`. Undo sees nothing. Git does not track the empty folder, and nothing removes it. At the next run after the Founder decides that item, `take_decisions` writes the decision Evidence (cycle.py:251), which crashes before the agent starts. The ledger is never saved, so every later run crashes at the same point until someone deletes the folder by hand.
+    
+    Every write site the agent can predict:
+    - queue.py:120 `publish`: `items/<YYYYMMDD>-<slug>.md`, where the slug is the agent's own incoming file name.
+    - cycle.py:587: the notice `items/<date>-notice-run-problems.md`.
+    - cycle.py:251: `evidence/decisions/<open id>.json`, which persists across runs.
+    - cycle.py:282: `evidence/sittings/<date>.json`, which persists across runs.
+    - cycle.py:600: `run-reports/<run id>.md`. The run id is in the prompt. The crash comes after queue.json is saved, so queue.json names a report that does not exist, and `records.save` does not run.
+    - state.py:302: `run-reports/state/<workflow>.json`, on a checkout with no state yet.
+    
+    `set_aside` (queue.py:209) catches the OSError, so it is not a crash site.
+    
+    Fix at the shared boundary, `undo_agent_changes`: after the present loop sets aside the agent's added files, remove every directory under the protected folders that no longer holds a file, bottom-up, as `take_incoming` already does for incoming/ (queue.py:166-168). The launcher never leaves an empty folder there itself. Report each removal in `undone`. Extend the round-5 cycle test with an agent that runs `mkdir` on `evidence/decisions/<open id>.json` and on `run-reports/{run}.md`, and check that the run still completes.
+
+## round 7 (fix)
+- id: R6-1
+  severity: warning
+  file: src/gr0wthlab/cycle.py:147
+  action: auto-fix
+  description: |
+    `undo_agent_changes` never removes a directory the agent adds inside a launcher-only folder unless the directory sits at the path of a protected file. `Areas.files` yields only non-directory entries, so an empty directory is invisible to both `after` and `present`. If the agent puts a directory where the launcher will later write a record, the launcher's `os.replace` onto it raises `IsADirectoryError`; I checked this on this Mac. Nothing catches it, so the run dies with a traceback: no queue.json, no report, no notice, no records.
+    
+    This belongs to the class R4-1 and R5-1 addressed (agent tampering in launcher-only folders must not stop the run; R4-1's instruction was 'the run still completes'). The author's original undo had the gap, and both fix rounds left it. A file or link at those paths is handled (set aside), and a directory at a path that already held a record is handled (the restore loop rmtrees it). Only a new directory at a path the launcher has not written yet gets through.
+    
+    Concrete sequence: the brief lists open item `20261011-name-status-stale`. The agent runs `mkdir workspace/evidence/decisions/20261011-name-status-stale.json`. Undo sees nothing. Git does not track the empty folder, and nothing removes it. At the next run after the Founder decides that item, `take_decisions` writes the decision Evidence (cycle.py:251), which crashes before the agent starts. The ledger is never saved, so every later run crashes at the same point until someone deletes the folder by hand.
+    
+    Every write site the agent can predict:
+    - queue.py:120 `publish`: `items/<YYYYMMDD>-<slug>.md`, where the slug is the agent's own incoming file name.
+    - cycle.py:587: the notice `items/<date>-notice-run-problems.md`.
+    - cycle.py:251: `evidence/decisions/<open id>.json`, which persists across runs.
+    - cycle.py:282: `evidence/sittings/<date>.json`, which persists across runs.
+    - cycle.py:600: `run-reports/<run id>.md`. The run id is in the prompt. The crash comes after queue.json is saved, so queue.json names a report that does not exist, and `records.save` does not run.
+    - state.py:302: `run-reports/state/<workflow>.json`, on a checkout with no state yet.
+    
+    `set_aside` (queue.py:209) catches the OSError, so it is not a crash site.
+    
+    Fix at the shared boundary, `undo_agent_changes`: after the present loop sets aside the agent's added files, remove every directory under the protected folders that no longer holds a file, bottom-up, as `take_incoming` already does for incoming/ (queue.py:166-168). The launcher never leaves an empty folder there itself. Report each removal in `undone`. Extend the round-5 cycle test with an agent that runs `mkdir` on `evidence/decisions/<open id>.json` and on `run-reports/{run}.md`, and check that the run still completes.
+- id: R7-1
+  severity: warning
+  file: src/gr0wthlab/areas.py:125
+  action: auto-fix
+  description: |
+    Round 6 added a new crash site, and it left siblings of the R6-1 class open. That class is: no entry the agent can plant in a launcher-only folder may make a later launcher write crash the run.
+    
+    I checked reachability on this Mac. Under `sandbox-exec` with a `(allow file-write* (subpath <area>))` grant, which is how Codex grants a writable root, the agent can run `chflags uchg` on a file or a folder, `chmod +a "everyone deny delete"`, and `chmod 000`. Afterwards, outside the sandbox, Python's `os.rmdir`, `os.unlink`, `os.replace` onto the file, creating a file in the folder, and `shutil.rmtree` over a 000 subfolder each fail with EPERM or EACCES.
+    
+    All of the following raise out of the `finally` at cycle.py:569, or later in the run. The run then ends with no report, no queue.json, no notice, and no records:
+    - areas.py:125 (new in round 6): `mkdir workspace/evidence/decisions/x && chflags uchg workspace/evidence/decisions/x`. Before round 6 this empty folder was harmless. Now `remove_empty_folders` calls `rmdir` on it, gets EPERM, and the run crashes. The folder survives, so every later run crashes the same way. The same happens from `take_incoming` at queue.py:166 for an immutable folder in incoming/. An ACL that denies listing a folder makes the `any(folder.iterdir())` call at areas.py:124 raise in the same way.
+    - areas.py:96: `make_accessible` looks only at mode bits. After `chflags uchg workspace/run-reports`, or an ACL that denies `add_file` on it, the check sees nothing to fix. The report write at cycle.py:606 then fails, and so does the next run's brief write at cycle.py:551, so every run crashes before the agent starts. The same applies to `review-queue/items` (publish at queue.py:120) and the other protected folders.
+    - areas.py:82 `remove`, reached through `set_aside` at queue.py:211 from cycle.py:159 and from `take_incoming` at queue.py:158 and :161: unlinking a `chflags uchg` file fails with EPERM.
+    - areas.py:54 and :67 `os.replace`: restoring a record at cycle.py:168 onto a uchg file fails.
+    - cycle.py:156 and :167 `shutil.rmtree`: the agent runs `rm workspace/review-queue/queue.json; mkdir -p workspace/review-queue/queue.json/x; chmod 000 workspace/review-queue/queue.json/x`, and rmtree fails with EACCES. The same works with any area's `README.md`. This is the mode-bit case round 6 set out to cover ("nothing the agent made unreadable stays hidden"). `make_accessible` reaches only folders that `files()` walks, not a folder planted at a protected file's path, so the crash repeats every run.
+    
+    Remedy, at the shared Areas boundary:
+    1. Add one step that gives the owner control back over an entry. It clears BSD flags with `os.chflags(path, 0, follow_symlinks=False)` when available and the flags are set. On macOS it strips ACLs with `/bin/chmod -N`, since the standard library has no ACL API. It adds owner rwx.
+    2. Use that step in `make_accessible`, before every remove, rmdir, or replace, and recursively in one Areas method that replaces both rmtree calls.
+    3. Make each repair in `undo_agent_changes` and `remove_empty_folders` non-fatal: catch OSError per path and record "could not undo ...", so a mechanism nobody anticipated becomes a notice instead of a lost run.
+    4. Extend the round-6 cycle test with: a uchg empty folder, a uchg file, a uchg `run-reports` area, a `queue.json` folder holding a 000 subfolder, and, on macOS only, an ACL deny entry. Check that the run completes with its report, queue.json, and notice.
+- id: R7-2
+  severity: info
+  file: src/gr0wthlab/cycle.py:170
+  action: auto-fix
+  description: |
+    Round 6's empty-folder sweep can report a change the agent never made, and the report and the Founder's notice repeat it (report.py:427-434).
+    
+    Sequence:
+    1. All three state files in `run-reports/state/` are invalid. This is the designed migration path, for example after a future `STATE_FORMAT` bump.
+    2. `load_state` (cycle.py:318-320) sets each one aside before the agent runs, which leaves `run-reports/state/` empty.
+    3. `before` is taken afterwards, at cycle.py:553.
+    4. After the agent, `remove_empty_folders(run_reports)` deletes `run-reports/state` and logs "removed folder `run-reports/state`, which the agent added". The Founder then reads a tampering notice for something the launcher did itself.
+    
+    Remedy: just before `before = protected_state(areas)` at cycle.py:553, run `remove_empty_folders` on each protected folder without reporting it. Any empty folder left after the agent is then the agent's own. Alternatively, record the folders that existed before the agent and report only new ones.
+
+## round 8 (fix)
+- id: R6-1
+  severity: warning
+  file: src/gr0wthlab/cycle.py:147
+  action: auto-fix
+  description: |
+    `undo_agent_changes` never removes a directory the agent adds inside a launcher-only folder unless the directory sits at the path of a protected file. `Areas.files` yields only non-directory entries, so an empty directory is invisible to both `after` and `present`. If the agent puts a directory where the launcher will later write a record, the launcher's `os.replace` onto it raises `IsADirectoryError`; I checked this on this Mac. Nothing catches it, so the run dies with a traceback: no queue.json, no report, no notice, no records.
+    
+    This belongs to the class R4-1 and R5-1 addressed (agent tampering in launcher-only folders must not stop the run; R4-1's instruction was 'the run still completes'). The author's original undo had the gap, and both fix rounds left it. A file or link at those paths is handled (set aside), and a directory at a path that already held a record is handled (the restore loop rmtrees it). Only a new directory at a path the launcher has not written yet gets through.
+    
+    Concrete sequence: the brief lists open item `20261011-name-status-stale`. The agent runs `mkdir workspace/evidence/decisions/20261011-name-status-stale.json`. Undo sees nothing. Git does not track the empty folder, and nothing removes it. At the next run after the Founder decides that item, `take_decisions` writes the decision Evidence (cycle.py:251), which crashes before the agent starts. The ledger is never saved, so every later run crashes at the same point until someone deletes the folder by hand.
+    
+    Every write site the agent can predict:
+    - queue.py:120 `publish`: `items/<YYYYMMDD>-<slug>.md`, where the slug is the agent's own incoming file name.
+    - cycle.py:587: the notice `items/<date>-notice-run-problems.md`.
+    - cycle.py:251: `evidence/decisions/<open id>.json`, which persists across runs.
+    - cycle.py:282: `evidence/sittings/<date>.json`, which persists across runs.
+    - cycle.py:600: `run-reports/<run id>.md`. The run id is in the prompt. The crash comes after queue.json is saved, so queue.json names a report that does not exist, and `records.save` does not run.
+    - state.py:302: `run-reports/state/<workflow>.json`, on a checkout with no state yet.
+    
+    `set_aside` (queue.py:209) catches the OSError, so it is not a crash site.
+    
+    Fix at the shared boundary, `undo_agent_changes`: after the present loop sets aside the agent's added files, remove every directory under the protected folders that no longer holds a file, bottom-up, as `take_incoming` already does for incoming/ (queue.py:166-168). The launcher never leaves an empty folder there itself. Report each removal in `undone`. Extend the round-5 cycle test with an agent that runs `mkdir` on `evidence/decisions/<open id>.json` and on `run-reports/{run}.md`, and check that the run still completes.
+- id: R7-1
+  severity: warning
+  file: src/gr0wthlab/areas.py:125
+  action: auto-fix
+  description: |
+    Round 6 added a new crash site, and it left siblings of the R6-1 class open. That class is: no entry the agent can plant in a launcher-only folder may make a later launcher write crash the run.
+    
+    I checked reachability on this Mac. Under `sandbox-exec` with a `(allow file-write* (subpath <area>))` grant, which is how Codex grants a writable root, the agent can run `chflags uchg` on a file or a folder, `chmod +a "everyone deny delete"`, and `chmod 000`. Afterwards, outside the sandbox, Python's `os.rmdir`, `os.unlink`, `os.replace` onto the file, creating a file in the folder, and `shutil.rmtree` over a 000 subfolder each fail with EPERM or EACCES.
+    
+    All of the following raise out of the `finally` at cycle.py:569, or later in the run. The run then ends with no report, no queue.json, no notice, and no records:
+    - areas.py:125 (new in round 6): `mkdir workspace/evidence/decisions/x && chflags uchg workspace/evidence/decisions/x`. Before round 6 this empty folder was harmless. Now `remove_empty_folders` calls `rmdir` on it, gets EPERM, and the run crashes. The folder survives, so every later run crashes the same way. The same happens from `take_incoming` at queue.py:166 for an immutable folder in incoming/. An ACL that denies listing a folder makes the `any(folder.iterdir())` call at areas.py:124 raise in the same way.
+    - areas.py:96: `make_accessible` looks only at mode bits. After `chflags uchg workspace/run-reports`, or an ACL that denies `add_file` on it, the check sees nothing to fix. The report write at cycle.py:606 then fails, and so does the next run's brief write at cycle.py:551, so every run crashes before the agent starts. The same applies to `review-queue/items` (publish at queue.py:120) and the other protected folders.
+    - areas.py:82 `remove`, reached through `set_aside` at queue.py:211 from cycle.py:159 and from `take_incoming` at queue.py:158 and :161: unlinking a `chflags uchg` file fails with EPERM.
+    - areas.py:54 and :67 `os.replace`: restoring a record at cycle.py:168 onto a uchg file fails.
+    - cycle.py:156 and :167 `shutil.rmtree`: the agent runs `rm workspace/review-queue/queue.json; mkdir -p workspace/review-queue/queue.json/x; chmod 000 workspace/review-queue/queue.json/x`, and rmtree fails with EACCES. The same works with any area's `README.md`. This is the mode-bit case round 6 set out to cover ("nothing the agent made unreadable stays hidden"). `make_accessible` reaches only folders that `files()` walks, not a folder planted at a protected file's path, so the crash repeats every run.
+    
+    Remedy, at the shared Areas boundary:
+    1. Add one step that gives the owner control back over an entry. It clears BSD flags with `os.chflags(path, 0, follow_symlinks=False)` when available and the flags are set. On macOS it strips ACLs with `/bin/chmod -N`, since the standard library has no ACL API. It adds owner rwx.
+    2. Use that step in `make_accessible`, before every remove, rmdir, or replace, and recursively in one Areas method that replaces both rmtree calls.
+    3. Make each repair in `undo_agent_changes` and `remove_empty_folders` non-fatal: catch OSError per path and record "could not undo ...", so a mechanism nobody anticipated becomes a notice instead of a lost run.
+    4. Extend the round-6 cycle test with: a uchg empty folder, a uchg file, a uchg `run-reports` area, a `queue.json` folder holding a 000 subfolder, and, on macOS only, an ACL deny entry. Check that the run completes with its report, queue.json, and notice.
+- id: R7-2
+  severity: info
+  file: src/gr0wthlab/cycle.py:170
+  action: auto-fix
+  description: |
+    Round 6's empty-folder sweep can report a change the agent never made, and the report and the Founder's notice repeat it (report.py:427-434).
+    
+    Sequence:
+    1. All three state files in `run-reports/state/` are invalid. This is the designed migration path, for example after a future `STATE_FORMAT` bump.
+    2. `load_state` (cycle.py:318-320) sets each one aside before the agent runs, which leaves `run-reports/state/` empty.
+    3. `before` is taken afterwards, at cycle.py:553.
+    4. After the agent, `remove_empty_folders(run_reports)` deletes `run-reports/state` and logs "removed folder `run-reports/state`, which the agent added". The Founder then reads a tampering notice for something the launcher did itself.
+    
+    Remedy: just before `before = protected_state(areas)` at cycle.py:553, run `remove_empty_folders` on each protected folder without reporting it. Any empty folder left after the agent is then the agent's own. Alternatively, record the folders that existed before the agent and report only new ones.
+- id: R8-1
+  severity: error
+  file: src/gr0wthlab/areas.py:65
+  action: auto-fix
+  description: |
+    `Areas.write_bytes` writes its temporary file at a predictable name, `.<name>.tmp-<launcher pid>` in the target's own folder, with a plain `Path.write_bytes`, and that call follows links. The agent can write to that folder, so a link it leaves at that name sends the unsandboxed launcher's write outside the six areas. I checked this on this Mac with the real `Areas` and `Ledger.set_aside`: the bytes of an agent-added file ended up in a file outside `workspace/`. This breaks the module's own invariant ("every path is checked against them ... a symbolic or hard link the agent planted can never carry content from outside") and Guardrail G1.
+    
+    The code predates round 7: the original `write_text` used the same temporary pattern. Round 7 rewrote `write_bytes` and added `reclaim` and directory removal, but kept the temporary unprotected. `check_parents` and the `is_symlink` test cover only the target path and its folders, never the temporary.
+    
+    Reachable write sites, all through this one function:
+    - queue.py:212 `set_aside`, called by `undo_agent_changes` (cycle.py:164) for each file the agent added among the records. The content is the agent's own file, and the temporary sits in `review-queue/set-aside/<run id>/`. The agent knows the run id from its prompt, and the undo loop processes paths in sorted order, so a link there is still in place when an earlier-sorted record is set aside.
+    - cycle.py:628, `queue.json`. Its temporary is in `review-queue/`, which the undo never sweeps.
+    - cycle.py:173, README restores. The temporary is in agent-writable areas such as `drafts/`.
+    - The remaining launcher writes: items at queue.py:121, decisions at cycle.py:264, sittings at cycle.py:295, the snapshot at cycle.py:218, state at state.py:302, and the report at cycle.py:643.
+    
+    Fix it once at the shared boundary, in `write_bytes`. Create the temporary with `tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.")`, which uses O_CREAT|O_EXCL, never follows a link, and picks an unpredictable name. Write through the returned descriptor, then `os.replace`, and unlink the temporary on failure. Add a regression test: an agent leaves a link at a write site's would-be temporary name, and the run's writes stay inside `workspace/`.
+- id: R8-2
+  severity: info
+  file: src/gr0wthlab/cycle.py:462
+  action: auto-fix
+  description: |
+    Round 7 added the stopped-run note, and it labels the wrong time and id. `run()` builds the note from `self.now()` taken when the exception is caught, and from a fresh `launcher.new_run_id(trigger, now)`. The note still reads "A {trigger} run started at {now} ...". A run that started at 18:00 and failed after a 20-minute agent session is reported as "started at 18:20". Its note file is also keyed by an id that matches no launcher log (`<run_id>.json` or `.events.jsonl`), so the Founder cannot find that run's logs from the note.
+    
+    The round-7 test at test_cycle.py:686 asserts "scheduled run started at" under a frozen clock, so it cannot catch this.
+    
+    Remedy: either word the note as "stopped at", or have `locked_run` expose its `run_id` and `started` (for example on `self`) so the note can name the real run and its real start.
+
+## round 9 (fix)
+- id: R7-1
+  severity: warning
+  file: src/gr0wthlab/areas.py:125
+  action: auto-fix
+  description: |
+    Round 6 added a new crash site, and it left siblings of the R6-1 class open. That class is: no entry the agent can plant in a launcher-only folder may make a later launcher write crash the run.
+    
+    I checked reachability on this Mac. Under `sandbox-exec` with a `(allow file-write* (subpath <area>))` grant, which is how Codex grants a writable root, the agent can run `chflags uchg` on a file or a folder, `chmod +a "everyone deny delete"`, and `chmod 000`. Afterwards, outside the sandbox, Python's `os.rmdir`, `os.unlink`, `os.replace` onto the file, creating a file in the folder, and `shutil.rmtree` over a 000 subfolder each fail with EPERM or EACCES.
+    
+    All of the following raise out of the `finally` at cycle.py:569, or later in the run. The run then ends with no report, no queue.json, no notice, and no records:
+    - areas.py:125 (new in round 6): `mkdir workspace/evidence/decisions/x && chflags uchg workspace/evidence/decisions/x`. Before round 6 this empty folder was harmless. Now `remove_empty_folders` calls `rmdir` on it, gets EPERM, and the run crashes. The folder survives, so every later run crashes the same way. The same happens from `take_incoming` at queue.py:166 for an immutable folder in incoming/. An ACL that denies listing a folder makes the `any(folder.iterdir())` call at areas.py:124 raise in the same way.
+    - areas.py:96: `make_accessible` looks only at mode bits. After `chflags uchg workspace/run-reports`, or an ACL that denies `add_file` on it, the check sees nothing to fix. The report write at cycle.py:606 then fails, and so does the next run's brief write at cycle.py:551, so every run crashes before the agent starts. The same applies to `review-queue/items` (publish at queue.py:120) and the other protected folders.
+    - areas.py:82 `remove`, reached through `set_aside` at queue.py:211 from cycle.py:159 and from `take_incoming` at queue.py:158 and :161: unlinking a `chflags uchg` file fails with EPERM.
+    - areas.py:54 and :67 `os.replace`: restoring a record at cycle.py:168 onto a uchg file fails.
+    - cycle.py:156 and :167 `shutil.rmtree`: the agent runs `rm workspace/review-queue/queue.json; mkdir -p workspace/review-queue/queue.json/x; chmod 000 workspace/review-queue/queue.json/x`, and rmtree fails with EACCES. The same works with any area's `README.md`. This is the mode-bit case round 6 set out to cover ("nothing the agent made unreadable stays hidden"). `make_accessible` reaches only folders that `files()` walks, not a folder planted at a protected file's path, so the crash repeats every run.
+    
+    Remedy, at the shared Areas boundary:
+    1. Add one step that gives the owner control back over an entry. It clears BSD flags with `os.chflags(path, 0, follow_symlinks=False)` when available and the flags are set. On macOS it strips ACLs with `/bin/chmod -N`, since the standard library has no ACL API. It adds owner rwx.
+    2. Use that step in `make_accessible`, before every remove, rmdir, or replace, and recursively in one Areas method that replaces both rmtree calls.
+    3. Make each repair in `undo_agent_changes` and `remove_empty_folders` non-fatal: catch OSError per path and record "could not undo ...", so a mechanism nobody anticipated becomes a notice instead of a lost run.
+    4. Extend the round-6 cycle test with: a uchg empty folder, a uchg file, a uchg `run-reports` area, a `queue.json` folder holding a 000 subfolder, and, on macOS only, an ACL deny entry. Check that the run completes with its report, queue.json, and notice.
+- id: R8-1
+  severity: error
+  file: src/gr0wthlab/areas.py:65
+  action: auto-fix
+  description: |
+    `Areas.write_bytes` writes its temporary file at a predictable name, `.<name>.tmp-<launcher pid>` in the target's own folder, with a plain `Path.write_bytes`, and that call follows links. The agent can write to that folder, so a link it leaves at that name sends the unsandboxed launcher's write outside the six areas. I checked this on this Mac with the real `Areas` and `Ledger.set_aside`: the bytes of an agent-added file ended up in a file outside `workspace/`. This breaks the module's own invariant ("every path is checked against them ... a symbolic or hard link the agent planted can never carry content from outside") and Guardrail G1.
+    
+    The code predates round 7: the original `write_text` used the same temporary pattern. Round 7 rewrote `write_bytes` and added `reclaim` and directory removal, but kept the temporary unprotected. `check_parents` and the `is_symlink` test cover only the target path and its folders, never the temporary.
+    
+    Reachable write sites, all through this one function:
+    - queue.py:212 `set_aside`, called by `undo_agent_changes` (cycle.py:164) for each file the agent added among the records. The content is the agent's own file, and the temporary sits in `review-queue/set-aside/<run id>/`. The agent knows the run id from its prompt, and the undo loop processes paths in sorted order, so a link there is still in place when an earlier-sorted record is set aside.
+    - cycle.py:628, `queue.json`. Its temporary is in `review-queue/`, which the undo never sweeps.
+    - cycle.py:173, README restores. The temporary is in agent-writable areas such as `drafts/`.
+    - The remaining launcher writes: items at queue.py:121, decisions at cycle.py:264, sittings at cycle.py:295, the snapshot at cycle.py:218, state at state.py:302, and the report at cycle.py:643.
+    
+    Fix it once at the shared boundary, in `write_bytes`. Create the temporary with `tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.")`, which uses O_CREAT|O_EXCL, never follows a link, and picks an unpredictable name. Write through the returned descriptor, then `os.replace`, and unlink the temporary on failure. Add a regression test: an agent leaves a link at a write site's would-be temporary name, and the run's writes stay inside `workspace/`.
+- id: R9-1
+  severity: error
+  file: src/gr0wthlab/areas.py:98
+  action: auto-fix
+  description: |
+    Round 8 added an early return to `Areas.reclaim` for any regular file with `st_nlink != 1`. This regression reopens the R7-1 class, and worse: a sandboxed agent can now leave a forged `queue.json` that the launcher can neither restore nor overwrite.
+    
+    What I checked on this Mac, with a deny-default seatbelt profile that grants `file-write*` only on the workspace subpath (the same shape as Codex's):
+    - `ln <outside file> ws/hl` is refused with "Operation not permitted".
+    - `ln ws/drafts/q ws/review-queue/queue.json`, `ln ws/drafts/q ws/evidence/sittings/2026-10-11.json`, and `chflags uchg ws/drafts/q` all succeed.
+    - Then, outside the sandbox, the real `Areas` gives: `write_text(queue.json)` and `write_text(evidence/sittings/2026-10-11.json)` both raise EPERM from the `os.replace` at areas.py:75; `remove()` fails at areas.py:130; and queue.json still reads "forged".
+    
+    So the guard protects nothing an agent can reach: the sandbox already refuses every hard link to a file outside the areas, so a multiply-linked file there shares its inode only with files in the areas. Meanwhile it skips exactly the `chflags 0` and `chmod -N` that R7-1 added.
+    
+    Reachable effects, all at sites R7-1 meant to keep the run going:
+    - cycle.py:301 sittings and cycle.py:264 decision Evidence: the write is uncaught, so once Mandu holds a sitting record for the predictable Sunday date (or a decision on an open item), every run stops before the agent. No report is written, because the ledger is never saved and the same record is "new" again next run.
+    - cycle.py:173 restore of queue.json fails (logged as "could not undo"), and so does cycle.py:629 (the report then wrongly says "Mandu sees the last one"). Every later run's `Ledger.load` (cycle.py:568, queue.py:66) refuses the two-link file and leaves the queue untouched. records.save excludes the file, but Mandu reads the local `~/gr0wthlab` files (docs/mandu-exchange.md:18). The agent's forged queue is therefore what the Founder is shown, for as long as the file stays. That breaks AGENTS.md's "the launcher alone writes the queue ... and undoes any agent change to them".
+    - Other sites that fail the same way: queue.py:212/216 `set_aside` and queue.py:166 leave agent-added two-link files in items/ (and other launcher-only folders); queue.py:121 publish; state.py:302; cycle.py:219; cycle.py:579; cycle.py:651.
+    
+    The smallest honest remedy is to remove this unrequired component: delete areas.py:98-99. `read_plain` keeps refusing two-link files as content, which is the only place the link count matters. Add a fake-agent `link` behavior and a cycle test in which the agent hard-links a drafts/ file to `review-queue/queue.json` and to `evidence/sittings/<Sunday>.json` and sets UF_IMMUTABLE. With a sitting record in Mandu, the next run must complete, queue.json must be the launcher's, and nothing may be noted as "could not undo" or "could not remove".
+
+## round 10 (fix)
+- id: C1
+  severity: error
+  file: src/gr0wthlab/cycle.py
+  action: auto-fix
+  description: |
+    Restructure per the captain (2026-10-09): move every record only the launcher writes (the published Review Queue queue.json and published items, the run state, the run lock and refused-run records, and any other launcher-only file) out of workspace/ into one launcher-owned top-level folder (for example ledger/) that config/guardrails/runtime.json grants the run read access to and never write access. The agent keeps writing only Drafts, Evidence, Weekly Reads, Instructions, run-report notes it is meant to write, and incoming Review Queue items; the launcher validates incoming items and publishes them into the launcher-owned folder. Remove the before-snapshot, undo, tamper-detection, and empty-folder-sweep code that existed only to protect launcher records inside the agent areas; keep only what incoming-item handling still needs. The preflight and boundary check must probe that folder and show writes to it refused. The post-run records step commits only workspace/ and that folder, never code or configuration. Update docs/mandu-exchange.md paths (Mandu has not built anything yet, so no migration), README, AGENTS.md, and the workspace READMEs. Re-run preflight, boundary-check, and the US-ME04, US-ME07 (with a sitting record), and US-ME17 live checks on this Mac and record the results in the spike note. Keep every earlier fix that is not part of the removed machinery (run lock semantics, carry-over meaning, versioning, single schedule).
+- id: R10-1
+  severity: warning
+  file: src/gr0wthlab/queue.py:158
+  action: auto-fix
+  description: |
+    The round-9 restructure (7c30c44) removed the undo machinery, and with it the repair of a link or file the agent leaves in place of `workspace/review-queue/incoming/`. C1 said to keep what incoming-item handling still needs, and the previous round's test asserted this repair (the "a linked incoming folder" case, which this round deleted). Two concrete sequences follow.
+    
+    (a) Link. The agent runs `rm -rf <ws>/review-queue/incoming; ln -s <dir> <ws>/review-queue/incoming`.
+    - `Areas.files` (areas.py:63) returns nothing because `real_folder` is False, and nothing records a problem, so `take_incoming` (queue.py:158) skips that run's items silently.
+    - The link is never removed: records.unsafe resets the 120000 entry, and incoming/ has no tracked README for the README put-back to recreate it.
+    - cycle.py:484 `mkdir(exist_ok=True)` accepts the link, because `is_dir` follows it.
+    - So every later run, production included, silently drops every item the agent writes. Meanwhile `check-incoming` (cli.py:67 and :73 follow the link) tells the agent each item is OK.
+    - This breaks US-ME17's "no silent skips" and the claim that check-incoming checks "as the launcher would".
+    
+    (b) Regular file. The agent removes the folder and writes a file named `incoming`.
+    - The records step commits that file to main, because a plain file passes `records.unsafe`.
+    - Every later run then raises FileExistsError at cycle.py:484 and stops with EXIT_STOPPED before the agent. It writes no report and leaves only a note, until someone repairs main by hand.
+    
+    The same silent skip happens for the run in which the agent replaces the whole `workspace/review-queue` area; there the production README put-back repairs the area afterwards.
+    
+    The new test `test_a_linked_incoming_folder_is_never_followed` (test_cycle.py:416) checks only that nothing is written through the link, so it passes with this defect.
+    
+    Remedy, at the incoming-handling boundary:
+    1. Before the agent (cycle.py:484) and at the start of `take_incoming`, if incoming exists but is not a real folder up to its area, note a problem in `areas.problems` and `areas.remove` the link or file, then mkdir.
+    2. Have `Areas.files` note an existing non-real folder instead of returning silently.
+    3. Extend the test to a second run: assert that the agent's item is queued and that the problem appears in the notice. Add a file-at-incoming case.
+- id: review-2
+  severity: warning
+  file: .github/workflows/ci.yml:8
+  action: auto-fix
+  description: |
+    This round moved the launcher's records to `ledger/` but left CI's `paths-ignore: ["workspace/**"]` and its comment ("Records commits from the production clone change only workspace/") unchanged. Every run rewrites `ledger/review-queue/queue.json`, its report, snapshot, and state, so every records push to main now runs the full macOS and Ubuntu test and lint jobs, which the filter was added to avoid. Add `"ledger/**"` to `paths-ignore` and update the comment.
+- id: review-3
+  severity: info
+  file: src/gr0wthlab/cycle.py:553
+  action: auto-fix
+  description: |
+    Leftover from the removed undo machinery: `state.problems += areas.problems` at cycle.py:553 is dead. Lines 518-519 already moved and cleared `areas.problems`, and nothing between them and line 553 uses `Areas` anymore: the notice, queue.json, and state writes all go through `Store`. Remove the line.
+- id: review-4
+  severity: info
+  file: src/gr0wthlab/state.py:275
+  action: no-op
+  description: |
+    Intent conformance note, no action. The intent asks for the run-state record "inside the agent's writable areas", but `state_path` now puts it in `ledger/run-reports/state/`, which the agent can only read. The captain's C1 decision (2026-10-09) explicitly listed "the run state" among the launcher records to move out of workspace/, so this departure is authorized and already decided.
+
+## round 11 (fix)
+- id: review-4
+  severity: info
+  file: src/gr0wthlab/state.py:275
+  action: no-op
+  description: |
+    Intent conformance note, no action. The intent asks for the run-state record "inside the agent's writable areas", but `state_path` now puts it in `ledger/run-reports/state/`, which the agent can only read. The captain's C1 decision (2026-10-09) explicitly listed "the run state" among the launcher records to move out of workspace/, so this departure is authorized and already decided.
+- id: R11-1
+  severity: info
+  file: src/tests/test_cycle.py:433
+  action: auto-fix
+  description: |
+    Test-quality gap in the round-10 fix's own test, so it is part of that round's claim. The "a file" subtest's notice assertion cannot fail, even if the file case notes no problem.
+    
+    Why:
+    - The "a link" subtest runs first. It leaves the notice "Notice: the launcher hit 1 problem on 2026-10-11" open, with the body "`review-queue/incoming` was not a folder, ...".
+    - In the "a file" subtest, `ensure_folder` notes exactly the same problem text, and the run falls on the same local day.
+    - `exchange.item_hash` hashes only kind, ask, and body, so this notice's hash matches the open one.
+    - cycle.py:525-527 therefore reuses the open notice (`state.notice = repeated`) and publishes nothing new.
+    - Line 433's `next(...)` returns the oldest open notice, the "a link" one. Its text already contains the asserted string.
+    
+    If `ensure_folder` removed a file at `incoming` without appending to `areas.problems`, the run would publish no notice and the assertion would still pass. The repair itself is still covered by `incoming.is_dir()` and by the second run queuing `after-1`.
+    
+    Fix: assert on what each run itself produced. Either check that `self.report()` has the line under its `## Launcher problems` section, or follow the notice id the report's summary names. Do not take the first open notice in the queue.
+
+## round 12 (fix)
+- id: review-4
+  severity: info
+  file: src/gr0wthlab/state.py:275
+  action: no-op
+  description: |
+    Intent conformance note, no action. The intent asks for the run-state record "inside the agent's writable areas", but `state_path` now puts it in `ledger/run-reports/state/`, which the agent can only read. The captain's C1 decision (2026-10-09) explicitly listed "the run state" among the launcher records to move out of workspace/, so this departure is authorized and already decided.
+- id: R12-1
+  severity: warning
+  file: src/gr0wthlab/areas.py:83
+  action: auto-fix
+  description: |
+    Round 10 fixed a link or file standing in place of `incoming` (R10-1) but left a sibling behind: an unreadable real `incoming` folder is still skipped silently. This breaks the same "no silent skips" invariant (US-ME17) that R10-1's instructions set for `Areas.files`.
+    
+    Why it happens:
+    - `Areas.files` calls `os.walk(str(directory))` with no `onerror`. If listing a folder fails, os.walk ignores the error and yields nothing. Confirmed on /usr/bin/python3: a 0o300 folder that holds an item yields `[]`.
+    - `ensure_folder` (areas.py:67) accepts the folder because `is_dir()` is still True.
+    - Round 9 (7c30c44) removed the `reclaim` call that made these folders readable before the walk.
+    
+    Concrete sequence:
+    1. The agent writes `incoming/x.md`, then runs `chmod 300 incoming` or adds a deny ACL. Seatbelt's `file-write*` grant allows both.
+    2. `take_incoming` runs: `ensure_folder` passes, and `files()` yields nothing.
+    3. The item is neither queued nor set aside, and nothing reaches `areas.problems`, the report, or a notice. The report says 0 new items.
+    
+    The same silent skip happens for any unreadable subfolder under `incoming`. `remove_empty_folders` (areas.py:106) has the same pattern, but it only cleans up, so it is harmless.
+    
+    Remedy, without restoring the removed reclaim machinery:
+    - Give the walk in `files()` an `onerror` that appends a problem naming the folder, for example "`review-queue/incoming` could not be read (Permission denied), so nothing in it was taken in".
+    - Add a test with an unreadable `incoming` that holds an item. Assert that the run's own report lists that line under `## Launcher problems`.
+- id: R12-2
+  severity: warning
+  file: src/gr0wthlab/cycle.py:177
+  action: ask-user
+  description: |
+    A Founder decision on an item that was superseded before gr0wthlab took the decision in is never kept. The record then comes back as a new notice every run, forever.
+    
+    Concrete sequence:
+    1. A late weekly run (the Mac was asleep) is still running when the Founder starts the sitting. Mandu presents `queue.json` from the earlier run, which has X open.
+    2. The run's agent writes X2 with `supersedes: X`, and `take_incoming` closes X as superseded.
+    3. The Founder rejects X with a reason, and Mandu writes `decisions/X.json`.
+    4. The next run's `Ledger.take_decisions` (queue.py:97) marks the record `item-withdrawn`.
+    
+    What goes wrong:
+    - Only `taken` outcomes are written as Evidence (cycle.py:177-201), so the decision and its reason never reach `ledger/evidence/decisions/`, the closed entry, or the agent's brief. X2 is then asked fresh, without the Founder's reason.
+    - Mandu re-reads every decision file each run, and its records are write-once ("never edited or deleted"). So every later run lists "Not used, `X`" (report.py:222) and publishes a new notice (report.py:407-415). The title is dated, so `item_hash` differs each week and the open notice is never reused. The Founder gets the same notice weekly with no way to clear it.
+    - The notice body says "so the items they name are still open", which is false here: X is superseded. It is equally false for `unknown-item`, which names no item at all.
+    - `docs/mandu-exchange.md` does not describe this outcome, so Mandu's side cannot handle it. Its "Mandu fixes it by rewriting it" also cannot resolve a record that names no queued item.
+    
+    The remedy needs a product decision, so this asks the user. The open questions:
+    - Should a decision on a withdrawn item be kept as Evidence, and should its reason reach the agent?
+    - Should an unusable record be reported once rather than every run?
+    Reporting once requires remembering which records were already reported, which is new durable state. That remedy, not the defect, is what needs authorization.
+
+## round 13 (fix)
+- id: review-4
+  severity: info
+  file: src/gr0wthlab/state.py:275
+  action: no-op
+  description: |
+    Intent conformance note, no action. The intent asks for the run-state record "inside the agent's writable areas", but `state_path` now puts it in `ledger/run-reports/state/`, which the agent can only read. The captain's C1 decision (2026-10-09) explicitly listed "the run state" among the launcher records to move out of workspace/, so this departure is authorized and already decided.
+- id: R12-1
+  severity: warning
+  file: src/gr0wthlab/areas.py:83
+  action: auto-fix
+  description: |
+    Round 10 fixed a link or file standing in place of `incoming` (R10-1) but left a sibling behind: an unreadable real `incoming` folder is still skipped silently. This breaks the same "no silent skips" invariant (US-ME17) that R10-1's instructions set for `Areas.files`.
+    
+    Why it happens:
+    - `Areas.files` calls `os.walk(str(directory))` with no `onerror`. If listing a folder fails, os.walk ignores the error and yields nothing. Confirmed on /usr/bin/python3: a 0o300 folder that holds an item yields `[]`.
+    - `ensure_folder` (areas.py:67) accepts the folder because `is_dir()` is still True.
+    - Round 9 (7c30c44) removed the `reclaim` call that made these folders readable before the walk.
+    
+    Concrete sequence:
+    1. The agent writes `incoming/x.md`, then runs `chmod 300 incoming` or adds a deny ACL. Seatbelt's `file-write*` grant allows both.
+    2. `take_incoming` runs: `ensure_folder` passes, and `files()` yields nothing.
+    3. The item is neither queued nor set aside, and nothing reaches `areas.problems`, the report, or a notice. The report says 0 new items.
+    
+    The same silent skip happens for any unreadable subfolder under `incoming`. `remove_empty_folders` (areas.py:106) has the same pattern, but it only cleans up, so it is harmless.
+    
+    Remedy, without restoring the removed reclaim machinery:
+    - Give the walk in `files()` an `onerror` that appends a problem naming the folder, for example "`review-queue/incoming` could not be read (Permission denied), so nothing in it was taken in".
+    - Add a test with an unreadable `incoming` that holds an item. Assert that the run's own report lists that line under `## Launcher problems`.
+- id: R12-2
+  severity: warning
+  file: src/gr0wthlab/cycle.py:177
+  action: ask-user
+  description: |
+    A Founder decision on an item that was superseded before gr0wthlab took the decision in is never kept. The record then comes back as a new notice every run, forever.
+    
+    Concrete sequence:
+    1. A late weekly run (the Mac was asleep) is still running when the Founder starts the sitting. Mandu presents `queue.json` from the earlier run, which has X open.
+    2. The run's agent writes X2 with `supersedes: X`, and `take_incoming` closes X as superseded.
+    3. The Founder rejects X with a reason, and Mandu writes `decisions/X.json`.
+    4. The next run's `Ledger.take_decisions` (queue.py:97) marks the record `item-withdrawn`.
+    
+    What goes wrong:
+    - Only `taken` outcomes are written as Evidence (cycle.py:177-201), so the decision and its reason never reach `ledger/evidence/decisions/`, the closed entry, or the agent's brief. X2 is then asked fresh, without the Founder's reason.
+    - Mandu re-reads every decision file each run, and its records are write-once ("never edited or deleted"). So every later run lists "Not used, `X`" (report.py:222) and publishes a new notice (report.py:407-415). The title is dated, so `item_hash` differs each week and the open notice is never reused. The Founder gets the same notice weekly with no way to clear it.
+    - The notice body says "so the items they name are still open", which is false here: X is superseded. It is equally false for `unknown-item`, which names no item at all.
+    - `docs/mandu-exchange.md` does not describe this outcome, so Mandu's side cannot handle it. Its "Mandu fixes it by rewriting it" also cannot resolve a record that names no queued item.
+    
+    The remedy needs a product decision, so this asks the user. The open questions:
+    - Should a decision on a withdrawn item be kept as Evidence, and should its reason reach the agent?
+    - Should an unusable record be reported once rather than every run?
+    Reporting once requires remembering which records were already reported, which is new durable state. That remedy, not the defect, is what needs authorization.
+- id: R13-1
+  severity: warning
+  file: docs/mandu-exchange.md:149
+  action: ask-user
+  description: |
+    Round 12 (7258de2) left a dead end in the R12-2 fix. If Mandu writes a malformed decision for an item that is still open, the Founder's decision is lost and that item can never be decided again.
+    
+    Why:
+    - Round 12 replaced "Such a record is not a decision, so Mandu fixes it by rewriting it in this format" with "Mandu does not need to rewrite or remove it" (mandu-exchange.md:149).
+    - Mandu's sitting step 3 still says "Skip any entry that already has a decision record" (mandu-exchange.md:28).
+    - Decision records are "written once and never edited or deleted" (mandu-exchange.md:122).
+    
+    Concrete sequence:
+    1. The Founder approves open item X with a comment.
+    2. Mandu writes `{"decision":"approve","reason":"..."}`, which `exchange.parse_decision` refuses with "an approval has no reason; use note". A rejection reason with a line break or over 300 characters fails the same way.
+    3. The next run reports the record once (cycle.py:206, report.py:432) and keeps X open.
+    4. From then on, `newly_unusable()` is empty, so no later run says anything. X is carried over every week.
+    5. Mandu skips X at every sitting because a decision record exists, and the doc tells Mandu not to rewrite that record.
+    6. The agent never hears of it either: the brief only lists decisions taken (`decision_lines(taken_only=True)`), so nothing prompts it to supersede X.
+    
+    The notice also tells the Founder "an item still waiting for your decision stays in the queue" (report.py:437-438), but Mandu will never show that item again. The PRD's US-ME07 Failure Indicator is "A decision is lost".
+    
+    This follows the R12-2 instruction "(Mandu does not need to rewrite anything)", which was written about the superseded and unknown-item cases. Applied to a malformed record on an open item, it leaves no way forward. The remedy changes the versioned Mandu contract, so it needs the user's decision. Two options:
+    - (a) Keep the rewrite exception for a malformed record whose item is still open, and keep reporting it while that item stays open.
+    - (b) Flag such items in queue.json so Mandu presents them again and replaces the record.
+- id: R13-2
+  severity: warning
+  file: src/gr0wthlab/report.py:307
+  action: auto-fix
+  description: |
+    Round 12 (7258de2) added brief text that states a timing the code never checks. The brief tells the agent the Founder decided the replaced item "after it was replaced" (`It replaces X, which the Founder rejected after it was replaced: ...`). Nothing compares `decided_at` with the item's `closed_at`.
+    
+    In the scenario the doc describes (mandu-exchange.md:143: a late run is still running during the sitting), the order is reversed:
+    - The Founder rejects X from the queue.json Mandu is showing, while the agent is still working.
+    - `take_incoming` closes X as superseded only at the end of that run.
+    
+    Either way, Mandu presents only `open` entries, so the Founder decided X without ever seeing X2. Telling the agent the decision came after the replacement invites it to treat the reason as aimed at an obsolete item. Passing that reason on to the replacement is exactly what R12-2 set out to guarantee.
+    
+    The new test enshrines the wording:
+    - test_cycle.py:295-298 asserts the exact text.
+    - It sets `decided_at` 19:42 PDT, after the replacing run at 16:30 PDT. Mandu would not present X at that time.
+    
+    Sibling: report.py:232 tells the Founder in the run report "Rejected `X`, which `X2` had already replaced", which implies the same order.
+    
+    Fix: drop the timing claim. For example, in the brief: "It replaces `X`, which the Founder rejected without having seen this item: ...". In the report: "which `X2` replaced before this decision was taken in". Update the test assertions to match.
+- id: R13-3
+  severity: info
+  file: src/gr0wthlab/cycle.py:181
+  action: auto-fix
+  description: |
+    Round 12 (7258de2) added a reset that breaks the report-once promise when Mandu's exchange folder is missing for a run.
+    
+    Why:
+    - `take_decisions` sets `review_state.reported = []` (line 181) before the early return for a missing exchange folder (lines 182-190).
+    - `save_state` then saves the empty list, because `reconcile` keeps `previous.reported`.
+    - When the folder comes back with the same files, every record that is still unusable counts as new and goes into a new notice.
+    
+    This contradicts mandu-exchange.md:147, "again only if the file changes". It happens when the folder is moved through the documented config pull request (mandu-exchange.md:20) before Mandu moves it, or when `GR0WTHLAB_EXCHANGE_DIR` points elsewhere for a run.
+    
+    Fix: only replace `review_state.reported` once the folder exists, by moving the reset below the `if not folder.is_dir()` return. A missing folder then keeps the earlier fingerprints.
+
+## round 14 (fix)
+- id: review-4
+  severity: info
+  file: src/gr0wthlab/state.py:275
+  action: no-op
+  description: |
+    Intent conformance note, no action. The intent asks for the run-state record "inside the agent's writable areas", but `state_path` now puts it in `ledger/run-reports/state/`, which the agent can only read. The captain's C1 decision (2026-10-09) explicitly listed "the run state" among the launcher records to move out of workspace/, so this departure is authorized and already decided.
+- id: R12-1
+  severity: warning
+  file: src/gr0wthlab/areas.py:83
+  action: auto-fix
+  description: |
+    Round 10 fixed a link or file standing in place of `incoming` (R10-1) but left a sibling behind: an unreadable real `incoming` folder is still skipped silently. This breaks the same "no silent skips" invariant (US-ME17) that R10-1's instructions set for `Areas.files`.
+    
+    Why it happens:
+    - `Areas.files` calls `os.walk(str(directory))` with no `onerror`. If listing a folder fails, os.walk ignores the error and yields nothing. Confirmed on /usr/bin/python3: a 0o300 folder that holds an item yields `[]`.
+    - `ensure_folder` (areas.py:67) accepts the folder because `is_dir()` is still True.
+    - Round 9 (7c30c44) removed the `reclaim` call that made these folders readable before the walk.
+    
+    Concrete sequence:
+    1. The agent writes `incoming/x.md`, then runs `chmod 300 incoming` or adds a deny ACL. Seatbelt's `file-write*` grant allows both.
+    2. `take_incoming` runs: `ensure_folder` passes, and `files()` yields nothing.
+    3. The item is neither queued nor set aside, and nothing reaches `areas.problems`, the report, or a notice. The report says 0 new items.
+    
+    The same silent skip happens for any unreadable subfolder under `incoming`. `remove_empty_folders` (areas.py:106) has the same pattern, but it only cleans up, so it is harmless.
+    
+    Remedy, without restoring the removed reclaim machinery:
+    - Give the walk in `files()` an `onerror` that appends a problem naming the folder, for example "`review-queue/incoming` could not be read (Permission denied), so nothing in it was taken in".
+    - Add a test with an unreadable `incoming` that holds an item. Assert that the run's own report lists that line under `## Launcher problems`.
+- id: R12-2
+  severity: warning
+  file: src/gr0wthlab/cycle.py:177
+  action: ask-user
+  description: |
+    A Founder decision on an item that was superseded before gr0wthlab took the decision in is never kept. The record then comes back as a new notice every run, forever.
+    
+    Concrete sequence:
+    1. A late weekly run (the Mac was asleep) is still running when the Founder starts the sitting. Mandu presents `queue.json` from the earlier run, which has X open.
+    2. The run's agent writes X2 with `supersedes: X`, and `take_incoming` closes X as superseded.
+    3. The Founder rejects X with a reason, and Mandu writes `decisions/X.json`.
+    4. The next run's `Ledger.take_decisions` (queue.py:97) marks the record `item-withdrawn`.
+    
+    What goes wrong:
+    - Only `taken` outcomes are written as Evidence (cycle.py:177-201), so the decision and its reason never reach `ledger/evidence/decisions/`, the closed entry, or the agent's brief. X2 is then asked fresh, without the Founder's reason.
+    - Mandu re-reads every decision file each run, and its records are write-once ("never edited or deleted"). So every later run lists "Not used, `X`" (report.py:222) and publishes a new notice (report.py:407-415). The title is dated, so `item_hash` differs each week and the open notice is never reused. The Founder gets the same notice weekly with no way to clear it.
+    - The notice body says "so the items they name are still open", which is false here: X is superseded. It is equally false for `unknown-item`, which names no item at all.
+    - `docs/mandu-exchange.md` does not describe this outcome, so Mandu's side cannot handle it. Its "Mandu fixes it by rewriting it" also cannot resolve a record that names no queued item.
+    
+    The remedy needs a product decision, so this asks the user. The open questions:
+    - Should a decision on a withdrawn item be kept as Evidence, and should its reason reach the agent?
+    - Should an unusable record be reported once rather than every run?
+    Reporting once requires remembering which records were already reported, which is new durable state. That remedy, not the defect, is what needs authorization.
+- id: R13-2
+  severity: warning
+  file: src/gr0wthlab/report.py:307
+  action: auto-fix
+  description: |
+    Round 12 (7258de2) added brief text that states a timing the code never checks. The brief tells the agent the Founder decided the replaced item "after it was replaced" (`It replaces X, which the Founder rejected after it was replaced: ...`). Nothing compares `decided_at` with the item's `closed_at`.
+    
+    In the scenario the doc describes (mandu-exchange.md:143: a late run is still running during the sitting), the order is reversed:
+    - The Founder rejects X from the queue.json Mandu is showing, while the agent is still working.
+    - `take_incoming` closes X as superseded only at the end of that run.
+    
+    Either way, Mandu presents only `open` entries, so the Founder decided X without ever seeing X2. Telling the agent the decision came after the replacement invites it to treat the reason as aimed at an obsolete item. Passing that reason on to the replacement is exactly what R12-2 set out to guarantee.
+    
+    The new test enshrines the wording:
+    - test_cycle.py:295-298 asserts the exact text.
+    - It sets `decided_at` 19:42 PDT, after the replacing run at 16:30 PDT. Mandu would not present X at that time.
+    
+    Sibling: report.py:232 tells the Founder in the run report "Rejected `X`, which `X2` had already replaced", which implies the same order.
+    
+    Fix: drop the timing claim. For example, in the brief: "It replaces `X`, which the Founder rejected without having seen this item: ...". In the report: "which `X2` replaced before this decision was taken in". Update the test assertions to match.
+- id: R13-3
+  severity: info
+  file: src/gr0wthlab/cycle.py:181
+  action: auto-fix
+  description: |
+    Round 12 (7258de2) added a reset that breaks the report-once promise when Mandu's exchange folder is missing for a run.
+    
+    Why:
+    - `take_decisions` sets `review_state.reported = []` (line 181) before the early return for a missing exchange folder (lines 182-190).
+    - `save_state` then saves the empty list, because `reconcile` keeps `previous.reported`.
+    - When the folder comes back with the same files, every record that is still unusable counts as new and goes into a new notice.
+    
+    This contradicts mandu-exchange.md:147, "again only if the file changes". It happens when the folder is moved through the documented config pull request (mandu-exchange.md:20) before Mandu moves it, or when `GR0WTHLAB_EXCHANGE_DIR` points elsewhere for a run.
+    
+    Fix: only replace `review_state.reported` once the folder exists, by moving the reset below the `if not folder.is_dir()` return. A missing folder then keeps the earlier fingerprints.
+- id: R14-1
+  severity: info
+  file: src/gr0wthlab/cycle.py:208
+  action: auto-fix
+  description: |
+    Round 13 (bdd9ab0) introduced this. It decides whether an unusable decision record is "for an item still open" from the ledger before the agent runs (cycle.py:208-209). The report and notice are written after `ledger.take_incoming` (cycle.py:557), which can close that same item as superseded in the same run.
+    
+    Concrete sequence:
+    1. Mandu holds a malformed `decisions/X.json` for open item X, for example a rejection without a reason.
+    2. The agent is not told about the pending record, because the brief lists only decisions taken (report.py:314). In this run it writes X2 with `supersedes: X`.
+    3. `take_incoming` closes X as superseded.
+    
+    Result:
+    - The run's notice says "their items stay undecided. Mandu must replace each with a valid record of the same decision" (report.py:453-456).
+    - The run report says "`X`, which stays undecided until then" (report.py:249-250).
+    - The queue.json written by the same run lists X as closed.
+    - mandu-exchange.md:122 and 146-153 allow a rewrite only for an item still open, and class a decision on an item no longer open as report-once.
+    
+    If Mandu follows the doc, it does not rewrite the record. The next run sees X superseded, finds the fingerprint already in `reported` (cycle.py:216), and says nothing. The Founder was told the decision would be chased, and it silently drops.
+    
+    Fix, aligned with the user's R13-1 rule (report-once for superseded or withdrawn items): re-derive `open_item` against the ledger after `take_incoming` and before `problems_notice` and `render_report`. Clear it for a record whose item is no longer OPEN, so the record lands in the report-once "others" section with accurate text.
+    
+    Sibling site: the `could_not_use` counts in the Mandu decisions source line (cycle.py:263-265) are computed before `take_incoming` and need the same re-derivation.
+    
+    Add a test in which the agent supersedes the item in the same run that first finds the malformed record.
+
+## round 15 (fix)
+- id: review-4
+  severity: info
+  file: src/gr0wthlab/state.py:275
+  action: no-op
+  description: |
+    Intent conformance note, no action. The intent asks for the run-state record "inside the agent's writable areas", but `state_path` now puts it in `ledger/run-reports/state/`, which the agent can only read. The captain's C1 decision (2026-10-09) explicitly listed "the run state" among the launcher records to move out of workspace/, so this departure is authorized and already decided.
+- id: R15-1
+  severity: warning
+  file: src/gr0wthlab/package.py:129
+  action: auto-fix
+  description: |
+    Round 14 (fc977d6) fixed the unreadable-folder class only for workspace `incoming` (R12-1). The Mandu-side readers were left behind, and there an unreadable folder fails the whole run instead of only its source.
+    
+    This contradicts the PRD criterion this change flipped to [x] (prd-marketing-engineer-v1_261008.md:170): "A source that is missing or unreadable is named in the run report and blocks only the work that depends on it". It also hits the US-ME04 Failure Indicator, "a missing source fails the whole run".
+    
+    Verified on /usr/bin/python3:
+    - With a package folder at mode 0o600 (listable, not searchable), `package.take` raises PermissionError. This happens both for a directory source (`dir/`) and for a single-file source inside it (`dir/a.md`), because `path.exists()` in `read_file` raises EACCES instead of returning False.
+    - With `decisions/` at mode 0o300, `os.listdir` in `read_records` raises PermissionError.
+    
+    Neither `snapshot()` (cycle.py:487) nor `take_decisions` (cycle.py:496) catches OSError. `run()` (cycle.py:408) turns the error into EXIT_STOPPED with only a note in `ledger/notes/`. No brief is written, the agent never starts, and neither queue.json, the notice, nor the run report is written. Every later run stops the same way, so the note is never shown, and Mandu only sees `next_run` pass.
+    
+    Sites where the same invariant fails:
+    - package.py:129 and 132: `path.exists()` / `path.is_file()` in `read_file`, when the file's folder is unsearchable.
+    - package.py:164-165: `root.is_dir()` / `root.exists()` for a directory source whose parent is unsearchable.
+    - cycle.py:76: `os.listdir` in `read_records`, for an unreadable `decisions/` or `sittings/`.
+    - cycle.py:80: `path.is_file()` on a record entry that links into an unsearchable folder.
+    - cycle.py:183: `folder.is_dir()`, when a parent of the exchange folder is unsearchable.
+    
+    The file-level read failures are already handled (`fingerprint` at package.py:135, `read_bytes` at cycle.py:84-86). Only these stat and listing calls escape.
+    
+    Remedy: catch OSError where each source is read.
+    - In `package.read_file` and `package.take`, set `result.reason` to the error's strerror, so the file or source fails on its own.
+    - In `take_decisions`, treat an exchange, `decisions/`, or `sittings/` folder that cannot be listed as a FAILED source line with the reason. Leave `review_state.reported` unchanged, as the missing-folder branch now does.
+    - Add cycle tests with a 0o600 package folder and a 0o300 `decisions/` folder. Assert that the run exits 0, the source shows failed with "Permission denied", dependent outputs are incomplete, and a notice is queued.
+
+## round 16 (fix)
+- id: review-4
+  severity: info
+  file: src/gr0wthlab/state.py:275
+  action: no-op
+  description: |
+    Intent conformance note, no action. The intent asks for the run-state record "inside the agent's writable areas", but `state_path` now puts it in `ledger/run-reports/state/`, which the agent can only read. The captain's C1 decision (2026-10-09) explicitly listed "the run state" among the launcher records to move out of workspace/, so this departure is authorized and already decided.
+- id: R16-1
+  severity: warning
+  file: src/gr0wthlab/cycle.py:517
+  action: auto-fix
+  description: |
+    When `queue.json` cannot be read, the run report wrongly says that every valid Mandu decision record names no queued item, and it marks the decisions output complete.
+    
+    How it happens:
+    - When `Ledger.load` raises `QueueError`, `locked_run` swaps in an empty `Ledger()` (cycle.py:514). It still calls `take_decisions` with that empty ledger (cycle.py:517).
+    - `Ledger.take_decisions` then marks every decision Mandu holds as `unknown-item`.
+    - cycle.py:213-216 turns each one into an `Unusable` record with "no queued item has this identifier".
+    
+    Concrete case: `queue.json` states an exchange version newer than the running code, for example after a code rollback, or it fails to parse. Mandu holds three valid decisions. The report then shows:
+    - "Could not use `decisions/X.json`: no queued item has this identifier" three times.
+    - The `Mandu decisions` source line as `read` with "3 records, 0 new since the previous run, 3 could not be used".
+    - "Founder decisions taken in | complete". `outputs()` (cycle.py:373) adds no gap for `ledger_ok`.
+    
+    The records are valid; no decision was matched at all. This conflicts with US-ME17's honest reporting and makes the Founder think Mandu wrote bad records.
+    
+    Sibling in the same path: if the exchange folder is missing, `anything_queued` is False, so the line reads "skipped: no Review Queue item is waiting for a decision yet" (cycle.py:195-200). That is unknowable when the ledger was not read.
+    
+    The state is not saved in this path (`save_state` is gated on `ledger_ok`), so only this run's report is wrong.
+    
+    Fix: when `ledger_ok` is False, do not match decisions against the empty ledger. Record `Mandu decisions` as skipped, giving the reason that the Review Queue could not be read so no decision could be matched. Add a gap for the decisions output (cycle.py:373), as the review-queue row already has. Sittings can still be taken in.
+- id: R16-2
+  severity: info
+  file: src/gr0wthlab/areas.py:90
+  action: auto-fix
+  description: |
+    Round 14 (fc977d6) fixed R12-1 by giving the `Areas.files` walk an `onerror`, but it left this sibling behind. A folder in `incoming/` that the agent leaves readable but not searchable still stops the whole run.
+    
+    Inside the walk, `Path(root, name).is_symlink()` runs outside any try. On `/usr/bin/python3` 3.9, `is_symlink` raises PermissionError for EACCES; this was checked by hand with a 0o600 `incoming/sub` that holds `inner/`.
+    
+    Sequence:
+    1. The agent writes `incoming/sub/inner/x.md` and chmods `incoming/sub` (or `incoming` itself, when it holds a subfolder) to 0o600.
+    2. `os.walk` lists the folder, because scandir needs only read permission, and puts `inner` in `subdirs`.
+    3. The `lstat` behind `is_symlink` raises out of the generator, through `take_incoming` (queue.py:169) and `locked_run`.
+    4. `run()` returns EXIT_STOPPED and leaves only a ledger note: no queue.json, notice, or run report.
+    
+    The reclaim machinery was dropped in 7c30c44, so nothing repairs the folder, and every later run whose agent leaves it stops the same way.
+    
+    This contradicts the R12-1 goal the user chose to fix: nothing in `incoming/` is skipped silently, and an unreadable folder is reported, not fatal.
+    
+    Fix: catch OSError around the `is_symlink` check. Pass the error to the existing `unreadable` callback and drop that name from `subdirs`, so it is reported like an unlistable folder. Other `os.walk` / stat calls in areas.py (`remove_empty_folders` at :111/:115, `remove` at :101, `ensure_folder` at :67, `real_folder` at :52) already catch OSError.
+
+## round 17 (fix)
+- id: review-4
+  severity: info
+  file: src/gr0wthlab/state.py:275
+  action: no-op
+  description: |
+    Intent conformance note, no action. The intent asks for the run-state record "inside the agent's writable areas", but `state_path` now puts it in `ledger/run-reports/state/`, which the agent can only read. The captain's C1 decision (2026-10-09) explicitly listed "the run state" among the launcher records to move out of workspace/, so this departure is authorized and already decided.
+- id: R17-1
+  severity: info
+  file: src/gr0wthlab/records.py:254
+  action: ask-user
+  description: |
+    Round 16 (6a1bad4) closed the unreadable-file case in the records step but left two siblings, so an unreadable entry the agent leaves in workspace/ is still either unreported or stalls records and code updates under a misleading label. The user's R16 instruction asked that "an unreadable entry anywhere is reported against its own source and never stops the run". All behavior below was confirmed with git 2.50.1 in a scratch repo.
+    
+    (1) An unreadable folder is skipped silently (records.py:254-260). With `workspace/drafts/sub` at mode 0, `git add --all --ignore-errors` only prints "warning: could not open directory" and exits 0. The `unread` listing runs only when the exit code is non-zero, and `ls-files --others` cannot see inside that folder either. So nothing in it is committed, and nothing is added to `excluded`.
+    
+    (2) An unreadable tracked file that the agent modified stalls every replay, which is reported as a conflict.
+    - Example: the agent edits `workspace/instructions/package-review.md` and leaves it at mode 0.
+    - `save_commit` now excludes the file instead of dying, so it stays as an unstaged change.
+    - `git rebase` then refuses with "cannot rebase: You have unstaged changes" (verified).
+    - `replay` (records.py:210-216) returns False.
+    - Sequence: a PR merges while a run is going, so that run's push fails and its replay fails at records.py:315-316. Every later `prepare` has ahead>0 and behind>0, and reports CONFLICT "unpushed records commits conflict with origin/main; ran the current code" (records.py:193-195). Every later `save` fails the same way.
+    - Result: reviewed code never reaches the production clone, records never reach GitHub, and the run report blames a conflict until someone fixes the file by hand.
+    - Before this round the same agent action made `prepare` refuse every run. This round turned that into a quieter, longer-lasting stall that only appears after a push fails.
+    
+    Remedy:
+    - Mechanical part: report unreadable folders, for example from an `os.walk(onerror=...)` over workspace/ before `git add`. Also put rebase's real stderr into the replay-failure detail instead of "conflict".
+    - Ending the stall needs a product decision: the records step could restore an unreadable tracked workspace file from HEAD (as it already does for README.md), which discards the agent's unreadable edit, or it could keep the file and accept the stall. That choice, not the defect, is why this is ask-user.
+
+## round 18 (fix)
+- id: review-4
+  severity: info
+  file: src/gr0wthlab/state.py:275
+  action: no-op
+  description: |
+    Intent conformance note, no action. The intent asks for the run-state record "inside the agent's writable areas", but `state_path` now puts it in `ledger/run-reports/state/`, which the agent can only read. The captain's C1 decision (2026-10-09) explicitly listed "the run state" among the launcher records to move out of workspace/, so this departure is authorized and already decided.
+- id: R17-1
+  severity: info
+  file: src/gr0wthlab/records.py:254
+  action: ask-user
+  description: |
+    Round 16 (6a1bad4) closed the unreadable-file case in the records step but left two siblings, so an unreadable entry the agent leaves in workspace/ is still either unreported or stalls records and code updates under a misleading label. The user's R16 instruction asked that "an unreadable entry anywhere is reported against its own source and never stops the run". All behavior below was confirmed with git 2.50.1 in a scratch repo.
+    
+    (1) An unreadable folder is skipped silently (records.py:254-260). With `workspace/drafts/sub` at mode 0, `git add --all --ignore-errors` only prints "warning: could not open directory" and exits 0. The `unread` listing runs only when the exit code is non-zero, and `ls-files --others` cannot see inside that folder either. So nothing in it is committed, and nothing is added to `excluded`.
+    
+    (2) An unreadable tracked file that the agent modified stalls every replay, which is reported as a conflict.
+    - Example: the agent edits `workspace/instructions/package-review.md` and leaves it at mode 0.
+    - `save_commit` now excludes the file instead of dying, so it stays as an unstaged change.
+    - `git rebase` then refuses with "cannot rebase: You have unstaged changes" (verified).
+    - `replay` (records.py:210-216) returns False.
+    - Sequence: a PR merges while a run is going, so that run's push fails and its replay fails at records.py:315-316. Every later `prepare` has ahead>0 and behind>0, and reports CONFLICT "unpushed records commits conflict with origin/main; ran the current code" (records.py:193-195). Every later `save` fails the same way.
+    - Result: reviewed code never reaches the production clone, records never reach GitHub, and the run report blames a conflict until someone fixes the file by hand.
+    - Before this round the same agent action made `prepare` refuse every run. This round turned that into a quieter, longer-lasting stall that only appears after a push fails.
+    
+    Remedy:
+    - Mechanical part: report unreadable folders, for example from an `os.walk(onerror=...)` over workspace/ before `git add`. Also put rebase's real stderr into the replay-failure detail instead of "conflict".
+    - Ending the stall needs a product decision: the records step could restore an unreadable tracked workspace file from HEAD (as it already does for README.md), which discards the agent's unreadable edit, or it could keep the file and accept the stall. That choice, not the defect, is why this is ask-user.
+- id: R18-1
+  severity: warning
+  file: src/gr0wthlab/records.py:258
+  action: ask-user
+  description: |
+    Round 17 (492bc3c) left a sibling behind. If the agent makes a folder that holds committed files unreadable, the run calls it "left uncommitted", and the pre-run sync can still refuse every later run.
+    
+    `set_aside_unreadable` only sets aside unreadable tracked *files*. `git ls-files` lists only files, so an unreadable *folder* is never in `tracked` and always gets "could not be read, so it was left uncommitted".
+    
+    All six areas hold a tracked README.md, and `workspace/instructions` also holds `package-review.md`.
+    
+    Sequence (verified with git in a scratch repo):
+    1. The agent runs `chmod 000 workspace/instructions`, its own area.
+    2. The run reports "`workspace/instructions` could not be read, so it was left uncommitted" and leaves the folder as it is.
+    3. A reviewed PR changes `workspace/instructions/package-review.md`.
+    4. Next `prepare` with nothing unpushed (ahead==0): `git merge --ff-only` fails with "Your local changes to the following files would be overwritten by merge".
+    5. That raises GitError and returns `Sync(REFUSED, ok_to_run=False)`. cycle.py:493-495 then returns EXIT_RECORDS with no run report, no notice, and no note for the next report. Every scheduled run after that is refused the same way.
+    6. With unpushed records commits (ahead>0), `replay` fails instead ("could not detach HEAD"), giving NOT_REPLAYED on every run, so reviewed code never reaches the clone.
+    
+    A README PR to any other area triggers the same thing.
+    
+    Sibling: `probe.permitted` (probe.py:117) calls `os.listdir` on each area. In `boundary-check` it raises PermissionError on an area left unlistable.
+    
+    The R16/R17 instruction ("never stops the run"; "records and code-update steps never stall") is still unmet for this case. The fix needs a decision, not just code:
+    - Round 17's rename does not work for folders. macOS refuses to rename a mode-000 folder to another parent (EACCES, verified with /usr/bin/python3 3.9.6).
+    - Option A: restore the owner's permission bits on an unreadable folder that holds committed files, then apply the file set-aside. This is close to the reclaim machinery dropped in 7c30c44.
+    - Option B: accept the stall, and report the folder accurately as holding committed files that will block a code update.
+- id: R18-2
+  severity: warning
+  file: src/gr0wthlab/probe.py:147
+  action: auto-fix
+  description: |
+    `boundary-check` crashes on the production clone once a run has left an unreadable file there.
+    
+    `probe.snapshot` hashes every changed or untracked file that `git status` lists with `target.read_bytes()`, outside any try. Rounds 16 and 17 now leave such files on purpose:
+    - Unreadable untracked workspace files are "left uncommitted" (records.py:258-259).
+    - Round 17 (492bc3c) moves unreadable committed files to `ledger/review-queue/set-aside/<run>/workspace--...`. There they stay untracked and mode 000 for good: git can never add them, and the agent cannot write in ledger/.
+    
+    Sequence:
+    1. A weekly run sets aside `workspace/instructions/package-review.md`, which the agent left unreadable.
+    2. Later a launcher change lands. AGENTS.md and docs/operations.md:80 require `cd ~/gr0wthlab && src/bin/gr0wthlab boundary-check`.
+    3. `snapshots()` calls `read_bytes()` on `?? ledger/review-queue/set-aside/.../workspace--instructions--guide.md`, which raises PermissionError.
+    4. cli.py catches only ConfigError and ScheduleError, so the command ends in a traceback.
+    5. The required G8 check cannot run until someone finds and deletes the file by hand.
+    
+    This is the open-call pattern the R16 instruction asked to sweep ("every remaining ... open call on a path the agent ... controls"); both rounds left it.
+    
+    Fix: catch OSError around the read and record a fixed marker such as `unreadable` as the digest. The before/after comparison still sees status changes, and the check runs.
+
+## round 19 (fix)
+- id: review-4
+  severity: info
+  file: src/gr0wthlab/state.py:275
+  action: no-op
+  description: |
+    Intent conformance note, no action. The intent asks for the run-state record "inside the agent's writable areas", but `state_path` now puts it in `ledger/run-reports/state/`, which the agent can only read. The captain's C1 decision (2026-10-09) explicitly listed "the run state" among the launcher records to move out of workspace/, so this departure is authorized and already decided.
+- id: R18-2
+  severity: warning
+  file: src/gr0wthlab/probe.py:147
+  action: auto-fix
+  description: |
+    `boundary-check` crashes on the production clone once a run has left an unreadable file there.
+    
+    `probe.snapshot` hashes every changed or untracked file that `git status` lists with `target.read_bytes()`, outside any try. Rounds 16 and 17 now leave such files on purpose:
+    - Unreadable untracked workspace files are "left uncommitted" (records.py:258-259).
+    - Round 17 (492bc3c) moves unreadable committed files to `ledger/review-queue/set-aside/<run>/workspace--...`. There they stay untracked and mode 000 for good: git can never add them, and the agent cannot write in ledger/.
+    
+    Sequence:
+    1. A weekly run sets aside `workspace/instructions/package-review.md`, which the agent left unreadable.
+    2. Later a launcher change lands. AGENTS.md and docs/operations.md:80 require `cd ~/gr0wthlab && src/bin/gr0wthlab boundary-check`.
+    3. `snapshots()` calls `read_bytes()` on `?? ledger/review-queue/set-aside/.../workspace--instructions--guide.md`, which raises PermissionError.
+    4. cli.py catches only ConfigError and ScheduleError, so the command ends in a traceback.
+    5. The required G8 check cannot run until someone finds and deletes the file by hand.
+    
+    This is the open-call pattern the R16 instruction asked to sweep ("every remaining ... open call on a path the agent ... controls"); both rounds left it.
+    
+    Fix: catch OSError around the read and record a fixed marker such as `unreadable` as the digest. The before/after comparison still sees status changes, and the check runs.
+
+## round 20 (fix)
+- id: review-4
+  severity: info
+  file: src/gr0wthlab/state.py:275
+  action: no-op
+  description: |
+    Intent conformance note, no action. The intent asks for the run-state record "inside the agent's writable areas", but `state_path` now puts it in `ledger/run-reports/state/`, which the agent can only read. The captain's C1 decision (2026-10-09) explicitly listed "the run state" among the launcher records to move out of workspace/, so this departure is authorized and already decided.

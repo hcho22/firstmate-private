@@ -1,0 +1,3 @@
+working: implementing hands-free sessions
+working: validating through no-mistakes
+needs-decision [at=1793745624] [key=nm-01M6FTVN7JTNX6A4WAFRJ616Y7-review]: fix-round cap rounds=3 findings=trainer-choice-tap-after-start,advanced-start-seed-clears-new-move-in-one-session,ramp-docs-left-behind-round3 file=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.L7ZJIY/data/RepToday/reptoday-hands-free-sessions/nm-01M6FTVN7JTNX6A4WAFRJ616Y7-review-rounds.txt

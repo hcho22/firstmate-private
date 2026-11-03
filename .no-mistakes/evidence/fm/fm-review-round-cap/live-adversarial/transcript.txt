@@ -1,0 +1,68 @@
+# a copy where no-mistakes is not set up (this gate worktree, detached HEAD)
+$ (cd /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6HR18JABP7EHA7FYRXQ37BB && fm-nm-rounds.sh check --step review)
+step: review
+cap: 3
+verdict: unknown
+reason: no-mistakes axi status failed
+[exit 1]
+
+# a real registered repo whose real run never ran the review step (review skipped)
+$ (cd /Users/hcho/Developer/CompeteIntel && fm-nm-rounds.sh check --step review)
+run: 01KTJDB69GGXR9RF8WV66RDV2N
+step: review
+cap: 3
+verdict: unknown
+reason: run 01KTJDB69GGXR9RF8WV66RDV2N has no recorded round of step review
+[exit 1]
+
+# same run, a step that did run but took no fix round
+$ (cd /Users/hcho/Developer/CompeteIntel && fm-nm-rounds.sh check --step rebase)
+run: 01KTJDB69GGXR9RF8WV66RDV2N
+step: rebase
+fix_rounds: 0
+cap: 3
+verdict: under-cap
+findings: none
+[exit 0]
+
+# bad usage
+$ (cd /tmp && fm-nm-rounds.sh check)
+fm-nm-rounds: --step must name a pipeline step
+[exit 2]
+
+$ (cd /tmp && fm-nm-rounds.sh check --step review;rm)
+fm-nm-rounds: --step must name a pipeline step
+[exit 2]
+
+$ (cd /tmp && fm-nm-rounds.sh check --step review --cap 0)
+fm-nm-rounds: --cap must be a positive integer
+[exit 2]
+
+$ (cd /tmp && fm-nm-rounds.sh check --step review --cap 03)
+fm-nm-rounds: --cap must be a positive integer
+[exit 2]
+
+$ (cd /tmp && fm-nm-rounds.sh check --step review --cap x)
+fm-nm-rounds: --cap must be a positive integer
+[exit 2]
+
+$ (cd /tmp && fm-nm-rounds.sh check --step review --out-dir relative/dir)
+fm-nm-rounds: --out-dir must be an absolute path
+[exit 2]
+
+$ (cd /tmp && fm-nm-rounds.sh check --step review --out-dir /nonexistent-dir-xyz)
+fm-nm-rounds: --out-dir /nonexistent-dir-xyz is not a directory
+[exit 2]
+
+$ (cd /tmp && fm-nm-rounds.sh check --step review --worktree /tmp)
+fm-nm-rounds: unknown check argument: --worktree
+[exit 2]
+
+$ (cd /tmp && fm-nm-rounds.sh report --project x)
+fm-nm-rounds: unknown report argument: --project
+[exit 2]
+
+$ (cd /tmp && fm-nm-rounds.sh record)
+fm-nm-rounds: record takes one task id
+[exit 2]
+

@@ -1,0 +1,60 @@
+run: 01M6GNQR2MFM9DGX71GGBS1DC0
+step: review
+fix_rounds: 3
+
+## round 1 (initial)
+- id: explainer-done-copy-contradicts-rest-through
+  severity: warning
+  file: ios/RepToday/RepToday/Views/ActiveSession/ContinuousCircuitExplainerView.swift:44
+  action: ask-user
+  description: |
+    The captain's decision says what to do with the spare seconds of a stretched strength set: "D. Rest. Finish the reps and recover until the clock ends", so that "a session still ends on the length the user picked". The one-time explainer still says the opposite: "Done jumps you ahead - Finished early? Tap **Done** to move straight to what's next. You set the pace." ADR-0010 admits the work window has no on-screen cue for the spare seconds, so this card is the only guidance a user gets. README.md:69 says the same thing: "A prominent 'Done' ends the window the moment you finish your reps". Concrete case: a user with a lower-back flag picks 60 minutes. The fit stretches each rep set by about a minute (ADR-0010 consequence). Following the card, they tap Done after each set's reps and the session ends far short of 60 minutes, without failing in any visible way. Fixing this means changing user-facing copy, which is a product call. Option 1: reword the explainer point and the README line to say the countdown includes rest after the reps and Done is for moving on early. Option 2: accept the current wording.
+- id: explainer-claimed-before-trainer-choice
+  severity: info
+  file: ios/RepToday/RepToday/Views/ActiveSession/ActiveSessionView.swift:315
+  action: auto-fix
+  description: |
+    The explainer's show-once flag is now set in `onAppear` (`startsAfterExplainer = claimExplainer()`, which calls `markContinuousCircuitExplainerSeen()`). That happens before `handleArrival()` shows the Trainer choice. On the base branch the flag was set only when the explainer was actually shown, after the choice. Concrete path: a user whose sex answer was "other" opens their first session and gets the Trainer choice. The app is killed (force-quit or OS) before they choose. Next time, the choice is asked again, but the explainer flag is already set, so the explainer never appears; `testAnUnresolvedTrainerHoldsTheStartOnALaterArrival` notes the explainer is already claimed in this case. Fix: set `startsAfterExplainer` from `appState?.shouldShowContinuousCircuitExplainer`, and call `markContinuousCircuitExplainerSeen()` inside `presentExplainer()`. The start is still held, and a force-quit while the explainer itself is up still cannot bring it back.
+- id: stale-manual-hold-doc-comments
+  severity: info
+  file: ios/RepToday/RepToday/ViewModels/ActiveSessionViewModel.swift:371
+  action: auto-fix
+  description: |
+    Two comments still describe the old manual hold flow that ADR-0010 removed. (1) `init(state:)`, line 371: "a resumed session always comes back idle showing \"Start hold\" and the leg begins again on a deliberate tap". In fact `start()` now auto-starts the owed side (`autoStartHoldIfNeeded(suppressGoCue:)`). (2) `completeHoldIfElapsed`, line 1109: "on an earlier side it parks on the next side, where the tap to start it is the user's own time to change position". In fact every per-side hold now opens the 5-second Switch sides beat and starts side 2 on its own. These are hold-safety comments that a future editor would rely on, so correct them to match current behaviour.
+
+## round 2 (fix)
+- id: stale-manual-hold-doc-comments
+  severity: info
+  file: ios/RepToday/RepToday/ViewModels/ActiveSessionViewModel.swift:371
+  action: auto-fix
+  description: |
+    Two comments still describe the old manual hold flow that ADR-0010 removed. (1) `init(state:)`, line 371: "a resumed session always comes back idle showing \"Start hold\" and the leg begins again on a deliberate tap". In fact `start()` now auto-starts the owed side (`autoStartHoldIfNeeded(suppressGoCue:)`). (2) `completeHoldIfElapsed`, line 1109: "on an earlier side it parks on the next side, where the tap to start it is the user's own time to change position". In fact every per-side hold now opens the 5-second Switch sides beat and starts side 2 on its own. These are hold-safety comments that a future editor would rely on, so correct them to match current behaviour.
+- id: stale-manual-hold-doc-comments-siblings
+  severity: info
+  file: ios/RepToday/RepToday/ViewModels/ActiveSessionViewModel.swift:1241
+  action: auto-fix
+  description: |
+    Round 1 of this run fixed `stale-manual-hold-doc-comments` (commit 74c5411) by correcting only the two comments that finding named. The same stale manual-hold wording survives in other places, and each now contradicts ADR-0010's "no tap after start". (1) ActiveSessionViewModel.swift:1241-1242: `startWorkWindow` doc says "Unlike the US-O03 hold - which waits for a deliberate Start-hold tap so the user gets into position". Every hold now auto-starts through `autoStartHoldIfNeeded`. (2) Utilities/SessionCuePlayer.swift:15-17: the `.go` vocabulary doc says it fires "when a natural rest reveals a manual strength/primal training hold that awaits its Start-hold tap". That fire site (the `currentStepIsManualTrainingHold` branch in `completeRestIfElapsed`) was deleted. `.go` now fires from `autoStartHoldIfNeeded` on a training hold's first leg (ActiveSessionViewModel.swift:1080). (3) Models/ActiveSessionState.swift:46-48: the `Hold` doc says "a resumed session restarts the leg on a deliberate tap", but `start()` now auto-starts the owed side. (4) Views/ActiveSession/ActiveSessionView.swift:535-540: the `controls` doc says "a rep-based exercise keeps 'Complete set'" and "a timed one offers 'Start hold' instead". In fact every rep-based move, bookends included, runs on the work window with Done as its primary control (`currentStepAutoAdvances`), and a hold starts itself. The fix is comment-only: rewrite these four to match current behaviour, as round 1 did for its two.
+
+## round 3 (fix)
+- id: stale-manual-hold-doc-comments
+  severity: info
+  file: ios/RepToday/RepToday/ViewModels/ActiveSessionViewModel.swift:371
+  action: auto-fix
+  description: |
+    Two comments still describe the old manual hold flow that ADR-0010 removed. (1) `init(state:)`, line 371: "a resumed session always comes back idle showing \"Start hold\" and the leg begins again on a deliberate tap". In fact `start()` now auto-starts the owed side (`autoStartHoldIfNeeded(suppressGoCue:)`). (2) `completeHoldIfElapsed`, line 1109: "on an earlier side it parks on the next side, where the tap to start it is the user's own time to change position". In fact every per-side hold now opens the 5-second Switch sides beat and starts side 2 on its own. These are hold-safety comments that a future editor would rely on, so correct them to match current behaviour.
+- id: stale-manual-hold-doc-comments-siblings
+  severity: info
+  file: ios/RepToday/RepToday/ViewModels/ActiveSessionViewModel.swift:1241
+  action: auto-fix
+  description: |
+    Round 1 of this run fixed `stale-manual-hold-doc-comments` (commit 74c5411) by correcting only the two comments that finding named. The same stale manual-hold wording survives in other places, and each now contradicts ADR-0010's "no tap after start". (1) ActiveSessionViewModel.swift:1241-1242: `startWorkWindow` doc says "Unlike the US-O03 hold - which waits for a deliberate Start-hold tap so the user gets into position". Every hold now auto-starts through `autoStartHoldIfNeeded`. (2) Utilities/SessionCuePlayer.swift:15-17: the `.go` vocabulary doc says it fires "when a natural rest reveals a manual strength/primal training hold that awaits its Start-hold tap". That fire site (the `currentStepIsManualTrainingHold` branch in `completeRestIfElapsed`) was deleted. `.go` now fires from `autoStartHoldIfNeeded` on a training hold's first leg (ActiveSessionViewModel.swift:1080). (3) Models/ActiveSessionState.swift:46-48: the `Hold` doc says "a resumed session restarts the leg on a deliberate tap", but `start()` now auto-starts the owed side. (4) Views/ActiveSession/ActiveSessionView.swift:535-540: the `controls` doc says "a rep-based exercise keeps 'Complete set'" and "a timed one offers 'Start hold' instead". In fact every rep-based move, bookends included, runs on the work window with Done as its primary control (`currentStepAutoAdvances`), and a hold starts itself. The fix is comment-only: rewrite these four to match current behaviour, as round 1 did for its two.
+- id: stale-longer-round-rest-and-manual-hold-wording
+  severity: info
+  file: ios/RepToday/RepToday/ViewModels/ActiveSessionViewModel.swift:1504
+  action: auto-fix
+  description: |
+    Rounds 1 and 2 of this run fixed some stale wording (stale-manual-hold-doc-comments and its -siblings follow-up) but left these places behind. Under ADR-0010 the between-station transition and the between-round rest are both 15 seconds (`transitionSeconds` = `roundRestSeconds` = `maxRestSeconds`), and every hold starts on its own, but these places still describe the old behaviour: (1) ActiveSessionViewModel.swift:1504, "Round boundary: the longer between-round rest". (2) ActiveSessionViewModel.swift:189, the `restCue` doc, "a longer between-round rest (`.roundRest`)". (3) README.md:71, user-facing: "a short one between movements inside a round, a longer one between rounds". (4) ActiveSessionViewModelTests.swift:438 and :493, "the longer between-round rest". (5) ActiveSessionViewModelTests.swift:1893 and :1962 say a resumed training hold "parks for a deliberate Start-hold tap", but `start()` now starts the owed side on its own (`autoStartHoldIfNeeded(suppressGoCue:)`). Remedy: rewrite only these comments and the README sentence to match current behaviour. Both gaps are short (15 seconds at most) and told apart by their cue, not their length; a resumed hold starts fresh on the owed side when the player starts. No behaviour change.
+
+## round 4 (fix)
+no findings
