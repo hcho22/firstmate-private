@@ -111,6 +111,7 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-crew-state.sh`       | Print one deterministic current-state line for a crew                                |
 | `fm-nm-run-lib.sh`       | Single owner of shared no-mistakes run-attribution primitives and rules             |
 | `fm-pipeline-spend.sh`   | Attribute a task's no-mistakes pipeline spend to the task and keep it in the private spend ledger |
+| `fm-nm-rounds.sh`        | Count no-mistakes fix rounds per step, hold a driving worker to the fix-round cap, and keep and report each task's rounds to pass |
 | `fm-tangle-lib.sh`       | Shared default-branch resolution and primary-checkout tangle classification (feature branch or registered nested worktree) |
 | `fm-timeout-lib.sh`      | Single owner of hard-bounded command execution and its fallback watchdog |
 | `fm-timing-lib.sh`       | Single owner of the deferred network stage's per-step elapsed-time records, inert unless a run asks for them |
@@ -153,11 +154,12 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-review-check.sh`    | Record a forge=external task's validated `review=` and `review_head=` without arming a merge watch ([design](external-review-forge.md)) |
 | `fm-external-review-lib.sh` | Shared readers for the forge=external review tool adapter, ready-URL pattern, backup remote, and remote URLs |
 | `fm-approved-head.sh`    | Record the PR head shown to the captain for a merge word, read the live head a board card shows without recording it, and refuse an attended merge whose live head adds anything beyond a clean catch-up with the base branch |
-| `fm-pr-merge.sh`         | Record PR metadata, merge a task's canonical full GitHub, GitLab, or Forgejo URL, refuse a Gerrit change because firstmate never submits one, then refuse an outcome it cannot prove landed or queued |
+| `fm-pr-merge.sh`         | Record PR metadata, merge a task's canonical full GitHub, GitLab, or Forgejo URL, refuse a Gerrit change because firstmate never submits one, then refuse an outcome it cannot prove landed or queued, and under `--low-risk` refuse any pull request outside its project's low-risk merge tier |
 | `fm-pr-state.sh`         | Read-only: print one line per GitHub pull-request blocker it can see, reporting on checks that have reported rather than verdicting merge-readiness |
 | `fm-pr-reviewers.sh`     | Read-only: suggest reviewers from GitHub's own author mapping of recent commits on a pull request's changed files, never requesting one |
 | `fm-merge-outcome-lib.sh` | Publish a confirmed merge's durable, role-routed supervision outcome                 |
 | `fm-merge-authority-lib.sh` | Resolve merge authority at the gate, persist it against the accepted canonical PR, and identity-check its later poll consumption |
+| `fm-merge-tier-lib.sh` | Read a project's low-risk merge tier from `config/merge-tiers` and judge each changed path against it and the built-in always-ask paths |
 | `fm-parent-channel-lib.sh` | Resolve a secondmate home's parent channel and append a captain-facing outcome line to it at most once |
 | [`fm-task-data-lib.sh`](../bin/fm-task-data-lib.sh) | Own where a task's private documents live: per-project folder placement, lookup, and the bounded legacy read |
 | [`fm-data-migrate.sh`](../bin/fm-data-migrate.sh) | Move a home's flat task folders into the per-project layout, rewriting backlog links; dry run by default, refuses while work is live or an interrupted cleanup awaits replay, `--revert` undoes it |

@@ -26,6 +26,7 @@ config/claude-account config/pi-account  optional per-home worker account pin fo
 config/secondmate-accounts/<id>/claude-account config/secondmate-accounts/<id>/pi-account  optional PRIMARY-home account pin for one local secondmate's own agent, in the worker account pin format; LOCAL, gitignored, not inherited; absent keeps the home-wide pin; see docs/configuration.md "Per-secondmate account pins"
 config/crew-dispatch.json  optional crewmate dispatch profiles; LOCAL, gitignored; firstmate-maintained but human-editable natural-language rules that choose a per-task harness/model/effort profile (section 4). Inherited by secondmate homes
 config/project-capacity  optional per-machine count of workers each named project admits at once, read from the root home by every local home; LOCAL, gitignored; see docs/configuration.md "Project capacity"
+config/merge-tiers  optional per-project low-risk merge tier naming the changed files under which bin/fm-pr-merge.sh --low-risk may merge a green pull request without the captain's word; set only on the captain's explicit instruction; LOCAL, gitignored, and not inherited; see docs/configuration.md "Low-risk merge tier"
 config/secondmate-harness  primary-local secondmate runtime pins; see docs/configuration.md "Choose the secondmate harness" for schema, precedence, and inheritance
 config/lane-capacity  optional per-machine count of ship and scout lanes this home should run at once, read by bin/fm-capacity.sh; LOCAL, gitignored, not inherited by secondmate homes; see docs/configuration.md "Lane capacity"
 config/backlog-backend  backlog backend override; LOCAL, gitignored; absent or "tasks-axi" = the configured tasks-axi backend, "manual" = force routine backlog updates to hand-editing; inherited by secondmate homes (section 10)
@@ -66,6 +67,7 @@ data/                personal fleet records; LOCAL, gitignored as a whole
   <Project>/<id>/brief.md   per-task crewmate brief, or per-secondmate charter brief when kind=secondmate; <Project> is the project's projects.md name (an unregistered repo uses its own name), _secondmates for charters, or _unassigned when there is no usable project name (docs/configuration.md "Per-project task data")
   <Project>/<id>/report.md  scout task deliverable, written by the crewmate; survives teardown
   pipeline-spend.jsonl  optional per-task no-mistakes pipeline spend, written only when config/pipeline-spend is present; bin/fm-pipeline-spend.sh owns the schema
+  pipeline-rounds.jsonl  per-task no-mistakes rounds to pass per step, written at every no-mistakes ship task's cleanup; bin/fm-nm-rounds.sh owns the schema
 projects/            cloned repos; gitignored; read-only except under hard rule 1's concrete captain-approved project operation exception
 state/               runtime records and signals; gitignored
   <id>.status        append-only wake events, not current-state truth; bin/fm-classify-lib.sh owns their syntax

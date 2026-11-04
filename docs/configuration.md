@@ -13,6 +13,7 @@ Start with the directory layout, then use the setting reference for the behavior
 | Backlog, preferences, and memory | [Backlog backend](#backlog-backend-taskstoml--configbacklog-backend), [captain preferences](#captain-preferences-datacaptainmd--datacaptain-sharedmd), [external memory tiers](#external-memory-tiers-memory-layering-section), and [startup memory budget](#startup-memory-budget-configstartup-memory-budget) |
 | Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), and [Calm preference](#calm-preference-configcalm) |
 | Persistent secondmates | [Secondmate routes](#secondmate-routes-datasecondmatesmd) |
+| Pull requests Firstmate may merge without asking | [Low-risk merge tier](#low-risk-merge-tier-configmerge-tiers) |
 | Per-run overrides and tuning | [Environment variables](#environment-variables) |
 
 ## FM_HOME
@@ -77,7 +78,7 @@ Each effective `FM_HOME` contains private operational directories.
 
 - Project and secondmate registries.
 - Captain preferences and optional shared captain preferences.
-- Learnings, backlog, per-project task folders holding briefs and scout reports, and the optional per-task no-mistakes pipeline-spend ledger.
+- Learnings, backlog, per-project task folders holding briefs and scout reports, the optional per-task no-mistakes pipeline-spend ledger, and the per-task no-mistakes rounds-to-pass ledger.
 - Explicitly installed content-addressed extension packages under `data/extensions/packages/`.
 
 `state/` holds runtime records:
@@ -106,7 +107,7 @@ The firstmate repo itself is an ordinary project and gets its folder the same wa
 Two reserved folders begin with an underscore, which no project name can, so they never collide with one:
 `_secondmates` holds persistent secondmate charter briefs, and `_unassigned` holds work created with no project or with a project name that cannot be a folder name.
 A project name that differs only in case from an existing folder adopts that folder's spelling, so a case-insensitive disk never holds two.
-The fleet-wide files stay at the `data/` root: the backlog and its archives, `memory-archive.md`, the dated Bearings `status-report-<YYYY-MM-DD>.md` reports, the pipeline-spend ledger `pipeline-spend.jsonl`, `projects.md`, `secondmates.md`, `captain.md`, `captain-shared.md`, `learnings.md`, and a secondmate home's `charter.md`, alongside the non-task folders `handoff/`, `extensions/`, and `remote-secondmates/`.
+The fleet-wide files stay at the `data/` root: the backlog and its archives, `memory-archive.md`, the dated Bearings `status-report-<YYYY-MM-DD>.md` reports, the pipeline-spend ledger `pipeline-spend.jsonl`, the rounds-to-pass ledger `pipeline-rounds.jsonl`, `projects.md`, `secondmates.md`, `captain.md`, `captain-shared.md`, `learnings.md`, and a secondmate home's `charter.md`, alongside the non-task folders `handoff/`, `extensions/`, and `remote-secondmates/`.
 Each home, including every secondmate home, keeps its own `data/` in this layout; nothing is shared across homes.
 
 `bin/fm-task-data-lib.sh` is the single owner of placement and lookup, and every script that builds a per-task data path goes through it.
@@ -663,7 +664,7 @@ The home cannot be derived from a task copy's `no-mistakes` remote, because ever
 The file's first line is the absolute path of an executable the site provides; Firstmate calls it with the task copy's path as its only argument and never interprets the layout itself.
 When the resolver exits successfully within 5 seconds and prints exactly one line naming an existing directory by absolute path, that directory is exported as `NM_HOME` for that one call.
 
-Only host-side reads use it: current-state reads, pipeline-spend recording, the custody check, teardown's parked-run lookup and `axi abort --run`, and the wedge detector's search for a working run's own copy, which read `axi status`, the `axi` overview, `axi logs`, `runs`, `daemon status`, the state database, and the home's `worktrees/` directory.
+Only host-side reads use it: current-state reads, pipeline-spend recording, fix-round counting and recording, the custody check, teardown's parked-run lookup and `axi abort --run`, and the wedge detector's search for a working run's own copy, which read `axi status`, the `axi` overview, `axi logs`, `runs`, `daemon status`, the state database, and the home's `worktrees/` directory.
 It never starts a daemon and never changes how runs are launched or driven, account routing, or no-mistakes' own `config.yaml`.
 An explicit non-empty `NM_HOME` always wins and the resolver is not called.
 With the file absent, a first line that is not an absolute executable path, or a resolver that fails, times out, or prints anything else, every read uses the ambient home exactly as without the file.
@@ -1322,6 +1323,64 @@ When every place is held, `bin/fm-spawn.sh` launches nothing, creates no record,
 A malformed or unreadable file refuses every fresh ship or scout spawn until it is fixed, rather than guessing the intended limit, and so does a local home's state directory or task record that cannot be read while counting a capped project's holders.
 Firstmate cannot see which part of a worker's life uses the resource, so the number bounds whole workers from launch to handoff, and the tightest resource every worker needs should decide it.
 [`bin/fm-project-capacity-lib.sh`](../bin/fm-project-capacity-lib.sh) owns the file format, what holds a place, and why concurrent spawns cannot both take the last one.
+
+## Low-risk merge tier (config/merge-tiers)
+
+The optional local, gitignored `config/merge-tiers` file names, per project, the changed files under which Firstmate may merge a green pull request without asking the captain.
+It is a standing merge posture between yolo off, where the captain approves every merge, and yolo on, where Firstmate merges any green, in-scope work; `AGENTS.md` section 7 owns that merge-authority contract.
+Without the file, or without a low-risk rule for a project, that project's merges wait for the captain exactly as before.
+Firstmate adds or changes a rule only on the captain's explicit instruction.
+Start a project narrow and widen its rules only as its merges under the tier prove safe.
+The example is this repository's own declaration, under which its tests merge on green, except the one test script the validation gate runs as its lint phase.
+
+```text
+# tests merge on green
+firstmate low-risk tests/**
+# Firstmate's own instruction surfaces always reach the captain
+firstmate always-ask bin/**
+firstmate always-ask skills/**
+firstmate always-ask docs/supervision-protocols/**
+firstmate always-ask docs/configuration.md
+# the validation gate runs this script as its lint phase
+firstmate always-ask tests/fm-pi-primary-types.test.sh
+```
+
+Each line holds the project's registered name, the kind `low-risk` or `always-ask`, and one path pattern.
+The pattern is the last field and the kind the one before it, so a project name may contain spaces while a pattern cannot.
+A pattern is anchored at the repository root: `*` and `?` stay within one path segment, and a whole `**` segment spans any number of segments.
+A merge under the tier runs only through `bin/fm-pr-merge.sh --low-risk`, which reads the pull request's changed files live from GitHub at the head it verified green.
+It merges only when every changed path, a renamed file's old path included, matches a low-risk rule and no always-ask rule.
+Agent instructions and settings, CI and forge configuration, and the validation gate's configuration always wait for the captain, and no project rule can make them low risk; [Built-in always-ask paths](#built-in-always-ask-paths) lists them.
+Keep each low-risk rule to a directory, such as `tests/**`, rather than a file kind across the tree, because a blanket rule such as `**/*.md` also reaches instruction files outside the built-in paths.
+A script the validation gate itself runs belongs with the gate's configuration rather than with the tests, even inside such a directory, because a change to it alters how the gate checks every later change.
+The built-in paths cannot know which scripts a project's gate runs, so list each as always-ask: this repository's `.no-mistakes.yaml` runs `tests/fm-pi-primary-types.test.sh` as its lint phase, so the example lists that script.
+A `docs/**` rule is not narrow in a project whose agents read its docs as instructions, as Firstmate does.
+A project's own instruction surfaces belong on its always-ask list, so that no later widening of its low-risk rules reaches them.
+In this repository they are `bin/`, whose scripts carry Firstmate's behavior; `skills/`, whose skill folders can hold references and scripts beside each built-in `SKILL.md`; `docs/supervision-protocols/`, which `bin/fm-supervision-instructions.sh` emits as Firstmate's session-start supervision block; and `docs/configuration.md`, whose contracts Firstmate follows.
+Every other doc `AGENTS.md` names as a contract owner, such as `docs/architecture.md`, stays outside every low-risk rule in the example and so waits for the captain; list it as always-ask before widening a rule to reach it.
+List every other path that must always reach the captain as `always-ask` too, such as release, payment, sign-in, or stored-data code, and scripts a CI pipeline runs as its own build, release, or deploy steps from elsewhere in the tree.
+A path outside the low-risk rules, an always-ask path, or a changed-file list GitHub cannot return in full refuses the merge, names its cause, such as the paths outside the tier, and leaves the merge to the captain.
+The tier reads changed files from GitHub only, so a GitLab or Forgejo project's merges keep waiting for the captain.
+A malformed line, an unknown kind, or an unsupported pattern spelling makes the whole file unreadable, and every low-risk merge in the home refuses, naming the line, until it is corrected.
+The file is local to the home that merges and is not inherited by secondmate homes, so a project routed to a secondmate is declared in that secondmate's home.
+[`bin/fm-merge-tier-lib.sh`](../bin/fm-merge-tier-lib.sh) owns the format, the pattern grammar, and the built-in always-ask paths, and [`bin/fm-pr-merge.sh`](../bin/fm-pr-merge.sh) owns the live changed-file read.
+
+### Built-in always-ask paths
+
+A path is built in when a tool reads it as instructions, settings, or a pipeline definition rather than as the project's product.
+A change there alters how agents, CI, or the validation gate treat every later change, so the agents and checks it steers must not be the ones to let it through.
+A path is built in when any of its segments is one of the directory names below, or its last segment is one of the file names below.
+Both match at any depth and in any letter case, because a case-insensitive filesystem loads a differently cased copy as the real one.
+
+| Kind | Directory names (everything inside) | File names |
+| --- | --- | --- |
+| Agent instructions and settings | `.agents`, `.claude`, `.codex`, `.cursor`, `.gemini`, `.greptile`, `.grok`, `.omp`, `.opencode`, `.pi` | `SKILL.md`, `AGENTS*.md`, `CLAUDE*.md`, `GEMINI.md`, `GROK*.md`, `.cursorrules`, `.mcp.json`, `opencode.json`, `opencode.jsonc` |
+| CI and forge configuration | `.github`, `.forgejo`, `.gitea`, `.gitlab`, `.circleci`, `.buildkite` | `.gitlab-ci.yml`, `.travis.yml`, `azure-pipelines.yml`, `Jenkinsfile*`, `*.Jenkinsfile`, `CODEOWNERS` |
+| Validation gate configuration | | `.no-mistakes.yaml` |
+
+The `*` in a file name stays within that name, so `AGENTS*.md` covers `AGENTS.override.md` and `docs/agents-guide.md` but not `docs/agents/guide.md`.
+The Jenkins names cover the pipeline files a job's script path commonly names, such as `Jenkinsfile_CNP`, `Jenkinsfile.release`, and `release.Jenkinsfile`.
+When a new agent tool, CI service, or gate appears, extend the set by adding its directory or file name to the matching list in `fm_merge_tier_verdict` in [`bin/fm-merge-tier-lib.sh`](../bin/fm-merge-tier-lib.sh) and a sample path to the built-in test in [`tests/fm-pr-merge.test.sh`](../tests/fm-pr-merge.test.sh).
 
 ## Crew dispatch profiles (config/crew-dispatch.json)
 

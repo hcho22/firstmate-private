@@ -29,7 +29,8 @@
 #
 # verify <task-id> <pr-url> <live-head> <base-branch>
 #   Called by bin/fm-pr-merge.sh on an attended merge, after its own live read
-#   and before the forge merge command; away-authority merges never call it.
+#   and before the forge merge command; away-authority and --low-risk merges
+#   never call it, because neither runs on a captain word.
 #   Exit 0 lets the merge proceed bound to the captain-approved head, exit 3
 #   lets it proceed bound to no head under the yolo allowance below, exit 1
 #   refuses with every reason on stderr, exit 2 is a usage error. A recorded

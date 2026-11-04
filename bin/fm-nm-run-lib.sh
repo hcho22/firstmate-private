@@ -753,3 +753,53 @@ fm_nm_run_worktree() {  # <run-id> [task-worktree]
   (cd "$match" 2>/dev/null && pwd -P)
   return 0
 }
+
+# The one attribution of a finished task's no-mistakes runs, shared by the
+# per-task pipeline records bin/fm-pipeline-spend.sh and bin/fm-nm-rounds.sh.
+# A task's runs are the runs no-mistakes recorded for the task copy's
+# repository and current branch since that branch was created:
+#   - repository: the `repo:` line `no-mistakes axi` prints from the task copy,
+#     which is the CLI's own resolution (a pooled worker copy resolves to the
+#     registered primary clone), matched exactly against repos.working_path;
+#   - branch: the task copy's current branch, the one bin/fm-crew-state.sh
+#     reads;
+#   - since: the oldest surviving reflog entry of that branch. spawn_gen cannot
+#     bound the task, because a relaunch mints a new one while the same branch
+#     keeps validating. Teardown deletes the branch, so a later task that
+#     reuses the id and branch name starts a fresh reflog and never inherits an
+#     earlier task's runs. With no reflog, every run on the branch counts and
+#     since is empty.
+# Two live tasks sharing one branch name in one repository would both count
+# its runs; each record lists run ids, so such an overlap stays visible.
+# Sets FM_NM_ATTR_BRANCH, FM_NM_ATTR_SINCE (epoch seconds), FM_NM_ATTR_REPO,
+# and FM_NM_ATTR_DB (fm_nm_state_db above), or sets FM_NM_ATTR_REASON to why
+# the runs cannot be attributed; the caller reads the database itself.
+# shellcheck disable=SC2034 # Output globals read by sourcing callers.
+fm_nm_task_run_attribution() {  # <worktree> <timeout_secs>
+  local wt=$1 timeout_secs=$2 overview first_line
+  FM_NM_ATTR_BRANCH='' FM_NM_ATTR_SINCE='' FM_NM_ATTR_REPO='' FM_NM_ATTR_DB='' FM_NM_ATTR_REASON=''
+  if [ -z "$wt" ] || [ ! -d "$wt" ]; then
+    FM_NM_ATTR_REASON="the task copy ${wt:-<unrecorded>} is gone"
+  elif ! FM_NM_ATTR_BRANCH=$(git -C "$wt" symbolic-ref --quiet --short HEAD 2>/dev/null) \
+      || [ -z "$FM_NM_ATTR_BRANCH" ]; then
+    FM_NM_ATTR_BRANCH=''
+    FM_NM_ATTR_REASON="the task copy is not on a branch"
+  elif ! command -v no-mistakes >/dev/null 2>&1; then
+    FM_NM_ATTR_REASON="no-mistakes is not installed"
+  else
+    # `--format=%gd --date=unix` prints <branch>@{<epoch>} newest first; the
+    # last line is the oldest surviving entry, normally the branch's creation.
+    FM_NM_ATTR_SINCE=$(git -C "$wt" reflog show --date=unix --format=%gd "refs/heads/$FM_NM_ATTR_BRANCH" -- 2>/dev/null \
+      | tail -1 | sed -n 's/.*@{\([0-9][0-9]*\)}$/\1/p') || FM_NM_ATTR_SINCE=
+    overview=$(fm_nm_run_checked "$wt" "$timeout_secs" axi) || true
+    FM_NM_ATTR_REPO=$(fm_nm_strip_quotes "$(printf '%s\n' "$overview" | sed -n 's/^repo:[[:space:]]*//p' | head -1)")
+    if [ -z "$FM_NM_ATTR_REPO" ]; then
+      FM_NM_ATTR_REASON="no-mistakes resolved no repository for the task copy"
+      first_line=$(printf '%s\n' "$overview" | sed -n '/^error:/{p;q;}')
+      [ -n "$first_line" ] || first_line=$(printf '%s\n' "$overview" | sed -n '/[^[:space:]]/{p;q;}')
+      [ -z "$first_line" ] || FM_NM_ATTR_REASON="$FM_NM_ATTR_REASON: $first_line"
+    else
+      FM_NM_ATTR_DB=$(fm_nm_state_db "$wt")
+    fi
+  fi
+}
