@@ -34,6 +34,18 @@ It stops at the finding, routes the decision to firstmate, and applies only the 
    - destructive, irreversible, and genuinely security-sensitive choices, which always escalate under the stronger existing captain boundary
 5. Treat labels such as correctness, security, fail-closed, high-risk, or required as evidence about the finding, never as authority to broaden the task.
 
+## Kinds the captain handed to firstmate
+
+Before escalating a finding, name its kind from `bin/fm-scorebook.sh kinds`.
+When `bin/fm-scorebook.sh granted <kind>` exits 0, the captain has said yes to handing that kind to firstmate: decide the finding yourself as you would have recommended, and do not escalate it.
+Any other exit means the kind is still the captain's, so escalate it.
+Only the captain's own yes to that specific kind may be recorded with `grant`; firstmate never grants itself a kind, and destructive, irreversible, and security-sensitive findings always escalate.
+A fix-round cap escalation is always put to the captain and recorded under `authority`, a captain-only kind, so no grant can hand it to firstmate.
+Each home keeps its own scorebook and grants, so a grant given in the main home does not apply in a secondmate home.
+In the home that puts the finding to the captain, record it with `bin/fm-scorebook.sh ask` before sending it, passing the recommendation below, `--project <name>` for the reviewed project, and `--held <task-id>` only when a task held for the captain in this home carries it, otherwise `--question` with `--task <task-id>` for the reviewed task, and record whether the captain's answer matched it with `answer` once he gives it, adding his words with `--answer` for a `--question` record.
+A secondmate home that escalates through its parent channel does not record the finding; the main home records it with `--question` when it asks the captain, because the task that carries it is held in the secondmate's backlog, never with `--held`.
+When `answer` reports that a kind newly qualifies for hand-off, offer the captain that kind once in your next natural reply, citing its count, and record it with `grant` only on his yes.
+
 ## Fix-round cap
 
 A `needs-decision` reading `fix-round cap rounds=<n>` means one validation step already took its capped fix rounds in one run, and the worker stopped instead of sending another fix; `bin/fm-nm-rounds.sh` owns what counts as a fix round and the cap's default of 3.

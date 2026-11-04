@@ -79,6 +79,8 @@ Each effective `FM_HOME` contains private operational directories.
 - Project and secondmate registries.
 - Captain preferences and optional shared captain preferences.
 - Learnings, backlog, per-project task folders holding briefs and scout reports, the optional per-task no-mistakes pipeline-spend ledger, and the per-task no-mistakes rounds-to-pass ledger.
+- The captain-question scorebook, which records each question this home puts to the captain and the kinds he handed to firstmate in this home (`bin/fm-scorebook.sh`).
+  A secondmate home that escalates through its parent channel records nothing there, because the main home records the question when it asks the captain, and a grant given in the main home does not apply in a secondmate home.
 - Explicitly installed content-addressed extension packages under `data/extensions/packages/`.
 
 `state/` holds runtime records:
@@ -107,7 +109,7 @@ The firstmate repo itself is an ordinary project and gets its folder the same wa
 Two reserved folders begin with an underscore, which no project name can, so they never collide with one:
 `_secondmates` holds persistent secondmate charter briefs, and `_unassigned` holds work created with no project or with a project name that cannot be a folder name.
 A project name that differs only in case from an existing folder adopts that folder's spelling, so a case-insensitive disk never holds two.
-The fleet-wide files stay at the `data/` root: the backlog and its archives, `memory-archive.md`, the dated Bearings `status-report-<YYYY-MM-DD>.md` reports, the pipeline-spend ledger `pipeline-spend.jsonl`, the rounds-to-pass ledger `pipeline-rounds.jsonl`, `projects.md`, `secondmates.md`, `captain.md`, `captain-shared.md`, `learnings.md`, and a secondmate home's `charter.md`, alongside the non-task folders `handoff/`, `extensions/`, and `remote-secondmates/`.
+The fleet-wide files stay at the `data/` root: the backlog and its archives, `memory-archive.md`, the dated Bearings `status-report-<YYYY-MM-DD>.md` reports, the pipeline-spend ledger `pipeline-spend.jsonl`, the rounds-to-pass ledger `pipeline-rounds.jsonl`, the captain-question scorebook `captain-scorebook.jsonl`, `projects.md`, `secondmates.md`, `captain.md`, `captain-shared.md`, `learnings.md`, and a secondmate home's `charter.md`, alongside the non-task folders `handoff/`, `extensions/`, and `remote-secondmates/`.
 Each home, including every secondmate home, keeps its own `data/` in this layout; nothing is shared across homes.
 
 `bin/fm-task-data-lib.sh` is the single owner of placement and lookup, and every script that builds a per-task data path goes through it.
