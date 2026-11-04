@@ -18,7 +18,10 @@
 #                                    ledger line, on every watcher poll, plus
 #                                    the silent-ledger inactive-outcome fallback
 #   - bin/fm-pr-check.sh             a registered PR-ready line carrying the
-#                                    canonical URL
+#                                    canonical URL and the head it reported
+#   - bin/fm-pr-merge.sh             that PR-ready line again with the live
+#                                    head when a merge refuses it as not the
+#                                    head the captain approved
 #   - bin/fm-captain-hold.sh         a task held for the captain and its answer
 #   - bin/fm-merge-outcome-lib.sh    a merged PR
 #   - bin/fm-teardown.sh             the child's final ledger line, refusing to
@@ -149,6 +152,20 @@ fm_parent_channel_outbound_status() {  # <home> <state>
 # hold reason cannot break the channel's line framing.
 fm_parent_channel_clean_note() {  # <text>
   printf '%s' "$1" | LC_ALL=C tr '\t\r\n' '   ' | cut -c1-1200
+}
+
+# The child PR-ready line for task <id>'s pull request <url>: the task's mode and
+# yolo posture from <meta>, and the head the parent presents the PR at. Both
+# bin/fm-pr-check.sh and bin/fm-pr-merge.sh publish it, so its shape lives here.
+fm_parent_channel_pr_ready_line() {  # <id> <url> <meta> [<head>]
+  local id=$1 url=$2 meta=$3 head=${4-} line mode yolo
+  line="done [key=child-pr-$id]: child $id PR ready: $url"
+  mode=$(grep '^mode=' "$meta" | tail -1 | cut -d= -f2- || true)
+  yolo=$(grep '^yolo=' "$meta" | tail -1 | cut -d= -f2- || true)
+  [ -z "$mode" ] || line="$line mode=$(fm_parent_channel_clean_note "$mode")"
+  [ -z "$yolo" ] || line="$line yolo=$(fm_parent_channel_clean_note "$yolo")"
+  [ -z "$head" ] || line="$line head=$head"
+  printf '%s\n' "$line"
 }
 
 # Append <line> once, using fm-classify-lib.sh's retry contract. Time-insensitive:

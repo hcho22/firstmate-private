@@ -92,11 +92,12 @@ For a contribution wake or linked-issue filing, go directly to Contribution foll
 ## Lavish board mode
 
 `/bearings lavish` adds one deliverable beside the unchanged chat digest: the interactive fleet board, a myfirstmate-styled Lavish page where the captain answers Captain's Call items directly instead of replying in chat.
-`bin/fm-bearings-board.sh` owns every board mechanic - the stable board path, fm-bearings-board.v1 payload validation, template injection, live Lavish session verification and ended-session reopening, the any-origin answer binding, and listener registration - so the per-invocation work is composing the payload and running its `build`.
+`bin/fm-bearings-board.sh` owns every board mechanic - the stable board path, fm-bearings-board.v1 payload validation, template injection, live Lavish session verification and ended-session reopening, the any-origin answer binding, each merge card's shown head, and listener registration - so the per-invocation work is composing the payload and running its `build`.
 
 Compose the payload from the same snapshot with the same ranking judgment as the chat digest, plus these board rules:
 
 - A Captain's Call decision key is the captain-held TASK ID from `decisions_open` (legacy `<origin>-decision-<key>` rows are already task ids); a merge card's key is `merge.<task-id>`; the Charted Next dispatch picker's key is `dispatch.charted`.
+- A merge card carries its task's `pr=` URL in `pr_url`. `build` reads that PR's live head and shows it on the card, and the card's answer carries that head, so a click binds to the head its own card showed; `build` records no approved head, so a rebuild never rebinds a merge word given in chat. It drops a card whose head cannot be read and names it on stderr as `dropped-unbound-merge-card:`; a secondmate child's PR is always dropped because the main home has no task record for it, so ask for that merge in chat as `ship-landing` describes.
 - Before carding a hold, check that its SUBJECT has not already landed, and omit it when it has. `build` drops a card whose task or PR appears in the payload's own landed rows, and one whose task is no longer an open captain call. When a hold waits on one specific PR, put that PR in the card's `pr_url`. When it concerns a published version, put the artifact and numeric three-part version in the card's structured `subject`; landed rows for releases carry the same identity, and a matching or newer version drops the card. Identity matching is structured only, so verify any subject without one of these identities against current reality before carding it.
 - Never author a `reconcile` option on any card. `build` gives every decision card the standard reconcile choice itself, and the payload validator reserves that value across all card types; recommendations must name an authored option.
 - Compose exactly one decision card per captain-held task id. When one task carries multiple questions, consolidate all of them and their options into that card; never emit duplicate cards with the same task-id key.
@@ -138,6 +139,9 @@ After handling, rebuild the board from a fresh snapshot so acted-on items leave 
 
 A board "Merge now" answer IS the captain's explicit merge word for that one exact PR; ask no second confirmation.
 The safeguards are mandatory, not optional: resolve the PR from the task's own `state/<task-id>.meta` `pr=` record, never from board bytes; re-verify at wake time that the PR is still open and CI-green; refuse and report a red or changed PR rather than merging it; record the exact `merge` answer through `bin/fm-captain-hold.sh answer <task-id> --decision-file <file> --release` before invoking the merge; proceed only when that release succeeds; merge only through `bin/fm-pr-merge.sh`; and echo every merge in chat with the full PR URL.
+A "Merge now" answer carries the head its card showed: read it with `bin/fm-procevent-lavish.sh heads <result-file>`, and immediately before invoking the merge record exactly that head with `bin/fm-approved-head.sh record <task-id> <PR url> <head>`, so `bin/fm-pr-merge.sh` merges only that head or a clean catch-up of it; the PR still comes from the task record, and the answer's head only narrows what the word covers.
+When `heads` exits non-zero or prints no head for the card's key, merge nothing and present the PR again in chat as `ship-landing` describes.
+When the merge refuses because the head changed, report what changed and present the PR again at the head the refusal names, in chat or on a rebuilt board, before any merge.
 Only the exact answer value `merge` authorizes a merge; an answer carrying a freeform note is the captain's instruction text to read and act on with judgment, never an auto-merge.
 
 ## Chat-response contract

@@ -8,6 +8,7 @@
 #   fm-procevent-lavish.sh silent <result-file>
 #   fm-procevent-lavish.sh answers <result-file>
 #   fm-procevent-lavish.sh reconciles <result-file>
+#   fm-procevent-lavish.sh heads <result-file>
 #   fm-procevent-lavish.sh read <result-file>
 #   fm-procevent-lavish.sh source-id <artifact.html>
 #   fm-procevent-lavish.sh retire <artifact.html>
@@ -110,10 +111,14 @@
 #
 # Only rows tagged `choice` are read. A freeform captain message is prose that may
 # contain anything, and must never be able to forge a decision key.
-# `answers` and `reconciles` use the same parser as `read` for either emission
-# form. Malformed content or a declared/parsed count mismatch prints a diagnostic
-# to stderr and exits 3, even if valid choices were already printed to stdout;
-# callers must not treat that output as a complete extraction.
+# `heads` prints `<key>\t<head>` for each such choice whose versioned context
+# carries the commit its card showed, as a bearings board merge card's answer
+# does (bin/fm-bearings-board.sh MERGE CARD BINDING); a context head that is not
+# a full commit id skips that choice, as a malformed close mode does.
+# `answers`, `reconciles` and `heads` use the same parser as `read` for either
+# emission form. Malformed content or a declared/parsed count mismatch prints a
+# diagnostic to stderr and exits 3, even if valid choices were already printed to
+# stdout; callers must not treat that output as a complete extraction.
 #
 # `read` is the presentation command summarized above; keyed intake remains
 # the separate `answers` contract described here.
@@ -793,6 +798,7 @@ cmd_choice_rows() {
       my $data = eval { decode_json($ctx) };
       next unless ref($data) eq "HASH";
       my ($key, $selected, $note, $answer, $legacy);
+      my $head = "";
       if (defined($data->{schema}) && !ref($data->{schema})
           && $data->{schema} eq "fm-bearings-answer.v1") {
         $key = $data->{question};
@@ -803,6 +809,11 @@ cmd_choice_rows() {
         next unless $selected eq "" || $selected =~ /\A[A-Za-z0-9._-]{1,128}\z/;
         next unless length($note) <= 512;
         next unless length($selected) || length($note);
+        if (exists $data->{head}) {
+          next if !defined($data->{head}) || ref($data->{head})
+            || $data->{head} !~ /\A(?:[0-9a-f]{40}|[0-9a-f]{64})\z/;
+          $head = $data->{head};
+        }
         $answer = length($selected) ? $selected : $note;
         $legacy = 0;
       # Time-limited compatibility for captures from pre-change boards; remove
@@ -834,10 +845,14 @@ cmd_choice_rows() {
       $seen{$key} = scalar @choices;
       push @choices, {
         key => $key, selection => $selected, note => $note, legacy => $legacy,
-        answer => $answer, label => $label, mode => $mode
+        answer => $answer, label => $label, mode => $mode, head => $head
       };
     }
     for my $choice (grep { defined } @choices) {
+      if ($selection eq "heads") {
+        print "$choice->{key}\t$choice->{head}\n" if length $choice->{head};
+        next;
+      }
       if ($selection eq "reconciles") {
         next if $choice->{legacy};
         if ($choice->{selection} eq "reconcile") {
@@ -862,6 +877,7 @@ cmd_choice_rows() {
 
 cmd_answers() { cmd_choice_rows answers "$@"; }
 cmd_reconciles() { cmd_choice_rows reconciles "$@"; }
+cmd_heads() { cmd_choice_rows heads "$@"; }
 
 # Present one already-captured result for a handler. Body lines are prefixed
 # so a captain-supplied string cannot forge a section label. A freeform message
@@ -972,6 +988,7 @@ case "${1-}" in
   silent)    shift; cmd_silent "$@" ;;
   answers)   shift; cmd_answers "$@" ;;
   reconciles) shift; cmd_reconciles "$@" ;;
+  heads)     shift; cmd_heads "$@" ;;
   read)      shift; cmd_read "$@" ;;
   ''|-h|--help|help) usage ;;
   *) die "unknown command: $1" ;;

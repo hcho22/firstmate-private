@@ -108,6 +108,11 @@ request_reconciles() {  # <home> <source-id> <task-id>...
         --source "captured board result" >/dev/null
 }
 
+# The head configure_merged_github's pull request reports, recorded as the
+# captain-approved head by fixtures whose merge models a captain's merge word.
+# shellcheck disable=SC2034 # Read by the suites that source this helper.
+CAPTAIN_HOLD_GITHUB_HEAD=1111111111111111111111111111111111111111
+
 configure_merged_github() {  # <home>
   local home=$1
   fm_shared_stub "$home/fakebin" "gh" <<'SH'
@@ -124,7 +129,10 @@ case "${1:-} ${2:-}" in
     ;;
   "pr merge") printf 'merged:\n  number: %s\n  status: ok\n' "${3:-}" ;;
   "api graphql")
-    printf '%s\n' 'state=MERGED' 'merged=true' 'queued=false' 'base=main'
+    case " $* " in
+      *isMergeQueueEnabled*) printf '%s\n' false ;;
+      *) printf '%s\n' 'state=MERGED' 'merged=true' 'queued=false' 'base=main' ;;
+    esac
     ;;
   "api --paginate")
     case " $* " in

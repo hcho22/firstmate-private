@@ -70,6 +70,7 @@
 # method and exact --attended-override -- --auto --<method> retry flags. While
 # the away-posture record exists, asynchronous merge requests are refused and
 # queue retry flags are not offered because they would outlive away authority.
+# A merge bound to a captain-approved head (below) is offered none either.
 # An attended caller that already passed the configured method with --auto is
 # told instead that the accepted request has not entered the queue and its queue
 # state has to be re-checked.
@@ -135,13 +136,37 @@
 # because there is no established translation from a gh/glab-style flag into
 # a Forgejo API field yet.
 #
+# An attended merge also proceeds only at the head the captain approved, or at
+# a head whose only additions are a clean catch-up with the base branch, before
+# any forge's merge command; bin/fm-approved-head.sh owns that record, the
+# clean catch-up definition, and the rule for a task with no recorded head.
+# An away-authority merge is bound the same way when a head is recorded for
+# this pull request, because that record is a captain word the posture does not
+# widen, and is bound to no head only when none is recorded; captain away words
+# that explicitly cover a later head widen the binding only by the away session
+# recording that head first. In a secondmate home a refusal that needs the
+# captain again publishes the child's PR-ready line with the live head on the
+# parent channel, so the parent can present that head; one that only asks for a
+# retry publishes nothing.
+# A merge bound to a head must also land it immediately, because a forge asked
+# to merge later lands whatever the head is by then, without the captain being
+# asked again. A GitHub or GitLab auto-merge, requested here or already set on
+# a GitLab merge request, is refused with a pointer to merge once the checks
+# are green instead, and GitLab is passed a final --auto-merge=false. A GitHub
+# pull request whose isMergeQueueEnabled or base-branch rules do not prove the
+# absence of a merge queue is refused too, naming an unreadable answer apart
+# from a queue, and one that enters a queue anyway is refused rather than
+# reported as queued, so a base branch that requires a merge queue takes no
+# merge bound to a head; that needs a later design. A yolo merge with no
+# recorded head is bound to none and keeps the asynchronous paths above.
+#
 # Before either forge merge, the task's existing per-task control lock
 # serializes the captain-hold check through the forge command. A still-held or
 # unreadable row refuses before that command, so a captain approval must be
 # recorded as an `answer --release` before this entrypoint is invoked. While
 # an away record exists (a quiet-mode record is a present captain, so its
 # merges stay attended: bin/fm-afk-contract.sh mode) any green merge may
-# proceed under away authority:
+# proceed under away authority, still bound to a head recorded for it (above):
 # the record's presence is the whole mechanical fact, and which merge the
 # captain's away words meant is the supervision session's reading
 # (bin/fm-branch-prompt.sh "Postures"). An unreadable record refuses rather
@@ -171,7 +196,8 @@
 # deletion (--delete-branch, -d and short-flag clusters, and GitLab's
 # --remove-source-branch) are refused by default; --attended-override, parsed
 # before the optional -- separator, re-enables those forge flags for an
-# explicit captain instruction and never skips the live green check, the
+# explicit captain instruction, except auto-merge on a merge bound to a
+# captain-approved head (above), and never skips the live green check, the
 # away-record read, or a captain hold.
 #
 # --low-risk is the merge path for the low-risk merge tier, the standing
@@ -623,12 +649,13 @@ fi
 # the merge request. Sets FM_PR_MERGE_HEAD to the verified head on success and
 # returns non-zero after reporting every condition that failed.
 FM_PR_MERGE_HEAD=
+FM_PR_MERGE_BASE=
 FM_PR_GITLAB_ASYNC_CONFIGURED=false
 gitlab_verify_mergeable() {
   local json fields line pipeline_waived
   local total=0 named=0 refusals=''
   local state='' detail='' conflicts='' discussions=''
-  local live_head='' pipeline_sha='' pipeline_status='' pipeline_absent='' async_configured=''
+  local live_head='' base='' pipeline_sha='' pipeline_status='' pipeline_absent='' async_configured=''
 
   # GITLAB_HOST is set to the same host the project URL already carries, so the
   # instance is taken from the parsed URL by both signals and never from the
@@ -649,6 +676,7 @@ gitlab_verify_mergeable() {
         "conflicts=" + (.has_conflicts | tostring),
         "discussions=" + (.blocking_discussions_resolved | tostring),
         "head=" + ((.sha // "") | tostring),
+        "base=" + ((.target_branch // "") | tostring),
         "pipeline_sha=" + ((.head_pipeline.sha // "") | tostring),
         "pipeline_status=" + ((.head_pipeline.status // "") | tostring),
         "pipeline_absent=" + (if has("head_pipeline") and .head_pipeline == null then "true" else "false" end),
@@ -667,6 +695,7 @@ gitlab_verify_mergeable() {
       conflicts=*) conflicts=${line#conflicts=} ;;
       discussions=*) discussions=${line#discussions=} ;;
       head=*) live_head=${line#head=} ;;
+      base=*) base=${line#base=} ;;
       pipeline_sha=*) pipeline_sha=${line#pipeline_sha=} ;;
       pipeline_status=*) pipeline_status=${line#pipeline_status=} ;;
       pipeline_absent=*) pipeline_absent=${line#pipeline_absent=} ;;
@@ -680,7 +709,7 @@ FIELDS
   # Every field named exactly once and no unnamed line: a value carrying a
   # newline would split into a line no name matches, so it is refused here
   # rather than silently truncated into a value a check could accept.
-  if [ "$named" -ne 9 ] || [ "$total" -ne 9 ]; then
+  if [ "$named" -ne 10 ] || [ "$total" -ne 10 ]; then
     echo "error: could not read the GitLab merge request state before merging" >&2
     return 1
   fi
@@ -735,6 +764,7 @@ FIELDS
       "$URL" "$live_head" >&2
   fi
   FM_PR_MERGE_HEAD=$live_head
+  FM_PR_MERGE_BASE=$base
   FM_PR_GITLAB_ASYNC_CONFIGURED=$async_configured
 }
 
@@ -751,7 +781,7 @@ FIELDS
 forgejo_verify_mergeable() {
   local pr_json status_json fields line
   local total=0 named=0 refusals=''
-  local state='' mergeable='' draft='' live_head='' ci_state='' page_state='' page_count='' page=1
+  local state='' mergeable='' draft='' live_head='' base='' ci_state='' page_state='' page_count='' page=1
 
   if ! pr_json=$(tea api --login "$FORGEJO_LOGIN" --repo "$PR_OWNER/$PR_REPO" \
       "/repos/{owner}/{repo}/pulls/$PR_NUMBER" 2>/dev/null) || [ -z "$pr_json" ]; then
@@ -763,7 +793,8 @@ forgejo_verify_mergeable() {
         "state=" + ((.state // "") | tostring),
         "mergeable=" + (.mergeable | tostring),
         "draft=" + (.draft | tostring),
-        "head=" + ((.head.sha // "") | tostring)
+        "head=" + ((.head.sha // "") | tostring),
+        "base=" + ((.base.ref // "") | tostring)
       else
         error("pull request payload is not an object")
       end' 2>/dev/null); then
@@ -777,13 +808,14 @@ forgejo_verify_mergeable() {
       mergeable=*) mergeable=${line#mergeable=} ;;
       draft=*) draft=${line#draft=} ;;
       head=*) live_head=${line#head=} ;;
+      base=*) base=${line#base=} ;;
       *) continue ;;
     esac
     named=$((named + 1))
   done <<FIELDS
 $fields
 FIELDS
-  if [ "$named" -ne 4 ] || [ "$total" -ne 4 ]; then
+  if [ "$named" -ne 5 ] || [ "$total" -ne 5 ]; then
     echo "error: could not read the Forgejo pull request state before merging" >&2
     return 1
   fi
@@ -865,6 +897,7 @@ FIELDS
   printf 'verified: %s is open and mergeable, with a successful combined status at head %s\n' \
     "$URL" "$live_head" >&2
   FM_PR_MERGE_HEAD=$live_head
+  FM_PR_MERGE_BASE=$base
 }
 
 # The caller's own extra arguments may only name a merge method, in the same
@@ -1219,6 +1252,7 @@ EOF
   printf 'verified: %s is open and mergeable, with every unwaived required check reported and every unwaived check green at head %s\n' \
     "$URL" "$live_head" >&2
   FM_PR_MERGE_HEAD=$live_head
+  FM_PR_MERGE_BASE=$base
   FM_PR_GITHUB_BASE=$base
 }
 
@@ -1335,7 +1369,7 @@ github_read_outcome_with_gh() {
   # shellcheck disable=SC2016  # GraphQL variables are literal query syntax.
   if ! fields=$(gh api graphql \
     -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged isInMergeQueue baseRefName}}}' \
-    -F "owner=$PR_OWNER" -F "repo=$PR_REPO" -F "number=$PR_NUMBER" \
+    -f "owner=$PR_OWNER" -f "repo=$PR_REPO" -F "number=$PR_NUMBER" \
     --jq '.data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring), "queued=" + (.isInMergeQueue | tostring), "base=" + (.baseRefName // "")' \
     2>/dev/null) || [ -z "$fields" ]; then
     return 1
@@ -1517,6 +1551,29 @@ METHODS
   fi
 }
 
+# Whether gh would hand this merge to a merge queue instead of landing it now.
+# gh enqueues a merge when the pull request reports isMergeQueueEnabled, which
+# a queue required by classic branch protection sets as well as a ruleset's
+# merge_queue rule, so an immediate merge is proven only when that field reads
+# false and github_read_queue_method finds no merge_queue rule. Sets
+# FM_PR_GITHUB_MERGE_QUEUE to absent, present, or unreadable; a queue either
+# read shows is present even when the other read failed.
+FM_PR_GITHUB_MERGE_QUEUE=unreadable
+github_read_merge_queue() {
+  local enabled
+  # shellcheck disable=SC2016  # GraphQL variables are literal query syntax.
+  enabled=$(gh api graphql \
+    -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){isMergeQueueEnabled}}}' \
+    -f "owner=$PR_OWNER" -f "repo=$PR_REPO" -F "number=$PR_NUMBER" \
+    --jq '.data.repository.pullRequest.isMergeQueueEnabled' 2>/dev/null) || enabled=
+  github_read_queue_method
+  case "$enabled:$FM_PR_GITHUB_QUEUE_STATUS" in
+    true:* | *:single | *:conflicting | *:unrecognised) FM_PR_GITHUB_MERGE_QUEUE=present ;;
+    false:none) FM_PR_GITHUB_MERGE_QUEUE=absent ;;
+    *) FM_PR_GITHUB_MERGE_QUEUE=unreadable ;;
+  esac
+}
+
 record_pr_metadata() {
   if ! FM_PR_CHECK_MERGE=1 "$SCRIPT_DIR/fm-pr-check.sh" "$ID" "$URL"; then
     return 1
@@ -1539,6 +1596,86 @@ require_released_captain_hold() {
     1|3) return 0 ;;
     *)
       echo "error: could not determine whether task $ID is still held for the captain; refusing to merge" >&2
+      return 1
+      ;;
+  esac
+}
+
+# The captain's merge word covers the head it was given at, so a merge proceeds
+# only where bin/fm-approved-head.sh vouches for the verified head, passing
+# --away while the away record exists so a PR with no recorded head is bound to
+# none. It runs once before the away-record lock, where its fetch need not hold
+# that lock, and is called again after the final authority read under the lock,
+# where it is a no-op for the head and posture it already passed and runs again
+# only when the posture changed between the two reads. In a secondmate home a
+# refusal that needs the captain again (exit 1, not a retryable exit 4)
+# publishes the child's PR-ready line with the live head, which is what the
+# parent presents to the captain again; bin/fm-pr-check.sh's merge-time
+# registration publishes no ready line of its own. A merge the verify binds to
+# a head sets FM_PR_HEAD_BOUND and must then be immediate. A --low-risk merge
+# runs on standing posture rather than a captain word, so it is not bound to a
+# head; its own tier gate binds the changed files it judged to the verified
+# head.
+FM_PR_APPROVED_HEAD_VERIFIED=
+FM_PR_HEAD_BOUND=false
+require_approved_head() {
+  local verify_status=0 ready_rc=0 posture=()
+  [ "$LOW_RISK" != true ] || return 0
+  [ "$FM_PR_APPROVED_HEAD_VERIFIED" != "$FM_PR_MERGE_HEAD $FM_PR_AWAY_POSTURE" ] || return 0
+  [ "$FM_PR_AWAY_POSTURE" != true ] || posture=(--away)
+  FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
+    "$SCRIPT_DIR/fm-approved-head.sh" verify "$ID" "$URL" "$FM_PR_MERGE_HEAD" "$FM_PR_MERGE_BASE" \
+    "${posture[@]+"${posture[@]}"}" || verify_status=$?
+  if [ "$verify_status" -eq 1 ]; then
+    fm_parent_channel_report "$FM_HOME" "$STATE" \
+      "$(fm_parent_channel_pr_ready_line "$ID" "$URL" "$META" "$FM_PR_MERGE_HEAD")" || ready_rc=$?
+    case "$ready_rc" in
+      0|1) ;;
+      *) printf 'actionable: the refused head %s of %s did not reach the parent channel (rc=%s)\n' \
+        "$FM_PR_MERGE_HEAD" "$URL" "$ready_rc" >&2 ;;
+    esac
+  fi
+  case "$verify_status" in
+    0)
+      FM_PR_HEAD_BOUND=true
+      refuse_deferred_bound_merge || return 1
+      ;;
+    3) ;;
+    *) return 1 ;;
+  esac
+  FM_PR_APPROVED_HEAD_VERIFIED="$FM_PR_MERGE_HEAD $FM_PR_AWAY_POSTURE"
+}
+
+# A forge asked to merge later lands whatever the head is by then, so a merge
+# bound to the captain-approved head refuses every such request before the
+# forge command. The GitHub queue read is github_read_merge_queue, shared with
+# refuse_github_queue_while_away, and anything short of proving no queue refuses.
+refuse_deferred_bound_merge() {
+  case "$PROVIDER" in
+    github)
+      if [ "$FM_PR_GITHUB_AUTO_REQUESTED" = true ]; then
+        printf 'error: refusing to merge %s with --auto: the merge is bound to the captain-approved head, and auto-merge would land the pull request later with any push made by then; merge once the checks are green instead\n' \
+          "$URL" >&2
+        return 1
+      fi
+      github_read_merge_queue
+      case "$FM_PR_GITHUB_MERGE_QUEUE" in
+        absent) return 0 ;;
+        present)
+          printf 'error: refusing to merge %s: the merge is bound to the captain-approved head, but base branch %s requires a merge queue, and a queued merge would land with any push made by then; nothing was handed to the forge, and a base branch that requires a merge queue needs a later design\n' \
+            "$URL" "$FM_PR_GITHUB_BASE" >&2
+          ;;
+        *)
+          printf 'error: refusing to merge %s: the merge is bound to the captain-approved head, but whether base branch %s requires a merge queue could not be read, so an immediate merge is not proven; nothing was handed to the forge, and the merge can be retried once that state reads\n' \
+            "$URL" "$FM_PR_GITHUB_BASE" >&2
+          ;;
+      esac
+      return 1
+      ;;
+    gitlab)
+      [ "$FM_PR_GITLAB_ASYNC_REQUESTED" = true ] || [ "$FM_PR_GITLAB_ASYNC_CONFIGURED" = true ] || return 0
+      printf 'error: refusing to merge %s with GitLab auto-merge, requested here or already set on the merge request: the merge is bound to the captain-approved head, and auto-merge would land the merge request later with any push made by then; merge once the checks are green instead, cancelling any auto-merge or scheduled merge set on the merge request\n' \
+        "$URL" >&2
       return 1
       ;;
   esac
@@ -1619,12 +1756,12 @@ persist_accepted_merge_authority() {
   return 1
 }
 
-# While away, a merge proceeds only when the base branch's rules prove no
+# While away, a merge proceeds only when github_read_merge_queue proves no
 # merge queue, because a queued merge can land after its away authority
 # lapses with the record's archive. A repository whose
 # plan does not expose branch rules at all (GitHub's "Upgrade to GitHub Pro or
-# make this repository public" 403) proves that on its own, since such a
-# repository cannot have a merge_queue rule either; see
+# make this repository public" 403) proves the rules side on its own, since
+# such a repository cannot have a merge_queue rule either; see
 # github_read_queue_method, which resolves that specific 403 to status=none.
 # Every other failure to read the queue state (auth, rate limit, network, a
 # 404, or an unrelated 403) stays unreadable and refuses the merge. The merge
@@ -1635,9 +1772,18 @@ refuse_github_queue_while_away() {
   # Accepted confused-agent-grade limitation, as in bin/fm-lease-lib.sh, not an
   # oversight: a queue rule or PR base change after this preflight can still
   # enqueue the merge, which can land after its away authority lapses.
-  github_read_queue_method
-  [ "$FM_PR_GITHUB_QUEUE_STATUS" = none ] && return 0
-  echo "error: GitHub merge refused while away because the base branch's merge-queue state does not prove an immediate merge; nothing was handed to the forge" >&2
+  github_read_merge_queue
+  case "$FM_PR_GITHUB_MERGE_QUEUE" in
+    absent) return 0 ;;
+    present)
+      printf 'error: GitHub merge refused while away because base branch %s requires a merge queue, so its merge-queue state does not prove an immediate merge; nothing was handed to the forge\n' \
+        "$FM_PR_GITHUB_BASE" >&2
+      ;;
+    *)
+      printf 'error: GitHub merge refused while away because whether base branch %s requires a merge queue could not be read, so its merge-queue state does not prove an immediate merge; nothing was handed to the forge, and the merge can be retried once that state reads\n' \
+        "$FM_PR_GITHUB_BASE" >&2
+      ;;
+  esac
   return 2
 }
 
@@ -1702,6 +1848,10 @@ github_report_queue_rules() {
   local queue_method methods_display
   if [ "$FM_PR_AWAY_POSTURE" = true ]; then
     printf 'error: the direct merge did not land while the away-posture record exists; merge-queue retry flags are unavailable because a queued merge would outlive its authority\n' >&2
+    return 0
+  fi
+  if [ "$FM_PR_HEAD_BOUND" = true ]; then
+    printf 'error: the direct merge did not land, and a merge bound to the captain-approved head is offered no merge-queue or auto-merge retry, because either would land the pull request later with any push made by then; a base branch that requires a merge queue needs a later design\n' >&2
     return 0
   fi
   github_read_queue_method
@@ -1856,6 +2006,7 @@ case "$PROVIDER" in
       fi
       exit 1
     fi
+    require_approved_head || exit 1
     if [ "$LOW_RISK" = true ]; then
       github_require_low_risk_tier || exit 4
     fi
@@ -1866,6 +2017,7 @@ case "$PROVIDER" in
     require_current_away_authority || away_status=$?
     [ "$away_status" -eq 0 ] || exit "$away_status"
     refuse_github_queue_while_away || exit 2
+    require_approved_head || exit 1
     merge_status=0
     merge_output=$(gh pr merge "$PR_NUMBER" --repo "$PR_OWNER/$PR_REPO" \
       --match-head-commit "$FM_PR_MERGE_HEAD" \
@@ -1899,6 +2051,11 @@ case "$PROVIDER" in
       printf 'verified: %s is merged (state=%s, merged=%s, isInMergeQueue=%s)\n' \
         "$URL" "$FM_PR_GITHUB_STATE" "$FM_PR_GITHUB_MERGED" "$FM_PR_GITHUB_QUEUED"
     elif [ "$FM_PR_GITHUB_QUEUED" = true ]; then
+      if [ "$FM_PR_HEAD_BOUND" = true ]; then
+        printf 'error: %s entered the merge queue instead of merging (state=%s, merged=%s, isInMergeQueue=%s), but the merge is bound to the captain-approved head, and a queued merge would land with any push made by then; take it out of the merge queue and tell the captain, because a base branch that requires a merge queue needs a later design\n' \
+          "$URL" "$FM_PR_GITHUB_STATE" "$FM_PR_GITHUB_MERGED" "$FM_PR_GITHUB_QUEUED" >&2
+        exit 1
+      fi
       printf 'verified: %s is queued (state=%s, merged=%s, isInMergeQueue=%s)\n' \
         "$URL" "$FM_PR_GITHUB_STATE" "$FM_PR_GITHUB_MERGED" "$FM_PR_GITHUB_QUEUED"
       exit 0
@@ -1910,6 +2067,7 @@ case "$PROVIDER" in
     ;;
   gitlab)
     gitlab_verify_mergeable || exit 1
+    require_approved_head || exit 1
     # --sha binds the merge to the head this run verified, so a push that lands
     # in between is refused by GitLab instead of merged unverified. --yes only
     # skips the interactive confirmation, which no supervised run can answer;
@@ -1920,9 +2078,10 @@ case "$PROVIDER" in
     away_status=0
     require_current_away_authority || away_status=$?
     [ "$away_status" -eq 0 ] || exit "$away_status"
+    require_approved_head || exit 1
     merge_status=0
     gitlab_merge_args=()
-    if [ "$FM_PR_AWAY_POSTURE" = true ]; then
+    if [ "$FM_PR_AWAY_POSTURE" = true ] || [ "$FM_PR_HEAD_BOUND" = true ]; then
       gitlab_merge_args=(--auto-merge=false)
     fi
     GITLAB_HOST="$FM_PR_HOST" glab mr merge "$PR_NUMBER" -R "$PROJECT_URL" \
@@ -1946,12 +2105,14 @@ case "$PROVIDER" in
     forgejo_method=$(caller_merge_method "$@")
     [ -n "$forgejo_method" ] || forgejo_method=$(forgejo_default_merge_style) || exit 1
     forgejo_verify_mergeable || exit 1
+    require_approved_head || exit 1
     # The away record is locked first, so this last presence and authority
     # read and the forge command below share one live-owner critical section.
     hold_away_record_for_merge || exit 1
     away_status=0
     require_current_away_authority || away_status=$?
     [ "$away_status" -eq 0 ] || exit "$away_status"
+    require_approved_head || exit 1
     # head_commit_id binds the merge to the head this run verified: Forgejo's
     # REST API rejects a mismatched value with "head out of date" (verified
     # against a real instance), matching --match-head-commit/--sha above. tea

@@ -20,6 +20,16 @@ Tell the captain the PR's full `https://...` URL copied from the worker's ready 
 A captain instruction to merge is explicit authority; `yolo` and a project's low-risk merge tier are the only standing routine merge authority.
 When neither a captain instruction nor `yolo` covers a green, in-scope PR, run `bin/fm-pr-merge.sh <id> <PR url> --low-risk` once, unless the captain asked to see that change or it is destructive, irreversible, or security-sensitive.
 It merges only when the project declares a tier and every file the PR changes is low risk; a tier refusal names its cause, such as the files outside the tier, and turns the ready PR into the usual merge ask, with those files named for the captain.
+When the message to the captain asks for the merge word, first run `bin/fm-approved-head.sh record <id> <PR url>` and name the short head it prints in the message, because the word covers only the head it was given at.
+An attended `bin/fm-pr-merge.sh` merges only that head or a clean catch-up of it with the base branch; when it refuses because the head changed, tell the captain what changed, record the head the refusal names with the command it prints, and ask again at that head.
+A refusal that says the merge can be retried failed only a read, so retry the merge rather than asking again.
+That merge must land at once, so `bin/fm-pr-merge.sh` refuses `--auto`, a merge queue, and GitLab auto-merge for it; wait until the checks are green and merge then.
+When it refuses because no head is recorded, present the PR to the captain again and record the head you show; never record a head the captain was not shown.
+A secondmate child's PR has no task record in the main home: present it at the head its `child <id> PR ready:` line carries in `head=`, and relay the captain's merge word to that secondmate together with the full head shown in the presentation the captain answered, never simply the newest `head=` on the channel.
+A newer ready line for the same child means presenting the PR again at its head before relaying any merge word.
+Known limitation for secondmate children: the main home records no head for a child's PR, so a word given while a newer head is still unpresented binds to the right head only because the main firstmate reads which head its own presentation showed.
+In a secondmate home, a relayed merge word names the head the captain was shown, so record exactly that head with `bin/fm-approved-head.sh record <id> <PR url> <head>` before merging; a later push then still refuses, and that refusal publishes a new ready line with the live head, which is what the main firstmate presents again.
+The merge's own registration publishes no ready line, so a merge that proceeds tells the parent only that it merged.
 For any custom `state/<id>.check.sh` you write yourself, keep it an ordinary single-link mode-`0700` file, print one line only when firstmate should wake, print nothing otherwise, finish before `FM_CHECK_TIMEOUT`, then bind its current bytes with `bin/fm-check-register.sh <id>` before the watcher may execute it.
 Retire a custom check only through `bin/fm-check-unregister.sh <id>` (or `bin/fm-teardown.sh` for a spawned task); never hand-compose an `rm` with `$STATE`/`$ID`.
 

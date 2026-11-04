@@ -4,6 +4,7 @@ Maintainer-verification record for the guarantee in [`secondmate-parent-channel.
 Refresh it by rerunning the fixture below after changing any publisher named in `bin/fm-parent-channel-lib.sh`.
 This run predates emission-time stamping, so each published line below is the payload without its stamp: a rerun now writes the same bytes with an `[at=<epoch>]` tag closing the head, as in `done [key=child-outcome-child-done-05b032a1] [at=<epoch>]: child ...`.
 [`bin/fm-classify-lib.sh`](../../bin/fm-classify-lib.sh) owns that tag's syntax; nothing this record proves about delivery depends on it.
+The run also predates head binding, so a rerun's `child child PR ready:` line additionally ends with `head=<sha>` whenever the registration can read the pull request's head; `fm_parent_channel_pr_ready_line` in [`bin/fm-parent-channel-lib.sh`](../../bin/fm-parent-channel-lib.sh) owns that line's shape, and delivery does not depend on it either.
 
 ## What was run
 

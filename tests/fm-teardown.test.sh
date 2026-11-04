@@ -2625,6 +2625,8 @@ test_secondmate_pr_registration_publishes_ready_line() {
   grep -q '^armed:' "$case_dir/pr-check.out" || fail "mate-pr-ready: poll was not armed"
   assert_grep "done [key=child-pr-task-x1]: child task-x1 PR ready: $url mode=no-mistakes" <(sed -E 's/ \[at=[0-9]+\]//' "$channel") \
     "mate-pr-ready: the ready line did not reach the parent channel"
+  grep -F 'child-pr-task-x1' "$channel" | grep -q " head=$pr_head\$" \
+    || fail "mate-pr-ready: the ready line did not carry the head the registration reported: $(cat "$channel")"
   ! grep -q '^actionable:' "$case_dir/pr-check.err" \
     || fail "mate-pr-ready: registration reported a channel problem: $(cat "$case_dir/pr-check.err")"
   FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_STATE_OVERRIDE="$case_dir/state" \

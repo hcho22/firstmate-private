@@ -900,7 +900,7 @@ test_merge_approval_releases_before_zero_done_retention() {
   fm_write_meta "$home/state/$id.meta" \
     "window=firstmate:fm-$id" "endpoint_task_id=$id" "worktree=$wt" \
     "project=$repo" "harness=codex" "kind=ship" "mode=no-mistakes" \
-    "pr=$pr" "spawn_gen=fixture-$id"
+    "approved_head=$CAPTAIN_HOLD_GITHUB_HEAD $pr" "pr=$pr" "spawn_gen=fixture-$id"
   printf 'done: merge ready\n' > "$home/state/$id.status"
   run_captain "$home" hold "$id" --reason "captain merge approval pending" >/dev/null \
     || fail "could not hold the zero-retention merge"
@@ -942,7 +942,7 @@ test_pr_merge_entrypoint_refuses_a_captain_held_task() {
   fm_write_meta "$home/state/$pr_id.meta" \
     "window=firstmate:fm-$pr_id" "endpoint_task_id=$pr_id" "worktree=$wt" \
     "project=$repo" "harness=codex" "kind=ship" "mode=no-mistakes" \
-    "pr=$pr" "spawn_gen=fixture-$pr_id"
+    "approved_head=$CAPTAIN_HOLD_GITHUB_HEAD $pr" "pr=$pr" "spawn_gen=fixture-$pr_id"
   run_captain "$home" hold "$pr_id" --reason "captain merge approval pending" >/dev/null \
     || fail "could not hold the PR entrypoint fixture"
 
@@ -1009,6 +1009,7 @@ test_pr_merge_entrypoint_separates_an_unreadable_record_from_an_absent_one() {
   id=sample-missing-pr-authority
   pr=https://github.com/sample/sample/pull/43
   write_origin_meta "$home" "$id" ship
+  printf 'approved_head=%s %s\n' "$CAPTAIN_HOLD_GITHUB_HEAD" "$pr" >> "$home/state/$id.meta"
 
   # A backlog that exists but cannot be read may hide a live captain hold, so
   # the merge must refuse without reaching the forge.
@@ -1159,7 +1160,7 @@ test_merge_entrypoints_refuse_a_reused_task_incarnation() {
   fm_write_meta "$home/state/$id.meta" \
     "window=firstmate:fm-$id" "endpoint_task_id=$id" "worktree=$old_wt" \
     "project=$old_repo" "harness=codex" "kind=ship" "mode=no-mistakes" \
-    "spawn_gen=original-$id"
+    "approved_head=$CAPTAIN_HOLD_GITHUB_HEAD $pr" "spawn_gen=original-$id"
   printf 'done: merge ready\n' > "$home/state/$id.status"
 
   teardown_ready="$home/reuse-teardown-ready"
@@ -1214,7 +1215,7 @@ test_merge_entrypoints_refuse_a_reused_task_incarnation() {
   fm_write_meta "$home/state/$id.meta" \
     "window=firstmate:fm-$id" "endpoint_task_id=$id" "worktree=$new_wt" \
     "project=$new_repo" "harness=codex" "kind=ship" "mode=no-mistakes" \
-    "spawn_gen=replacement-$id"
+    "approved_head=$CAPTAIN_HOLD_GITHUB_HEAD $pr" "spawn_gen=replacement-$id"
   tasks_in "$home" start "$id" >/dev/null || fail "could not start the reused PR task"
   : > "$merge_release"
   set +e
@@ -1355,7 +1356,7 @@ test_merge_entrypoints_serialize_forced_teardown_before_task_reads() {
   fm_write_meta "$home/state/$id.meta" \
     "window=firstmate:fm-$id" "endpoint_task_id=$id" "worktree=$wt" \
     "project=$repo" "harness=codex" "kind=ship" "mode=no-mistakes" \
-    "spawn_gen=fixture-$id"
+    "approved_head=$CAPTAIN_HOLD_GITHUB_HEAD $pr" "spawn_gen=fixture-$id"
   printf 'done: merge ready\n' > "$home/state/$id.status"
   run_captain "$home" hold "$id" --reason "captain merge approval pending" >/dev/null \
     || fail "could not hold the PR teardown-race fixture"
@@ -1518,7 +1519,7 @@ test_released_merge_passes_the_entrypoint_and_lands() {
   fm_write_meta "$home/state/$id.meta" \
     "window=firstmate:fm-$id" "endpoint_task_id=$id" "worktree=$wt" \
     "project=$repo" "harness=codex" "kind=ship" "mode=no-mistakes" \
-    "pr=$pr" "spawn_gen=fixture-$id"
+    "approved_head=$CAPTAIN_HOLD_GITHUB_HEAD $pr" "pr=$pr" "spawn_gen=fixture-$id"
   printf 'done: merge ready\n' > "$home/state/$id.status"
   run_captain "$home" hold "$id" --reason "captain merge approval pending" >/dev/null \
     || fail "could not hold the released merge fixture"

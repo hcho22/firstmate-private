@@ -260,15 +260,24 @@ fi
 # silent no-op there. The poll is armed either way; a channel that cannot be
 # written is reported as actionable, and bin/fm-inactive-reconcile.sh still
 # delivers the child's own ready line on the next supervision poll.
-READY_LINE="done [key=child-pr-$ID]: child $ID PR ready: $URL"
-PR_MODE=$(grep '^mode=' "$META" | tail -1 | cut -d= -f2- || true)
-PR_YOLO=$(grep '^yolo=' "$META" | tail -1 | cut -d= -f2- || true)
-[ -z "$PR_MODE" ] || READY_LINE="$READY_LINE mode=$(fm_parent_channel_clean_note "$PR_MODE")"
-[ -z "$PR_YOLO" ] || READY_LINE="$READY_LINE yolo=$(fm_parent_channel_clean_note "$PR_YOLO")"
-READY_RC=0
-fm_parent_channel_report "$FM_HOME" "$STATE" "$READY_LINE" || READY_RC=$?
-case "$READY_RC" in
-  0|1) ;;
-  *) printf 'actionable: PR %s is registered but its ready line did not reach the parent channel (rc=%s)\n' "$URL" "$READY_RC" >&2 ;;
-esac
+# The line also carries head=<sha>, the head this registration reported: the
+# recorded pr_head, or in a secondmate home a live read where none was recorded.
+# The parent presents the PR at that head and relays it with the captain's merge
+# word, and the mate records it through bin/fm-approved-head.sh before merging.
+# The merge-time re-record (FM_PR_CHECK_MERGE=1) is not a new review-ready PR,
+# so it publishes nothing; bin/fm-pr-merge.sh publishes the line itself only
+# when it refuses a head the captain did not approve.
+if [ "${FM_PR_CHECK_MERGE:-}" != 1 ]; then
+  READY_HEAD=$PR_HEAD
+  if [ -z "$READY_HEAD" ] && fm_parent_channel_home_id "$FM_HOME" >/dev/null 2>&1; then
+    READY_HEAD=$(fm_pr_live_head "$PROVIDER" "$URL" "$HOST" "$PROJECT_PATH" "$NUMBER" 2>/dev/null) || READY_HEAD=
+  fi
+  READY_RC=0
+  fm_parent_channel_report "$FM_HOME" "$STATE" \
+    "$(fm_parent_channel_pr_ready_line "$ID" "$URL" "$META" "$READY_HEAD")" || READY_RC=$?
+  case "$READY_RC" in
+    0|1) ;;
+    *) printf 'actionable: PR %s is registered but its ready line did not reach the parent channel (rc=%s)\n' "$URL" "$READY_RC" >&2 ;;
+  esac
+fi
 printf 'armed: state/%s.check.sh\n' "$ID"

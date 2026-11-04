@@ -954,7 +954,7 @@ fm_pr_github_read_record_with_gh() {  # <owner> <repo> <number>
   # shellcheck disable=SC2016  # GraphQL variables are literal query syntax.
   if ! fields=$(gh api graphql \
     -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged}}}' \
-    -F "owner=$owner" -F "repo=$repo" -F "number=$number" \
+    -f "owner=$owner" -f "repo=$repo" -F "number=$number" \
     --jq '.data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring)' \
     2>/dev/null) || [ -z "$fields" ]; then
     return 1
@@ -1171,6 +1171,43 @@ FIELDS
   # Consumed by bin/fm-teardown.sh pr_is_merged.
   # shellcheck disable=SC2034
   FM_PR_RECORD_HEAD=$head
+}
+
+# The head commit of a GitHub, GitLab, or Forgejo change as its forge reports it
+# now, printed; non-zero with the reason on stderr when it cannot be read. The
+# identity is passed explicitly because a later fm_pr_url_parse, including the
+# one inside fm_pr_metadata_identity_parse, overwrites the FM_PR_* globals.
+fm_pr_live_head() {  # <provider> <url> <host> <path> <number>
+  local provider=$1 url=$2 host=$3 path=$4 number=$5 head='' json
+  case "$provider" in
+    github)
+      command -v gh >/dev/null 2>&1 || { echo "error: reading a GitHub pull request head requires gh on PATH" >&2; return 1; }
+      head=$(gh pr view "$url" --json headRefOid -q .headRefOid 2>/dev/null) || head=
+      ;;
+    gitlab)
+      if ! command -v glab >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+        echo "error: reading a GitLab merge request head requires glab and jq on PATH" >&2
+        return 1
+      fi
+      if json=$(GITLAB_HOST="$host" glab mr view "$number" -R "https://$host/$path" -F json 2>/dev/null); then
+        head=$(printf '%s' "$json" | jq -r 'if type == "object" and (.sha | type) == "string" then .sha else empty end' 2>/dev/null) || head=
+      fi
+      ;;
+    forgejo)
+      if fm_pr_forgejo_read_record "$host" "$path" "$number"; then
+        head=$FM_PR_RECORD_HEAD
+      fi
+      ;;
+    *)
+      echo "error: firstmate does not merge a $provider change, so it reads no head for one" >&2
+      return 1
+      ;;
+  esac
+  if ! fm_pr_head_valid "$head"; then
+    echo "error: could not read the live head of $url" >&2
+    return 1
+  fi
+  printf '%s\n' "$head"
 }
 
 # gerrit-axi resolves its server from the current directory's origin remote
