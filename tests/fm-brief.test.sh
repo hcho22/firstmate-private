@@ -551,6 +551,42 @@ test_no_mistakes_dod_wording() {
   pass "fm-brief.sh: no-mistakes DOD keeps its apostrophe prose and bans --yes outright"
 }
 
+# An agent reviewer and fixer can keep each other busy indefinitely, so the
+# no-mistakes DOD caps fix rounds per step: the worker runs the round counter
+# before it fixes or escalates a gate, and escalates instead of a fourth fix.
+# The command the brief names must be the real counter, runnable as written.
+test_no_mistakes_dod_caps_fix_rounds() {
+  local home id brief cmd direct
+  home="$TMP_ROOT/rounds-home"
+  mkdir -p "$home/data"
+  id="brief-rounds-b1"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" some-proj --mode no-mistakes >/dev/null 2>&1
+  brief="$(task_data_path "$home" "$id" brief.md)"
+  assert_present "$brief" "brief was not scaffolded"
+  assert_grep "Fix rounds are capped at 3 per step of one run" "$brief" \
+    "no-mistakes DOD must state the fix-round cap"
+  assert_grep "before you answer it with \`--action fix\` or escalate its ask-user findings" "$brief" \
+    "no-mistakes DOD must run the cap check before a fix or an ask-user escalation"
+  assert_grep "whether you or the pipeline's own automatic fixing started it" "$brief" \
+    "no-mistakes DOD must count the pipeline's own fix rounds"
+  assert_grep "do not send the fix; append the text after \`escalation: \`" "$brief" \
+    "no-mistakes DOD must escalate instead of fixing at the cap"
+  assert_grep "fix-round cap rounds=<n> findings=<id1>,<id2>,... file=<that file>" "$brief" \
+    "no-mistakes DOD must keep the keyed escalation shape when the counter cannot count"
+  assert_grep "pass the \`--cap <n>\` it names to every later check of that step" "$brief" \
+    "no-mistakes DOD must let a firstmate decision allow more rounds"
+  # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
+  cmd=$(sed -n 's/.*run `\([^`]*fm-nm-rounds\.sh\) check --step <step>.*/\1/p' "$brief" | head -1)
+  [ -n "$cmd" ] || fail "no-mistakes DOD names no fix-round counter command"
+  [ -x "$cmd" ] || fail "no-mistakes DOD names a counter that is not an executable: $cmd"
+  "$cmd" --help >/dev/null || fail "the counter the DOD names does not run: $cmd"
+  direct="brief-rounds-d1"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$direct" some-proj --mode direct-PR >/dev/null 2>&1
+  assert_no_grep "Fix rounds are capped" "$(task_data_path "$home" "$direct" brief.md)" \
+    "direct-PR DOD runs no pipeline and must not carry the fix-round cap"
+  pass "fm-brief.sh: no-mistakes DOD caps fix rounds per step and names a runnable counter"
+}
+
 # The green-PR report must not depend on a status poll: `axi status` never
 # reports `checks-passed` while the ci step monitors the PR for merge, so a
 # worker told to wait on it for the next gate or outcome never learned its PR
@@ -1662,6 +1698,7 @@ test_delivery_flags_are_refused_where_they_do_not_apply
 test_faster_paths_use_configured_authority_without_stacked_review
 test_no_mistakes_dod_wording
 test_no_mistakes_dod_green_detection
+test_no_mistakes_dod_caps_fix_rounds
 test_pr_based_dod_requires_non_draft
 test_ask_user_escalation_format
 test_ship_project_memory_wording

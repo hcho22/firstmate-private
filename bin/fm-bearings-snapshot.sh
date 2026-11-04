@@ -73,6 +73,11 @@
 # waste capacity, and --all-landed switches back to the complete global newest-first
 # order. Which closed rows either side contributes is bin/fm-landed-lib.sh's rule.
 #
+# rounds_by_project and rounds_per_pr project this home's no-mistakes rounds to
+# pass from bin/fm-nm-rounds.sh's report, which owns their counting, so projects
+# whose reviews churn show up; rounds_per_pr keeps the newest FM_BEARINGS_ROUNDS
+# PRs, and an unreadable ledger is disclosed in omitted[] rather than shown empty.
+#
 # Flags:
 #   (default)        compact projection with bounded remote-ledger collection, TOON
 #   --json           the same projected model as JSON (machine/debug; parity form)
@@ -115,6 +120,7 @@ FM_BEARINGS_UNHEALTHY=${FM_BEARINGS_UNHEALTHY:-20}
 FM_BEARINGS_PR_REPOS=${FM_BEARINGS_PR_REPOS:-10}
 FM_BEARINGS_PR_LIMIT=${FM_BEARINGS_PR_LIMIT:-20}
 FM_BEARINGS_PR_TIMEOUT=${FM_BEARINGS_PR_TIMEOUT:-20}
+FM_BEARINGS_ROUNDS=${FM_BEARINGS_ROUNDS:-20}
 case "$FM_BEARINGS_PR_TIMEOUT" in ''|*[!0-9]*|0) FM_BEARINGS_PR_TIMEOUT=20 ;; esac
 validate_bound() {  # <name> <value>
   case "$2" in ''|*[!0-9]*|0) echo "fm-bearings-snapshot: $1 must be a positive integer" >&2; exit 2 ;; esac
@@ -130,6 +136,7 @@ validate_bound FM_BEARINGS_RECORDED_PRS "$FM_BEARINGS_RECORDED_PRS"
 validate_bound FM_BEARINGS_UNHEALTHY "$FM_BEARINGS_UNHEALTHY"
 validate_bound FM_BEARINGS_PR_REPOS "$FM_BEARINGS_PR_REPOS"
 validate_bound FM_BEARINGS_PR_LIMIT "$FM_BEARINGS_PR_LIMIT"
+validate_bound FM_BEARINGS_ROUNDS "$FM_BEARINGS_ROUNDS"
 
 usage() {
   cat <<'EOF'
@@ -150,7 +157,11 @@ Default fields: schema, home, generated, prs, in_flight{id,kind,state,repo,name,
   secondmate_reconcile{id,spawn_gen,host,kind,ids},
   decisions_open{id,key,verb,summary,owner}, landed{id,what,artifact,owner},
   gates{id,title,blocked_by,reason,owner,filed}, reports{id,path}, recorded_prs{id,url},
+  rounds_by_project{project,prs,fix_rounds,mean,max,at_cap,unknown},
+  rounds_per_pr{project,pr,fix_rounds,max,steps},
   unhealthy_endpoints{...} (only when non-empty), omitted{surface,reveal}.
+rounds_* project this home's no-mistakes rounds to pass from fm-nm-rounds.sh
+  report; rounds_per_pr keeps the newest FM_BEARINGS_ROUNDS PRs.
 Default gates are selected newest filed first before their bound; undated gates
   retain input order after dated gates.
 landed merges this home's Done with registered secondmate homes' Done, bounded by
@@ -345,6 +356,11 @@ EOF
   fi
 fi
 
+# --- this home's no-mistakes rounds to pass (fm-nm-rounds.sh owns them) ----
+ROUNDS_VIEW=$("$SCRIPT_DIR/fm-nm-rounds.sh" report --json --limit "$FM_BEARINGS_ROUNDS" 2>/dev/null) \
+  && printf '%s' "$ROUNDS_VIEW" | jq -e 'type == "object"' >/dev/null 2>&1 \
+  || ROUNDS_VIEW=null
+
 # --- projection: canonical snapshot -> fm-bearings.v1 model (JSON) ----------
 BEARINGS_TODAY=${NOW%%T*}
 case "$BEARINGS_TODAY" in
@@ -380,6 +396,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
   --argjson pr_rows_capped "$PR_ROWS_CAPPED" \
   --argjson pr_rows_min_total "$PR_ROWS_MIN_TOTAL" \
   --argjson return_catchup "$RETURN_CATCHUP" \
+  --argjson rounds "$ROUNDS_VIEW" \
   --argjson candidate_prs "$CANDIDATE_PRS" "$FM_LANDED_JQ_DEFS"'
   def trunc($n): if . == null then null else
     (tostring | gsub("\\s+"; " ") | if (length > $n) then (.[:$n] + "…") else . end) end;
@@ -647,7 +664,9 @@ MODEL=$(printf '%s' "$SNAP" | jq \
               + ($gates_all | newest_filed_first
                  | if $all_queued == 1 then . else .[:$gates_n] end)),
       reports: (if $all_reports == 1 then $reports_all else $reports_all[:$reports_n] end),
-      recorded_prs: (if $all_recorded_prs == 1 then $recorded_prs_all else $recorded_prs_all[:$recorded_prs_n] end)
+      recorded_prs: (if $all_recorded_prs == 1 then $recorded_prs_all else $recorded_prs_all[:$recorded_prs_n] end),
+      rounds_by_project: (($rounds.projects // []) | map({project, prs, fix_rounds, mean, max, at_cap, unknown})),
+      rounds_per_pr: (($rounds.prs // []) | map({project, pr, fix_rounds, max, steps}))
     }
   | . + (if ($unhealthy_all | length) > 0 then
            {unhealthy_endpoints:(if $all_unhealthy == 1 then $unhealthy_all else $unhealthy_all[:$unhealthy_n] end)}
@@ -690,6 +709,9 @@ MODEL=$(printf '%s' "$SNAP" | jq \
         (if $all_queued == 0 and ($gates_all | length) > $gates_n then {surface:("gates showing \($gates_n) of \($gates_all | length)"), reveal:"--all-queued"} else empty end),
         (if $all_reports == 0 and ($reports_all | length) > $reports_n then {surface:("reports showing \($reports_n) of \($reports_all | length)"), reveal:"--all-reports"} else empty end),
         (if $all_recorded_prs == 0 and ($recorded_prs_all | length) > $recorded_prs_n then {surface:("recorded_prs showing \($recorded_prs_n) of \($recorded_prs_all | length)"), reveal:"--all-recorded-prs"} else empty end),
+        (if $rounds == null then {surface:"pipeline rounds ledger unreadable", reveal:"bin/fm-nm-rounds.sh report"}
+         elif ($rounds.prs_total // 0) > (($rounds.prs // []) | length) then {surface:("rounds_per_pr showing \(($rounds.prs // []) | length) of \($rounds.prs_total)"), reveal:"bin/fm-nm-rounds.sh report"}
+         else empty end),
         (if $all_unhealthy == 0 and ($unhealthy_all | length) > $unhealthy_n then {surface:("unhealthy_endpoints showing \($unhealthy_n) of \($unhealthy_all | length)"), reveal:"--all-unhealthy"} else empty end),
         (if $include_prs == 1 and $pr_repos_total > $pr_repos_shown then {surface:("PR repositories showing \($pr_repos_shown) of \($pr_repos_total)"), reveal:"--all-pr-repos"} else empty end),
         (if $include_prs == 1 and $pr_rows_capped > 0 then {surface:("candidate_prs showing \($candidate_prs | length) of at least \($pr_rows_min_total); capped in \($pr_rows_capped) repo(s)"), reveal:"raise FM_BEARINGS_PR_LIMIT"} else empty end),

@@ -66,6 +66,7 @@ data/                personal fleet records; LOCAL, gitignored as a whole
   <Project>/<id>/brief.md   per-task crewmate brief, or per-secondmate charter brief when kind=secondmate; <Project> is the project's projects.md name (an unregistered repo uses its own name), _secondmates for charters, or _unassigned when there is no usable project name (docs/configuration.md "Per-project task data")
   <Project>/<id>/report.md  scout task deliverable, written by the crewmate; survives teardown
   pipeline-spend.jsonl  optional per-task no-mistakes pipeline spend, written only when config/pipeline-spend is present; bin/fm-pipeline-spend.sh owns the schema
+  pipeline-rounds.jsonl  per-task no-mistakes rounds to pass per step, written at every no-mistakes ship task's cleanup; bin/fm-nm-rounds.sh owns the schema
 projects/            cloned repos; gitignored; read-only except under hard rule 1's concrete captain-approved project operation exception
 state/               runtime records and signals; gitignored
   <id>.status        append-only wake events, not current-state truth; bin/fm-classify-lib.sh owns their syntax

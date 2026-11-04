@@ -77,7 +77,7 @@ Each effective `FM_HOME` contains private operational directories.
 
 - Project and secondmate registries.
 - Captain preferences and optional shared captain preferences.
-- Learnings, backlog, per-project task folders holding briefs and scout reports, and the optional per-task no-mistakes pipeline-spend ledger.
+- Learnings, backlog, per-project task folders holding briefs and scout reports, the optional per-task no-mistakes pipeline-spend ledger, and the per-task no-mistakes rounds-to-pass ledger.
 - Explicitly installed content-addressed extension packages under `data/extensions/packages/`.
 
 `state/` holds runtime records:
@@ -106,7 +106,7 @@ The firstmate repo itself is an ordinary project and gets its folder the same wa
 Two reserved folders begin with an underscore, which no project name can, so they never collide with one:
 `_secondmates` holds persistent secondmate charter briefs, and `_unassigned` holds work created with no project or with a project name that cannot be a folder name.
 A project name that differs only in case from an existing folder adopts that folder's spelling, so a case-insensitive disk never holds two.
-The fleet-wide files stay at the `data/` root: the backlog and its archives, `memory-archive.md`, the dated Bearings `status-report-<YYYY-MM-DD>.md` reports, the pipeline-spend ledger `pipeline-spend.jsonl`, `projects.md`, `secondmates.md`, `captain.md`, `captain-shared.md`, `learnings.md`, and a secondmate home's `charter.md`, alongside the non-task folders `handoff/`, `extensions/`, and `remote-secondmates/`.
+The fleet-wide files stay at the `data/` root: the backlog and its archives, `memory-archive.md`, the dated Bearings `status-report-<YYYY-MM-DD>.md` reports, the pipeline-spend ledger `pipeline-spend.jsonl`, the rounds-to-pass ledger `pipeline-rounds.jsonl`, `projects.md`, `secondmates.md`, `captain.md`, `captain-shared.md`, `learnings.md`, and a secondmate home's `charter.md`, alongside the non-task folders `handoff/`, `extensions/`, and `remote-secondmates/`.
 Each home, including every secondmate home, keeps its own `data/` in this layout; nothing is shared across homes.
 
 `bin/fm-task-data-lib.sh` is the single owner of placement and lookup, and every script that builds a per-task data path goes through it.
@@ -663,7 +663,7 @@ The home cannot be derived from a task copy's `no-mistakes` remote, because ever
 The file's first line is the absolute path of an executable the site provides; Firstmate calls it with the task copy's path as its only argument and never interprets the layout itself.
 When the resolver exits successfully within 5 seconds and prints exactly one line naming an existing directory by absolute path, that directory is exported as `NM_HOME` for that one call.
 
-Only host-side reads use it: current-state reads, pipeline-spend recording, the custody check, teardown's parked-run lookup and `axi abort --run`, and the wedge detector's search for a working run's own copy, which read `axi status`, the `axi` overview, `axi logs`, `runs`, `daemon status`, the state database, and the home's `worktrees/` directory.
+Only host-side reads use it: current-state reads, pipeline-spend recording, fix-round counting and recording, the custody check, teardown's parked-run lookup and `axi abort --run`, and the wedge detector's search for a working run's own copy, which read `axi status`, the `axi` overview, `axi logs`, `runs`, `daemon status`, the state database, and the home's `worktrees/` directory.
 It never starts a daemon and never changes how runs are launched or driven, account routing, or no-mistakes' own `config.yaml`.
 An explicit non-empty `NM_HOME` always wins and the resolver is not called.
 With the file absent, a first line that is not an absolute executable path, or a resolver that fails, times out, or prints anything else, every read uses the ambient home exactly as without the file.
