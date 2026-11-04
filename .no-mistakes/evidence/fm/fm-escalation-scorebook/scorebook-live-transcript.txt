@@ -1,40 +1,40 @@
-tasks-axi 0.2.6, jq jq-1.6, lab home $LAB (bin/fm-lab-home.sh create)
+fm-scorebook live drive at 2026-11-04T01:05:40Z (HEAD f85e4e0d), host jq jq-1.6, tasks-axi 0.2.6
 
-==== S0 kinds: which kinds can be handed off ====
-
+==== S1 kinds lists each kind, hand-off or captain-only, and its definition ====
 $ bin/fm-scorebook.sh kinds
-finding-scope	hand-off
-finding-design	hand-off
-finding-repeat	hand-off
-design	hand-off
-merge	captain-only
-credential	captain-only
-destructive	captain-only
-authority	captain-only
-other	hand-off
-[exit 0] kinds
+finding-scope	hand-off	an ask-user review finding whose fix would expand the accepted contract
+finding-design	hand-off	an ask-user review finding that needs a product or architecture call the accepted intent does not settle
+finding-repeat	hand-off	a repeated same-theme review finding while fixes accrete around a questionable abstraction
+design	hand-off	a design or product pick outside a review gate, such as an investigation, visual review, or intake question
+merge	captain-only	a merge or local landing approval; a project's yolo posture, not this record, is the only standing relaxation
+credential	captain-only	a credential or login only the captain can supply
+destructive	captain-only	a destructive, irreversible, or security-sensitive action
+authority	captain-only	any other decision AGENTS.md's hard rules, captain-instruction precedence, or a policy-owning skill reserve for his own concrete word, such as a direct project write under hard rule 1 or a fix-round cap escalation under ask-user-authority
+other	hand-off	any other question no AGENTS.md rule or policy-owning skill reserves for his own word
+[exit 0]
+CHECK PASS: authority is captain-only and names the fix-round cap
+CHECK PASS: other excludes skill-reserved decisions
+CHECK PASS: merge credential destructive authority are the captain-only set
 
-==== S1 chat question: record, captain picks differently, report ====
-
-$ bin/fm-scorebook.sh ask --kind design --recommend Postgres --question Postgres or SQLite for the cache index? --project sample
-chat-20261103T075822Z-53650
-[exit 0] ask chat
-
+==== S2 a chat question round-trips: ask, pending, answer, report, persisted record ====
+$ bin/fm-scorebook.sh ask --kind design --recommend option A: board on the left --question Which layout for the Bearings board? --task fm-board --project firstmate
+chat-20261104T010540Z-51926
+[exit 0]  <- record a design question asked in chat
+CHECK PASS: chat question gets a chat- id
 $ bin/fm-scorebook.sh pending
-chat-20261103T075822Z-53650	design	chat	2026-11-03T07:58:22Z		Postgres
-[exit 0] pending lists it with recommendation
-
-$ bin/fm-scorebook.sh answer chat-20261103T075822Z-53650 --matched no
-fm-scorebook: question chat-20261103T075822Z-53650 was asked in chat: pass his answer with --answer
-[exit 1] answer without his words is refused
-
-$ bin/fm-scorebook.sh answer chat-20261103T075822Z-53650 --matched no --answer SQLite, keep it simple.
-[exit 0] answer with his words
-
-$ bin/fm-scorebook.sh answer chat-20261103T075822Z-53650 --matched yes --answer again
-fm-scorebook: no open question with id chat-20261103T075822Z-53650
-[exit 1] answer twice is refused
-
+chat-20261104T010540Z-51926	design	chat	2026-11-04T01:05:40Z	fm-board	option A: board on the left
+[exit 0]
+CHECK PASS: pending shows id, kind, chat, at, task, recommendation
+$ bin/fm-scorebook.sh answer chat-20261104T010540Z-51926 --matched yes
+fm-scorebook: question chat-20261104T010540Z-51926 was asked in chat: pass his answer with --answer
+[exit 1]  <- chat answer without his words is refused
+CHECK PASS: answer without --answer refused (exit 1)
+$ bin/fm-scorebook.sh answer chat-20261104T010540Z-51926 --matched no --answer Option B, board on the right.
+[exit 0]  <- captain picked something else
+CHECK PASS: answer accepted
+$ bin/fm-scorebook.sh pending
+[exit 0]
+CHECK PASS: nothing pending after the answer
 $ bin/fm-scorebook.sh report
 kind            asked answered matched open withdrawn recent  status
 finding-scope       0        0       0    0         0    0/0  not-yet
@@ -49,161 +49,50 @@ other               0        0       0    0         0    0/0  not-yet
 
 A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
 A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
-[exit 0] report
+[exit 0]
+CHECK PASS: design row counts 1 asked, 1 answered, 0 matched, not-yet
+$ cat $LAB/data/captain-scorebook.jsonl
+{"event":"ask","at":"2026-11-04T01:05:40Z","id":"chat-20261104T010540Z-51926","kind":"design","recommendation":"option A: board on the left","held":false,"question":"Which layout for the Bearings board?","task":"fm-board","project":"firstmate"}
+{"event":"answer","at":"2026-11-04T01:05:41Z","id":"chat-20261104T010540Z-51926","matched":false,"answer":"Option B, board on the right."}
+CHECK PASS: record keeps question, recommendation, task, project, matched and answer
+$ bin/fm-scorebook.sh ask --kind design --recommend r --question moot one --project firstmate
+chat-20261104T010542Z-52359
+[exit 0]  <- withdraw a moot question
+$ bin/fm-scorebook.sh withdraw chat-20261104T010542Z-52359 --reason premise was false
+[exit 0]
+CHECK PASS: withdrawn question never counts as answered
 
-record lines for chat-20261103T075822Z-53650:
-{"event":"ask","at":"2026-11-03T07:58:22Z","id":"chat-20261103T075822Z-53650","kind":"design","recommendation":"Postgres","held":false,"question":"Postgres or SQLite for the cache index?","task":null,"project":"sample"}
-{"event":"answer","at":"2026-11-03T07:58:23Z","id":"chat-20261103T075822Z-53650","matched":false,"answer":"SQLite, keep it simple."}
-
-==== S2 held question: hold task, ask --held, answer gated on the captain's recorded words ====
-
-$ bin/fm-scorebook.sh ask --kind finding-design --recommend keep the queue --held queue-shape
-fm-scorebook: task queue-shape is not in this home's backlog; record a question asked in chat or relayed from another home with --question
-[exit 1] ask --held on a task absent from this home
-
-$ bin/fm-captain-hold.sh hold queue-shape --title Pick the queue shape --reason captain picks the queue shape: FIFO or priority --repo sample
-queue-shape
-[exit 0] hold the task for the captain
-
-$ bin/fm-scorebook.sh ask --kind finding-design --recommend FIFO --held queue-shape --project sample
-queue-shape
-[exit 0] ask --held
-
-$ bin/fm-scorebook.sh ask --kind finding-design --recommend x --held queue-shape
-fm-scorebook: question queue-shape is already open; answer or withdraw it first
-[exit 1] second open question on same task refused
-
-$ bin/fm-scorebook.sh ask --kind design --recommend ship now --question Ship now or after the retry work? --task queue-shape
-chat-20261103T075829Z-63020
-[exit 0] further question on the held task as chat
-
-$ bin/fm-scorebook.sh pending
-queue-shape	finding-design	held	2026-11-03T07:58:27Z	queue-shape	FIFO
-chat-20261103T075829Z-63020	design	chat	2026-11-03T07:58:29Z	queue-shape	ship now
-[exit 0] pending shows task and recommendation
-
-$ bin/fm-scorebook.sh answer queue-shape --matched yes
-fm-scorebook: task queue-shape is still an open captain call with no answer recorded since the question; record his answer with fm-captain-hold.sh answer first
-[exit 1] answer before the captain's words are on the task is refused
-
-$ bin/fm-captain-hold.sh answer queue-shape --decision-file $LAB/decision.txt
-answered: queue-shape
-[exit 0] captain answers via fm-captain-hold.sh answer
-
-$ bin/fm-scorebook.sh answer queue-shape --matched yes --answer FIFO.
-fm-scorebook: question queue-shape is held on its task: record the captain's words with fm-captain-hold.sh answer, not --answer
-[exit 1] --answer on a held question is refused
-
-$ bin/fm-scorebook.sh answer queue-shape --matched yes
-[exit 0] scorebook answer held question
-
-$ bin/fm-scorebook.sh answer chat-20261103T075829Z-63020 --matched yes --answer Ship now.
-[exit 0] scorebook answer further chat question
-
-$ bin/fm-scorebook.sh ask --kind finding-design --recommend r --held queue-shape
-fm-scorebook: task queue-shape is not held for the captain yet; hold it first with fm-captain-hold.sh hold, or record a chat question with --question
-[exit 1] ask --held on the closed local task says hold it first
-
-$ bin/fm-scorebook.sh pending
-[exit 0] pending now empty
-
-captain words appear in scorebook record: 0
-
-==== S3 release and re-hold: earlier answer still lands ====
-
-$ bin/fm-captain-hold.sh hold build-queue --title Build the queue --reason captain picks retry count --repo sample
-build-queue
-[exit 0] hold work item
-
-$ bin/fm-scorebook.sh ask --kind finding-scope --recommend retry twice --held build-queue
-build-queue
-[exit 0] ask --held
-
-$ bin/fm-captain-hold.sh answer build-queue --decision-file $LAB/rel.txt --release
-released: build-queue
-[exit 0] captain answers with --release
-
-$ bin/fm-captain-hold.sh hold build-queue --reason captain picks the backoff
-build-queue
-[exit 0] re-hold for a new question before scorebook answer
-
-$ bin/fm-scorebook.sh answer build-queue --matched yes
-[exit 0] scorebook answer for the first question is accepted
-
-$ bin/fm-scorebook.sh ask --kind finding-scope --recommend exponential --held build-queue
-build-queue
-[exit 0] ask --held second question
-
-$ bin/fm-scorebook.sh answer build-queue --matched no
-fm-scorebook: task build-queue is still an open captain call with no answer recorded since the question; record his answer with fm-captain-hold.sh answer first
-[exit 1] second question refused while its call is open
-
-==== S4 adversarial: expired --until deferral re-held without an answer ====
-
-$ bin/fm-captain-hold.sh hold pick-cache --title Pick the cache --reason captain picks the cache --repo sample
-pick-cache
-[exit 0] hold
-
-$ bin/fm-scorebook.sh ask --kind finding-design --recommend no cache --held pick-cache
-pick-cache
-[exit 0] ask --held
-
-$ bin/fm-captain-hold.sh open pick-cache --identity
-2026-11-03T07:58:46Z#0
-[exit 0] identity at ask
-
-$ bin/fm-captain-hold.sh hold pick-cache --reason captain said later --until 2000-01-01
-pick-cache
-[exit 0] captain says later (until a past date)
-
-$ bin/fm-captain-hold.sh hold pick-cache --reason captain said later again --until 2000-01-02
-pick-cache
-[exit 0] captain says later again on the expired deferral
-
-$ bin/fm-captain-hold.sh open pick-cache --identity
-2026-11-03T07:58:55Z#0
-[exit 0] identity now
-identity changed: 2026-11-03T07:58:46Z#0 -> 2026-11-03T07:58:55Z#0
-
-$ bin/fm-scorebook.sh answer pick-cache --matched yes
-fm-scorebook: task pick-cache is still an open captain call with no answer recorded since the question; record his answer with fm-captain-hold.sh answer first
-[exit 1] answer is refused: captain never answered
-
-$ bin/fm-captain-hold.sh answer pick-cache --decision-file $LAB/cache.txt
-answered: pick-cache
-[exit 0] captain answers
-
-$ bin/fm-scorebook.sh answer pick-cache --matched yes
-[exit 0] answer now accepted
-
-==== S5 moot call withdrawn never counts ====
-
-$ bin/fm-scorebook.sh ask --kind finding-scope --recommend r --question Moot one?
-chat-20261103T075901Z-92443
-[exit 0] ask
-
-$ bin/fm-scorebook.sh withdraw chat-20261103T075901Z-92443 --reason premise was false
-[exit 0] withdraw
-
-==== S6 threshold, one-time announcement, grant only on the captain's yes ====
-answer  1 [exit 0] (no announcement)
-answer  2 [exit 0] (no announcement)
-answer  3 [exit 0] (no announcement)
-answer  4 [exit 0] (no announcement)
-answer  5 [exit 0] (no announcement)
-answer  6 [exit 0] (no announcement)
-answer  7 [exit 0] (no announcement)
-answer  8 [exit 0] (no announcement)
-answer  9 [exit 0] (no announcement)
-answer 10 [exit 0] finding-repeat newly qualifies for hand-off: its 10 most recent answers all matched the recommendation (10 answered, 10 matched)
-answer 11 [exit 0] (no announcement)
-
+==== S3 a hand-off kind qualifies at 10 matching answers, announced once ====
+$ bin/fm-scorebook.sh answer chat-20261104T010542Z-52536 --matched yes --answer Decline, out of scope.
+[exit 0]  <- answer 1 as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010543Z-52665 --matched yes --answer Decline, out of scope.
+[exit 0]  <- answer 2 as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010543Z-52805 --matched yes --answer Decline, out of scope.
+[exit 0]  <- answer 3 as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010544Z-52947 --matched yes --answer Decline, out of scope.
+[exit 0]  <- answer 4 as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010545Z-53087 --matched yes --answer Decline, out of scope.
+[exit 0]  <- answer 5 as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010545Z-53220 --matched yes --answer Decline, out of scope.
+[exit 0]  <- answer 6 as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010546Z-53371 --matched yes --answer Decline, out of scope.
+[exit 0]  <- answer 7 as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010546Z-53512 --matched yes --answer Decline, out of scope.
+[exit 0]  <- answer 8 as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010547Z-53675 --matched yes --answer Decline, out of scope.
+[exit 0]  <- answer 9 as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010548Z-54040 --matched yes --answer Decline, out of scope.
+finding-scope newly qualifies for hand-off: its 10 most recent answers all matched the recommendation (10 answered, 10 matched)
+[exit 0]  <- answer 10 as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010548Z-54497 --matched yes --answer Decline, out of scope.
+[exit 0]  <- answer 11 as recommended
+CHECK PASS: only answer 10 printed an announcement citing the count
 $ bin/fm-scorebook.sh report
 kind            asked answered matched open withdrawn recent  status
-finding-scope       3        1       1    1         1    1/1  not-yet
-finding-design      2        2       2    0         0    2/2  not-yet
-finding-repeat     11       11      11    0         0  10/10  qualifies
-design              2        2       1    0         0    1/2  not-yet
+finding-scope      11       11      11    0         0  10/10  qualifies
+finding-design      0        0       0    0         0    0/0  not-yet
+finding-repeat      0        0       0    0         0    0/0  not-yet
+design              0        0       0    0         0    0/0  not-yet
 merge               0        0       0    0         0    0/0  captain-only
 credential          0        0       0    0         0    0/0  captain-only
 destructive         0        0       0    0         0    0/0  captain-only
@@ -212,121 +101,294 @@ other               0        0       0    0         0    0/0  not-yet
 
 A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
 A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
-[exit 0] report shows qualifies
+[exit 0]
+CHECK PASS: finding-scope qualifies
+$ bin/fm-scorebook.sh granted finding-scope
+[exit 1]  <- qualifying is not granted
+CHECK PASS: granted exits 1 before the captain's yes
+$ bin/fm-scorebook.sh answer chat-20261104T010549Z-54902 --matched no --answer Fix it after all.
+[exit 0]  <- one mismatch
+CHECK PASS: a mismatch in the recent 10 drops it to not-yet, 9/10
 
-$ bin/fm-scorebook.sh granted finding-repeat
-[exit 1] granted before the captain's yes
-
-$ bin/fm-scorebook.sh grant finding-repeat
-fm-scorebook: grant needs --captain-words-file with the captain's own yes
-[exit 2] grant without words is refused
-
+==== S4 a qualifying kind is firstmate's only after the captain's recorded yes; revoke takes it back ====
 $ bin/fm-scorebook.sh grant finding-repeat --captain-words-file $LAB/empty.txt
 fm-scorebook: captain words file is missing or empty: $LAB/empty.txt
-[exit 1] grant with empty words is refused
-
+[exit 1]  <- grant with empty captain words
+CHECK PASS: empty words refused
+$ bin/fm-scorebook.sh grant finding-repeat --captain-words-file $LAB/big.txt
+fm-scorebook: captain words file exceeds 8192 bytes
+[exit 1]  <- grant with 8193-byte captain words
+CHECK PASS: oversized words refused
+$ bin/fm-scorebook.sh granted finding-repeat
+[exit 1]
+CHECK PASS: still not granted
 $ bin/fm-scorebook.sh grant finding-repeat --captain-words-file $LAB/yes.txt
-[exit 0] grant with captain's yes
-
+[exit 0]  <- captain's yes
 $ bin/fm-scorebook.sh granted finding-repeat
-[exit 0] granted after yes
+[exit 0]
+CHECK PASS: granted exits 0 after the yes
+$ bin/fm-scorebook.sh report
+kind            asked answered matched open withdrawn recent  status
+finding-scope       0        0       0    0         0    0/0  not-yet
+finding-design      0        0       0    0         0    0/0  not-yet
+finding-repeat     10       10      10    0         0  10/10  granted
+design              0        0       0    0         0    0/0  not-yet
+merge               0        0       0    0         0    0/0  captain-only
+credential          0        0       0    0         0    0/0  captain-only
+destructive         0        0       0    0         0    0/0  captain-only
+authority           0        0       0    0         0    0/0  captain-only
+other               0        0       0    0         0    0/0  not-yet
 
+A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
+A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
+[exit 0]
+CHECK PASS: report shows granted
 $ bin/fm-scorebook.sh granted finding-scope
-[exit 1] other hand-off kind not granted by it
-
-$ bin/fm-scorebook.sh report
-kind            asked answered matched open withdrawn recent  status
-finding-scope       3        1       1    1         1    1/1  not-yet
-finding-design      2        2       2    0         0    2/2  not-yet
-finding-repeat     11       11      11    0         0  10/10  granted
-design              2        2       1    0         0    1/2  not-yet
-merge               0        0       0    0         0    0/0  captain-only
-credential          0        0       0    0         0    0/0  captain-only
-destructive         0        0       0    0         0    0/0  captain-only
-authority           0        0       0    0         0    0/0  captain-only
-other               0        0       0    0         0    0/0  not-yet
-
-A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
-A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
-[exit 0] report shows granted
-
-$ bin/fm-scorebook.sh revoke finding-repeat --reason captain wants to see these again
-[exit 0] revoke
-
+[exit 1]  <- a grant for one kind does not leak to another
+CHECK PASS: finding-scope not granted
 $ bin/fm-scorebook.sh granted finding-repeat
-[exit 1] granted after revoke
+[exit 1]  <- another home never reads the first home's grant
+CHECK PASS: second lab home not granted
+$ bin/fm-scorebook.sh revoke finding-repeat --reason captain wants to see these again
+[exit 0]
+$ bin/fm-scorebook.sh granted finding-repeat
+[exit 1]
+CHECK PASS: revoked kind not granted
 
-$ bin/fm-scorebook.sh ask --kind finding-repeat --recommend fold into one helper --question repeat finding 12?
-chat-20261103T075909Z-95960
-[exit 0] ask one more finding-repeat
-
-$ bin/fm-scorebook.sh answer chat-20261103T075909Z-95960 --matched no --answer No, keep them separate.
-[exit 0] captain disagrees this time
-
+==== S5 adversarial: fix-round cap escalation recorded as authority never becomes firstmate's ====
+$ bin/fm-scorebook.sh answer chat-20261104T010557Z-57401 --matched yes --answer Allow 2 more rounds.
+[exit 0]  <- cap escalation 1 answered as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010558Z-57540 --matched yes --answer Allow 2 more rounds.
+[exit 0]  <- cap escalation 2 answered as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010558Z-57681 --matched yes --answer Allow 2 more rounds.
+[exit 0]  <- cap escalation 3 answered as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010559Z-57834 --matched yes --answer Allow 2 more rounds.
+[exit 0]  <- cap escalation 4 answered as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010600Z-57967 --matched yes --answer Allow 2 more rounds.
+[exit 0]  <- cap escalation 5 answered as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010600Z-58121 --matched yes --answer Allow 2 more rounds.
+[exit 0]  <- cap escalation 6 answered as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010601Z-58262 --matched yes --answer Allow 2 more rounds.
+[exit 0]  <- cap escalation 7 answered as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010601Z-58398 --matched yes --answer Allow 2 more rounds.
+[exit 0]  <- cap escalation 8 answered as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010602Z-58538 --matched yes --answer Allow 2 more rounds.
+[exit 0]  <- cap escalation 9 answered as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010603Z-58679 --matched yes --answer Allow 2 more rounds.
+[exit 0]  <- cap escalation 10 answered as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010603Z-58859 --matched yes --answer Allow 2 more rounds.
+[exit 0]  <- cap escalation 11 answered as recommended
+$ bin/fm-scorebook.sh answer chat-20261104T010604Z-58988 --matched yes --answer Allow 2 more rounds.
+[exit 0]  <- cap escalation 12 answered as recommended
+CHECK PASS: no hand-off announcement after 12 matching cap answers
 $ bin/fm-scorebook.sh report
 kind            asked answered matched open withdrawn recent  status
-finding-scope       3        1       1    1         1    1/1  not-yet
-finding-design      2        2       2    0         0    2/2  not-yet
-finding-repeat     12       12      11    0         0   9/10  not-yet
-design              2        2       1    0         0    1/2  not-yet
+finding-scope       0        0       0    0         0    0/0  not-yet
+finding-design      0        0       0    0         0    0/0  not-yet
+finding-repeat      0        0       0    0         0    0/0  not-yet
+design              0        0       0    0         0    0/0  not-yet
 merge               0        0       0    0         0    0/0  captain-only
 credential          0        0       0    0         0    0/0  captain-only
 destructive         0        0       0    0         0    0/0  captain-only
-authority           0        0       0    0         0    0/0  captain-only
+authority          12       12      12    0         0  10/10  captain-only
 other               0        0       0    0         0    0/0  not-yet
 
 A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
 A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
-[exit 0] report: one mismatch in the recent window drops qualifies to not-yet
-
-==== S7 adversarial: captain-only kinds never hand off ====
-
-$ bin/fm-scorebook.sh grant merge --captain-words-file $LAB/yes.txt
-fm-scorebook: kind merge always stays with the captain: AGENTS.md reserves it for his own concrete word, so it cannot be handed to firstmate
-[exit 1] grant merge refused
-
-$ bin/fm-scorebook.sh grant credential --captain-words-file $LAB/yes.txt
-fm-scorebook: kind credential always stays with the captain: AGENTS.md reserves it for his own concrete word, so it cannot be handed to firstmate
-[exit 1] grant credential refused
-
-$ bin/fm-scorebook.sh grant destructive --captain-words-file $LAB/yes.txt
-fm-scorebook: kind destructive always stays with the captain: AGENTS.md reserves it for his own concrete word, so it cannot be handed to firstmate
-[exit 1] grant destructive refused
-
+[exit 0]
+CHECK PASS: authority 12/12 matched yet captain-only
 $ bin/fm-scorebook.sh grant authority --captain-words-file $LAB/yes.txt
-fm-scorebook: kind authority always stays with the captain: AGENTS.md reserves it for his own concrete word, so it cannot be handed to firstmate
-[exit 1] grant authority refused
-
+fm-scorebook: kind authority always stays with the captain: AGENTS.md or a policy-owning skill reserves it for his own concrete word, so it cannot be handed to firstmate
+[exit 1]  <- even with the captain's words, grant refuses authority
+CHECK PASS: grant authority refused (exit 1)
 $ bin/fm-scorebook.sh granted authority
-[exit 1] granted authority with a hand-written grant line
+[exit 1]  <- hand-forged grant line appended to the record
+CHECK PASS: granted authority still exits 1 with a forged grant
+$ bin/fm-scorebook.sh grant merge --captain-words-file $LAB/yes.txt
+fm-scorebook: kind merge always stays with the captain: AGENTS.md or a policy-owning skill reserves it for his own concrete word, so it cannot be handed to firstmate
+[exit 1]  <- captain-only merge
+CHECK PASS: grant merge refused
+$ bin/fm-scorebook.sh grant credential --captain-words-file $LAB/yes.txt
+fm-scorebook: kind credential always stays with the captain: AGENTS.md or a policy-owning skill reserves it for his own concrete word, so it cannot be handed to firstmate
+[exit 1]  <- captain-only credential
+CHECK PASS: grant credential refused
+$ bin/fm-scorebook.sh grant destructive --captain-words-file $LAB/yes.txt
+fm-scorebook: kind destructive always stays with the captain: AGENTS.md or a policy-owning skill reserves it for his own concrete word, so it cannot be handed to firstmate
+[exit 1]  <- captain-only destructive
+CHECK PASS: grant destructive refused
+$ bin/fm-scorebook.sh ask --kind fix-round-cap --recommend r --question q
+fm-scorebook: unknown kind: fix-round-cap (see: fm-scorebook.sh kinds)
+[exit 2]  <- the cap escalation cannot be filed under a hand-off kind by typo
+CHECK PASS: unknown kind is bad usage (exit 2)
 
+==== S6 adversarial: project-write approvals recorded as authority stay captain-only ====
 $ bin/fm-scorebook.sh report
 kind            asked answered matched open withdrawn recent  status
-finding-scope       3        1       1    1         1    1/1  not-yet
-finding-design      2        2       2    0         0    2/2  not-yet
-finding-repeat     12       12      11    0         0   9/10  not-yet
-design              2        2       1    0         0    1/2  not-yet
-merge              10       10      10    0         0  10/10  captain-only
-credential         10       10      10    0         0  10/10  captain-only
-destructive        10       10      10    0         0  10/10  captain-only
+finding-scope       0        0       0    0         0    0/0  not-yet
+finding-design      0        0       0    0         0    0/0  not-yet
+finding-repeat      0        0       0    0         0    0/0  not-yet
+design              0        0       0    0         0    0/0  not-yet
+merge               0        0       0    0         0    0/0  captain-only
+credential          0        0       0    0         0    0/0  captain-only
+destructive         0        0       0    0         0    0/0  captain-only
 authority          10       10      10    0         0  10/10  captain-only
 other               0        0       0    0         0    0/0  not-yet
 
 A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
 A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
-[exit 0] report
+[exit 0]
+CHECK PASS: authority 10/10 matched, captain-only
 
-==== S8 adversarial: record never lands on a tracked path ====
+==== S7 held questions against a real backlog through fm-captain-hold.sh ====
+$ bin/fm-scorebook.sh ask --kind finding-design --recommend keep the queue --held remote-call --project sample
+fm-scorebook: task remote-call is not in this home's backlog; record a question asked in chat or relayed from another home with --question
+[exit 1]  <- task absent from this home (e.g. held in a secondmate home)
+CHECK PASS: absent task refused, routed to --question
+$ sh -c cd "$0" && exec tasks-axi "$@" $LAB add queue-call Pick the queue shape --repo sample
+ok: added queue-call (repo sample) -> Queued
+task:
+  id: queue-call
+  title: Pick the queue shape
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: task
+  repo: sample
+  priority: "-"
+  created: 2026-11-03
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi start queue-call` to move it to in flight
+  - Run `tasks-axi block queue-call --by <other>` to record a dependency
+[exit 0]  <- create a local task that is not held
+$ bin/fm-scorebook.sh ask --kind finding-design --recommend keep the queue --held queue-call --project sample
+fm-scorebook: task queue-call is not held for the captain yet; hold it first with fm-captain-hold.sh hold, or record a chat question with --question
+[exit 1]  <- local task not yet held
+CHECK PASS: local unheld task refused with hold it first
+$ bin/fm-captain-hold.sh hold queue-call --reason captain picks the queue shape: keep the queue or switch to a stack
+queue-call
+[exit 0]  <- hold it for the captain
+$ bin/fm-scorebook.sh ask --kind finding-design --recommend keep the queue --held queue-call --project sample
+queue-call
+[exit 0]  <- record the held question
+CHECK PASS: held question id is the task id
+$ bin/fm-scorebook.sh ask --kind design --recommend ship now --question Ship now or after X? --task queue-call --project sample
+chat-20261104T010617Z-63313
+[exit 0]  <- a further question on the same held task
+$ bin/fm-scorebook.sh pending
+queue-call	finding-design	held	2026-11-04T01:06:16Z	queue-call	keep the queue
+chat-20261104T010617Z-63313	design	chat	2026-11-04T01:06:17Z	queue-call	ship now
+[exit 0]
+CHECK PASS: pending shows both with task and recommendation
+$ bin/fm-scorebook.sh answer queue-call --matched yes
+fm-scorebook: task queue-call is still an open captain call with no answer recorded since the question; record his answer with fm-captain-hold.sh answer first
+[exit 1]  <- answer before the captain's words are on the task
+CHECK PASS: refused while still an open captain call
+$ bin/fm-captain-hold.sh answer queue-call --decision-file $LAB/decision.txt
+answered: queue-call
+[exit 0]  <- captain's words recorded on the task
+$ bin/fm-scorebook.sh answer queue-call --matched yes --answer Keep the queue.
+fm-scorebook: question queue-call is held on its task: record the captain's words with fm-captain-hold.sh answer, not --answer
+[exit 1]  <- held answer must not copy his words
+CHECK PASS: --answer refused for a held question
+$ bin/fm-scorebook.sh answer queue-call --matched yes
+[exit 0]
+CHECK PASS: held answer accepted after the captain answered
+$ bin/fm-scorebook.sh answer chat-20261104T010617Z-63313 --matched no --answer After X.
+[exit 0]
+$ bin/fm-scorebook.sh report
+kind            asked answered matched open withdrawn recent  status
+finding-scope       0        0       0    0         0    0/0  not-yet
+finding-design      1        1       1    0         0    1/1  not-yet
+finding-repeat      0        0       0    0         0    0/0  not-yet
+design              1        1       0    0         0    0/1  not-yet
+merge               0        0       0    0         0    0/0  captain-only
+credential          0        0       0    0         0    0/0  captain-only
+destructive         0        0       0    0         0    0/0  captain-only
+authority           0        0       0    0         0    0/0  captain-only
+other               0        0       0    0         0    0/0  not-yet
 
-$ env FM_HOME=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab-git.c6ixXw bin/fm-scorebook.sh ask --kind other --recommend r --question q
-fm-scorebook: refusing to write /var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab-git.c6ixXw/data/captain-scorebook.jsonl: it is not ignored by the git work tree that contains it
-[exit 1] ask in a home whose data/ git would track
-record exists: no
+A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
+A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
+[exit 0]
+CHECK PASS: finding-design 1 matched, design 0 matched
+CHECK PASS: captain's words stored once (on the task, not in the scorebook)
+$ cat $LAB/data/captain-scorebook.jsonl
+{"event":"ask","at":"2026-11-04T01:06:16Z","id":"queue-call","kind":"finding-design","recommendation":"keep the queue","held":true,"call_identity":"2026-11-04T01:06:14Z#0","task":"queue-call","project":"sample"}
+{"event":"ask","at":"2026-11-04T01:06:17Z","id":"chat-20261104T010617Z-63313","kind":"design","recommendation":"ship now","held":false,"question":"Ship now or after X?","task":"queue-call","project":"sample"}
+{"event":"answer","at":"2026-11-04T01:06:20Z","id":"queue-call","matched":true}
+{"event":"answer","at":"2026-11-04T01:06:21Z","id":"chat-20261104T010617Z-63313","matched":false,"answer":"After X."}
 
-$ env FM_HOME=/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T//fm-lab-git.c6ixXw bin/fm-scorebook.sh ask --kind other --recommend r --question q
-chat-20261103T075935Z-13235
-[exit 0] ask once data/ is ignored
-git status --porcelain: [?? .gitignore]
+==== S8 release and re-hold: a new question on a re-held task needs a new answer ====
+$ sh -c cd "$0" && exec tasks-axi "$@" $LAB add work-call Gate the release --repo sample
+ok: added work-call (repo sample) -> Queued
+task:
+  id: work-call
+  title: Gate the release
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: task
+  repo: sample
+  priority: "-"
+  created: 2026-11-03
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi start work-call` to move it to in flight
+  - Run `tasks-axi block work-call --by <other>` to record a dependency
+[exit 0]
+$ bin/fm-captain-hold.sh hold work-call --reason approve the release plan?
+work-call
+[exit 0]
+$ bin/fm-scorebook.sh ask --kind design --recommend plan A --held work-call --project sample
+work-call
+[exit 0]
+$ bin/fm-captain-hold.sh answer work-call --decision-file $LAB/d2.txt --release
+released: work-call
+[exit 0]  <- captain answers with --release
+$ bin/fm-scorebook.sh answer work-call --matched yes
+[exit 0]
+CHECK PASS: first held question answered
+$ bin/fm-captain-hold.sh hold work-call --reason approve the rollout window?
+work-call
+[exit 0]  <- held again for a new question
+$ bin/fm-scorebook.sh ask --kind design --recommend Friday --held work-call --project sample
+work-call
+[exit 0]
+CHECK PASS: re-held task accepts a new question
+$ bin/fm-scorebook.sh answer work-call --matched yes
+fm-scorebook: task work-call is still an open captain call with no answer recorded since the question; record his answer with fm-captain-hold.sh answer first
+[exit 1]  <- answer to the new question before his new words
+CHECK PASS: refused until a new resolution lands
+$ bin/fm-captain-hold.sh answer work-call --decision-file $LAB/d3.txt --release
+released: work-call
+[exit 0]
+$ bin/fm-scorebook.sh answer work-call --matched no
+[exit 0]
+CHECK PASS: accepted after the new resolution
 
-==== Final record ====
-lines: 120
+==== S9 the record never lands on a git-tracked path ====
+$ env FM_DATA_OVERRIDE=$LAB/repo/data bin/fm-scorebook.sh ask --kind other --recommend r --question q
+fm-scorebook: refusing to write $LAB/repo/data/captain-scorebook.jsonl: it is not ignored by the git work tree that contains it
+[exit 1]  <- FM_DATA_OVERRIDE inside a git work tree that does not ignore it
+CHECK PASS: write refused (exit 1) and no file left
+$ env FM_DATA_OVERRIDE=$LAB/repo/data bin/fm-scorebook.sh ask --kind other --recommend r --question q
+chat-20261104T010633Z-68851
+[exit 0]  <- same path once ignored
+CHECK PASS: write accepted where git ignores it
+
+RESULT: 0 check(s) failed

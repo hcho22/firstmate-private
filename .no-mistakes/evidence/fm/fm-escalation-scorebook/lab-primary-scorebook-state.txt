@@ -1,0 +1,43 @@
+# lab data/captain-scorebook.jsonl after both drills
+{"event":"ask","at":"2026-11-04T01:01:23Z","id":"chat-20261104T010123Z-18560","kind":"finding-repeat","recommendation":"rethink the retry abstraction","held":false,"question":"repeat finding 1","task":null,"project":"sample"}
+{"event":"answer","at":"2026-11-04T01:01:23Z","id":"chat-20261104T010123Z-18560","matched":true,"answer":"Rethink it."}
+{"event":"ask","at":"2026-11-04T01:01:24Z","id":"chat-20261104T010123Z-18728","kind":"finding-repeat","recommendation":"rethink the retry abstraction","held":false,"question":"repeat finding 2","task":null,"project":"sample"}
+{"event":"answer","at":"2026-11-04T01:01:24Z","id":"chat-20261104T010123Z-18728","matched":true,"answer":"Rethink it."}
+{"event":"ask","at":"2026-11-04T01:01:24Z","id":"chat-20261104T010124Z-19088","kind":"finding-repeat","recommendation":"rethink the retry abstraction","held":false,"question":"repeat finding 3","task":null,"project":"sample"}
+{"event":"answer","at":"2026-11-04T01:01:25Z","id":"chat-20261104T010124Z-19088","matched":true,"answer":"Rethink it."}
+{"event":"ask","at":"2026-11-04T01:01:25Z","id":"chat-20261104T010125Z-19505","kind":"finding-repeat","recommendation":"rethink the retry abstraction","held":false,"question":"repeat finding 4","task":null,"project":"sample"}
+{"event":"answer","at":"2026-11-04T01:01:25Z","id":"chat-20261104T010125Z-19505","matched":true,"answer":"Rethink it."}
+{"event":"ask","at":"2026-11-04T01:01:25Z","id":"chat-20261104T010125Z-19831","kind":"finding-repeat","recommendation":"rethink the retry abstraction","held":false,"question":"repeat finding 5","task":null,"project":"sample"}
+{"event":"answer","at":"2026-11-04T01:01:26Z","id":"chat-20261104T010125Z-19831","matched":true,"answer":"Rethink it."}
+{"event":"ask","at":"2026-11-04T01:01:26Z","id":"chat-20261104T010126Z-19994","kind":"finding-repeat","recommendation":"rethink the retry abstraction","held":false,"question":"repeat finding 6","task":null,"project":"sample"}
+{"event":"answer","at":"2026-11-04T01:01:26Z","id":"chat-20261104T010126Z-19994","matched":true,"answer":"Rethink it."}
+{"event":"ask","at":"2026-11-04T01:01:27Z","id":"chat-20261104T010127Z-20183","kind":"finding-repeat","recommendation":"rethink the retry abstraction","held":false,"question":"repeat finding 7","task":null,"project":"sample"}
+{"event":"answer","at":"2026-11-04T01:01:27Z","id":"chat-20261104T010127Z-20183","matched":true,"answer":"Rethink it."}
+{"event":"ask","at":"2026-11-04T01:01:27Z","id":"chat-20261104T010127Z-20468","kind":"finding-repeat","recommendation":"rethink the retry abstraction","held":false,"question":"repeat finding 8","task":null,"project":"sample"}
+{"event":"answer","at":"2026-11-04T01:01:28Z","id":"chat-20261104T010127Z-20468","matched":true,"answer":"Rethink it."}
+{"event":"ask","at":"2026-11-04T01:01:28Z","id":"chat-20261104T010128Z-20847","kind":"finding-repeat","recommendation":"rethink the retry abstraction","held":false,"question":"repeat finding 9","task":null,"project":"sample"}
+{"event":"answer","at":"2026-11-04T01:01:28Z","id":"chat-20261104T010128Z-20847","matched":true,"answer":"Rethink it."}
+{"event":"ask","at":"2026-11-04T01:01:29Z","id":"chat-20261104T010128Z-21098","kind":"finding-repeat","recommendation":"rethink the retry abstraction","held":false,"question":"repeat finding 10","task":null,"project":"sample"}
+{"event":"answer","at":"2026-11-04T01:01:29Z","id":"chat-20261104T010128Z-21098","matched":true,"answer":"Rethink it."}
+{"event":"grant","at":"2026-11-04T01:01:29Z","kind":"finding-repeat","captain_words":"Yes, decide repeated same-theme findings yourself from now on.\n"}
+{"event":"ask","at":"2026-11-04T01:03:15Z","id":"chat-20261104T010315Z-35753","kind":"authority","recommendation":"Rethink the approach: the same retry-wrapper theme survived all 3 fix rounds on the review step, which points at the wrapper design rather than independent defects; do not approve as is or allow more rounds.","held":false,"question":"sample-work review step hit the fix-round cap (rounds=3) with the same retry-wrapper theme recurring: rethink the approach, approve the step as it stands, or allow more rounds (how many)?","task":"sample-work","project":"sample"}
+{"event":"answer","at":"2026-11-04T01:04:07Z","id":"chat-20261104T010315Z-35753","matched":true,"answer":"Rethink it: use a plain bounded retry around the upload call."}
+
+# fm-scorebook.sh report
+kind            asked answered matched open withdrawn recent  status
+finding-scope       0        0       0    0         0    0/0  not-yet
+finding-design      0        0       0    0         0    0/0  not-yet
+finding-repeat     10       10      10    0         0  10/10  granted
+design              0        0       0    0         0    0/0  not-yet
+merge               0        0       0    0         0    0/0  captain-only
+credential          0        0       0    0         0    0/0  captain-only
+destructive         0        0       0    0         0    0/0  captain-only
+authority           1        1       1    0         0    1/1  captain-only
+other               0        0       0    0         0    0/0  not-yet
+
+A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
+A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
+
+# fm-scorebook.sh granted finding-repeat / authority
+finding-repeat exit 0
+authority exit 1
