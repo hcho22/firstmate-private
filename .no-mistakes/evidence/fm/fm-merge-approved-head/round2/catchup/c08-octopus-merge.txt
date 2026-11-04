@@ -1,0 +1,24 @@
+# c08-octopus-merge
+what happened after the captain approved: an octopus merge of main and another branch
+captain-approved head (recorded): 0138e33daf4e0291350e423a67fbcfb4caa1c01e
+recorded: approved head 0138e33daf4e0291350e423a67fbcfb4caa1c01e for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of refs/pull/7/head):
+  *-.   073432c Merge branches 'main' and 'side' into feature
+  |\ \  
+  | | * 7e33677 side work
+  | * | 68e6478 base: an unrelated change
+  | |/  
+  * / 0138e33 feat: the change the captain reviewed
+  |/  
+  * f53b594 base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c08 https://github.com/lab-owner/lab-repo/pull/7 073432c13ed65b9f782851f41eb87e99dd708ec1 main
+## exit status: 1
+## stdout
+## stderr
+error: refusing to merge https://github.com/lab-owner/lab-repo/pull/7: the captain approved head 0138e33daf4e0291350e423a67fbcfb4caa1c01e, but the live head is 073432c13ed65b9f782851f41eb87e99dd708ec1
+  - 7e336773b0a083d7867625edd3f3d66e68980a0a side work (a commit added to the pull request)
+  - 073432c13ed65b9f782851f41eb87e99dd708ec1 Merge branches 'main' and 'side' into feature (a merge of 3 parents)
+  - 3 commits between the heads, 2 not on main
+error: present the pull request to the captain again at head 073432c13ed65b9f782851f41eb87e99dd708ec1, recording that head with: <worktree>/bin/fm-approved-head.sh record c08 https://github.com/lab-owner/lab-repo/pull/7 073432c13ed65b9f782851f41eb87e99dd708ec1
+## private refs left in the task worktree
+(end)

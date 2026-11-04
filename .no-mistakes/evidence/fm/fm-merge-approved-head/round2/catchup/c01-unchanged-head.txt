@@ -1,0 +1,14 @@
+# c01-unchanged-head
+what happened after the captain approved: nothing; the head is the one shown
+captain-approved head (recorded): ff5f364af3edc9a0d79f9afba7e9b2b6673faf6b
+recorded: approved head ff5f364af3edc9a0d79f9afba7e9b2b6673faf6b for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of refs/pull/7/head):
+  * ff5f364 feat: the change the captain reviewed
+  * 6573c11 base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c01 https://github.com/lab-owner/lab-repo/pull/7 ff5f364af3edc9a0d79f9afba7e9b2b6673faf6b main
+## exit status: 0
+## stdout
+## stderr
+verified: live head ff5f364af3edc9a0d79f9afba7e9b2b6673faf6b of https://github.com/lab-owner/lab-repo/pull/7 is the captain-approved head
+## private refs left in the task worktree
+(end)

@@ -1,0 +1,19 @@
+# b05: the board-wake handler reads the click and binds exactly the head the card showed
+## wake queued for firstmate
+1793751117	1	check	procevent:lavish-6f738fb63b24b450:1	check: procevent lavish lavish-6f738fb63b24b450 1
+$ bin/fm-procevent-lavish.sh answers $LAB/state/procevent-inbox/lavish-6f738fb63b24b450.1.result
+merge.bd-24	merge	Merge: low-risk merge tier from live changed files -> merge
+(exit 0)
+$ bin/fm-procevent-lavish.sh heads $LAB/state/procevent-inbox/lavish-6f738fb63b24b450.1.result
+merge.bd-24	91822114c812bdadc0c06bc7b34e6ff30893cea3
+(exit )
+$ bin/fm-approved-head.sh record bd-24 https://github.com/hcho22/firstmate-private/pull/24 91822114c812bdadc0c06bc7b34e6ff30893cea3
+recorded: approved head 91822114c812bdadc0c06bc7b34e6ff30893cea3 for https://github.com/hcho22/firstmate-private/pull/24
+(exit 0)
+## bd-24 meta after the handler recorded the card's head
+approved_head=91822114c812bdadc0c06bc7b34e6ff30893cea3 https://github.com/hcho22/firstmate-private/pull/24
+pr=https://github.com/hcho22/firstmate-private/pull/24
+pr_head=91822114c812bdadc0c06bc7b34e6ff30893cea3
+$ bin/fm-approved-head.sh verify bd-24 https://github.com/hcho22/firstmate-private/pull/24 <live head read now> main
+verified: live head 91822114c812bdadc0c06bc7b34e6ff30893cea3 of https://github.com/hcho22/firstmate-private/pull/24 is the captain-approved head
+(exit 0)

@@ -1,0 +1,21 @@
+# c10-task-worktree-gone
+what happened after the captain approved: a clean catch-up, but the task worktree that verify reads commits from is gone
+captain-approved head (recorded): ce1855001974b7b3d1144aa97109e4cba5b27dc8
+recorded: approved head ce1855001974b7b3d1144aa97109e4cba5b27dc8 for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of refs/pull/7/head):
+  *   c60b31b Merge branch 'main' into feature
+  |\  
+  | * 29b7444 base: an unrelated change
+  * | ce18550 feat: the change the captain reviewed
+  |/  
+  * 9dc65c4 base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c10 https://github.com/lab-owner/lab-repo/pull/7 c60b31ba77c496fdb91fb887cc437fe3d3f9ecac main
+## exit status: 1
+## stdout
+## stderr
+error: refusing to merge https://github.com/lab-owner/lab-repo/pull/7: the captain approved head ce1855001974b7b3d1144aa97109e4cba5b27dc8, but the live head is c60b31ba77c496fdb91fb887cc437fe3d3f9ecac
+  - the commits between them could not be read: the task worktree is unavailable
+error: present the pull request to the captain again at head c60b31ba77c496fdb91fb887cc437fe3d3f9ecac, recording that head with: <worktree>/bin/fm-approved-head.sh record c10 https://github.com/lab-owner/lab-repo/pull/7 c60b31ba77c496fdb91fb887cc437fe3d3f9ecac
+## private refs left in the task worktree
+(task worktree absent)
+(end)

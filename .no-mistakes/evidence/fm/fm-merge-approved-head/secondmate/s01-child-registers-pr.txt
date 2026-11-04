@@ -1,0 +1,11 @@
+# s01-child-registers-pr
+$ FM_HOME=$LAB/mate-a bin/fm-pr-check.sh sm-a https://github.com/hcho22/firstmate-private/pull/24
+## exit status: 0
+## stdout
+armed: state/sm-a.check.sh
+## stderr (watcher banners from the lab home omitted)
+## merge writes refused by the test guard in this step
+total so far: 0
+## parent channel mate-a (P/state/mate-a.status): 0 line(s) before, now:
+done [key=child-pr-sm-a] [at=1793750940]: child sm-a PR ready: https://github.com/hcho22/firstmate-private/pull/24 mode=no-mistakes yolo=off head=91822114c812bdadc0c06bc7b34e6ff30893cea3
+(end)

@@ -1,0 +1,6 @@
+s01-child-registers-pr                               exit=0 channel lines 0 -> 1
+s02-mate-records-relayed-head                        exit=0 channel lines 1 -> 1
+s03-merge-at-relayed-head                            exit=1 channel lines 1 -> 1
+s04-register-before-binding                          exit=0 channel lines 0 -> 0
+s05-mate-records-older-relayed-head                  exit=0 channel lines 0 -> 0
+s06-merge-refuses-and-republishes                    exit=1 channel lines 0 -> 1

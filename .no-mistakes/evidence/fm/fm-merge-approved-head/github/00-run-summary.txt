@@ -1,0 +1,17 @@
+g01-register-pr                              exit=0
+g02-present-records-live-head                exit=0
+g03-merge-at-approved-head                   exit=1
+g04-bound-merge-refuses-auto                 exit=1
+g05-record-head-shown-earlier                exit=0
+g05-merge-after-ci-fix-pushes                exit=1
+g06-represent-record-refused-head            exit=0
+g06-merge-after-represent                    exit=1
+g07-record-rewritten-history-head            exit=0
+g07-merge-after-history-rewrite              exit=1
+g08-merge-with-no-recorded-head              exit=1
+g09-merge-with-head-recorded-for-other-pr    exit=1
+g10-yolo-merge-with-no-recorded-head         exit=1
+merge writes the guard refused across the whole run:
+BLOCKED-WRITE gh pr merge 24 --repo hcho22/firstmate-private --match-head-commit 91822114c812bdadc0c06bc7b34e6ff30893cea3 --squash
+BLOCKED-WRITE gh pr merge 24 --repo hcho22/firstmate-private --match-head-commit 91822114c812bdadc0c06bc7b34e6ff30893cea3 --squash
+BLOCKED-WRITE gh pr merge 24 --repo hcho22/firstmate-private --match-head-commit 91822114c812bdadc0c06bc7b34e6ff30893cea3 --squash

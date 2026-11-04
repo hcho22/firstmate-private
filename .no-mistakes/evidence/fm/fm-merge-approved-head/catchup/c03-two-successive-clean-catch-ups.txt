@@ -1,0 +1,21 @@
+# c03-two-successive-clean-catch-ups
+what happened after the captain approved: two automatic catch-up merges with main in a row
+captain-approved head (recorded): 8644bbdd6c9a7477f5baec77344e8df0f6260d24
+recorded: approved head 8644bbdd6c9a7477f5baec77344e8df0f6260d24 for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of refs/pull/7/head):
+  *   57b5013 Merge branch 'main' into feature
+  |\  
+  | * dd3229d base: second change
+  * | 7395d54 Merge branch 'main' into feature
+  |\| 
+  | * 6d7d5c8 base: first change
+  * | 8644bbd feat: the change the captain reviewed
+  |/  
+  * 7a03906 base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c03 https://github.com/lab-owner/lab-repo/pull/7 57b501380c07b3b6b604ee9423d375994728b490 main
+## exit status: 0
+## stdout
+## stderr
+verified: live head 57b501380c07b3b6b604ee9423d375994728b490 of https://github.com/lab-owner/lab-repo/pull/7 adds only a clean catch-up with main to the captain-approved head 8644bbdd6c9a7477f5baec77344e8df0f6260d24 (2 commits from main, 2 clean merge commits)
+## private refs left in the task worktree
+(end)

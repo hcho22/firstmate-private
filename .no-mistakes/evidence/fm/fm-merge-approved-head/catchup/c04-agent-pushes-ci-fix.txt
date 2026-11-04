@@ -1,0 +1,18 @@
+# c04-agent-pushes-ci-fix
+what happened after the captain approved: the worker pushed a CI fix commit
+captain-approved head (recorded): df317938455658016906c776513d6411559d96ba
+recorded: approved head df317938455658016906c776513d6411559d96ba for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of refs/pull/7/head):
+  * 816882f fix: a CI tweak after approval
+  * df31793 feat: the change the captain reviewed
+  * 58be43b base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c04 https://github.com/lab-owner/lab-repo/pull/7 816882f403d507477a0a26c521c3245571363a00 main
+## exit status: 1
+## stdout
+## stderr
+error: refusing to merge https://github.com/lab-owner/lab-repo/pull/7: the captain approved head df317938455658016906c776513d6411559d96ba, but the live head is 816882f403d507477a0a26c521c3245571363a00
+  - 816882f403d507477a0a26c521c3245571363a00 fix: a CI tweak after approval (a commit added to the pull request)
+  - 1 commits lie between the heads, 1 of them not on main
+error: present the pull request to the captain again at head 816882f403d507477a0a26c521c3245571363a00, recording that head with: <worktree>/bin/fm-approved-head.sh record c04 https://github.com/lab-owner/lab-repo/pull/7 816882f403d507477a0a26c521c3245571363a00
+## private refs left in the task worktree
+(end)

@@ -1,0 +1,22 @@
+# c05-merge-with-hand-resolved-conflict
+what happened after the captain approved: the catch-up merge with main conflicted and the conflict was resolved by hand
+captain-approved head (recorded): 53dea5ffc15f7d055c01f4591a882cb93e688b5e
+recorded: approved head 53dea5ffc15f7d055c01f4591a882cb93e688b5e for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of refs/pull/7/head):
+  *   35487c2 Merge main, resolving the line-two conflict by hand
+  |\  
+  | * 031b914 base: change line two
+  * | 53dea5f feat: also edit line two
+  * | c6e8dad feat: the change the captain reviewed
+  |/  
+  * 70e91b6 base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c05 https://github.com/lab-owner/lab-repo/pull/7 35487c22d8255210a8316c4e20eca9f19dfd8847 main
+## exit status: 1
+## stdout
+## stderr
+error: refusing to merge https://github.com/lab-owner/lab-repo/pull/7: the captain approved head 53dea5ffc15f7d055c01f4591a882cb93e688b5e, but the live head is 35487c22d8255210a8316c4e20eca9f19dfd8847
+  - 35487c22d8255210a8316c4e20eca9f19dfd8847 Merge main, resolving the line-two conflict by hand (a merge whose tree is not the conflict-free automatic merge of its parents)
+  - 2 commits lie between the heads, 1 of them not on main
+error: present the pull request to the captain again at head 35487c22d8255210a8316c4e20eca9f19dfd8847, recording that head with: <worktree>/bin/fm-approved-head.sh record c05 https://github.com/lab-owner/lab-repo/pull/7 35487c22d8255210a8316c4e20eca9f19dfd8847
+## private refs left in the task worktree
+(end)

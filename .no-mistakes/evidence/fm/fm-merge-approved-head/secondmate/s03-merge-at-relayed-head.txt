@@ -1,0 +1,16 @@
+# s03-merge-at-relayed-head
+$ FM_HOME=$LAB/mate-a bin/fm-pr-merge.sh sm-a https://github.com/hcho22/firstmate-private/pull/24
+## exit status: 1
+## stdout
+armed: state/sm-a.check.sh
+## stderr (watcher banners from the lab home omitted)
+verified: https://github.com/hcho22/firstmate-private/pull/24 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 91822114c812bdadc0c06bc7b34e6ff30893cea3
+verified: live head 91822114c812bdadc0c06bc7b34e6ff30893cea3 of https://github.com/hcho22/firstmate-private/pull/24 is the captain-approved head
+test write-guard: refused 'gh pr merge 24 --repo hcho22/firstmate-private --match-head-commit 91822114c812bdadc0c06bc7b34e6ff30893cea3 --squash'; this validation never changes a real pull request
+error: GitHub merge outcome was not successful: state=OPEN, merged=false, isInMergeQueue=false
+error: the direct merge did not land, and a merge bound to the captain-approved head is offered no merge-queue or auto-merge retry, because either would land the pull request later with any push made by then; a base branch that requires a merge queue needs a later design
+## merge writes refused by the test guard in this step
+total so far: 1
+## parent channel mate-a (P/state/mate-a.status): 1 line(s) before, now:
+done [key=child-pr-sm-a] [at=1793750940]: child sm-a PR ready: https://github.com/hcho22/firstmate-private/pull/24 mode=no-mistakes yolo=off head=91822114c812bdadc0c06bc7b34e6ff30893cea3
+(end)

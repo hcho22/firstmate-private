@@ -1,0 +1,17 @@
+# c07-rebase-and-force-push
+what happened after the captain approved: the branch was rebased onto main and force-pushed
+captain-approved head (recorded): 9a3fe99373f05ba810be012d9d6fa477be8a860f
+recorded: approved head 9a3fe99373f05ba810be012d9d6fa477be8a860f for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of refs/pull/7/head):
+  * ff4b41a feat: the change the captain reviewed
+  * 27f52c2 base: an unrelated change
+  * 71481a0 base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c07 https://github.com/lab-owner/lab-repo/pull/7 ff4b41afc85b2018978de6641ef9eb40823d6048 main
+## exit status: 1
+## stdout
+## stderr
+error: refusing to merge https://github.com/lab-owner/lab-repo/pull/7: the captain approved head 9a3fe99373f05ba810be012d9d6fa477be8a860f, but the live head is ff4b41afc85b2018978de6641ef9eb40823d6048
+  - the approved head is not an ancestor of the live head, so the pull request history was rewritten (a rebase or force-push) or the approved commit is unavailable
+error: present the pull request to the captain again at head ff4b41afc85b2018978de6641ef9eb40823d6048, recording that head with: <worktree>/bin/fm-approved-head.sh record c07 https://github.com/lab-owner/lab-repo/pull/7 ff4b41afc85b2018978de6641ef9eb40823d6048
+## private refs left in the task worktree
+(end)

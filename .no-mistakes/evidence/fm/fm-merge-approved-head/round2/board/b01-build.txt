@@ -1,0 +1,29 @@
+$ FM_HOME=$LAB bin/fm-bearings-board.sh build payload.json   (target 0f59e9ce)
+## exit status: 0
+## stdout (lavish next_step prose trimmed)
+board: $LAB/.lavish/bearings-board.html
+session:
+  file: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.kEJNM9/.lavish/bearings-board.html
+  url: "http://127.0.0.1:4792/session/0a8ddf9be6703c1e"
+  status: opened
+session: live
+served: $LAB/.lavish/bearings-board.html
+bound: lavish-0a8ddf9be6703c1e
+armed: lavish-0a8ddf9be6703c1e
+## stderr
+dropped-unbound-merge-card: merge.child-x (its head could not be read: task metadata is unavailable)
+## task metas after build (build must record no approved_head)
+-- bd-24
+pr=https://github.com/hcho22/firstmate-private/pull/24
+pr_head=91822114c812bdadc0c06bc7b34e6ff30893cea3
+-- bd-22
+pr=https://github.com/hcho22/firstmate-private/pull/22
+pr_head=9df1a95f2994a91bb1c02207bbfb726cb4a199ba
+## gh calls during build
+read gh pr view https://github.com/hcho22/firstmate-private/pull/24 --json headRefOid -q .headRefOid
+  -> rc=0 out=91822114c812bdadc0c06bc7b34e6ff30893cea3
+read gh pr view https://github.com/hcho22/firstmate-private/pull/22 --json headRefOid -q .headRefOid
+  -> rc=0 out=9df1a95f2994a91bb1c02207bbfb726cb4a199ba
+## card heads in the built board data
+merge.bd-24 pr_url=https://github.com/hcho22/firstmate-private/pull/24 head=91822114c812bdadc0c06bc7b34e6ff30893cea3
+merge.bd-22 pr_url=https://github.com/hcho22/firstmate-private/pull/22 head=9df1a95f2994a91bb1c02207bbfb726cb4a199ba

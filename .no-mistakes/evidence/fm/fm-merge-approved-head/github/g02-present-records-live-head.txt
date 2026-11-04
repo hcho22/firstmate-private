@@ -1,0 +1,21 @@
+# g02-present-records-live-head
+$ FM_HOME=$LAB bin/fm-approved-head.sh record lab-ah1 https://github.com/hcho22/firstmate-private/pull/24
+## exit status: 0
+## stdout
+recorded: approved head 91822114c812bdadc0c06bc7b34e6ff30893cea3 for https://github.com/hcho22/firstmate-private/pull/24
+## stderr
+## gh calls during this run (reads reach real GitHub; the test guard refuses writes)
+read gh pr view https://github.com/hcho22/firstmate-private/pull/24 --json headRefOid -q .headRefOid
+  -> rc=0 out=91822114c812bdadc0c06bc7b34e6ff30893cea3
+## task meta after
+window=fm-lab-ah1
+worktree=$LAB/wt
+project=$LAB/projects/firstmate-private
+kind=ship
+mode=no-mistakes
+yolo=off
+approved_head=91822114c812bdadc0c06bc7b34e6ff30893cea3 https://github.com/hcho22/firstmate-private/pull/24
+pr=https://github.com/hcho22/firstmate-private/pull/24
+pr_head=91822114c812bdadc0c06bc7b34e6ff30893cea3
+## private verify refs left in the task worktree
+(end)

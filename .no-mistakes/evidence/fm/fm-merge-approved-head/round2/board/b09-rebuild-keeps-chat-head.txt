@@ -1,0 +1,33 @@
+# b09: a board rebuild never rebinds a merge word given in chat
+## the chat ask showed PR #22 at head be1c87da1ecf038f8b2ff7ccecd948034a71199f (before its last push) and recorded it:
+$ bin/fm-approved-head.sh record bd-22 https://github.com/hcho22/firstmate-private/pull/22 be1c87da1ecf038f8b2ff7ccecd948034a71199f
+recorded: approved head be1c87da1ecf038f8b2ff7ccecd948034a71199f for https://github.com/hcho22/firstmate-private/pull/22
+## then firstmate rebuilds the board from a fresh snapshot:
+$ bin/fm-bearings-board.sh build payload.json
+dropped-unbound-merge-card: merge.child-x (its head could not be read: task metadata is unavailable)
+board: $LAB/.lavish/bearings-board.html
+session:
+session: live
+served: $LAB/.lavish/bearings-board.html
+bound: lavish-0a8ddf9be6703c1e
+already-armed: lavish-0a8ddf9be6703c1e
+listening: live
+## bd-22 meta after the rebuild (approved_head must still be the chat head):
+approved_head=be1c87da1ecf038f8b2ff7ccecd948034a71199f https://github.com/hcho22/firstmate-private/pull/22
+pr=https://github.com/hcho22/firstmate-private/pull/22
+pr_head=9df1a95f2994a91bb1c02207bbfb726cb4a199ba
+## heads the rebuilt board's cards show:
+merge.bd-24 shows head 91822114c812bdadc0c06bc7b34e6ff30893cea3
+merge.bd-22 shows head 9df1a95f2994a91bb1c02207bbfb726cb4a199ba
+## the captain answers "merge" to the chat message; the merge runs (gh writes refused by the test guard):
+$ bin/fm-pr-merge.sh bd-22 https://github.com/hcho22/firstmate-private/pull/22
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+armed: state/bd-22.check.sh
+verified: https://github.com/hcho22/firstmate-private/pull/22 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 9df1a95f2994a91bb1c02207bbfb726cb4a199ba
+error: refusing to merge https://github.com/hcho22/firstmate-private/pull/22: the captain approved head be1c87da1ecf038f8b2ff7ccecd948034a71199f, but the live head is 9df1a95f2994a91bb1c02207bbfb726cb4a199ba
+  - 9df1a95f2994a91bb1c02207bbfb726cb4a199ba no-mistakes(document): Sync skill trigger index with fix-round cap triggers (a commit added to the pull request)
+  - 1 commit between the heads, 1 not on main
+error: present the pull request to the captain again at head 9df1a95f2994a91bb1c02207bbfb726cb4a199ba, recording that head with: <worktree>/bin/fm-approved-head.sh record bd-22 https://github.com/hcho22/firstmate-private/pull/22 9df1a95f2994a91bb1c02207bbfb726cb4a199ba
+(exit 1)
+## merge writes the guard refused during this merge:
+0

@@ -1,0 +1,31 @@
+# g04-bound-merge-refuses-auto
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lab-ah1 https://github.com/hcho22/firstmate-private/pull/24 --attended-override -- --auto --squash
+## exit status: 1
+## stdout
+armed: state/lab-ah1.check.sh
+## stderr
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+verified: https://github.com/hcho22/firstmate-private/pull/24 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 91822114c812bdadc0c06bc7b34e6ff30893cea3
+verified: live head 91822114c812bdadc0c06bc7b34e6ff30893cea3 of https://github.com/hcho22/firstmate-private/pull/24 is the captain-approved head
+error: refusing to merge https://github.com/hcho22/firstmate-private/pull/24 with --auto: the merge is bound to the captain-approved head, and auto-merge would land the pull request later with any push made by then; merge once the checks are green instead
+## gh calls during this run (reads reach real GitHub; the test guard refuses writes)
+read gh pr view https://github.com/hcho22/firstmate-private/pull/24 --json headRefOid -q .headRefOid
+  -> rc=0 out=91822114c812bdadc0c06bc7b34e6ff30893cea3
+read gh pr view https://github.com/hcho22/firstmate-private/pull/24 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+  -> rc=0 out={"baseRefName":"main","headRefOid":"91822114c812bdadc0c06bc7b34e6ff30893cea3","isDraft":false,"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","state":"OPEN","statusCheckRollup":[{"__typename":"Chec
+read gh api repos/hcho22/firstmate-private/branches/main
+  -> rc=0 out={"name":"main","commit":{"sha":"30a798946aff25e77635c4cd61e3dfaf630e5766","node_id":"C_kwDOUOzYHdoAKDMwYTc5ODk0NmFmZjI1ZTc3NjM1YzRjZDYxZTNkZmFmNjMwZTU3NjY","commit":{"author":{"name":"Hyung Cho","emai
+read gh api --paginate repos/hcho22/firstmate-private/rules/branches/main
+  -> rc=0 out=[]
+## task meta after
+window=fm-lab-ah1
+worktree=$LAB/wt
+project=$LAB/projects/firstmate-private
+kind=ship
+mode=no-mistakes
+yolo=off
+approved_head=91822114c812bdadc0c06bc7b34e6ff30893cea3 https://github.com/hcho22/firstmate-private/pull/24
+pr=https://github.com/hcho22/firstmate-private/pull/24
+pr_head=91822114c812bdadc0c06bc7b34e6ff30893cea3
+## private verify refs left in the task worktree
+(end)

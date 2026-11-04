@@ -1,0 +1,11 @@
+# s02-mate-records-relayed-head
+$ FM_HOME=$LAB/mate-a bin/fm-approved-head.sh record sm-a https://github.com/hcho22/firstmate-private/pull/24 91822114c812bdadc0c06bc7b34e6ff30893cea3
+## exit status: 0
+## stdout
+recorded: approved head 91822114c812bdadc0c06bc7b34e6ff30893cea3 for https://github.com/hcho22/firstmate-private/pull/24
+## stderr (watcher banners from the lab home omitted)
+## merge writes refused by the test guard in this step
+total so far: 0
+## parent channel mate-a (P/state/mate-a.status): 1 line(s) before, now:
+done [key=child-pr-sm-a] [at=1793752221]: child sm-a PR ready: https://github.com/hcho22/firstmate-private/pull/24 mode=no-mistakes yolo=off head=91822114c812bdadc0c06bc7b34e6ff30893cea3
+(end)

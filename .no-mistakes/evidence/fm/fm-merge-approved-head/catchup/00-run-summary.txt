@@ -1,0 +1,10 @@
+c01-unchanged-head                               exit=0
+c02-clean-catch-up-with-main                     exit=0
+c03-two-successive-clean-catch-ups               exit=0
+c04-agent-pushes-ci-fix                          exit=1
+c05-merge-with-hand-resolved-conflict            exit=1
+c06-catch-up-merge-carrying-its-own-edit         exit=1
+c07-rebase-and-force-push                        exit=1
+c08-octopus-merge                                exit=1
+c09-head-moves-while-verifying                   exit=1
+c10-task-worktree-gone                           exit=1

@@ -1,0 +1,26 @@
+# b08: the board's real listener captured the Merge now click; the board-wake handler binds exactly the head the card showed
+## wake queued for firstmate (state/.wake-queue)
+1793752412	1	check	procevent:lavish-0a8ddf9be6703c1e:1	check: procevent lavish lavish-0a8ddf9be6703c1e 1
+$ bin/fm-procevent-lavish.sh answers <result-file>
+merge.bd-24	merge	Merge: low-risk merge tier from live changed files -> merge
+(exit 0)
+$ bin/fm-procevent-lavish.sh heads <result-file>
+merge.bd-24	91822114c812bdadc0c06bc7b34e6ff30893cea3
+(exit 0)
+$ bin/fm-approved-head.sh record bd-24 https://github.com/hcho22/firstmate-private/pull/24 91822114c812bdadc0c06bc7b34e6ff30893cea3
+recorded: approved head 91822114c812bdadc0c06bc7b34e6ff30893cea3 for https://github.com/hcho22/firstmate-private/pull/24
+(exit 0)
+## bd-24 meta after the handler recorded the card's head
+approved_head=91822114c812bdadc0c06bc7b34e6ff30893cea3 https://github.com/hcho22/firstmate-private/pull/24
+pr=https://github.com/hcho22/firstmate-private/pull/24
+pr_head=91822114c812bdadc0c06bc7b34e6ff30893cea3
+$ bin/fm-pr-merge.sh bd-24 https://github.com/hcho22/firstmate-private/pull/24   (gh writes refused by the test guard)
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+armed: state/bd-24.check.sh
+verified: https://github.com/hcho22/firstmate-private/pull/24 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 91822114c812bdadc0c06bc7b34e6ff30893cea3
+verified: live head 91822114c812bdadc0c06bc7b34e6ff30893cea3 of https://github.com/hcho22/firstmate-private/pull/24 is the captain-approved head
+test write-guard: refused 'gh pr merge 24 --repo hcho22/firstmate-private --match-head-commit 91822114c812bdadc0c06bc7b34e6ff30893cea3 --squash'; this validation never changes a real pull request
+error: GitHub merge outcome was not successful: state=OPEN, merged=false, isInMergeQueue=false
+error: the direct merge did not land, and a merge bound to the captain-approved head is offered no merge-queue or auto-merge retry, because either would land the pull request later with any push made by then; a base branch that requires a merge queue needs a later design
+## gh writes the guard refused during the merge (where the real merge would happen)
+BLOCKED-WRITE gh pr merge 24 --repo hcho22/firstmate-private --match-head-commit 91822114c812bdadc0c06bc7b34e6ff30893cea3 --squash

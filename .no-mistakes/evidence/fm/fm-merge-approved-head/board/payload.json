@@ -1,0 +1,84 @@
+{
+  "schema": "fm-bearings-board.v1",
+  "home": "fm-lab board",
+  "generated": "2026-11-03T16:30Z",
+  "prs_live": true,
+  "captains_call": [
+    {
+      "key": "merge.bd-24",
+      "type": "merge",
+      "repo": "firstmate-private",
+      "title": "Merge: low-risk merge tier from live changed files",
+      "detail": "Checks green at the live head; no-mistakes risk low.",
+      "pr_url": "https://github.com/hcho22/firstmate-private/pull/24",
+      "risk": "low",
+      "options": [
+        {
+          "value": "merge",
+          "label": "Merge now"
+        },
+        {
+          "value": "hold",
+          "label": "Not yet"
+        }
+      ]
+    },
+    {
+      "key": "merge.bd-22",
+      "type": "merge",
+      "repo": "firstmate-private",
+      "title": "Merge: cap no-mistakes fix rounds per step",
+      "detail": "Checks green; rounds-to-pass tracked per PR.",
+      "pr_url": "https://github.com/hcho22/firstmate-private/pull/22",
+      "risk": "medium",
+      "options": [
+        {
+          "value": "merge",
+          "label": "Merge now"
+        },
+        {
+          "value": "hold",
+          "label": "Not yet"
+        }
+      ]
+    },
+    {
+      "key": "merge.child-x",
+      "type": "merge",
+      "repo": "firstmate-private",
+      "title": "Merge: a secondmate child PR with no task here",
+      "pr_url": "https://github.com/hcho22/firstmate-private/pull/23",
+      "risk": "low",
+      "options": [
+        {
+          "value": "merge",
+          "label": "Merge now"
+        },
+        {
+          "value": "hold",
+          "label": "Not yet"
+        }
+      ]
+    }
+  ],
+  "underway": [
+    {
+      "repo": "firstmate-private",
+      "name": "bd-24",
+      "id": "bd-24",
+      "state": "pr-ready",
+      "doing": "waiting for the merge word",
+      "kind": "ship"
+    },
+    {
+      "repo": "firstmate-private",
+      "name": "bd-22",
+      "id": "bd-22",
+      "state": "pr-ready",
+      "doing": "waiting for the merge word",
+      "kind": "ship"
+    }
+  ],
+  "landed": [],
+  "charted": []
+}

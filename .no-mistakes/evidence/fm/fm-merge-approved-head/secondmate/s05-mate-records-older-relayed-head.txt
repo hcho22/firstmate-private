@@ -1,0 +1,11 @@
+# s05-mate-records-older-relayed-head
+$ FM_HOME=$LAB/mate-b bin/fm-approved-head.sh record sm-b https://github.com/hcho22/firstmate-private/pull/24 617baf6f48c00da30eb9964a6f8a68e9d959c9c7
+## exit status: 0
+## stdout
+recorded: approved head 617baf6f48c00da30eb9964a6f8a68e9d959c9c7 for https://github.com/hcho22/firstmate-private/pull/24
+## stderr (watcher banners from the lab home omitted)
+## merge writes refused by the test guard in this step
+total so far: 1
+## parent channel mate-b (P/state/mate-b.status): 0 line(s) before, now:
+(no channel file)
+(end)

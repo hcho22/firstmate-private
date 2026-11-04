@@ -1,0 +1,25 @@
+# b10: after b09's chat ask recorded be1c87da for PR #22, the captain clicks Merge now on the board card that shows head 9df1a95; the click binds to its own card's head
+## bd-22 meta before the click is handled (the chat head):
+approved_head=be1c87da1ecf038f8b2ff7ccecd948034a71199f https://github.com/hcho22/firstmate-private/pull/22
+$ bin/fm-procevent-lavish.sh answers <result-file 2>
+merge.bd-22	merge	Merge: cap no-mistakes fix rounds per step -> merge
+(exit 0)
+$ bin/fm-procevent-lavish.sh heads <result-file 2>
+merge.bd-22	9df1a95f2994a91bb1c02207bbfb726cb4a199ba
+(exit 0)
+$ bin/fm-approved-head.sh record bd-22 https://github.com/hcho22/firstmate-private/pull/22 9df1a95f2994a91bb1c02207bbfb726cb4a199ba
+recorded: approved head 9df1a95f2994a91bb1c02207bbfb726cb4a199ba for https://github.com/hcho22/firstmate-private/pull/22
+## bd-22 meta after the handler recorded the card's head
+approved_head=9df1a95f2994a91bb1c02207bbfb726cb4a199ba https://github.com/hcho22/firstmate-private/pull/22
+pr=https://github.com/hcho22/firstmate-private/pull/22
+pr_head=9df1a95f2994a91bb1c02207bbfb726cb4a199ba
+$ bin/fm-pr-merge.sh bd-22 https://github.com/hcho22/firstmate-private/pull/22   (gh writes refused by the test guard)
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+armed: state/bd-22.check.sh
+verified: https://github.com/hcho22/firstmate-private/pull/22 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 9df1a95f2994a91bb1c02207bbfb726cb4a199ba
+verified: live head 9df1a95f2994a91bb1c02207bbfb726cb4a199ba of https://github.com/hcho22/firstmate-private/pull/22 is the captain-approved head
+test write-guard: refused 'gh pr merge 22 --repo hcho22/firstmate-private --match-head-commit 9df1a95f2994a91bb1c02207bbfb726cb4a199ba --squash'; this validation never changes a real pull request
+error: GitHub merge outcome was not successful: state=OPEN, merged=false, isInMergeQueue=false
+error: the direct merge did not land, and a merge bound to the captain-approved head is offered no merge-queue or auto-merge retry, because either would land the pull request later with any push made by then; a base branch that requires a merge queue needs a later design
+## gh writes the guard refused during the merge (where the real merge would happen)
+BLOCKED-WRITE gh pr merge 22 --repo hcho22/firstmate-private --match-head-commit 9df1a95f2994a91bb1c02207bbfb726cb4a199ba --squash

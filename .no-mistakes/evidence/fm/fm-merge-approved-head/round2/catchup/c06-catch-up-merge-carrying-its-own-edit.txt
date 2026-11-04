@@ -1,0 +1,21 @@
+# c06-catch-up-merge-carrying-its-own-edit
+what happened after the captain approved: a catch-up merge was amended to carry an extra file (an evil merge)
+captain-approved head (recorded): 2193879844e4391b458a5301b0d0afe1d1173102
+recorded: approved head 2193879844e4391b458a5301b0d0afe1d1173102 for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of refs/pull/7/head):
+  *   b266eac Merge branch 'main' into feature
+  |\  
+  | * d58e2a7 base: an unrelated change
+  * | 2193879 feat: the change the captain reviewed
+  |/  
+  * b34185d base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c06 https://github.com/lab-owner/lab-repo/pull/7 b266eac5021ce15301a1e303d0194b80889df843 main
+## exit status: 1
+## stdout
+## stderr
+error: refusing to merge https://github.com/lab-owner/lab-repo/pull/7: the captain approved head 2193879844e4391b458a5301b0d0afe1d1173102, but the live head is b266eac5021ce15301a1e303d0194b80889df843
+  - b266eac5021ce15301a1e303d0194b80889df843 Merge branch 'main' into feature (a merge whose tree is not the conflict-free automatic merge of its parents)
+  - 2 commits between the heads, 1 not on main
+error: present the pull request to the captain again at head b266eac5021ce15301a1e303d0194b80889df843, recording that head with: <worktree>/bin/fm-approved-head.sh record c06 https://github.com/lab-owner/lab-repo/pull/7 b266eac5021ce15301a1e303d0194b80889df843
+## private refs left in the task worktree
+(end)

@@ -1,0 +1,10 @@
+# Real PRs after all round-2 live runs (read-only check)
+PR #24: state=OPEN head=91822114c812bdadc0c06bc7b34e6ff30893cea3 mergedAt=null   (unchanged by this validation)
+PR #22: state=MERGED head=9df1a95f2994a91bb1c02207bbfb726cb4a199ba mergedAt=2026-11-04T00:41:35Z mergedBy=hcho22
+  PR #22 was merged by the operator's own firstmate fleet, not by this validation:
+  - the operator's backlog records "fm-review-round-cap ... https://github.com/hcho22/firstmate-private/pull/22 ... (merged 2026-11-03)";
+  - this validation's only PR #22 merge call (b10, ~00:37Z) went through the gh write-guard and is logged as
+    BLOCKED-WRITE gh pr merge 22 --repo hcho22/firstmate-private --match-head-commit 9df1a95f... --squash,
+    and the board lab, its Lavish server (port 4792) and its gh guard were all torn down by ~00:38Z, minutes before the 00:41:35Z merge;
+  - the targeted test files run afterwards use stubbed forges and example/* repositories only.
+  The b09/b10 transcripts were captured while PR #22 was still OPEN at that head.

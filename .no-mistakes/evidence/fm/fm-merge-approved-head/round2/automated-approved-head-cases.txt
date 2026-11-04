@@ -1,0 +1,26 @@
+# bin/fm-test-run.sh tests/fm-pr-merge.test.sh tests/fm-bearings-board-render.test.sh at 0f59e9ce (supporting evidence, not live)
+# fm-pr-merge.test.sh: exit=0. Its approved-head cases (the singular-count assertions added in 0f59e9ce are in the 2nd, 3rd and 5th):
+ok - an attended merge proceeds when the live head is the captain-approved head
+ok - an attended merge refuses a commit added after approval and names it
+ok - an attended merge proceeds when the only new commit is a clean merge of the base
+ok - an attended merge refuses a base merge with hand-resolved conflicts or edits of its own
+ok - a clean catch-up merges when the base took part of the pull request or renamed a file it edits
+ok - an attended merge refuses a rebased or force-pushed pull request
+ok - a missing approved head refuses and asks for the PR to be presented again, except for a yolo merge
+ok - a relayed child head binds the mate's merge, so a later push still refuses and names the new head upward
+ok - a mate merge that proceeds as a clean catch-up publishes no PR-ready line
+ok - an away-authority merge is not bound to an approved head
+ok - a repository named by digits passes the merge-queue and outcome reads
+ok - GitLab and Forgejo merges are bound to the approved head the same way
+ok - a merge bound to the approved head refuses every request to merge later and stays immediate
+# fm-bearings-board-render.test.sh rerun with jq 1.7.1 first on PATH (host anaconda jq 1.6 rejects a valid summer 'filed' date and lets one case pass vacuously): exit=0
+ok - an underway row leads with the task name and still reports its run status
+ok - an underway identifier label is not replaced by run status
+ok - a merge card shows the short head a Merge now click binds to, and its answer carries that head
+ok - charted next renders the most recently filed work first
+ok - charted rows with no filed date follow the dated rows in payload order
+ok - a warning row badges needs repair while queued work keeps waiting
+ok - the charted next count counts queued work only, and still renders warnings
+ok - a warning-only board reports nothing queued and still shows the warning
+ok - omitted warnings remain separate from omitted queued work
+ok - an omitted kind renders exactly as queued work always did

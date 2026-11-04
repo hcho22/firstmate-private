@@ -1,0 +1,19 @@
+# g07-record-rewritten-history-head
+$ FM_HOME=$LAB bin/fm-approved-head.sh record lab-ah1 https://github.com/hcho22/firstmate-private/pull/24 e8f155c91e6d93d8c1b6a2a6396edd56e90b0895
+## exit status: 0
+## stdout
+recorded: approved head e8f155c91e6d93d8c1b6a2a6396edd56e90b0895 for https://github.com/hcho22/firstmate-private/pull/24
+## stderr
+## gh calls during this run (reads reach real GitHub; the test guard refuses writes)
+## task meta after
+window=fm-lab-ah1
+worktree=$LAB/wt
+project=$LAB/projects/firstmate-private
+kind=ship
+mode=no-mistakes
+yolo=off
+approved_head=e8f155c91e6d93d8c1b6a2a6396edd56e90b0895 https://github.com/hcho22/firstmate-private/pull/24
+pr=https://github.com/hcho22/firstmate-private/pull/24
+pr_head=91822114c812bdadc0c06bc7b34e6ff30893cea3
+## private verify refs left in the task worktree
+(end)

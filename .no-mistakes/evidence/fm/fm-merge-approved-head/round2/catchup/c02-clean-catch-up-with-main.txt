@@ -1,0 +1,19 @@
+# c02-clean-catch-up-with-main
+what happened after the captain approved: main moved twice and the branch was caught up with an automatic merge (an update-branch)
+captain-approved head (recorded): f9e4542586253867837d50744f1ffa3d14ae0b95
+recorded: approved head f9e4542586253867837d50744f1ffa3d14ae0b95 for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of refs/pull/7/head):
+  *   ac6129f Merge branch 'main' into feature
+  |\  
+  | * cecc868 base: an unrelated change
+  | * 79748de base: touch a neighbouring line
+  * | f9e4542 feat: the change the captain reviewed
+  |/  
+  * 975824e base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c02 https://github.com/lab-owner/lab-repo/pull/7 ac6129f789eb35f52ea4c1480ebf0a5d392b996e main
+## exit status: 0
+## stdout
+## stderr
+verified: live head ac6129f789eb35f52ea4c1480ebf0a5d392b996e of https://github.com/lab-owner/lab-repo/pull/7 adds only a clean catch-up with main to the captain-approved head f9e4542586253867837d50744f1ffa3d14ae0b95 (2 commits from main, 1 clean merge commit)
+## private refs left in the task worktree
+(end)

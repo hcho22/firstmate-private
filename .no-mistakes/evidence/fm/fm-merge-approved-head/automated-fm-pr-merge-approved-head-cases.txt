@@ -1,0 +1,33 @@
+ok - fm-pr-merge reports exact queue retry flags after a zero-exit false success
+ok - fm-pr-merge omits merge-queue retry guidance for a closed GitHub PR
+ok - fm-pr-merge aggregates agreeing merge-queue rules
+ok - fm-pr-merge reports ambiguity for conflicting merge-queue rules
+ok - fm-pr-merge refuses a GitHub merge call that leaves the PR open and unqueued
+ok - fm-pr-merge does not echo back queue flags the caller already used
+ok - fm-pr-merge still names retry flags when the caller used a different method
+ok - fm-pr-merge names the queue requirement even when its method is unrecognised
+ok - fm-pr-merge distinguishes unreadable branch rules from a base with no merge queue
+ok - fm-pr-merge reads a plan-gated 403 on branch rules as no merge queue, not unreadable
+ok - fm-pr-merge says nothing about a merge queue when the base branch has no queue rule
+ok - fm-pr-merge accepts only a proved merge from the gh-axi fallback
+ok - fm-pr-merge explains an armed auto-merge that landed nothing on a queue-less base
+ok - fm-pr-merge claims no acceptance for a failed merge command carrying queue flags
+ok - fm-pr-merge accepts and accurately reports a GitHub merge-queue entry
+ok - fm-pr-merge explains how to retry with the required GitHub merge queue method
+ok - a merge a secondmate home performs itself is reported upward exactly once
+ok - a queued GitLab merge stays silent and leaves confirmation to the armed poll
+ok - a queued GitHub merge stays silent and leaves confirmation to the armed poll
+ok - an attended merge proceeds when the live head is the captain-approved head
+ok - an attended merge refuses a commit added after approval and names it
+ok - an attended merge proceeds when the only new commit is a clean merge of the base
+ok - an attended merge refuses a base merge with hand-resolved conflicts or edits of its own
+ok - a clean catch-up merges when the base took part of the pull request or renamed a file it edits
+ok - an attended merge refuses a rebased or force-pushed pull request
+ok - a missing approved head refuses and asks for the PR to be presented again, except for a yolo merge
+ok - a relayed child head binds the mate's merge, so a later push still refuses and names the new head upward
+ok - a mate merge that proceeds as a clean catch-up publishes no PR-ready line
+ok - an away-authority merge is not bound to an approved head
+ok - a repository named by digits passes the merge-queue and outcome reads
+ok - GitLab and Forgejo merges are bound to the approved head the same way
+ok - a merge bound to the approved head refuses every request to merge later and stays immediate
+exit=0

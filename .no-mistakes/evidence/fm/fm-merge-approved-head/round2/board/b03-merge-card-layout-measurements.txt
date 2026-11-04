@@ -1,0 +1,6 @@
+# Merge card PR row measured in the real built board (headless Chrome), target 0f59e9ce
+# linkNeeded = the link's scrollWidth, linkVisible = its clientWidth; linkClipped means the ellipsis hides part of the URL
+board width 1440: {"boardWidth":1440,"rowWidth":507,"link":"https://github.com/hcho22/firstmate-private/pull/24","linkNeeded":398,"linkVisible":398,"linkClipped":false,"head":"head 9182211","headBelowLink":false}
+board width 1080: {"boardWidth":1080,"rowWidth":457,"link":"https://github.com/hcho22/firstmate-private/pull/24","linkNeeded":398,"linkVisible":398,"linkClipped":false,"head":"head 9182211","headBelowLink":true}
+board width 768: {"boardWidth":768,"rowWidth":668,"link":"https://github.com/hcho22/firstmate-private/pull/24","linkNeeded":398,"linkVisible":398,"linkClipped":false,"head":"head 9182211","headBelowLink":false}
+board width 390: {"boardWidth":500,"rowWidth":400,"link":"https://github.com/hcho22/firstmate-private/pull/24","linkNeeded":398,"linkVisible":398,"linkClipped":false,"head":"head 9182211","headBelowLink":true}
