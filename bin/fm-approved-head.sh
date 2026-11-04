@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Bind a captain's merge word to the pull request head commit firstmate showed
-# the captain, so an attended merge lands only the commits that were approved.
+# the captain, so a merge on that word lands only the commits that were approved.
 #
 # record <task-id> <pr-url> [<head>]
 #   Run when presenting a PR for the captain's merge word in chat, or when a
@@ -53,7 +53,10 @@
 #   - the heads differ: proceed only for a clean catch-up with the base branch,
 #     otherwise refuse naming both heads and the commits between them, with the
 #     record command for the live head it names, to run when the pull request
-#     is presented to the captain again at that head.
+#     is presented to the captain again at that head. Under --away the captain
+#     cannot be shown it, so the refusal says to hold the merge for the
+#     captain's return and to run that command now only when the captain's away
+#     words explicitly cover that head; every refusal remedy says the same.
 #   A clean catch-up is defined strictly, and both conditions must hold:
 #   1. the approved head is an ancestor of the live head, so nothing was
 #      rewritten (a rebase or force-push refuses);
@@ -128,8 +131,11 @@ meta_value() {  # <key>
   grep "^$1=" "$META" | tail -1 | cut -d= -f2- || true
 }
 
+AWAY=false
+[ "$COMMAND" != verify ] || [ "${6-}" != --away ] || AWAY=true
 RECORD_CMD="$SCRIPT_DIR/fm-approved-head.sh record $ID $URL"
 REPRESENT_REMEDY="present the pull request to the captain again and record the head shown then with: $RECORD_CMD <head-shown>"
+[ "$AWAY" != true ] || REPRESENT_REMEDY="the captain is away, so hold the merge for the captain's return, then $REPRESENT_REMEDY"
 
 require_task_pr() {
   [ "$(meta_value pr)" = "$URL" ] && return 0
@@ -253,6 +259,11 @@ cleanup_refs() {
 refuse_changed() {  # <approved> <live> <reason-lines>
   printf 'error: refusing to merge %s: the captain approved head %s, but the live head is %s\n' "$URL" "$1" "$2" >&2
   printf '%s' "$3" >&2
+  if [ "$AWAY" = true ]; then
+    printf 'error: the captain is away, so hold the merge for the captain'"'"'s return and present the pull request again at head %s then; record that head now, with: %s %s, only when the captain'"'"'s away words explicitly cover it\n' \
+      "$2" "$RECORD_CMD" "$2" >&2
+    return 0
+  fi
   printf 'error: present the pull request to the captain again at head %s, recording that head with: %s %s\n' \
     "$2" "$RECORD_CMD" "$2" >&2
 }
@@ -262,7 +273,7 @@ count_of() {  # <count> <noun>: the count and the noun, plural unless the count 
 }
 
 verify_approved_head() {
-  local live=$1 base_branch=$2 away=${3-} pr_ref fetched approved reasons='' unclean own_count all_count line
+  local live=$1 base_branch=$2 pr_ref fetched approved reasons='' unclean own_count all_count line
   if ! fm_pr_head_valid "$live"; then
     echo "error: invalid approved-head request" >&2
     return 2
@@ -270,7 +281,7 @@ verify_approved_head() {
   read_approved_head || return 1
   approved=$APPROVED_HEAD
   if [ -z "$approved" ]; then
-    if [ "$away" = --away ]; then
+    if [ "$AWAY" = true ]; then
       printf 'notice: no captain-approved head is recorded for %s; merging under away authority, bound to no head\n' "$URL" >&2
       return 3
     fi
@@ -368,7 +379,7 @@ case "$COMMAND" in
   live) print_live_head || exit 1 ;;
   verify)
     status=0
-    verify_approved_head "$4" "$5" "${6-}" || status=$?
+    verify_approved_head "$4" "$5" || status=$?
     exit "$status"
     ;;
 esac

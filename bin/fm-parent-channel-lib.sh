@@ -20,8 +20,8 @@
 #   - bin/fm-pr-check.sh             a registered PR-ready line carrying the
 #                                    canonical URL and the head it reported
 #   - bin/fm-pr-merge.sh             that PR-ready line again with the live
-#                                    head when an attended merge refuses it as
-#                                    not the head the captain approved
+#                                    head when a merge refuses it as not the
+#                                    head the captain approved
 #   - bin/fm-captain-hold.sh         a task held for the captain and its answer
 #   - bin/fm-merge-outcome-lib.sh    a merged PR
 #   - bin/fm-teardown.sh             the child's final ledger line, refusing to

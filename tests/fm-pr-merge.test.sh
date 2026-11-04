@@ -3560,11 +3560,13 @@ test_away_record_permits_any_green_merge_under_away_authority() {
   head=acacacacacacacacacacacacacacacacacacacac
   url=https://github.com/example/repo/pull/83
 
-  # No yolo, no per-task grant: the record's presence is the whole mechanical
-  # fact, so a green merge proceeds and the ledger tags it away.
+  # No yolo, no per-task grant, and no recorded approved head: the record's
+  # presence is the whole mechanical fact, so a green merge proceeds and the
+  # ledger tags it away.
   case_dir=$(make_case away-green)
   mkdir -p "$case_dir/wt" "$case_dir/home"
   add_gh_mocks "$case_dir" "$head"
+  write_approved_meta "$case_dir" '' "$url"
   write_away_record "$case_dir" --words 'merge the windows fix when green'
   FM_TEST_HOME="$case_dir/home" run_pr_merge "$case_dir" task-x1 "$url" \
     > "$case_dir/stdout" 2> "$case_dir/stderr" || fail "away-green: a green merge under the record should succeed: $(cat "$case_dir/stderr")"
@@ -3609,15 +3611,15 @@ test_away_record_permits_any_green_merge_under_away_authority() {
     *"$url") ;;
     *) fail "attended-untagged: the attended outcome carried an authority tag: $(grep -F 'merge landed' "$case_dir/state/.wake-queue")" ;;
   esac
-  pass "while the away-posture record exists any green merge lands under away authority, yolo or not, and attended merges stay untagged"
+  pass "while the away-posture record exists a green merge with no recorded approved head lands under away authority, yolo or not, and attended merges stay untagged"
 }
 
 # While the away-posture record exists main is parked, so the supervision
 # branch actor may reach the merge gate - and meets exactly the gate main
-# would: any task merges green at its live head under away authority, a red
-# one is refused whatever the words say, and without the record the branch is
-# refused at the role partition before any forge call
-# (docs/pi-supervision-branch.md "Postures").
+# would: a task with no recorded approved head merges green at its live head
+# under away authority, a red one is refused whatever the words say, and
+# without the record the branch is refused at the role partition before any
+# forge call (docs/pi-supervision-branch.md "Postures").
 test_away_branch_actor_merges_green_under_the_record() {
   local case_dir rc url head
   head=dadadadadadadadadadadadadadadadadadadada
@@ -4988,6 +4990,10 @@ test_approved_head_away_merge_refuses_a_head_past_the_recorded_one() {
     "approved-head-away-recorded: the refusal did not name both heads"
   assert_grep "$live fix: pushed while the captain was away (a commit added to the pull request)" "$case_dir/stderr" \
     "approved-head-away-recorded: the refusal did not name the pushed commit"
+  assert_grep "error: the captain is away, so hold the merge for the captain's return and present the pull request again at head $live then; record that head now, with: $ROOT/bin/fm-approved-head.sh record task-x1 $url $live, only when the captain's away words explicitly cover it" "$case_dir/stderr" \
+    "approved-head-away-recorded: the away refusal did not say to hold the merge unless the away words cover the head"
+  assert_no_grep "present the pull request to the captain again at head" "$case_dir/stderr" \
+    "approved-head-away-recorded: the away refusal offered the attended remedy to record the live head"
   assert_no_gh_merge "$case_dir" approved-head-away-recorded
 
   run_case_script "$case_dir" fm-approved-head.sh record task-x1 "$url" "$live" > "$case_dir/record.out" 2> "$case_dir/record.err" \
