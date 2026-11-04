@@ -140,9 +140,13 @@
 # a head whose only additions are a clean catch-up with the base branch, before
 # any forge's merge command; bin/fm-approved-head.sh owns that record, the
 # clean catch-up definition, and the rule for a task with no recorded head.
-# An away-authority merge is not bound to a head, because no captain word named
-# one. In a secondmate home a refusal publishes the child's PR-ready line with
-# the live head on the parent channel, so the parent can present that head.
+# An away-authority merge is bound the same way when a head is recorded for
+# this pull request, because that record is a captain word the posture does not
+# widen, and is bound to no head only when none is recorded; captain away words
+# that explicitly cover a later head widen the binding only by the away session
+# recording that head first. In a secondmate home a refusal publishes the
+# child's PR-ready line with the live head on the parent channel, so the parent
+# can present that head.
 # A merge bound to a head must also land it immediately, because a forge asked
 # to merge later lands whatever the head is by then, without the captain being
 # asked again. A GitHub or GitLab auto-merge, requested here or already set on
@@ -161,7 +165,7 @@
 # recorded as an `answer --release` before this entrypoint is invoked. While
 # an away record exists (a quiet-mode record is a present captain, so its
 # merges stay attended: bin/fm-afk-contract.sh mode) any green merge may
-# proceed under away authority:
+# proceed under away authority, still bound to a head recorded for it (above):
 # the record's presence is the whole mechanical fact, and which merge the
 # captain's away words meant is the supervision session's reading
 # (bin/fm-branch-prompt.sh "Postures"). An unreadable record refuses rather
@@ -1596,29 +1600,30 @@ require_released_captain_hold() {
   esac
 }
 
-# The captain's merge word covers the head it was given at, so an attended merge
-# proceeds only where bin/fm-approved-head.sh vouches for the verified head. It
-# runs once before the away-record lock, where its fetch need not hold that
-# lock, and is called again after the final authority read under the lock,
-# where it is a no-op for the head it already passed and runs only when that
-# earlier read was away and the record has since been archived. In a secondmate
-# home a refusal publishes the child's PR-ready line with the live head, which
-# is what the parent presents to the captain again; bin/fm-pr-check.sh's
-# merge-time registration publishes no ready line of its own. A merge the
-# verify binds to a head sets FM_PR_HEAD_BOUND and must then be immediate.
-# A --low-risk merge, like an away one, runs on standing posture rather than a
-# captain word, so it is not bound to a head; its own tier gate binds the
-# changed files it judged to the verified head.
+# The captain's merge word covers the head it was given at, so a merge proceeds
+# only where bin/fm-approved-head.sh vouches for the verified head, passing
+# --away while the away record exists so a PR with no recorded head is bound to
+# none. It runs once before the away-record lock, where its fetch need not hold
+# that lock, and is called again after the final authority read under the lock,
+# where it is a no-op for the head and posture it already passed and runs again
+# only when the posture changed between the two reads. In a secondmate home a
+# refusal publishes the child's PR-ready line with the live head, which is what
+# the parent presents to the captain again; bin/fm-pr-check.sh's merge-time
+# registration publishes no ready line of its own. A merge the verify binds to
+# a head sets FM_PR_HEAD_BOUND and must then be immediate. A --low-risk merge
+# runs on standing posture rather than a captain word, so it is not bound to a
+# head; its own tier gate binds the changed files it judged to the verified
+# head.
 FM_PR_APPROVED_HEAD_VERIFIED=
 FM_PR_HEAD_BOUND=false
 require_approved_head() {
-  local verify_status=0 ready_rc=0
-  [ "$FM_PR_AWAY_POSTURE" != true ] || return 0
+  local verify_status=0 ready_rc=0 posture=()
   [ "$LOW_RISK" != true ] || return 0
-  [ "$FM_PR_APPROVED_HEAD_VERIFIED" != "$FM_PR_MERGE_HEAD" ] || return 0
+  [ "$FM_PR_APPROVED_HEAD_VERIFIED" != "$FM_PR_MERGE_HEAD $FM_PR_AWAY_POSTURE" ] || return 0
+  [ "$FM_PR_AWAY_POSTURE" != true ] || posture=(--away)
   FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
     "$SCRIPT_DIR/fm-approved-head.sh" verify "$ID" "$URL" "$FM_PR_MERGE_HEAD" "$FM_PR_MERGE_BASE" \
-    || verify_status=$?
+    "${posture[@]+"${posture[@]}"}" || verify_status=$?
   if [ "$verify_status" -eq 1 ]; then
     fm_parent_channel_report "$FM_HOME" "$STATE" \
       "$(fm_parent_channel_pr_ready_line "$ID" "$URL" "$META" "$FM_PR_MERGE_HEAD")" || ready_rc=$?
@@ -1636,7 +1641,7 @@ require_approved_head() {
     3) ;;
     *) return 1 ;;
   esac
-  FM_PR_APPROVED_HEAD_VERIFIED=$FM_PR_MERGE_HEAD
+  FM_PR_APPROVED_HEAD_VERIFIED="$FM_PR_MERGE_HEAD $FM_PR_AWAY_POSTURE"
 }
 
 # A forge asked to merge later lands whatever the head is by then, so a merge

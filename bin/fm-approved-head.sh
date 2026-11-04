@@ -27,21 +27,29 @@
 #   reads its head here, so presenting a PR never rebinds a merge word already
 #   given at another head; that answer is recorded when it arrives.
 #
-# verify <task-id> <pr-url> <live-head> <base-branch>
-#   Called by bin/fm-pr-merge.sh on an attended merge, after its own live read
-#   and before the forge merge command; away-authority and --low-risk merges
-#   never call it, because neither runs on a captain word.
+# verify <task-id> <pr-url> <live-head> <base-branch> [--away]
+#   Called by bin/fm-pr-merge.sh on every merge except a --low-risk one, which
+#   runs on standing posture rather than a captain word, after its own live read
+#   and before the forge merge command, with --away while the away-posture
+#   record exists. A head recorded for this PR is a captain word, so it binds an
+#   away merge exactly as it binds an attended one; away authority never widens
+#   it. When the captain's own away words explicitly cover a later head, such as
+#   "merge it once the fix lands", the away session records that head with
+#   record before merging, so the words, not the posture, widen the binding.
 #   Exit 0 lets the merge proceed bound to the captain-approved head, exit 3
-#   lets it proceed bound to no head under the yolo allowance below, exit 1
-#   refuses with every reason on stderr, exit 2 is a usage error. A recorded
-#   approved_head counts only when its URL is the PR being merged. The verdict:
+#   lets it proceed bound to no head under the away or yolo allowance below,
+#   exit 1 refuses with every reason on stderr, exit 2 is a usage error. A
+#   recorded approved_head counts only when its URL is the PR being merged. The
+#   verdict:
 #   - approved head equals the live head: proceed.
-#   - no approved head recorded for this PR: proceed only when the task meta
-#     records yolo=on, because an autonomous yolo merge has no captain word to
-#     bind; otherwise refuse and say to present the pull request to the captain
-#     again and record the head shown then. The refusal never offers to record
-#     the live head, because nothing says the captain was shown it. A task
-#     presented before this rule existed therefore refuses once.
+#   - no approved head recorded for this PR: proceed under --away, because no
+#     captain word named a head and the away words are the away session's
+#     reading, or when the task meta records yolo=on, because an autonomous
+#     yolo merge has no captain word to bind; otherwise refuse and say to
+#     present the pull request to the captain again and record the head shown
+#     then. The refusal never offers to record the live head, because nothing
+#     says the captain was shown it. A task presented before this rule existed
+#     therefore refuses once.
 #   - the heads differ: proceed only for a clean catch-up with the base branch,
 #     otherwise refuse naming both heads and the commits between them, with the
 #     record command for the live head it names, to run when the pull request
@@ -72,7 +80,7 @@
 #
 # Usage: fm-approved-head.sh record <task-id> <pr-url> [<head>]
 #        fm-approved-head.sh live <task-id> <pr-url>
-#        fm-approved-head.sh verify <task-id> <pr-url> <live-head> <base-branch>
+#        fm-approved-head.sh verify <task-id> <pr-url> <live-head> <base-branch> [--away]
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -88,14 +96,14 @@ STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 usage() {
   echo "usage: fm-approved-head.sh record <task-id> <pr-url> [<head>]" >&2
   echo "       fm-approved-head.sh live <task-id> <pr-url>" >&2
-  echo "       fm-approved-head.sh verify <task-id> <pr-url> <live-head> <base-branch>" >&2
+  echo "       fm-approved-head.sh verify <task-id> <pr-url> <live-head> <base-branch> [--away]" >&2
 }
 
 case "${1:-}" in
   -h|--help) usage; exit 0 ;;
   record) [ "$#" -eq 3 ] || [ "$#" -eq 4 ] || { usage; exit 2; } ;;
   live) [ "$#" -eq 3 ] || { usage; exit 2; } ;;
-  verify) [ "$#" -eq 5 ] || { usage; exit 2; } ;;
+  verify) [ "$#" -eq 5 ] || { [ "$#" -eq 6 ] && [ "$6" = --away ]; } || { usage; exit 2; } ;;
   *) usage; exit 2 ;;
 esac
 COMMAND=$1
@@ -254,7 +262,7 @@ count_of() {  # <count> <noun>: the count and the noun, plural unless the count 
 }
 
 verify_approved_head() {
-  local live=$1 base_branch=$2 pr_ref fetched approved reasons='' unclean own_count all_count line
+  local live=$1 base_branch=$2 away=${3-} pr_ref fetched approved reasons='' unclean own_count all_count line
   if ! fm_pr_head_valid "$live"; then
     echo "error: invalid approved-head request" >&2
     return 2
@@ -262,6 +270,10 @@ verify_approved_head() {
   read_approved_head || return 1
   approved=$APPROVED_HEAD
   if [ -z "$approved" ]; then
+    if [ "$away" = --away ]; then
+      printf 'notice: no captain-approved head is recorded for %s; merging under away authority, bound to no head\n' "$URL" >&2
+      return 3
+    fi
     if [ "$(meta_value yolo)" = on ]; then
       printf 'notice: no captain-approved head is recorded for %s; merging under the task'"'"'s yolo posture\n' "$URL" >&2
       return 3
@@ -356,7 +368,7 @@ case "$COMMAND" in
   live) print_live_head || exit 1 ;;
   verify)
     status=0
-    verify_approved_head "$4" "$5" || status=$?
+    verify_approved_head "$4" "$5" "${6-}" || status=$?
     exit "$status"
     ;;
 esac

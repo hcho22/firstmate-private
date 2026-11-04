@@ -94,6 +94,8 @@ afk changes how the captain is informed and what happens at a captain-owned deci
 "Away" never means "approves more" or "approves less."
 A PR ready for merge keeps the merge authority from `AGENTS.md` section 7, and a needs-decision finding keeps the `ask-user-authority` policy; anything requiring the captain still waits for the captain's explicit word.
 While the away-posture record exists, any pull request green at its live head may merge under away authority; which one the captain's words meant is the away session's reading, and a merge the words do not call for holds for the return.
+A head the captain approved and `bin/fm-approved-head.sh` recorded for that pull request still binds it while away, so `fm-pr-merge.sh` refuses a later head that adds anything beyond a clean catch-up with the base branch, just as it does attended.
+When the captain's own away words explicitly cover a later head, such as "merge it once the fix lands", record that head with `bin/fm-approved-head.sh record <id> <PR url> <head>` before merging, so the captain's words, not the posture, widen the binding; otherwise the refused merge holds for the return.
 Away authority never releases a captain hold, and it expires when the away record is archived.
 `--allow-red`, `--allow-missing`, and `--allow-no-pipeline` remain attended-only and are refused while the away record exists.
 A merge under away authority must be synchronous; `fm-pr-merge.sh` refuses auto-merge and any GitHub queue state that cannot prove an immediate merge while the away record exists.

@@ -4967,16 +4967,56 @@ test_approved_head_mate_clean_catch_up_publishes_no_ready_line() {
   pass "a mate merge that proceeds as a clean catch-up publishes no PR-ready line"
 }
 
-test_approved_head_away_merge_is_not_bound() {
-  local case_dir url=https://github.com/example/repo/pull/77 head=7777777777777777777777777777777777777777
-  case_dir=$(make_case approved-head-away)
+# The captain approved a head and then went away. The away posture does not
+# cover a fix pushed after that; away words that explicitly cover it widen the
+# binding only once the away session records that head.
+test_approved_head_away_merge_refuses_a_head_past_the_recorded_one() {
+  local case_dir url=https://github.com/example/repo/pull/77 approved live
+  case_dir=$(make_case approved-head-away-recorded)
+  approved=$(make_pr_repos "$case_dir" refs/pull/77/head)
+  printf 'fixed\n' > "$case_dir/author/ci.txt"
+  git -C "$case_dir/author" add ci.txt
+  git -C "$case_dir/author" commit -qm 'fix: pushed while the captain was away'
+  live=$(push_pr_head "$case_dir" refs/pull/77/head)
+  add_gh_mocks "$case_dir" "$live"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" "$approved" "$url"
+  write_away_record "$case_dir" --words 'merge task-x1 once the fix lands'
+  expect_code 1 "$(approved_head_merge "$case_dir" "$url")" \
+    "approved-head-away-recorded: an away merge landed a head past the captain-approved one"
+  assert_grep "the captain approved head $approved, but the live head is $live" "$case_dir/stderr" \
+    "approved-head-away-recorded: the refusal did not name both heads"
+  assert_grep "$live fix: pushed while the captain was away (a commit added to the pull request)" "$case_dir/stderr" \
+    "approved-head-away-recorded: the refusal did not name the pushed commit"
+  assert_no_gh_merge "$case_dir" approved-head-away-recorded
+
+  run_case_script "$case_dir" fm-approved-head.sh record task-x1 "$url" "$live" > "$case_dir/record.out" 2> "$case_dir/record.err" \
+    || fail "approved-head-away-recorded: the away session could not record the head its words cover: $(cat "$case_dir/record.err")"
+  expect_code 0 "$(approved_head_merge "$case_dir" "$url")" \
+    "approved-head-away-recorded: the merge refused after the away session recorded the covered head: $(cat "$case_dir/stderr")"
+  assert_grep "verified: live head $live of $url is the captain-approved head" "$case_dir/stderr" \
+    "approved-head-away-recorded: the recorded head was not reported as verified"
+  assert_logged_gh_merge "$case_dir" 77 example/repo --squash
+  [ "$(sed -n 6p "$case_dir/state/task-x1.merge-authority" 2>/dev/null || true)" = away ] \
+    || fail "approved-head-away-recorded: the persisted merge authority is not away: $(cat "$case_dir/state/task-x1.merge-authority" 2>/dev/null || true)"
+  pass "an away merge stays bound to the recorded approved head until the away session records the head its words cover"
+}
+
+# With no head recorded for the pull request no captain word named one, so an
+# away merge proceeds bound to no head where an attended one refuses.
+test_approved_head_away_merge_without_a_recorded_head_merges() {
+  local case_dir url=https://github.com/example/repo/pull/78 head=7878787878787878787878787878787878787878
+  case_dir=$(make_case approved-head-away-unrecorded)
   add_gh_mocks "$case_dir" "$head"
   : > "$case_dir/gh-axi.log"
-  write_approved_meta "$case_dir" 1111111111111111111111111111111111111111 "$url"
+  write_approved_meta "$case_dir" '' "$url"
   write_away_record "$case_dir" --words 'merge task-x1 when green'
-  expect_code 0 "$(approved_head_merge "$case_dir" "$url")" "approved-head-away: an away merge was bound to the approved head"
-  assert_logged_gh_merge "$case_dir" 77 example/repo --squash
-  pass "an away-authority merge is not bound to an approved head"
+  expect_code 0 "$(approved_head_merge "$case_dir" "$url")" \
+    "approved-head-away-unrecorded: an away merge with no recorded head refused: $(cat "$case_dir/stderr")"
+  assert_grep "no captain-approved head is recorded for $url; merging under away authority, bound to no head" "$case_dir/stderr" \
+    "approved-head-away-unrecorded: the away merge did not say it was unbound"
+  assert_logged_gh_merge "$case_dir" 78 example/repo --squash
+  pass "an away merge with no recorded approved head proceeds bound to no head"
 }
 
 # GitHub refuses a String! variable that gh sent as a number, so a repository
@@ -5851,7 +5891,8 @@ fm_test_run_cases \
   test_approved_head_missing_follows_the_documented_rule \
   test_approved_head_relayed_child_head_binds_the_mate_merge \
   test_approved_head_mate_clean_catch_up_publishes_no_ready_line \
-  test_approved_head_away_merge_is_not_bound \
+  test_approved_head_away_merge_refuses_a_head_past_the_recorded_one \
+  test_approved_head_away_merge_without_a_recorded_head_merges \
   test_approved_head_digit_repository_merges \
   test_approved_head_gitlab_and_forgejo \
   test_approved_head_refuses_a_deferred_merge \
