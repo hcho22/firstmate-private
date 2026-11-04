@@ -25,11 +25,11 @@
 # Kinds. `kinds` prints this set, one per line: kind, hand-off or
 # captain-only, and its definition below.
 # merge, credential, destructive, and authority always stay with the captain:
-# AGENTS.md's hard rules and captain-instruction precedence require his own
-# concrete word for each such action and forbid turning one yes into standing
-# authority, which a grant would be. Every other kind can be handed off, and
-# each policy owner above checks `granted` before putting a question of that
-# kind to him.
+# AGENTS.md's hard rules and captain-instruction precedence, or the skill that
+# owns the decision's policy, require his own concrete word for each such
+# decision and forbid turning one yes into standing authority, which a grant
+# would be. Every other kind can be handed off, and each policy owner above
+# checks `granted` before putting a question of that kind to him.
 #   finding-scope    an ask-user review finding whose fix would expand the
 #                    accepted contract
 #   finding-design   an ask-user review finding that needs a product or
@@ -42,12 +42,13 @@
 #                    posture, not this record, is the only standing relaxation
 #   credential       a credential or login only the captain can supply
 #   destructive      a destructive, irreversible, or security-sensitive action
-#   authority        any other action AGENTS.md's hard rules or
-#                    captain-instruction precedence reserve for his own
-#                    concrete word, such as a direct project write under hard
-#                    rule 1
-#   other            any other question no AGENTS.md rule reserves for his
-#                    own word
+#   authority        any other decision AGENTS.md's hard rules,
+#                    captain-instruction precedence, or a policy-owning skill
+#                    reserve for his own concrete word, such as a direct
+#                    project write under hard rule 1 or a fix-round cap
+#                    escalation under ask-user-authority
+#   other            any other question no AGENTS.md rule or policy-owning
+#                    skill reserves for his own word
 #
 # `ask` records one question and prints its id. A question carried by a task
 # held for the captain in this home (bin/fm-captain-hold.sh) passes
@@ -442,7 +443,7 @@ command_grant() {
   done
   require_kind "$kind"
   in_list "$kind" "$HANDOFF_KINDS" \
-    || fail "kind $kind always stays with the captain: AGENTS.md reserves it for his own concrete word, so it cannot be handed to firstmate"
+    || fail "kind $kind always stays with the captain: AGENTS.md or a policy-owning skill reserves it for his own concrete word, so it cannot be handed to firstmate"
   [ -n "$file" ] || bad_usage "grant needs --captain-words-file with the captain's own yes"
   [ -f "$file" ] && [ -s "$file" ] || fail "captain words file is missing or empty: $file"
   size=$(wc -c < "$file" | tr -d ' ')

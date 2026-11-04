@@ -4,8 +4,8 @@
 # round-trips through ask, answer, and report; the match flag and the hand-off
 # threshold count the way the header documents; `answer` announces a kind once,
 # on the answer that makes it newly qualify; every kind but merge, credential,
-# destructive, and authority can be handed off, so a project-write approval
-# never can, and a kind without the captain's recorded yes still reaches him;
+# destructive, and authority can be handed off, so a project-write approval or
+# a fix-round cap escalation never can, and a kind without the captain's recorded yes still reaches him;
 # and the record never lands on a path a git work tree tracks. Questions
 # carried by a task held for the captain run against a real backlog through
 # bin/fm-captain-hold.sh, including a further question on a held task recorded
@@ -302,29 +302,42 @@ test_held_questions_reuse_hold_records() {
   pass "a held question reuses the hold reason and the recorded answer"
 }
 
-test_authority_stays_with_captain() {
-  local home i id out rc
-  home=$(make_home authority)
+# Records 10 <what> as authority questions, each answered as recommended, and
+# checks the kind is never announced, granted, or read as granted.
+check_authority_stays_with_captain() {  # <home-name> <what> <recommend> <question> <answer>
+  local what=$2 home i id out rc
+  home=$(make_home "$1")
   out=''
   i=0
   while [ "$i" -lt 10 ]; do
-    id=$(score "$home" ask --kind authority --recommend "yes, fix it directly" \
-      --question "May I fix the typo in projects/x/README directly?") || fail "ask refused an authority question"
-    out=$out$(score "$home" answer "$id" --matched yes --answer "Yes, fix it.") || fail "answer failed for $id"
+    id=$(score "$home" ask --kind authority --recommend "$3" --question "$4" \
+      --task sample-work --project sample) || fail "ask refused $what recorded as authority"
+    out=$out$(score "$home" answer "$id" --matched yes --answer "$5") || fail "answer failed for $id"
     i=$((i + 1))
   done
-  assert_equals 10 "$(report_field "$home" authority matched)" "the project-write approvals did not all count"
+  assert_equals 10 "$(report_field "$home" authority matched)" "the $what did not all count"
   assert_equals captain-only "$(report_field "$home" authority status)" \
-    "project-write approvals recorded as authority qualified for hand-off"
-  assert_equals "" "$out" "the authority kind was announced for hand-off"
-  printf 'Yes, approve project writes yourself.\n' > "$home/yes.txt"
+    "$what recorded as authority qualified for hand-off"
+  assert_equals "" "$out" "the authority kind was announced for hand-off after $what"
+  printf 'Yes, decide these yourself.\n' > "$home/yes.txt"
   rc=0
   score "$home" grant authority --captain-words-file "$home/yes.txt" >/dev/null 2>&1 || rc=$?
-  expect_code 1 "$rc" "grant of the authority kind"
+  expect_code 1 "$rc" "grant of the authority kind after $what"
   rc=0
   score "$home" granted authority || rc=$?
-  expect_code 1 "$rc" "the authority kind read as granted"
-  pass "project-write approvals recorded as authority stay with the captain after 10 matching answers"
+  expect_code 1 "$rc" "the authority kind read as granted after $what"
+  pass "$what recorded as authority stay with the captain after 10 matching answers"
+}
+
+test_project_write_stays_with_captain() {
+  check_authority_stays_with_captain project-write "project-write approvals" "yes, fix it directly" \
+    "May I fix the typo in projects/x/README directly?" "Yes, fix it."
+}
+
+test_cap_escalation_stays_with_captain() {
+  check_authority_stays_with_captain cap "fix-round cap escalations" "allow 2 more rounds" \
+    "Review on sample-work hit fix-round cap rounds=3: rethink the approach, approve as is, or allow more rounds?" \
+    "Allow 2 more rounds."
 }
 
 test_held_question_survives_release_and_rehold() {
@@ -407,7 +420,7 @@ test_unknown_kind_and_help() {
   assert_contains "$kinds" "authority"$'\t'"captain-only" "kinds does not keep authority with the captain"
   assert_contains "$kinds" "design"$'\t'"hand-off"$'\t'"a design or product pick outside a review gate, such as an investigation, visual review, or intake question" \
     "kinds does not print a wrapped definition joined on its line"
-  assert_contains "$kinds" "other"$'\t'"hand-off"$'\t'"any other question no AGENTS.md rule reserves for his own word" \
+  assert_contains "$kinds" "other"$'\t'"hand-off"$'\t'"any other question no AGENTS.md rule or policy-owning skill reserves for his own word" \
     "kinds does not print the last kind's definition"
   assert_equals "" "$(printf '%s\n' "$kinds" | awk -F '\t' 'NF != 3 || $3 == "" { print $1 }')" \
     "kinds printed a kind without its definition"
@@ -423,5 +436,6 @@ test_grant_requires_captain_yes
 test_record_stays_off_tracked_paths
 test_held_questions_reuse_hold_records
 test_held_question_survives_release_and_rehold
-test_authority_stays_with_captain
+test_project_write_stays_with_captain
+test_cap_escalation_stays_with_captain
 test_unknown_kind_and_help

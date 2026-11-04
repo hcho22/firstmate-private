@@ -60,7 +60,7 @@ The absence of a routed work item is not a divergence and the guard never requir
 1. Read the complete investigation result and complete the visual review before declaring either complete.
 2. Inventory only genuine unresolved choices that require the captain, and find the task each one gates.
    Name each choice's kind from `bin/fm-scorebook.sh kinds`; when `bin/fm-scorebook.sh granted <kind>` exits 0, the captain has said yes to handing that kind to firstmate, so decide it yourself as you would have recommended and leave it out of the inventory.
-   A choice that `AGENTS.md`'s hard rules or captain-instruction precedence reserve for his own concrete word is `merge`, `credential`, `destructive`, or `authority`, never `other`, so it always stays his.
+   A choice that `AGENTS.md`'s hard rules, captain-instruction precedence, or a policy-owning skill reserve for his own concrete word is `merge`, `credential`, `destructive`, or `authority`, never `other`, so it always stays his.
 3. Hold that task - or create one captain-held task for the review's open questions - with a concise reason carrying the question and options, then, unless a parent channel carries it to the captain, record it with `bin/fm-scorebook.sh ask --held <task-id>`, `--project <name>`, its kind, and your recommendation.
    When one held task carries several questions, record the first with `--held` and each further question as its own chat question with `--question`, `--task <task-id>`, and `--project <name>`, so each is counted with its own kind, recommendation, and answer.
 4. Run `complete` with the full captain-held inventory for that review pass.
