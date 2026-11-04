@@ -144,9 +144,10 @@
 # this pull request, because that record is a captain word the posture does not
 # widen, and is bound to no head only when none is recorded; captain away words
 # that explicitly cover a later head widen the binding only by the away session
-# recording that head first. In a secondmate home a refusal publishes the
-# child's PR-ready line with the live head on the parent channel, so the parent
-# can present that head.
+# recording that head first. In a secondmate home a refusal that needs the
+# captain again publishes the child's PR-ready line with the live head on the
+# parent channel, so the parent can present that head; one that only asks for a
+# retry publishes nothing.
 # A merge bound to a head must also land it immediately, because a forge asked
 # to merge later lands whatever the head is by then, without the captain being
 # asked again. A GitHub or GitLab auto-merge, requested here or already set on
@@ -1607,8 +1608,9 @@ require_released_captain_hold() {
 # that lock, and is called again after the final authority read under the lock,
 # where it is a no-op for the head and posture it already passed and runs again
 # only when the posture changed between the two reads. In a secondmate home a
-# refusal publishes the child's PR-ready line with the live head, which is what
-# the parent presents to the captain again; bin/fm-pr-check.sh's merge-time
+# refusal that needs the captain again (exit 1, not a retryable exit 4)
+# publishes the child's PR-ready line with the live head, which is what the
+# parent presents to the captain again; bin/fm-pr-check.sh's merge-time
 # registration publishes no ready line of its own. A merge the verify binds to
 # a head sets FM_PR_HEAD_BOUND and must then be immediate. A --low-risk merge
 # runs on standing posture rather than a captain word, so it is not bound to a

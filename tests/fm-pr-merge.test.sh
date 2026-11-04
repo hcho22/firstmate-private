@@ -3639,10 +3639,12 @@ test_away_branch_actor_merges_green_under_the_record() {
   [ ! -e "$case_dir/gh.log" ] || assert_no_grep 'pr ' "$case_dir/gh.log" \
     "away-branch-attended: gh ran for an attended branch merge"
 
-  # No yolo and no grant list: the record alone relocates the green merge.
+  # No yolo, no grant list, and no recorded approved head: the record alone
+  # relocates the green merge.
   case_dir=$(make_case away-branch-green)
   mkdir -p "$case_dir/wt" "$case_dir/home"
   add_gh_mocks "$case_dir" "$head"
+  write_approved_meta "$case_dir" '' "$url"
   write_away_record "$case_dir" --words 'merge the windows fix when green'
   FM_SUPERVISION_ACTOR=branch FM_TEST_HOME="$case_dir/home" run_pr_merge "$case_dir" task-x1 "$url" \
     > "$case_dir/stdout" 2> "$case_dir/stderr" \
@@ -5025,6 +5027,46 @@ test_approved_head_away_merge_without_a_recorded_head_merges() {
   pass "an away merge with no recorded approved head proceeds bound to no head"
 }
 
+# A read that fails between two heads judges nothing, so in either posture the
+# refusal asks for a retry rather than for the captain, and a mate publishes no
+# PR-ready line for it; the retry then lands the clean catch-up.
+test_approved_head_failed_read_asks_for_a_retry() {
+  local case_dir url=https://github.com/example/repo/pull/79 replies approved live posture
+  case_dir=$(make_home_case approved-head-read-retry remote)
+  replies="$case_dir/state/parent-replies.status"
+  approved=$(make_pr_repos "$case_dir" refs/pull/79/head)
+  push_base_commit "$case_dir" other.txt 'other' 'base: an unrelated change'
+  git -C "$case_dir/author" merge -q --no-edit main >/dev/null 2>&1
+  live=$(push_pr_head "$case_dir" refs/pull/79/head)
+  add_gh_mocks "$case_dir" "$live"
+  : > "$case_dir/gh-axi.log"
+  write_approved_meta "$case_dir" "$approved" "$url"
+  mv "$case_dir/origin.git" "$case_dir/origin.git.offline"
+  for posture in attended away; do
+    [ "$posture" = attended ] || write_away_record "$case_dir" --words 'merge task-x1 when green'
+    expect_code 1 "$(approved_head_merge "$case_dir" "$url")" \
+      "approved-head-read-retry: a $posture merge whose commits could not be read merged"
+    assert_grep "  - the commits between them could not be read: fetching refs/pull/79/head and main from origin failed" "$case_dir/stderr" \
+      "approved-head-read-retry: the $posture refusal did not name the failed fetch"
+    assert_grep "error: nothing between the heads was judged, so the merge can be retried once that read succeeds; a retry reads the live head again" "$case_dir/stderr" \
+      "approved-head-read-retry: the $posture refusal did not say the merge can be retried"
+    assert_no_grep "present the pull request" "$case_dir/stderr" \
+      "approved-head-read-retry: the $posture refusal asked for the captain over a failed read"
+    assert_no_grep "hold the merge for the captain's return" "$case_dir/stderr" \
+      "approved-head-read-retry: the $posture refusal held a retryable merge for the return"
+    assert_no_gh_merge "$case_dir" approved-head-read-retry
+    [ ! -e "$replies" ] || assert_no_grep "PR ready" "$replies" \
+      "approved-head-read-retry: the $posture refusal asked the parent to present the pull request again"
+  done
+  mv "$case_dir/origin.git.offline" "$case_dir/origin.git"
+  expect_code 0 "$(approved_head_merge "$case_dir" "$url")" \
+    "approved-head-read-retry: the retry refused once the read succeeded: $(cat "$case_dir/stderr")"
+  assert_grep "adds only a clean catch-up with main to the captain-approved head $approved" "$case_dir/stderr" \
+    "approved-head-read-retry: the retry did not verify the clean catch-up"
+  assert_logged_gh_merge "$case_dir" 79 example/repo --squash
+  pass "a failed read between the heads asks for a retry in either posture, and the retry lands the clean catch-up"
+}
+
 # GitHub refuses a String! variable that gh sent as a number, so a repository
 # named by digits reads its merge queue and outcome only when owner and repo
 # are passed as raw strings.
@@ -5899,6 +5941,7 @@ fm_test_run_cases \
   test_approved_head_mate_clean_catch_up_publishes_no_ready_line \
   test_approved_head_away_merge_refuses_a_head_past_the_recorded_one \
   test_approved_head_away_merge_without_a_recorded_head_merges \
+  test_approved_head_failed_read_asks_for_a_retry \
   test_approved_head_digit_repository_merges \
   test_approved_head_gitlab_and_forgejo \
   test_approved_head_refuses_a_deferred_merge \

@@ -38,9 +38,12 @@
 #   record before merging, so the words, not the posture, widen the binding.
 #   Exit 0 lets the merge proceed bound to the captain-approved head, exit 3
 #   lets it proceed bound to no head under the away or yolo allowance below,
-#   exit 1 refuses with every reason on stderr, exit 2 is a usage error. A
-#   recorded approved_head counts only when its URL is the PR being merged. The
-#   verdict:
+#   exit 1 refuses with every reason on stderr, exit 4 refuses because a read
+#   a retry can repeat failed (the fetch, the commits between the heads, or a
+#   head that moved while it was being verified) and says the merge can be
+#   retried rather than asking the captain again, exit 2 is a usage error. A
+#   recorded approved_head counts only when its URL is the PR being merged.
+#   The verdict:
 #   - approved head equals the live head: proceed.
 #   - no approved head recorded for this PR: proceed under --away, because no
 #     captain word named a head and the away words are the away session's
@@ -56,7 +59,8 @@
 #     is presented to the captain again at that head. Under --away the captain
 #     cannot be shown it, so the refusal says to hold the merge for the
 #     captain's return and to run that command now only when the captain's away
-#     words explicitly cover that head; every refusal remedy says the same.
+#     words explicitly cover that head; every refusal remedy but exit 4's says
+#     the same.
 #   A clean catch-up is defined strictly, and both conditions must hold:
 #   1. the approved head is an ancestor of the live head, so nothing was
 #      rewritten (a rebase or force-push refuses);
@@ -256,9 +260,13 @@ cleanup_refs() {
   [ -z "$FETCH_BASE_REF" ] || git -C "$WT" update-ref -d "$FETCH_BASE_REF" >/dev/null 2>&1 || true
 }
 
-refuse_changed() {  # <approved> <live> <reason-lines>
+refuse_changed() {  # <approved> <live> <reason-lines> [retry]
   printf 'error: refusing to merge %s: the captain approved head %s, but the live head is %s\n' "$URL" "$1" "$2" >&2
   printf '%s' "$3" >&2
+  if [ "${4-}" = retry ]; then
+    printf 'error: nothing between the heads was judged, so the merge can be retried once that read succeeds; a retry reads the live head again\n' >&2
+    return 0
+  fi
   if [ "$AWAY" = true ]; then
     printf 'error: the captain is away, so hold the merge for the captain'"'"'s return and present the pull request again at head %s then; record that head now, with: %s %s, only when the captain'"'"'s away words explicitly cover it\n' \
       "$2" "$RECORD_CMD" "$2" >&2
@@ -322,14 +330,14 @@ verify_approved_head() {
   if ! GIT_TERMINAL_PROMPT=0 git -C "$WT" fetch --quiet --no-tags origin \
       "+$pr_ref:$FETCH_HEAD_REF" "+refs/heads/$base_branch:$FETCH_BASE_REF" >/dev/null 2>&1; then
     refuse_changed "$approved" "$live" "  - the commits between them could not be read: fetching $pr_ref and $base_branch from origin failed
-"
-    return 1
+" retry
+    return 4
   fi
   fetched=$(git_wt rev-parse --verify --quiet "$FETCH_HEAD_REF^{commit}" 2>/dev/null) || fetched=
   if [ "$fetched" != "$live" ]; then
     refuse_changed "$approved" "$live" "  - the fetched pull request head ${fetched:-(none)} is not the live head, so the head moved while it was being verified
-"
-    return 1
+" retry
+    return 4
   fi
   if ! git_wt merge-base --is-ancestor "$approved" "$live" >/dev/null 2>&1; then
     refuse_changed "$approved" "$live" "  - the approved head is not an ancestor of the live head, so the pull request history was rewritten (a rebase or force-push) or the approved commit is unavailable
@@ -341,8 +349,8 @@ verify_approved_head() {
     || ! own_count=$(git_wt rev-list --count "$live" "^$approved" "^$FETCH_BASE_REF") \
     || ! all_count=$(git_wt rev-list --count "$live" "^$approved"); then
     refuse_changed "$approved" "$live" "  - the commits between them could not be read
-"
-    return 1
+" retry
+    return 4
   fi
   if [ -n "$unclean" ]; then
     while IFS= read -r line; do

@@ -2730,6 +2730,7 @@ ok - under the away-posture record the wake carries the verbatim read-back tail,
 ```
 
 The merge suite and the security suite dominate the wall time.
+The run also predates head binding, so a rerun's away-green line instead reads `while the away-posture record exists a green merge with no recorded approved head lands under away authority, yolo or not, and attended merges stay untagged`, because a pull request with a captain-approved head recorded for it is bound to that head while away too; [`bin/fm-approved-head.sh`](../../bin/fm-approved-head.sh)'s header owns that binding.
 
 ## Native Codex through Pi
 
