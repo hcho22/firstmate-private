@@ -83,7 +83,8 @@
 #   the same private-ref fetch bin/fm-review-diff.sh uses. The fetched head must
 #   equal the live head the merge verified. Anything that cannot be read or
 #   proven refuses rather than counting as clean, because a refused merge is
-#   only asked again while a wrong pass lands commits nobody approved.
+#   only retried or asked again while a wrong pass lands commits nobody
+#   approved.
 #
 # Usage: fm-approved-head.sh record <task-id> <pr-url> [<head>]
 #        fm-approved-head.sh live <task-id> <pr-url>
