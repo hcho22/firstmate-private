@@ -67,6 +67,7 @@ data/                personal fleet records; LOCAL, gitignored as a whole
   <Project>/<id>/report.md  scout task deliverable, written by the crewmate; survives teardown
   pipeline-spend.jsonl  optional per-task no-mistakes pipeline spend, written only when config/pipeline-spend is present; bin/fm-pipeline-spend.sh owns the schema
   captain-scorebook.jsonl  each question this home put to the captain with firstmate's recommendation and whether his answer matched, plus the kinds he handed to firstmate in this home; bin/fm-scorebook.sh owns the kinds, schema, and grants
+  pipeline-rounds.jsonl  per-task no-mistakes rounds to pass per step, written at every no-mistakes ship task's cleanup; bin/fm-nm-rounds.sh owns the schema
 projects/            cloned repos; gitignored; read-only except under hard rule 1's concrete captain-approved project operation exception
 state/               runtime records and signals; gitignored
   <id>.status        append-only wake events, not current-state truth; bin/fm-classify-lib.sh owns their syntax

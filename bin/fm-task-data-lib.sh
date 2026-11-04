@@ -11,7 +11,8 @@
 #   _unassigned    work with no project, or whose name cannot be a folder
 # Fleet-wide files (backlog.md, projects.md, secondmates.md, captain.md,
 # captain-shared.md, learnings.md, archives such as memory-archive.md,
-# status-report-<date>.md, pipeline-spend.jsonl, charter.md) stay at the data/
+# status-report-<date>.md, pipeline-spend.jsonl, pipeline-rounds.jsonl,
+# charter.md) stay at the data/
 # root, as do the non-task root folders handoff/, extensions/ and
 # remote-secondmates/. Only directories are ever task or project folders, so a
 # root file can never be mistaken for either.

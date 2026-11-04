@@ -83,7 +83,7 @@ For a contribution wake or linked-issue filing, go directly to Contribution foll
    The detailed report includes:
    - **Title** - `# Bearings - <day> <YYYY-MM-DD>` (use "Morning status" only when the captain specifically asks for a morning brief), followed by two or three sentences framing where things stand.
    - **Captain's Call** - every unsuppressed open decision summarized with its options from the structured decision record, plus each PR ready to merge and each needed credential or login, every PR with the full `https://...` URL, never a bare `#number`.
-   - **Recently Landed** - the bounded current recent-completions baseline from structured state across the main fleet and every registered secondmate home, rendered in full on every run.
+   - **Recently Landed** - the bounded current recent-completions baseline from structured state across the main fleet and every registered secondmate home, rendered in full on every run, followed by this home's rounds to pass by project from the snapshot's `rounds_by_project` and `rounds_per_pr`, naming first any project whose PRs reached the fix-round cap.
    - **Underway** - each live direct report making progress, with its current state, and the plans or main pickup pointers worth reopening (`data/<Project>/<id>/report.md` files, `.lavish/*.html` boards).
    - **Charted Next** - queued or gated work, including deferred or aged captain-hold safety gates and any main-inventory integrity warning, with each item's blocker, date, age, or integrity reason.
    After writing the file, return the concise four-section chat digest and include the report path or link without adding a fifth section.

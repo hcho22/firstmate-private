@@ -1,8 +1,8 @@
 ---
 name: ask-user-authority
 description: >-
-  Single owner of ask-user finding policy.
-  Load before deciding any ask-user finding.
+  Single owner of ask-user finding and fix-round cap policy.
+  Load before deciding any ask-user finding or fix-round cap escalation.
 user-invocable: false
 metadata:
   internal: true
@@ -10,7 +10,7 @@ metadata:
 
 # ask-user-authority
 
-This skill is the single owner of the decision policy for no-mistakes ask-user findings.
+This skill is the single owner of the decision policy for no-mistakes ask-user findings and for the fix-round cap escalation.
 `AGENTS.md` section 7 points here and does not restate this procedure.
 Finding authority is determined by the criteria below, not by `yolo`.
 Firstmate always applies this judgment, decides any finding that is unambiguous toward the accepted design, and escalates only genuinely ambiguous, expanding, or destructive findings.
@@ -44,6 +44,15 @@ Each home keeps its own scorebook and grants, so a grant given in the main home 
 In the home that puts the finding to the captain, record it with `bin/fm-scorebook.sh ask` before sending it, passing the recommendation below, `--project <name>` for the reviewed project, and `--held <task-id>` only when a task held for the captain in this home carries it, otherwise `--question` with `--task <task-id>` for the reviewed task, and record whether the captain's answer matched it with `answer` once he gives it, adding his words with `--answer` for a `--question` record.
 A secondmate home that escalates through its parent channel does not record the finding; the main home records it with `--question` when it asks the captain, because the task that carries it is held in the secondmate's backlog, never with `--held`.
 When `answer` reports that a kind newly qualifies for hand-off, offer the captain that kind once in your next natural reply, citing its count, and record it with `grant` only on his yes.
+
+## Fix-round cap
+
+A `needs-decision` reading `fix-round cap rounds=<n>` means one validation step already took its capped fix rounds in one run, and the worker stopped instead of sending another fix; `bin/fm-nm-rounds.sh` owns what counts as a fix round and the cap's default of 3.
+Firstmate never decides it alone, even when every finding in it looks in scope: review that keeps finding something after three fixes is evidence about the approach, not about any one finding.
+Ask the captain whether to rethink the approach, approve the step as it stands, or allow more rounds, and name how many.
+Lead with the step and the round count, and point at the escalation's rounds file for every round's findings verbatim, then each option's consequence and a recommendation.
+The same-theme rule above still applies below the cap: a returning theme that preserves a questionable abstraction escalates at whatever round it appears.
+`validation-supervision` owns relaying the captain's answer to the gate.
 
 ## Captain-facing escalation
 
