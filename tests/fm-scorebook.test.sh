@@ -5,12 +5,13 @@
 # threshold count the way the header documents; `answer` announces a kind once,
 # on the answer that makes it newly qualify; every kind but merge, credential,
 # destructive, and authority can be handed off, so a project-write approval or
-# a fix-round cap escalation never can, and a kind without the captain's recorded yes still reaches him;
-# and the record never lands on a path a git work tree tracks. Questions
-# carried by a task held for the captain run against a real backlog through
-# bin/fm-captain-hold.sh, including a further question on a held task recorded
-# as a chat question and a task released and held again for a new question, and
-# skip with a reason when tasks-axi is missing.
+# a fix-round cap escalation never can, and a kind without the captain's
+# recorded yes still reaches him; and the record never lands on a path a git
+# work tree tracks. Questions carried by a task held for the captain run
+# against a real backlog through bin/fm-captain-hold.sh, including a further
+# question on a held task recorded as a chat question and a task released and
+# held again for a new question, and skip with a reason when tasks-axi is
+# missing.
 set -u
 
 # shellcheck source=tests/lib.sh

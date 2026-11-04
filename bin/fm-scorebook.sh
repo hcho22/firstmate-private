@@ -17,10 +17,11 @@
 #   fm-scorebook.sh granted <kind>
 #
 # The policy for when to record and how a granted kind is decided is owned by
-# .agents/skills/ask-user-authority/SKILL.md for review findings,
-# .agents/skills/captain-hold-lifecycle/SKILL.md for calls held for the
-# captain, and AGENTS.md section 9 for any other question put to him; this
-# script owns the kinds, the record, the threshold, and the grant check.
+# .agents/skills/ask-user-authority/SKILL.md for review findings and fix-round
+# cap escalations, .agents/skills/captain-hold-lifecycle/SKILL.md for calls
+# held for the captain, and AGENTS.md section 9 for any other question put to
+# him; this script owns the kinds, the record, the threshold, and the grant
+# check.
 #
 # Kinds. `kinds` prints this set, one per line: kind, hand-off or
 # captain-only, and its definition below.
