@@ -1,0 +1,21 @@
+# c08-attended-head-moves-while-verifying
+posture: attended
+what happened after the captain approved: the merge read live head 1d27e6b577a0d82fe9db744cb34aac14fc27eec4, then a push moved refs/pull/7/head to d21d94f609f84cf44466ac6cd7ea5316d15cf7d0 before the verify fetched it
+captain-approved head (recorded): 93f54e2cd71ed2e84876d1c098992827d8b2c9dd
+recorded: approved head 93f54e2cd71ed2e84876d1c098992827d8b2c9dd for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of the live head):
+  *   1d27e6b Merge branch 'main' into feature
+  |\  
+  | * b46ac44 base: an unrelated change
+  * | 93f54e2 feat: the change the captain reviewed
+  |/  
+  * c67c9de base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c08 https://github.com/lab-owner/lab-repo/pull/7 1d27e6b577a0d82fe9db744cb34aac14fc27eec4 main 
+## exit status: 4
+## stdout
+## stderr
+error: refusing to merge https://github.com/lab-owner/lab-repo/pull/7: the captain approved head 93f54e2cd71ed2e84876d1c098992827d8b2c9dd, but the live head is 1d27e6b577a0d82fe9db744cb34aac14fc27eec4
+  - the fetched pull request head d21d94f609f84cf44466ac6cd7ea5316d15cf7d0 is not the live head, so the head moved while it was being verified
+error: nothing between the heads was judged, so the merge can be retried once that read succeeds; a retry reads the live head again
+## private refs left in the task worktree
+(end)

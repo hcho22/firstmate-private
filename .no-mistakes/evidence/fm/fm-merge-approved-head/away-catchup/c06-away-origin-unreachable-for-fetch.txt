@@ -1,0 +1,21 @@
+# c06-away-origin-unreachable-for-fetch
+posture: away
+what happened after the captain approved: a clean catch-up, but origin could not be reached when the verify fetched (moved aside, as a network blip)
+captain-approved head (recorded): 00e88004b251fe74831bc16fe37526bb0f238d84
+recorded: approved head 00e88004b251fe74831bc16fe37526bb0f238d84 for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of the live head):
+  *   563d017 Merge branch 'main' into feature
+  |\  
+  | * 90f1f96 base: an unrelated change
+  * | 00e8800 feat: the change the captain reviewed
+  |/  
+  * 8936b07 base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c06 https://github.com/lab-owner/lab-repo/pull/7 563d017f592b68c4070e4766853ba04b4d82f5eb main --away
+## exit status: 4
+## stdout
+## stderr
+error: refusing to merge https://github.com/lab-owner/lab-repo/pull/7: the captain approved head 00e88004b251fe74831bc16fe37526bb0f238d84, but the live head is 563d017f592b68c4070e4766853ba04b4d82f5eb
+  - the commits between them could not be read: fetching refs/pull/7/head and main from origin failed
+error: nothing between the heads was judged, so the merge can be retried once that read succeeds; a retry reads the live head again
+## private refs left in the task worktree
+(end)

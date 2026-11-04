@@ -1,0 +1,38 @@
+# b06: the Merge now click on the board, recorded as the head the card showed; the captain then goes away, and the away merge lands only that head
+## wake queued for firstmate (state/.wake-queue)
+1793769520	1	check	procevent:lavish-59496cf28c62e6f5:1	check: procevent lavish lavish-59496cf28c62e6f5 1
+$ bin/fm-procevent-lavish.sh answers $LAB/state/procevent-inbox/lavish-59496cf28c62e6f5.1.result
+merge.bd-nb	merge	Merge: 03 - trpc_setup -> merge
+(exit 0)
+$ bin/fm-procevent-lavish.sh heads $LAB/state/procevent-inbox/lavish-59496cf28c62e6f5.1.result
+merge.bd-nb	fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+(exit 0)
+$ bin/fm-approved-head.sh record bd-nb https://github.com/hcho22/nodebase/pull/2 fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+recorded: approved head fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 for https://github.com/hcho22/nodebase/pull/2
+(exit 0)
+## bd-nb meta after the handler recorded the card head
+approved_head=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 https://github.com/hcho22/nodebase/pull/2
+pr=https://github.com/hcho22/nodebase/pull/2
+pr_head=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+$ bin/fm-afk-contract.sh enter --words merge the nodebase PR I just clicked Merge now on
+fm-afk-contract: replaced the earlier away posture; its record is archived at $LAB/state/afk-contracts/1793769534-superseded-1793769558.afk-contract
+Away posture recorded at 2026-11-04T05:19:18Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: not given. Spend cap: 4 concurrent workers.
+Away posture (recorded):
+  entered: 2026-11-04T05:18:54Z
+  expected return: not given
+  spend cap: 4 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    merge the nodebase PR I just clicked Merge now on
+(exit 0)
+$ bin/fm-pr-merge.sh bd-nb https://github.com/hcho22/nodebase/pull/2
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+armed: state/bd-nb.check.sh
+verified: https://github.com/hcho22/nodebase/pull/2 is open and mergeable, with every unwaived required check reported and every unwaived check green at head fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+verified: live head fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 of https://github.com/hcho22/nodebase/pull/2 is the captain-approved head
+test write-guard: refused 'gh pr merge 2 --repo hcho22/nodebase --match-head-commit fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 --squash'; this validation never changes a real pull request
+error: GitHub merge outcome was not successful: state=OPEN, merged=false, isInMergeQueue=false
+error: the direct merge did not land while the away-posture record exists; merge-queue retry flags are unavailable because a queued merge would outlive its authority
+(exit 1)
+## gh writes the guard refused during the merge (where the real merge would happen)
+BLOCKED-WRITE gh pr merge 2 --repo hcho22/nodebase --match-head-commit fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 --squash

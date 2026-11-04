@@ -1,0 +1,13 @@
+# s02-mate-records-older-relayed-head
+task worktree origin: https://github.com/hcho22/nodebase.git
+child away-posture record: none (attended)
+$ FM_HOME=$LAB/mate-a bin/fm-approved-head.sh record sm-a https://github.com/hcho22/nodebase/pull/2 4d2a6261574bed47c79c52547d29fcb48e449be0
+## exit status: 0
+## stdout
+recorded: approved head 4d2a6261574bed47c79c52547d29fcb48e449be0 for https://github.com/hcho22/nodebase/pull/2
+## stderr (watcher banners from the lab home omitted)
+## merge writes refused by the test guard so far
+(none)
+## parent channel mate-a (P/state/mate-a.status): 0 line(s) before, now:
+(no channel file)
+(end)

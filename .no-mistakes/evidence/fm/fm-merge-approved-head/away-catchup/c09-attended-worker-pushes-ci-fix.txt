@@ -1,0 +1,19 @@
+# c09-attended-worker-pushes-ci-fix
+posture: attended
+what happened after the captain approved: the worker pushed a CI fix commit while the captain was present
+captain-approved head (recorded): dbcf961d7aa8388514a86034a29404cbc436a207
+recorded: approved head dbcf961d7aa8388514a86034a29404cbc436a207 for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of the live head):
+  * 5393d81 fix: a CI tweak after approval
+  * dbcf961 feat: the change the captain reviewed
+  * 33bfa90 base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c09 https://github.com/lab-owner/lab-repo/pull/7 5393d812f8a17efef45e7461089fa395757cb96e main 
+## exit status: 1
+## stdout
+## stderr
+error: refusing to merge https://github.com/lab-owner/lab-repo/pull/7: the captain approved head dbcf961d7aa8388514a86034a29404cbc436a207, but the live head is 5393d812f8a17efef45e7461089fa395757cb96e
+  - 5393d812f8a17efef45e7461089fa395757cb96e fix: a CI tweak after approval (a commit added to the pull request)
+  - 1 commit between the heads, 1 not on main
+error: present the pull request to the captain again at head 5393d812f8a17efef45e7461089fa395757cb96e, recording that head with: <worktree>/bin/fm-approved-head.sh record c09 https://github.com/lab-owner/lab-repo/pull/7 5393d812f8a17efef45e7461089fa395757cb96e
+## private refs left in the task worktree
+(end)

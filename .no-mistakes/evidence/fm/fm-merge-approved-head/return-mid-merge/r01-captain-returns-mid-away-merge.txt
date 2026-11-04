@@ -1,0 +1,25 @@
+# r01-captain-returns-mid-away-merge
+away-posture record before: away
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lab-rt1 https://github.com/hcho22/nodebase/pull/2
+## exit status: 1
+## stdout
+armed: state/lab-rt1.check.sh
+## stderr (watcher banners from the lab home omitted)
+verified: https://github.com/hcho22/nodebase/pull/2 is open and mergeable, with every unwaived required check reported and every unwaived check green at head fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+notice: no captain-approved head is recorded for https://github.com/hcho22/nodebase/pull/2; merging under away authority, bound to no head
+error: refusing to merge https://github.com/hcho22/nodebase/pull/2: no captain-approved head is recorded for task lab-rt1
+error: present the pull request to the captain again and record the head shown then with: <worktree>/bin/fm-approved-head.sh record lab-rt1 https://github.com/hcho22/nodebase/pull/2 <head-shown>
+## gh calls and the return hook, in order (reads reach real GitHub; writes are refused)
+read gh pr view https://github.com/hcho22/nodebase/pull/2 --json headRefOid -q .headRefOid
+  -> rc=0 out=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+read gh pr view https://github.com/hcho22/nodebase/pull/2 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+  -> rc=0 out={"baseRefName":"main","headRefOid":"fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7","isDraft":false,"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","state":"OPEN","statusCheckRollup":[{"__typename":"Stat
+HOOK captain returns: fm-afk-contract.sh archive -> $LAB/state/afk-contracts/1793769360.afk-contract 
+read gh api repos/hcho22/nodebase/branches/main
+  -> rc=0 out={"name":"main","commit":{"sha":"4d2a6261574bed47c79c52547d29fcb48e449be0","node_id":"C_kwDOSlwfi9oAKDRkMmE2MjYxNTc0YmVkNDdjNzljNTI1NDdkMjlmY2I0OGU0NDliZTA","commit":{"author":{"name":"Hyung Cho","emai
+read gh api --paginate repos/hcho22/nodebase/rules/branches/main
+  -> rc=1 out={"message":"Upgrade to GitHub Pro or make this repository public to enable this feature.","documentation_url":"https://docs.github.com/rest/repos/rules#get-rules-for-a-branch","status":"403"}
+## away-posture record after: none (archived)
+## archived records
+1793769360.afk-contract
+(end)

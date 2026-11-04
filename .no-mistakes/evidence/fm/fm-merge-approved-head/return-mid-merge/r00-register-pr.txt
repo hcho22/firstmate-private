@@ -1,0 +1,15 @@
+# r00-register-pr
+away-posture record before: none
+$ FM_HOME=$LAB bin/fm-pr-check.sh lab-rt1 https://github.com/hcho22/nodebase/pull/2
+## exit status: 0
+## stdout
+armed: state/lab-rt1.check.sh
+## stderr (watcher banners from the lab home omitted)
+## gh calls and the return hook, in order (reads reach real GitHub; writes are refused)
+read gh pr view https://github.com/hcho22/nodebase/pull/2 --json isDraft
+  -> rc=0 out={"isDraft":false}
+read gh pr view https://github.com/hcho22/nodebase/pull/2 --json headRefOid -q .headRefOid
+  -> rc=0 out=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+## away-posture record after: none (archived)
+## archived records
+(end)

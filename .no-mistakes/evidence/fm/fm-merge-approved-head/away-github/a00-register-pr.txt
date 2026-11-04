@@ -1,0 +1,31 @@
+# a00-register-pr
+away-posture record: none (attended)
+task worktree origin: https://github.com/hcho22/nodebase.git
+$ FM_HOME=$LAB bin/fm-pr-check.sh lab-aw1 https://github.com/hcho22/nodebase/pull/2
+## exit status: 0
+## stdout
+armed: state/lab-aw1.check.sh
+## stderr
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## gh calls during this run (reads reach real GitHub; the test guard refuses writes)
+read gh pr view https://github.com/hcho22/nodebase/pull/2 --json isDraft
+  -> rc=0 out={"isDraft":false}
+read gh pr view https://github.com/hcho22/nodebase/pull/2 --json headRefOid -q .headRefOid
+  -> rc=0 out=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+## task meta after
+window=fm-lab-aw1
+worktree=$LAB/wt
+project=$LAB/projects/nodebase
+kind=ship
+mode=no-mistakes
+yolo=off
+pr=https://github.com/hcho22/nodebase/pull/2
+pr_head=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+## private verify refs left in the task worktree
+(end)

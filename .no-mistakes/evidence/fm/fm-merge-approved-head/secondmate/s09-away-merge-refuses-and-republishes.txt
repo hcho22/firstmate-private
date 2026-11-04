@@ -1,0 +1,18 @@
+# s09-away-merge-refuses-and-republishes
+task worktree origin: https://github.com/hcho22/nodebase.git
+child away-posture record: away
+$ FM_HOME=$LAB/mate-b bin/fm-pr-merge.sh sm-b https://github.com/hcho22/nodebase/pull/2
+## exit status: 1
+## stdout
+armed: state/sm-b.check.sh
+## stderr (watcher banners from the lab home omitted)
+verified: https://github.com/hcho22/nodebase/pull/2 is open and mergeable, with every unwaived required check reported and every unwaived check green at head fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+error: refusing to merge https://github.com/hcho22/nodebase/pull/2: the captain approved head 4d2a6261574bed47c79c52547d29fcb48e449be0, but the live head is fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+  - fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 03 - trpc_setup (a commit added to the pull request)
+  - 1 commit between the heads, 1 not on main
+error: the captain is away, so hold the merge for the captain's return and present the pull request again at head fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 then; record that head now, with: <worktree>/bin/fm-approved-head.sh record sm-b https://github.com/hcho22/nodebase/pull/2 fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7, only when the captain's away words explicitly cover it
+## merge writes refused by the test guard so far
+(none)
+## parent channel mate-b (P/state/mate-b.status): 0 line(s) before, now:
+done [key=child-pr-sm-b] [at=1793769171]: child sm-b PR ready: https://github.com/hcho22/nodebase/pull/2 mode=no-mistakes yolo=off head=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+(end)

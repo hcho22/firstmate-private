@@ -1,0 +1,19 @@
+# c10-attended-clean-catch-up-with-main
+posture: attended
+what happened after the captain approved: main moved and the branch was caught up with an automatic merge
+captain-approved head (recorded): a1372c62b4882a7dd04b952c4a1ae1fb0d18e752
+recorded: approved head a1372c62b4882a7dd04b952c4a1ae1fb0d18e752 for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of the live head):
+  *   fdd47c5 Merge branch 'main' into feature
+  |\  
+  | * ef87728 base: an unrelated change
+  * | a1372c6 feat: the change the captain reviewed
+  |/  
+  * 74184f9 base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c10 https://github.com/lab-owner/lab-repo/pull/7 fdd47c54897b3986c7ed21ba8a16d536922721c4 main 
+## exit status: 0
+## stdout
+## stderr
+verified: live head fdd47c54897b3986c7ed21ba8a16d536922721c4 of https://github.com/lab-owner/lab-repo/pull/7 adds only a clean catch-up with main to the captain-approved head a1372c62b4882a7dd04b952c4a1ae1fb0d18e752 (1 commit from main, 1 clean merge commit)
+## private refs left in the task worktree
+(end)

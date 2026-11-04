@@ -1,3 +1,5 @@
-# Real PRs after all live runs (read-only check that nothing was merged or changed)
-PR #22: state=OPEN head=9df1a95f2994a91bb1c02207bbfb726cb4a199ba mergedAt=null
-PR #24: state=OPEN head=91822114c812bdadc0c06bc7b34e6ff30893cea3 mergedAt=null
+# Real PRs after the run (read-only gh view)
+{"headRefOid":"fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7","mergeStateStatus":"CLEAN","mergedAt":null,"number":2,"state":"OPEN"}
+
+{"headRefOid":"aa80c2619350080f7e2e24273dc660d784a469c8","mergedAt":null,"number":25,"state":"OPEN"}
+

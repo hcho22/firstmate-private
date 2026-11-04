@@ -1,0 +1,21 @@
+# q00-captain-returns
+away-posture record: none (attended)
+task worktree origin: https://github.com/hcho22/nodebase.git
+$ FM_HOME=$LAB bin/fm-afk-contract.sh archive
+## exit status: 0
+## stdout
+$LAB/state/afk-contracts/1793768931.afk-contract
+## stderr
+## gh calls during this run (reads reach real GitHub; the test guard refuses writes)
+## task meta after
+window=fm-lab-aw1
+worktree=$LAB/wt
+project=$LAB/projects/nodebase
+kind=ship
+mode=no-mistakes
+yolo=off
+approved_head=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 https://github.com/hcho22/nodebase/pull/2
+pr=https://github.com/hcho22/nodebase/pull/2
+pr_head=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+## private verify refs left in the task worktree
+(end)

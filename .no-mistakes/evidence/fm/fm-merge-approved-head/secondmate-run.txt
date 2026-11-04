@@ -1,0 +1,9 @@
+s01-register-before-binding                          exit=0 channel lines 0 -> 0
+s02-mate-records-older-relayed-head                  exit=0 channel lines 0 -> 0
+s03-merge-when-verify-fetch-fails                    exit=1 channel lines 0 -> 0
+s04-merge-refuses-and-republishes                    exit=1 channel lines 0 -> 1
+s05-register-before-binding                          exit=0 channel lines 0 -> 0
+s06-mate-records-older-relayed-head                  exit=0 channel lines 0 -> 0
+s07-child-goes-away                                  exit=0 channel lines 0 -> 0
+s08-away-merge-when-verify-fetch-fails               exit=1 channel lines 0 -> 0
+s09-away-merge-refuses-and-republishes               exit=1 channel lines 0 -> 1

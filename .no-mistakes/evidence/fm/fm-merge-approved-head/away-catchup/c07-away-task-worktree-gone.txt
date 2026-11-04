@@ -1,0 +1,22 @@
+# c07-away-task-worktree-gone
+posture: away
+what happened after the captain approved: a clean catch-up, but the task worktree that verify reads commits from is gone
+captain-approved head (recorded): f6f5c5ea45d5de2d1a870e8c109ffc3065c9c350
+recorded: approved head f6f5c5ea45d5de2d1a870e8c109ffc3065c9c350 for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of the live head):
+  *   2be7448 Merge branch 'main' into feature
+  |\  
+  | * 95dd1ef base: an unrelated change
+  * | f6f5c5e feat: the change the captain reviewed
+  |/  
+  * 2f258f1 base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c07 https://github.com/lab-owner/lab-repo/pull/7 2be744868ffbe6c9499c26a0987d7707e3f536ca main --away
+## exit status: 1
+## stdout
+## stderr
+error: refusing to merge https://github.com/lab-owner/lab-repo/pull/7: the captain approved head f6f5c5ea45d5de2d1a870e8c109ffc3065c9c350, but the live head is 2be744868ffbe6c9499c26a0987d7707e3f536ca
+  - the commits between them could not be read: the task worktree is unavailable
+error: the captain is away, so hold the merge for the captain's return and present the pull request again at head 2be744868ffbe6c9499c26a0987d7707e3f536ca then; record that head now, with: <worktree>/bin/fm-approved-head.sh record c07 https://github.com/lab-owner/lab-repo/pull/7 2be744868ffbe6c9499c26a0987d7707e3f536ca, only when the captain's away words explicitly cover it
+## private refs left in the task worktree
+(task worktree absent)
+(end)

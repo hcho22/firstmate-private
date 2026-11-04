@@ -1,0 +1,13 @@
+# s01-register-before-binding
+task worktree origin: https://github.com/hcho22/nodebase.git
+child away-posture record: none (attended)
+$ FM_HOME=$LAB/mate-a bin/fm-pr-check.sh sm-a https://github.com/hcho22/nodebase/pull/2
+## exit status: 0
+## stdout
+armed: state/sm-a.check.sh
+## stderr (watcher banners from the lab home omitted)
+## merge writes refused by the test guard so far
+(none)
+## parent channel mate-a (P/state/mate-a.status): 0 line(s) before, now:
+(no channel file)
+(end)

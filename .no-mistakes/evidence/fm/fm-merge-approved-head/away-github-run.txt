@@ -1,0 +1,22 @@
+a00-register-pr                                            exit=0 forge-merge-writes=0
+a00-captain-goes-away                                      exit=0 forge-merge-writes=0
+a01-away-merge-with-no-recorded-head                       exit=1 forge-merge-writes=1
+a02-away-merge-with-head-recorded-for-other-pr             exit=1 forge-merge-writes=1
+a03-record-head-shown-before-away                          exit=0 forge-merge-writes=0
+a03-away-merge-after-worker-push                           exit=1 forge-merge-writes=0
+a04-away-merge-when-verify-fetch-fails                     exit=1 forge-merge-writes=0
+a05-captain-words-cover-later-head                         exit=0 forge-merge-writes=0
+a05-away-session-records-named-head                        exit=0 forge-merge-writes=0
+a05-away-merge-at-recorded-later-head                      exit=1 forge-merge-writes=1
+q00-captain-returns                                        exit=0 forge-merge-writes=0
+q01-record-head-shown-earlier                              exit=0 forge-merge-writes=0
+q01-attended-merge-after-worker-push                       exit=1 forge-merge-writes=0
+q02-attended-merge-when-verify-fetch-fails                 exit=1 forge-merge-writes=0
+q03-captain-enters-quiet-mode                              exit=0 forge-merge-writes=0
+q03-quiet-merge-with-no-recorded-head                      exit=1 forge-merge-writes=0
+q04-record-head-shown-earlier                              exit=0 forge-merge-writes=0
+q04-quiet-merge-after-worker-push                          exit=1 forge-merge-writes=0
+merge writes the guard refused across the whole run:
+BLOCKED-WRITE gh pr merge 2 --repo hcho22/nodebase --match-head-commit fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 --squash
+BLOCKED-WRITE gh pr merge 2 --repo hcho22/nodebase --match-head-commit fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 --squash
+BLOCKED-WRITE gh pr merge 2 --repo hcho22/nodebase --match-head-commit fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 --squash

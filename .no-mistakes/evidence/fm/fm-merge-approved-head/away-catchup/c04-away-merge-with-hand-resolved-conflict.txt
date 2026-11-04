@@ -1,0 +1,23 @@
+# c04-away-merge-with-hand-resolved-conflict
+posture: away
+what happened after the captain approved: the catch-up merge with main conflicted and the conflict was resolved by hand
+captain-approved head (recorded): c884e1ccfcb68ab3e84b03e6ce174fa1a1b36bf6
+recorded: approved head c884e1ccfcb68ab3e84b03e6ce174fa1a1b36bf6 for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of the live head):
+  *   111c4cd Merge main, resolving the line-two conflict by hand
+  |\  
+  | * 6a0c1ba base: change line two
+  * | c884e1c feat: also edit line two
+  * | b49e2b7 feat: the change the captain reviewed
+  |/  
+  * f46c235 base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c04 https://github.com/lab-owner/lab-repo/pull/7 111c4cd15802364c9124f8ec2eccd24a4b760abd main --away
+## exit status: 1
+## stdout
+## stderr
+error: refusing to merge https://github.com/lab-owner/lab-repo/pull/7: the captain approved head c884e1ccfcb68ab3e84b03e6ce174fa1a1b36bf6, but the live head is 111c4cd15802364c9124f8ec2eccd24a4b760abd
+  - 111c4cd15802364c9124f8ec2eccd24a4b760abd Merge main, resolving the line-two conflict by hand (a merge whose tree is not the conflict-free automatic merge of its parents)
+  - 2 commits between the heads, 1 not on main
+error: the captain is away, so hold the merge for the captain's return and present the pull request again at head 111c4cd15802364c9124f8ec2eccd24a4b760abd then; record that head now, with: <worktree>/bin/fm-approved-head.sh record c04 https://github.com/lab-owner/lab-repo/pull/7 111c4cd15802364c9124f8ec2eccd24a4b760abd, only when the captain's away words explicitly cover it
+## private refs left in the task worktree
+(end)

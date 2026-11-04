@@ -1,0 +1,18 @@
+# r00-captain-goes-away
+away-posture record before: none
+$ FM_HOME=$LAB bin/fm-afk-contract.sh enter --words merge nodebase PR 2 when it is green
+## exit status: 0
+## stdout
+Away posture recorded at 2026-11-04T05:16:00Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: not given. Spend cap: 4 concurrent workers.
+Away posture (recorded):
+  entered: 2026-11-04T05:16:00Z
+  expected return: not given
+  spend cap: 4 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    merge nodebase PR 2 when it is green
+## stderr (watcher banners from the lab home omitted)
+## gh calls and the return hook, in order (reads reach real GitHub; writes are refused)
+## away-posture record after: away
+## archived records
+(end)

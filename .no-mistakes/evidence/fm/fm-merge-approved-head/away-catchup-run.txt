@@ -1,0 +1,11 @@
+c01-away-clean-catch-up-with-main                    posture=away     exit=0
+c02-away-worker-pushes-ci-fix                        posture=away     exit=1
+c03-away-rebase-and-force-push                       posture=away     exit=1
+c04-away-merge-with-hand-resolved-conflict           posture=away     exit=1
+c05-away-head-moves-while-verifying                  posture=away     exit=4
+c06-away-origin-unreachable-for-fetch                posture=away     exit=4
+c06b-away-retry-after-origin-returns                 posture=away     exit=0
+c07-away-task-worktree-gone                          posture=away     exit=1
+c08-attended-head-moves-while-verifying              posture=attended exit=4
+c09-attended-worker-pushes-ci-fix                    posture=attended exit=1
+c10-attended-clean-catch-up-with-main                posture=attended exit=0

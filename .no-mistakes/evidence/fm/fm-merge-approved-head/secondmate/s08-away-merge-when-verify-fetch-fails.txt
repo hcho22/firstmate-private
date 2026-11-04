@@ -1,0 +1,17 @@
+# s08-away-merge-when-verify-fetch-fails
+task worktree origin: https://github.invalid/hcho22/nodebase.git
+child away-posture record: away
+$ FM_HOME=$LAB/mate-b bin/fm-pr-merge.sh sm-b https://github.com/hcho22/nodebase/pull/2
+## exit status: 1
+## stdout
+armed: state/sm-b.check.sh
+## stderr (watcher banners from the lab home omitted)
+verified: https://github.com/hcho22/nodebase/pull/2 is open and mergeable, with every unwaived required check reported and every unwaived check green at head fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+error: refusing to merge https://github.com/hcho22/nodebase/pull/2: the captain approved head 4d2a6261574bed47c79c52547d29fcb48e449be0, but the live head is fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+  - the commits between them could not be read: fetching refs/pull/2/head and main from origin failed
+error: nothing between the heads was judged, so the merge can be retried once that read succeeds; a retry reads the live head again
+## merge writes refused by the test guard so far
+(none)
+## parent channel mate-b (P/state/mate-b.status): 0 line(s) before, now:
+(no channel file)
+(end)

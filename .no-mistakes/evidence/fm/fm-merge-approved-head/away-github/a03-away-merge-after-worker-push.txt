@@ -1,0 +1,35 @@
+# a03-away-merge-after-worker-push
+away-posture record: present, mode=away
+task worktree origin: https://github.com/hcho22/nodebase.git
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lab-aw1 https://github.com/hcho22/nodebase/pull/2
+## exit status: 1
+## stdout
+armed: state/lab-aw1.check.sh
+## stderr
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+verified: https://github.com/hcho22/nodebase/pull/2 is open and mergeable, with every unwaived required check reported and every unwaived check green at head fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+error: refusing to merge https://github.com/hcho22/nodebase/pull/2: the captain approved head 4d2a6261574bed47c79c52547d29fcb48e449be0, but the live head is fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+  - fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 03 - trpc_setup (a commit added to the pull request)
+  - 1 commit between the heads, 1 not on main
+error: the captain is away, so hold the merge for the captain's return and present the pull request again at head fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 then; record that head now, with: <worktree>/bin/fm-approved-head.sh record lab-aw1 https://github.com/hcho22/nodebase/pull/2 fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7, only when the captain's away words explicitly cover it
+## gh calls during this run (reads reach real GitHub; the test guard refuses writes)
+read gh pr view https://github.com/hcho22/nodebase/pull/2 --json headRefOid -q .headRefOid
+  -> rc=0 out=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+read gh pr view https://github.com/hcho22/nodebase/pull/2 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+  -> rc=0 out={"baseRefName":"main","headRefOid":"fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7","isDraft":false,"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","state":"OPEN","statusCheckRollup":[{"__typename":"Stat
+read gh api repos/hcho22/nodebase/branches/main
+  -> rc=0 out={"name":"main","commit":{"sha":"4d2a6261574bed47c79c52547d29fcb48e449be0","node_id":"C_kwDOSlwfi9oAKDRkMmE2MjYxNTc0YmVkNDdjNzljNTI1NDdkMjlmY2I0OGU0NDliZTA","commit":{"author":{"name":"Hyung Cho","emai
+read gh api --paginate repos/hcho22/nodebase/rules/branches/main
+  -> rc=1 out={"message":"Upgrade to GitHub Pro or make this repository public to enable this feature.","documentation_url":"https://docs.github.com/rest/repos/rules#get-rules-for-a-branch","status":"403"}
+## task meta after
+window=fm-lab-aw1
+worktree=$LAB/wt
+project=$LAB/projects/nodebase
+kind=ship
+mode=no-mistakes
+yolo=off
+approved_head=4d2a6261574bed47c79c52547d29fcb48e449be0 https://github.com/hcho22/nodebase/pull/2
+pr=https://github.com/hcho22/nodebase/pull/2
+pr_head=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+## private verify refs left in the task worktree
+(end)

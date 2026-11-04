@@ -1,0 +1,29 @@
+# a05-captain-words-cover-later-head
+away-posture record: present, mode=away
+task worktree origin: https://github.com/hcho22/nodebase.git
+$ FM_HOME=$LAB bin/fm-afk-contract.sh enter --words merge nodebase PR 2 once the worker's fix lands, at whatever head it is then
+## exit status: 0
+## stdout
+Away posture recorded at 2026-11-04T05:09:17Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: not given. Spend cap: 4 concurrent workers.
+Away posture (recorded):
+  entered: 2026-11-04T05:08:51Z
+  expected return: not given
+  spend cap: 4 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    merge nodebase PR 2 once the worker's fix lands, at whatever head it is then
+## stderr
+fm-afk-contract: replaced the earlier away posture; its record is archived at $LAB/state/afk-contracts/1793768931-superseded-1793768957.afk-contract
+## gh calls during this run (reads reach real GitHub; the test guard refuses writes)
+## task meta after
+window=fm-lab-aw1
+worktree=$LAB/wt
+project=$LAB/projects/nodebase
+kind=ship
+mode=no-mistakes
+yolo=off
+approved_head=4d2a6261574bed47c79c52547d29fcb48e449be0 https://github.com/hcho22/nodebase/pull/2
+pr=https://github.com/hcho22/nodebase/pull/2
+pr_head=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+## private verify refs left in the task worktree
+(end)

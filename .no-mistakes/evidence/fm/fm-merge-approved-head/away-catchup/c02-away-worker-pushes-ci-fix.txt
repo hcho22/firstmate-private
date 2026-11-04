@@ -1,0 +1,19 @@
+# c02-away-worker-pushes-ci-fix
+posture: away
+what happened after the captain approved: the worker pushed a CI fix commit while the captain was away
+captain-approved head (recorded): 2ea2531703c7d4cf6e95d4a9e7c0cd842279d9e5
+recorded: approved head 2ea2531703c7d4cf6e95d4a9e7c0cd842279d9e5 for https://github.com/lab-owner/lab-repo/pull/7
+pull request history now (git log --graph of the live head):
+  * cc119cb fix: a CI tweak after approval
+  * 2ea2531 feat: the change the captain reviewed
+  * 5d02598 base: initial
+$ FM_HOME=$LAB bin/fm-approved-head.sh verify c02 https://github.com/lab-owner/lab-repo/pull/7 cc119cb080ff60a9bebcd14a13d089b205c9da97 main --away
+## exit status: 1
+## stdout
+## stderr
+error: refusing to merge https://github.com/lab-owner/lab-repo/pull/7: the captain approved head 2ea2531703c7d4cf6e95d4a9e7c0cd842279d9e5, but the live head is cc119cb080ff60a9bebcd14a13d089b205c9da97
+  - cc119cb080ff60a9bebcd14a13d089b205c9da97 fix: a CI tweak after approval (a commit added to the pull request)
+  - 1 commit between the heads, 1 not on main
+error: the captain is away, so hold the merge for the captain's return and present the pull request again at head cc119cb080ff60a9bebcd14a13d089b205c9da97 then; record that head now, with: <worktree>/bin/fm-approved-head.sh record c02 https://github.com/lab-owner/lab-repo/pull/7 cc119cb080ff60a9bebcd14a13d089b205c9da97, only when the captain's away words explicitly cover it
+## private refs left in the task worktree
+(end)

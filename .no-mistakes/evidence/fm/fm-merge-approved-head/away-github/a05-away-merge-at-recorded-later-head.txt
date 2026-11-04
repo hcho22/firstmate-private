@@ -1,0 +1,46 @@
+# a05-away-merge-at-recorded-later-head
+away-posture record: present, mode=away
+task worktree origin: https://github.com/hcho22/nodebase.git
+$ FM_HOME=$LAB bin/fm-pr-merge.sh lab-aw1 https://github.com/hcho22/nodebase/pull/2
+## exit status: 1
+## stdout
+armed: state/lab-aw1.check.sh
+## stderr
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+verified: https://github.com/hcho22/nodebase/pull/2 is open and mergeable, with every unwaived required check reported and every unwaived check green at head fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+verified: live head fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 of https://github.com/hcho22/nodebase/pull/2 is the captain-approved head
+test write-guard: refused 'gh pr merge 2 --repo hcho22/nodebase --match-head-commit fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 --squash'; this validation never changes a real pull request
+error: GitHub merge outcome was not successful: state=OPEN, merged=false, isInMergeQueue=false
+error: the direct merge did not land while the away-posture record exists; merge-queue retry flags are unavailable because a queued merge would outlive its authority
+## gh calls during this run (reads reach real GitHub; the test guard refuses writes)
+read gh pr view https://github.com/hcho22/nodebase/pull/2 --json headRefOid -q .headRefOid
+  -> rc=0 out=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+read gh pr view https://github.com/hcho22/nodebase/pull/2 --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup
+  -> rc=0 out={"baseRefName":"main","headRefOid":"fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7","isDraft":false,"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","state":"OPEN","statusCheckRollup":[{"__typename":"Stat
+read gh api repos/hcho22/nodebase/branches/main
+  -> rc=0 out={"name":"main","commit":{"sha":"4d2a6261574bed47c79c52547d29fcb48e449be0","node_id":"C_kwDOSlwfi9oAKDRkMmE2MjYxNTc0YmVkNDdjNzljNTI1NDdkMjlmY2I0OGU0NDliZTA","commit":{"author":{"name":"Hyung Cho","emai
+read gh api --paginate repos/hcho22/nodebase/rules/branches/main
+  -> rc=1 out={"message":"Upgrade to GitHub Pro or make this repository public to enable this feature.","documentation_url":"https://docs.github.com/rest/repos/rules#get-rules-for-a-branch","status":"403"}
+read gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){isMergeQueueEnabled}}} -f owner=hcho22 -f repo=nodebase -F number=2 --jq .data.repository.pullRequest.isMergeQueueEnabled
+  -> rc=0 out=false
+read gh api --paginate repos/hcho22/nodebase/rules/branches/main --jq .[] | select(.type == "merge_queue") | "merge_method=" + (.parameters.merge_method // "")
+  -> rc=1 out={"message":"Upgrade to GitHub Pro or make this repository public to enable this feature.","documentation_url":"https://docs.github.com/rest/repos/rules#get-rules-for-a-branch","status":"403"}
+read gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){isMergeQueueEnabled}}} -f owner=hcho22 -f repo=nodebase -F number=2 --jq .data.repository.pullRequest.isMergeQueueEnabled
+  -> rc=0 out=false
+read gh api --paginate repos/hcho22/nodebase/rules/branches/main --jq .[] | select(.type == "merge_queue") | "merge_method=" + (.parameters.merge_method // "")
+  -> rc=1 out={"message":"Upgrade to GitHub Pro or make this repository public to enable this feature.","documentation_url":"https://docs.github.com/rest/repos/rules#get-rules-for-a-branch","status":"403"}
+BLOCKED-WRITE gh pr merge 2 --repo hcho22/nodebase --match-head-commit fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 --squash
+read gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged isInMergeQueue baseRefName}}} -f owner=hcho22 -f repo=nodebase -F number=2 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring), "queued=" + (.isInMergeQueue | tostring), "base=" + (.baseRefName // "")
+  -> rc=0 out=state=OPEN merged=false queued=false base=main
+## task meta after
+window=fm-lab-aw1
+worktree=$LAB/wt
+project=$LAB/projects/nodebase
+kind=ship
+mode=no-mistakes
+yolo=off
+approved_head=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7 https://github.com/hcho22/nodebase/pull/2
+pr=https://github.com/hcho22/nodebase/pull/2
+pr_head=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+## private verify refs left in the task worktree
+(end)

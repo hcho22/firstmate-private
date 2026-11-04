@@ -1,0 +1,3 @@
+r00-register-pr                                      exit=0 forge-merge-writes=0
+r00-captain-goes-away                                exit=0 forge-merge-writes=0
+r01-captain-returns-mid-away-merge                   exit=1 forge-merge-writes=0

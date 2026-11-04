@@ -1,0 +1,21 @@
+# q01-record-head-shown-earlier
+away-posture record: none (attended)
+task worktree origin: https://github.com/hcho22/nodebase.git
+$ FM_HOME=$LAB bin/fm-approved-head.sh record lab-aw1 https://github.com/hcho22/nodebase/pull/2 4d2a6261574bed47c79c52547d29fcb48e449be0
+## exit status: 0
+## stdout
+recorded: approved head 4d2a6261574bed47c79c52547d29fcb48e449be0 for https://github.com/hcho22/nodebase/pull/2
+## stderr
+## gh calls during this run (reads reach real GitHub; the test guard refuses writes)
+## task meta after
+window=fm-lab-aw1
+worktree=$LAB/wt
+project=$LAB/projects/nodebase
+kind=ship
+mode=no-mistakes
+yolo=off
+approved_head=4d2a6261574bed47c79c52547d29fcb48e449be0 https://github.com/hcho22/nodebase/pull/2
+pr=https://github.com/hcho22/nodebase/pull/2
+pr_head=fcabedcbb6dbc0b21fdebc74345c89bfb65c17c7
+## private verify refs left in the task worktree
+(end)
