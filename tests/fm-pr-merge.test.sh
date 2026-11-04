@@ -4663,6 +4663,8 @@ test_approved_head_added_commit_refuses_and_names_it() {
     "approved-head-added-commit: the refusal did not name both heads"
   assert_grep "$live fix: a pipeline tweak after approval (a commit added to the pull request)" "$case_dir/stderr" \
     "approved-head-added-commit: the refusal did not name the added commit"
+  assert_grep "  - 1 commit between the heads, 1 not on main" "$case_dir/stderr" \
+    "approved-head-added-commit: the refusal did not count the one commit between the heads in the singular"
   assert_grep "present the pull request to the captain again at head $live, recording that head with: $ROOT/bin/fm-approved-head.sh record task-x1 $url $live" "$case_dir/stderr" \
     "approved-head-added-commit: the refusal did not print the record command for the head it names"
   assert_no_gh_merge "$case_dir" approved-head-added-commit
@@ -4685,7 +4687,7 @@ test_approved_head_clean_base_merge_merges() {
   : > "$case_dir/gh-axi.log"
   write_approved_meta "$case_dir" "$approved" "$url"
   expect_code 0 "$(approved_head_merge "$case_dir" "$url")" "approved-head-clean-catch-up: a clean catch-up with the base refused"
-  assert_grep "adds only a clean catch-up with main to the captain-approved head $approved (2 commits from main, 1 clean merge commits)" \
+  assert_grep "adds only a clean catch-up with main to the captain-approved head $approved (2 commits from main, 1 clean merge commit)" \
     "$case_dir/stderr" "approved-head-clean-catch-up: the catch-up was not reported as verified"
   assert_logged_gh_merge "$case_dir" 72 example/repo --squash
   pass "an attended merge proceeds when the only new commit is a clean merge of the base"
@@ -4770,7 +4772,7 @@ test_approved_head_catch_ups_that_reshape_the_diff_merge() {
   write_approved_meta "$case_dir" "$approved" "$url"
   expect_code 0 "$(approved_head_merge "$case_dir" "$url")" \
     "approved-head-cherry-picked-hotfix: a catch-up with a base hotfix taken from the pull request refused: $(cat "$case_dir/stderr")"
-  assert_grep "adds only a clean catch-up with main to the captain-approved head $approved (1 commits from main, 1 clean merge commits)" \
+  assert_grep "adds only a clean catch-up with main to the captain-approved head $approved (1 commit from main, 1 clean merge commit)" \
     "$case_dir/stderr" "approved-head-cherry-picked-hotfix: the catch-up was not reported as verified"
   assert_logged_gh_merge "$case_dir" 79 example/repo --squash
 
@@ -4793,7 +4795,7 @@ test_approved_head_catch_ups_that_reshape_the_diff_merge() {
   write_approved_meta "$case_dir" "$approved" "$url"
   expect_code 0 "$(approved_head_merge "$case_dir" "$url")" \
     "approved-head-base-rename: a catch-up with a base rename of an edited file refused: $(cat "$case_dir/stderr")"
-  assert_grep "adds only a clean catch-up with main to the captain-approved head $approved (1 commits from main, 1 clean merge commits)" \
+  assert_grep "adds only a clean catch-up with main to the captain-approved head $approved (1 commit from main, 1 clean merge commit)" \
     "$case_dir/stderr" "approved-head-base-rename: the catch-up was not reported as verified"
   assert_logged_gh_merge "$case_dir" 80 example/repo --squash
   pass "a clean catch-up merges when the base took part of the pull request or renamed a file it edits"

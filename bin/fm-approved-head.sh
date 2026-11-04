@@ -248,6 +248,10 @@ refuse_changed() {  # <approved> <live> <reason-lines>
     "$2" "$RECORD_CMD" "$2" >&2
 }
 
+count_of() {  # <count> <noun>: the count and the noun, plural unless the count is 1
+  if [ "$1" = 1 ]; then printf '%s %s' "$1" "$2"; else printf '%s %ss' "$1" "$2"; fi
+}
+
 verify_approved_head() {
   local live=$1 base_branch=$2 pr_ref fetched approved reasons='' unclean own_count all_count line
   if ! fm_pr_head_valid "$live"; then
@@ -323,13 +327,14 @@ verify_approved_head() {
     done <<EOF
 $unclean
 EOF
-    reasons="$reasons  - $all_count commits lie between the heads, $own_count of them not on $base_branch
+    reasons="$reasons  - $(count_of "$all_count" commit) between the heads, $own_count not on $base_branch
 "
     refuse_changed "$approved" "$live" "$reasons"
     return 1
   fi
-  printf 'verified: live head %s of %s adds only a clean catch-up with %s to the captain-approved head %s (%s commits from %s, %s clean merge commits)\n' \
-    "$live" "$URL" "$base_branch" "$approved" "$((all_count - own_count))" "$base_branch" "$own_count" >&2
+  printf 'verified: live head %s of %s adds only a clean catch-up with %s to the captain-approved head %s (%s from %s, %s)\n' \
+    "$live" "$URL" "$base_branch" "$approved" "$(count_of "$((all_count - own_count))" commit)" "$base_branch" \
+    "$(count_of "$own_count" 'clean merge commit')" >&2
 }
 
 META_TMP=
