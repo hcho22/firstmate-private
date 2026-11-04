@@ -191,7 +191,8 @@
 # deletion (--delete-branch, -d and short-flag clusters, and GitLab's
 # --remove-source-branch) are refused by default; --attended-override, parsed
 # before the optional -- separator, re-enables those forge flags for an
-# explicit captain instruction and never skips the live green check, the
+# explicit captain instruction, except auto-merge on a merge bound to a
+# captain-approved head (above), and never skips the live green check, the
 # away-record read, or a captain hold.
 #
 # Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--allow-red <check-name>] [--allow-missing <check-name>] [--allow-no-pipeline] [-- <extra forge merge args>]
