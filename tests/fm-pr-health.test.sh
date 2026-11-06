@@ -509,7 +509,7 @@ test_retired_contribution_is_not_reclaimed_by_a_fresh_branch_lookup() {
 }
 
 test_unreadable_contribution_record_pauses_the_monitor_once() {
-  local home before
+  local home before record
   home=$(new_home unreadable-record)
   task "$home" ship1 pr=https://github.com/o/r/pull/8
   pr "$home" 8 "$HEAD_A" "$BASE_1" false false
@@ -517,13 +517,15 @@ test_unreadable_contribution_record_pauses_the_monitor_once() {
   expect_one "$home" 'conflicts with its base' 'the first conflict must wake'
   rm -f "$home/state/ship1.meta"
   expect_silent "$home" 'the durable record must keep the PR owned after cleanup'
-  cp "$home/data/ship1/contributions.json" "$home/contributions.saved"
-  printf 'not a record\n' > "$home/data/ship1/contributions.json"
+  record=$(task_data_path "$home" ship1 contributions.json)
+  [ -f "$record" ] || fail "the durable contribution record was not written: $record"
+  cp "$record" "$home/contributions.saved"
+  printf 'not a record\n' > "$record"
   before=$(grep -c 'pulls/8$' "$home/forge/calls.log")
   expect_one "$home" '^pr-health: owned PRs could not be read: ' 'an unreadable durable record must be reported once'
   expect_silent "$home" 'the same unreadable record must not be reported again'
   [ "$(grep -c 'pulls/8$' "$home/forge/calls.log")" = "$before" ] || fail 'a PR was read while ownership was unverified'
-  mv "$home/contributions.saved" "$home/data/ship1/contributions.json"
+  mv "$home/contributions.saved" "$record"
   expect_silent "$home" 'a conflict already reported must not repeat once the record is readable again'
   set_pr "$home" 8 ".head = \"$HEAD_B\""
   expect_one "$home" 'conflicts with its base at latest commit bbbbbbb' 'the PR must be watched again once the record is readable'
