@@ -114,15 +114,17 @@ function installTurnendGuard(ctx) {
 
     const root = await getRoot();
     const result = await runGuard(root);
-    if (result.code !== 2) return;
+    if (result.code !== 2 && result.code !== 3) return;
 
     try {
       const text = await encodeFirstmateOperationalInput(
         root,
         "turn-end-guard",
-        "TURN WOULD END BLIND - supervision is off. " +
-          "The watcher cycle is missing, failed, or unhealthy. Follow the harness recovery instruction below before ending the turn.\n\n" +
-          result.stderr,
+        result.code === 3
+          ? result.stderr
+          : "TURN WOULD END BLIND - supervision is off. " +
+              "The watcher cycle is missing, failed, or unhealthy. Follow the harness recovery instruction below before ending the turn.\n\n" +
+              result.stderr,
       );
       await promptSession(ctx, null, sessionID, text);
       latch.exempt(sessionID);

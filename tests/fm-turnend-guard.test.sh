@@ -2939,6 +2939,46 @@ EOF
   pass ".opencode primary plugin: the displaced notice is one follow-up without repair wording"
 }
 
+test_opencode2_plugin_delivers_displaced_notice_without_repair_wording() {
+  local dir foreign
+  dir=$(make_primary_dir "$TMP_ROOT/displaced-opencode2")
+  : > "$dir/state/task1.meta"
+  foreign=$(start_foreign_session "$dir")
+  GUARD_FOREIGN_PID=$foreign NODE_NO_WARNINGS=1 PLUGIN="$ROOT/.opencode/plugins/fm-primary-turnend-guard.js" WORKTREE="$dir" \
+    run_in_harness "$dir" opencode displaced node --input-type=module <<'EOF'
+import { pathToFileURL } from "node:url";
+
+const queue = [];
+let wake = null;
+const push = (event) => { queue.push(event); if (wake) { wake(); wake = null; } };
+async function* stream() {
+  for (;;) {
+    while (queue.length) yield queue.shift();
+    await new Promise((resolve) => { wake = resolve; });
+  }
+}
+const prompts = [];
+const ctx = {
+  location: { project: { directory: process.env.WORKTREE } },
+  event: { subscribe: () => stream() },
+  session: { prompt: async (request) => { prompts.push(request.text); } },
+};
+const mod = await import(pathToFileURL(process.env.PLUGIN).href);
+mod.default.setup(ctx);
+push({ type: "session.execution.succeeded", data: { sessionID: "ses-root" } });
+const deadline = Date.now() + 60000;
+while (prompts.length === 0 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
+if (prompts.length !== 1) throw new Error(`expected one displaced follow-up, got ${prompts.length}`);
+process.stdout.write(prompts[0]);
+process.exit(0);
+EOF
+  stop_foreign_session "$foreign"
+  expect_code 0 "$GUARD_RC" "the OpenCode 2 plugin run failed: $GUARD_OUT"
+  assert_contains "$GUARD_OUT" 'FIRSTMATE_OP: v1 turn-end-guard: ' "OpenCode 2 lost the typed guard kind"
+  assert_plain_displaced_notice "$GUARD_OUT" opencode2
+  pass ".opencode primary plugin (OpenCode 2 setup): the displaced notice is one follow-up without repair wording"
+}
+
 test_pi_extension_delivers_displaced_notice_without_repair_wording() {
   local dir foreign
   dir=$(make_primary_dir "$TMP_ROOT/displaced-pi")
@@ -3300,6 +3340,7 @@ test_hook_displaced_session_is_told_once_that_its_lock_was_taken_over
 test_displaced_notice_never_carries_repair_wording_from_the_guard
 test_grok_adapter_delivers_displaced_notice_without_repair_wording
 test_opencode_plugin_delivers_displaced_notice_without_repair_wording
+test_opencode2_plugin_delivers_displaced_notice_without_repair_wording
 test_pi_extension_delivers_displaced_notice_without_repair_wording
 test_omp_extension_delivers_displaced_notice_without_repair_wording
 test_hook_away_daemon_allows_beacon_within_poll_derived_grace
