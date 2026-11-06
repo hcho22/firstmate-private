@@ -65,6 +65,17 @@ if [ "${1:-}" = status ] && [ "${2:-}" = --json ]; then
   exit 0
 fi
 [ "${1:-}" != server ] || exit 0
+# A delayed shell reaches the slot only after this many reads of its cwd.
+advance_delayed_cd() {
+  local reads
+  if [ -f "$D/cd-sent" ] && [ -f "$D/delay-reads" ]; then
+    reads=$(cat "$D/reads" 2>/dev/null || printf 0)
+    reads=$((reads + 1)); printf '%s' "$reads" > "$D/reads"
+    if [ "$reads" -ge "$(cat "$D/delay-reads")" ]; then
+      bash -c 'cd -- "$1" && pwd -P > "$2"' bash "$FM_FAKE_SLOT" "$D/fg"
+    fi
+  fi
+}
 case "${1:-} ${2:-}" in
   'session list')
     [ ! -f "$D/session-lockable" ] || printf '{"sessions":[{"name":"default","running":true,"socket_path":"%s/herdr.sock"}]}\n' "$D"
@@ -72,15 +83,17 @@ case "${1:-} ${2:-}" in
   'pane close') : > "$D/pane-gone"; exit 0 ;;
   'pane get')
     [ ! -f "$D/pane-gone" ] || { printf '{"error":{"code":"pane_not_found"}}\n'; exit 0; }
-    if [ -f "$D/cd-sent" ] && [ -f "$D/delay-reads" ]; then
-      reads=$(cat "$D/reads" 2>/dev/null || printf 0)
-      reads=$((reads + 1)); printf '%s' "$reads" > "$D/reads"
-      if [ "$reads" -ge "$(cat "$D/delay-reads")" ]; then
-        bash -c 'cd -- "$1" && pwd -P > "$2"' bash "$FM_FAKE_SLOT" "$D/fg"
-      fi
-    fi
+    advance_delayed_cd
     printf '{"result":{"pane":{"pane_id":"%s","cwd":"%s","foreground_cwd":"%s"}}}\n' \
       "${3:-}" "$(cat "$D/cwd")" "$(cat "$D/fg")"
+    exit 0 ;;
+  'pane process-info')
+    # The worktree check reads the foreground group leader's cwd here
+    # (fm_backend_herdr_current_path), the same shell pane get reports.
+    [ ! -f "$D/pane-gone" ] || { printf '{"error":{"code":"pane_not_found"}}\n'; exit 0; }
+    advance_delayed_cd
+    printf '{"result":{"type":"pane_process_info","process_info":{"pane_id":"%s","shell_pid":4242,"foreground_process_group_id":4242,"foreground_processes":[{"pid":4242,"name":"bash","argv0":"bash","argv":["bash"],"cwd":"%s"}]}}}\n' \
+      "${4:-}" "$(cat "$D/fg")"
     exit 0 ;;
   'pane run' | 'pane send-text')
     payload=${4:-}
