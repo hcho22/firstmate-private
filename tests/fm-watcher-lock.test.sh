@@ -2104,6 +2104,36 @@ test_staged_owner_cleanup_preserves_other_acquirers() {
   pass "staged-owner cleanup removes only unpublished empty or self-owned staging"
 }
 
+# The same cleanup reached through a symlinked state path (macOS spells its
+# temporary directory /var for /private/var) must still recognize the owner a
+# real acquisition published, which is linked under the physical path, while
+# it removes this caller's unpublished staging spelled either way.
+test_staged_owner_cleanup_keeps_a_published_owner_behind_a_symlink() {
+  local dir
+  dir=$(make_case staged-owner-symlink)
+  mkdir "$dir/real-state"
+  ln -s real-state "$dir/state-link"
+  bash -c '
+    . "$1" || exit 1
+    fm_current_pid me || exit 1
+    FM_LOCK_OWNER_SCOPE="$me.fixture"
+    lock="$2/.watch.lock"
+    fm_lock_try_acquire "$lock" || exit 1
+    mkdir "$lock.owner.$FM_LOCK_OWNER_SCOPE.staged" || exit 1
+    fm_lock_discard_staged_owners "$lock" "$FM_LOCK_OWNER_SCOPE" "$me"
+    [ "$(cat "$lock/pid" 2>/dev/null)" = "$me" ] || exit 2
+    [ ! -e "$lock.owner.$FM_LOCK_OWNER_SCOPE.staged" ] || exit 3
+    fm_lock_release "$lock" || exit 4
+  ' _ "$LIB" "$dir/state-link"
+  case $? in
+    0) ;;
+    2) fail "staged-owner cleanup through a symlinked path discarded the published owner" ;;
+    3) fail "staged-owner cleanup through a symlinked path left unpublished staging behind" ;;
+    *) fail "staged-owner symlink fixture could not acquire or release its lock" ;;
+  esac
+  pass "staged-owner cleanup keeps a published owner reached through a symlinked path"
+}
+
 # The clean-interruption contract includes mutations still running in external
 # children: cleanup must wait for them before releasing published locks and
 # discarding staging. Delaying the real filesystem command after signalling the
@@ -2537,6 +2567,7 @@ test_cycle_exit_ledger_links_successor_and_stays_bounded
 test_arm_confirms_a_slow_post_claim_startup
 test_arm_relays_a_startup_lock_held_by_live_pid
 test_staged_owner_cleanup_preserves_other_acquirers
+test_staged_owner_cleanup_keeps_a_published_owner_behind_a_symlink
 test_startup_cleanup_waits_for_inflight_lock_mutations
 test_forced_term_before_the_safe_point_stays_clean
 test_unpublishable_identity_exits_through_cleanup

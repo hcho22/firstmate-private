@@ -671,8 +671,13 @@ fm_lock_discard_owner() {
 
 # Discard only this caller's unpublished staging directories. A foreign
 # acquirer uses a different scope; a published owner remains lock evidence.
+# Owners are created and linked under the lock's physical path
+# (fm_lock_owner_dir), so the scan uses that spelling too: through a symlinked
+# parent (macOS /var is /private/var) the published owner would otherwise fail
+# to match its own link and be discarded as staging.
 fm_lock_discard_staged_owners() {
   local lockdir=$1 scope=$2 mypid=$3 owner pid
+  lockdir=$(fm_lock_abs_path "$lockdir") || return 0
   for owner in "$lockdir.owner.$scope."*; do
     [ -d "$owner" ] && [ ! -L "$owner" ] || continue
     fm_lock_points_to_owner "$lockdir" "$owner" && continue
