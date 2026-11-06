@@ -948,8 +948,11 @@ test_projection_reclaim_rollback_refuses_a_stale_registration() {
 
 test_projection_cleanup_exact_succeeds_only_when_the_task_pane_closed() {
   local closed refused absent restore_failed_after_close restore_failed_after_failed_close
+  # Every pane reads present until a case says otherwise, so the cleanup's
+  # already-gone check before each close never reaches a real herdr.
   closed=$(bash -c '. "$0/bin/backends/herdr.sh"
     fm_backend_herdr_projection_close_pane_focus_preserving() { printf "CLOSED %s;" "$2"; }
+    fm_backend_herdr_cli() { [ "$2 $3" = "pane get" ] && printf "{\"result\":{\"pane\":{\"pane_id\":\"%s\"}}}" "$4"; }
     fm_backend_herdr_projection_cleanup_exact fmtest w1:p2 w1:p1; printf "rc=%s" "$?"' "$ROOT" 2>&1)
   refused=$(bash -c '. "$0/bin/backends/herdr.sh"
     fm_backend_herdr_projection_close_pane_focus_preserving() { [ "$2" != w1:p2 ] || return 1; printf "CLOSED %s;" "$2"; }
@@ -957,12 +960,18 @@ test_projection_cleanup_exact_succeeds_only_when_the_task_pane_closed() {
     fm_backend_herdr_projection_cleanup_exact fmtest w1:p2 w1:p1; printf "rc=%s" "$?"' "$ROOT" 2>&1)
   absent=$(bash -c '. "$0/bin/backends/herdr.sh"
     fm_backend_herdr_projection_close_pane_focus_preserving() { printf "CLOSED %s;" "$2"; }
+    fm_backend_herdr_cli() { [ "$2 $3" = "pane get" ] && printf "{\"result\":{\"pane\":{\"pane_id\":\"%s\"}}}" "$4"; }
     fm_backend_herdr_projection_cleanup_exact fmtest "" w1:p1; printf "rc=%s" "$?"' "$ROOT" 2>&1)
   # The close call fails with 2 when focus restoration fails, whether or not
-  # the pane closed; only an exact presence check can tell the two apart.
+  # the pane closed; only an exact presence check can tell the two apart. The
+  # task pane reads present until its close runs, so the close is really made.
   restore_failed_after_close=$(bash -c '. "$0/bin/backends/herdr.sh"
-    fm_backend_herdr_projection_close_pane_focus_preserving() { [ "$2" != w1:p2 ] || return 2; printf "CLOSED %s;" "$2"; }
-    fm_backend_herdr_cli() { [ "$2 $3 $4" = "pane get w1:p2" ] && printf "{\"error\":{\"code\":\"pane_not_found\"}}"; }
+    fm_backend_herdr_projection_close_pane_focus_preserving() { [ "$2" != w1:p2 ] || { task_close_ran=1; printf "RESTORE-FAILED %s;" "$2"; return 2; }; printf "CLOSED %s;" "$2"; }
+    fm_backend_herdr_cli() {
+      [ "$2 $3 $4" = "pane get w1:p2" ] || return 1
+      if [ -n "${task_close_ran:-}" ]; then printf "{\"error\":{\"code\":\"pane_not_found\"}}"
+      else printf "{\"result\":{\"pane\":{\"pane_id\":\"w1:p2\"}}}"; fi
+    }
     fm_backend_herdr_projection_cleanup_exact fmtest w1:p2 w1:p1; printf "rc=%s" "$?"' "$ROOT" 2>&1)
   restore_failed_after_failed_close=$(bash -c '. "$0/bin/backends/herdr.sh"
     fm_backend_herdr_projection_close_pane_focus_preserving() { [ "$2" != w1:p2 ] || return 2; printf "CLOSED %s;" "$2"; }
@@ -974,7 +983,7 @@ test_projection_cleanup_exact_succeeds_only_when_the_task_pane_closed() {
     || fail "a task pane left open must report failure and still close the seeded pane, got '$refused'"
   [ "$absent" = "CLOSED w1:p1;rc=1" ] \
     || fail "no task pane must never report a closed endpoint, got '$absent'"
-  [ "$restore_failed_after_close" = "CLOSED w1:p1;rc=0" ] \
+  [ "$restore_failed_after_close" = "RESTORE-FAILED w1:p2;CLOSED w1:p1;rc=0" ] \
     || fail "a task pane confirmed gone must report success even when focus restoration failed, got '$restore_failed_after_close'"
   [ "$restore_failed_after_failed_close" = "CLOSED w1:p1;rc=1" ] \
     || fail "a failed close with failed focus restoration must report failure while the pane is present, got '$restore_failed_after_failed_close'"
