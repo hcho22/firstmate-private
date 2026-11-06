@@ -82,6 +82,34 @@ test_sync_copies_only_the_v1_allowlist() {
   pass "record export sync copies only the fixed v1 allowlist with restrictive modes"
 }
 
+# bin/fm-task-data-lib.sh places task folders inside project folders
+# (data/<Project>/<task>/), and sync copies the same allowlisted files there.
+test_sync_copies_per_project_task_folders() {
+  local home export_root rc=0 rel
+  home=$(make_home sync-per-project)
+  export_root="$TMP_ROOT/export-per-project"
+  printf '%s\n' "$export_root" > "$home/config/record-export-root"
+  mkdir -p "$home/data/Demo/task-b" "$home/data/handoff/task-c"
+  printf 'brief\n' > "$home/data/Demo/task-b/brief.md"
+  printf 'report\n' > "$home/data/Demo/task-b/report.md"
+  printf 'status zero\n' > "$home/data/Demo/task-b/status.log"
+  printf 'do not copy\n' > "$home/data/Demo/task-b/notes.txt"
+  printf 'project note\n' > "$home/data/Demo/notes.md"
+  printf 'reserved\n' > "$home/data/handoff/task-c/brief.md"
+  run_export "$home" sync > "$home/stdout" 2> "$home/stderr" || rc=$?
+  expect_code 0 "$rc" "per-project live sync: $(cat "$home/stderr")"
+  for rel in data/Demo/task-b/brief.md data/Demo/task-b/report.md data/Demo/task-b/status.log; do
+    cmp -s "$home/$rel" "$export_root/live/$rel" || fail "sync did not copy $rel byte-exact"
+  done
+  for rel in data/Demo/task-b/notes.txt data/Demo/notes.md data/handoff/task-c/brief.md; do
+    assert_absent "$export_root/live/$rel" "sync copied non-allowlisted $rel"
+  done
+  rc=0
+  run_export "$home" sync > "$home/stdout" 2> "$home/stderr" || rc=$?
+  expect_code 0 "$rc" "a second per-project sync must accept its own live generation: $(cat "$home/stderr")"
+  pass "record export sync copies allowlisted files from per-project task folders"
+}
+
 test_sync_treats_empty_path_overrides_as_unset() {
   local home export_root rc=0
   home=$(make_home sync-empty-overrides)
@@ -509,7 +537,8 @@ test_archive_refuses_a_corrupt_committed_manifest() {
       duplicate-key) sed '/"captured_at":/a\  "captured_at": "2000-01-01T00:00:00Z",' "$manifest" > "$home/manifest.tmp" ;;
       wrong-type) sed 's/"captured_at": "[^"]*"/"captured_at": 1/' "$manifest" > "$home/manifest.tmp" ;;
       extra-root) sed '/"complete": true/a\  "unexpected": true,' "$manifest" > "$home/manifest.tmp" ;;
-      extra-entry) sed '0,/"sha256": "[^"]*"/s//& , "unexpected": true/' "$manifest" > "$home/manifest.tmp" ;;
+      # Only the first entry gets the extra key; BSD sed has no 0,/re/ address.
+      extra-entry) perl -pe 's/("sha256": "[^"]*")/$1 , "unexpected": true/ if !$done && ($done = /"sha256": "[^"]*"/)' "$manifest" > "$home/manifest.tmp" ;;
     esac
     mv "$home/manifest.tmp" "$manifest"
     rc=0
@@ -597,7 +626,7 @@ test_archive_retry_removes_stale_files_from_a_partial_generation() {
 }
 
 test_archive_revalidates_sources_immediately_before_publication() {
-  local home export_root archive archive_pid rc=0 wait_count=0 index
+  local home export_root archive archive_pid rc=0 deadline index
   home=$(make_home archive-final-revalidate)
   export_root="$TMP_ROOT/export-archive-final-revalidate"
   printf '%s\n' "$export_root" > "$home/config/record-export-root"
@@ -614,10 +643,9 @@ test_archive_revalidates_sources_immediately_before_publication() {
 
   run_export "$home" archive-task task-a > "$home/archive.out" 2> "$home/archive.err" &
   archive_pid=$!
-  while [ -e "$archive/inbox/00000.msg" ]; do
+  deadline=$((SECONDS + 60))
+  while [ -e "$archive/inbox/00000.msg" ] && [ "$SECONDS" -lt "$deadline" ]; do
     kill -0 "$archive_pid" 2>/dev/null || break
-    wait_count=$((wait_count + 1))
-    [ "$wait_count" -le 1000 ] || break
     sleep 0.01
   done
   [ ! -e "$archive/inbox/00000.msg" ] \
@@ -799,6 +827,7 @@ test_export_root_stays_cold_to_firstmate_readers() {
 
 test_sync_is_off_when_config_is_absent
 test_sync_copies_only_the_v1_allowlist
+test_sync_copies_per_project_task_folders
 test_sync_treats_empty_path_overrides_as_unset
 test_sync_skips_hidden_state_records
 test_sync_replaces_files_atomically

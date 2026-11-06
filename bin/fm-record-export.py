@@ -366,32 +366,63 @@ def add_source(sources: list[Source], parent_fd: int, name: str, relative: str, 
     sources.append(Source(relative, fd, info))
 
 
-def collect_data_sources(data_fd: int) -> list[Source]:
-    sources: list[Source] = []
-    for name in ("projects.md", "backlog.md", "done-archive.md"):
-        add_source(sources, data_fd, name, f"data/{name}", f"data/{name}")
-    for task in sorted(os.listdir(data_fd)):
-        if task in {"projects.md", "backlog.md", "done-archive.md"}:
+# bin/fm-task-data-lib.sh owns the task-data layout: task folders live in
+# project folders as data/<Project>/<task>/, and a top-level folder carrying one
+# of these markers is a legacy flat data/<task>/ folder instead.
+TASK_DATA_MARKERS = ("brief.md", "report.md", "launch-brief.md", "ship-instructions.md", "contributions.json")
+DATA_ROOT_RESERVED = {"handoff", "extensions", "remote-secondmates"}
+DATA_ROOT_FILES = ("projects.md", "backlog.md", "done-archive.md")
+
+
+def collect_task_folder(sources: list[Source], parent_fd: int, task: str, prefix: str) -> None:
+    task_fd = open_directory_at(parent_fd, task, f"{prefix} task directory {task}")
+    try:
+        names = set(os.listdir(task_fd))
+        candidates = [name for name in ("brief.md", "report.md") if name in names]
+        candidates.extend(sorted(name for name in names if name.startswith("status") and name.endswith(".log")))
+        if not candidates:
+            return
+        for component in prefix.split("/")[1:]:
+            safe_component(component, "project directory in record export allowlist")
+        safe_component(task, "task directory in record export allowlist")
+        for name in candidates:
+            safe_component(name, "data record name")
+            add_source(sources, task_fd, name, f"{prefix}/{task}/{name}", f"{prefix}/{task}/{name}")
+    finally:
+        os.close(task_fd)
+
+
+def real_subdirectories(parent_fd: int) -> list[str]:
+    found = []
+    for name in sorted(os.listdir(parent_fd)):
+        if name.startswith("."):
             continue
         try:
-            info = os.stat(task, dir_fd=data_fd, follow_symlinks=False)
+            info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
         except FileNotFoundError:
             continue
-        if not stat.S_ISDIR(info.st_mode):
+        if stat.S_ISDIR(info.st_mode):
+            found.append(name)
+    return found
+
+
+def collect_data_sources(data_fd: int) -> list[Source]:
+    sources: list[Source] = []
+    for name in DATA_ROOT_FILES:
+        add_source(sources, data_fd, name, f"data/{name}", f"data/{name}")
+    for entry in real_subdirectories(data_fd):
+        if entry in DATA_ROOT_RESERVED:
             continue
-        task_fd = open_directory_at(data_fd, task, f"data task directory {task}")
+        entry_fd = open_directory_at(data_fd, entry, f"data directory {entry}")
         try:
-            names = set(os.listdir(task_fd))
-            candidates = [name for name in ("brief.md", "report.md") if name in names]
-            candidates.extend(sorted(name for name in names if name.startswith("status") and name.endswith(".log")))
-            if not candidates:
+            names = set(os.listdir(entry_fd))
+            if any(marker in names for marker in TASK_DATA_MARKERS):
+                collect_task_folder(sources, data_fd, entry, "data")
                 continue
-            safe_component(task, "task directory in record export allowlist")
-            for name in candidates:
-                safe_component(name, "data record name")
-                add_source(sources, task_fd, name, f"data/{task}/{name}", f"data/{task}/{name}")
+            for task in real_subdirectories(entry_fd):
+                collect_task_folder(sources, entry_fd, task, f"data/{entry}")
         finally:
-            os.close(task_fd)
+            os.close(entry_fd)
     return sources
 
 
@@ -507,7 +538,8 @@ def remove_tree_at(parent_fd: int, name: str) -> None:
         fail(f"refusing to remove unsafe record export artifact: {name}")
     fd = open_directory_at(parent_fd, name, f"record export artifact {name}")
     try:
-        for child in os.listdir(fd):
+        # Sorted, so removal proceeds in the same order on every filesystem.
+        for child in sorted(os.listdir(fd)):
             child_info = os.stat(child, dir_fd=fd, follow_symlinks=False)
             if stat.S_ISDIR(child_info.st_mode):
                 remove_tree_at(fd, child)
@@ -526,8 +558,8 @@ def live_directory_allowed(relative: str) -> bool:
     if relative in {"data", "state"}:
         return True
     parts = relative.split("/")
-    if len(parts) == 2 and parts[0] == "data":
-        return bool(SAFE_COMPONENT.fullmatch(parts[1]))
+    if len(parts) in {2, 3} and parts[0] == "data":
+        return all(SAFE_COMPONENT.fullmatch(part) for part in parts[1:])
     if len(parts) == 2 and parts[0] == "state" and parts[1].endswith(".inbox"):
         return bool(SAFE_COMPONENT.fullmatch(parts[1][: -len(".inbox")]))
     if len(parts) == 3 and parts[0] == "state" and parts[1].endswith(".inbox") \
@@ -540,9 +572,9 @@ def live_file_allowed(relative: str) -> bool:
     if relative in {"data/projects.md", "data/backlog.md", "data/done-archive.md", "state/fleet-ledger.jsonl"}:
         return True
     parts = relative.split("/")
-    if len(parts) == 3 and parts[0] == "data" and SAFE_COMPONENT.fullmatch(parts[1]):
-        return parts[2] in {"brief.md", "report.md"} \
-            or (parts[2].startswith("status") and parts[2].endswith(".log") and SAFE_COMPONENT.fullmatch(parts[2]))
+    if len(parts) in {3, 4} and parts[0] == "data" and all(SAFE_COMPONENT.fullmatch(part) for part in parts[1:-1]):
+        return parts[-1] in {"brief.md", "report.md"} \
+            or (parts[-1].startswith("status") and parts[-1].endswith(".log") and SAFE_COMPONENT.fullmatch(parts[-1]))
     if len(parts) == 2 and parts[0] == "state":
         if parts[1].endswith(".meta"):
             return bool(SAFE_COMPONENT.fullmatch(parts[1][: -len(".meta")]))
