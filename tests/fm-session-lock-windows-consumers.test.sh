@@ -96,10 +96,13 @@ lib_eval() {  # <windows|posix> <home> <expression> [$0 [args...]]
     FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_ROOT_OVERRIDE="$ROOT" \
     FM_PROC_ROOT_OVERRIDE="$home/proc" bash -c '
       self_proc() {
-        mkdir -p "$FM_PROC_ROOT_OVERRIDE/$BASHPID"
-        printf "%s (bash) S 1 1 1 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 %s 0 0\n" "$BASHPID" "$BASHPID" \
-          > "$FM_PROC_ROOT_OVERRIDE/$BASHPID/stat"
-        printf "bash\0-c\0" > "$FM_PROC_ROOT_OVERRIDE/$BASHPID/cmdline"
+        # Stock macOS Bash 3.2 has no BASHPID; this runs in the main shell,
+        # where $$ names the same process.
+        local self=${BASHPID:-$$}
+        mkdir -p "$FM_PROC_ROOT_OVERRIDE/$self"
+        printf "%s (bash) S 1 1 1 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 %s 0 0\n" "$self" "$self" \
+          > "$FM_PROC_ROOT_OVERRIDE/$self/stat"
+        printf "bash\0-c\0" > "$FM_PROC_ROOT_OVERRIDE/$self/cmdline"
       }
       . "$FM_ROOT_OVERRIDE/bin/fm-wake-lib.sh" || exit 97
       . "$FM_ROOT_OVERRIDE/bin/fm-supervision-engine-lib.sh" || exit 98
