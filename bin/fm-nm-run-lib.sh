@@ -703,49 +703,21 @@ fm_nm_compact_duration_secs() {  # <duration> [ceil]
 # own agent's output, and prefixes it with `quiet ` past step_quiet_warning;
 # either way the age is the leading `<duration> ago`. A configured command the
 # step runs itself (the test step's `commands.test`) records no agent_pid and
-# refreshes last_activity only when it finishes. Columns are located by header
-# name, cells may be double-quoted with embedded commas, and every row whose
-# age cannot be read is skipped. Prints "<step> <age-secs> <active-secs>" for
+# refreshes last_activity only when it finishes. fm_nm_table_column reads the
+# columns by header name, and every row whose age cannot be read is skipped. Prints "<step> <age-secs> <active-secs>" for
 # the freshest readable row, where <active-secs> is the most that row's
 # active_for can stand for (how long ago, at most, the step started), or
 # "<step> <age-secs>" when active_for cannot be read; nothing when the table is
 # absent or unreadable.
 fm_nm_freshest_step_activity() {  # <toon-output>
   local rows step age active best_step='' best_age='' best_active='' secs
-  rows=$(printf '%s\n' "$1" | awk '
-    function cells(line, out,   n, i, c, q, cur) {
-      n = 0; q = 0; cur = ""
-      for (i = 1; i <= length(line); i++) {
-        c = substr(line, i, 1)
-        if (c == "\"") { q = !q; continue }
-        if (c == "," && !q) { out[++n] = cur; cur = ""; continue }
-        cur = cur c
-      }
-      out[++n] = cur
-      return n
-    }
-    !inside && /^[[:space:]]*active_steps\[[0-9]+\]\{[^}]*\}:[[:space:]]*$/ {
-      hdr = $0
-      sub(/^[^{]*\{/, "", hdr); sub(/\}.*$/, "", hdr)
-      nh = split(hdr, names, ",")
-      sc = 0; ac = 0; fc = 0
-      for (i = 1; i <= nh; i++) {
-        if (names[i] == "step") sc = i
-        if (names[i] == "last_activity") ac = i
-        if (names[i] == "active_for") fc = i
-      }
-      ind = match($0, /[^[:space:]]/)
-      inside = (sc && ac) ? 1 : 0
-      next
-    }
-    inside {
-      if (match($0, /[^[:space:]]/) <= ind || $0 ~ /^[[:space:]]*$/) exit
-      line = $0; sub(/^[[:space:]]+/, "", line)
-      delete row
-      cells(line, row)
-      printf "%s\037%s\037%s\n", row[sc], row[ac], (fc ? row[fc] : "")
-    }
-  ')
+  # fm_nm_table_column prints one line per row for every column, so the three
+  # columns line up row for row; a table without step or last_activity prints
+  # nothing for that column, and its rows read as unknown below.
+  rows=$(paste -d $'\037' \
+    <(fm_nm_table_column "$1" active_steps step) \
+    <(fm_nm_table_column "$1" active_steps last_activity) \
+    <(fm_nm_table_column "$1" active_steps active_for))
   while IFS=$'\037' read -r step age active; do
     [ -n "$step" ] || continue
     age=${age#quiet }
