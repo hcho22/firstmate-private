@@ -21,7 +21,9 @@ Prefer holding the work item the question gates over minting a new row; create a
 The originating investigation or review is never its own inventory entry, so hold a separate task for the call and pass `--origin <origin-id>` so `complete` can check it.
 Put the question and its options in the hold reason, and keep one held task per genuine gate: a multi-question review is one held task pointing at its report, not a row per question. Represent that task with exactly one board card that consolidates its questions and options; never fan one task id into duplicate same-key cards.
 Register or re-hold through `bin/fm-captain-hold.sh hold`, which is idempotent per task id.
-After inventorying the whole report and review surface, run `bin/fm-captain-hold.sh complete` with every captain-held task id, or with `--none` only when the reviewed surface leaves nothing waiting on the captain.
+After inventorying the whole report and review surface, firstmate runs `bin/fm-captain-hold.sh complete` with every captain-held task id, or with `--none` when nothing waits on the captain.
+A scout may attest its own empty inventory only through the narrow command exception in its generated brief's Definition of done.
+For a non-empty inventory or a refused command, the scout reports to firstmate rather than writing metadata or backlog records.
 A completed investigation and an ended visual review use this same owner and completion command; a visual tool, including Lavish, never owns a parallel completion policy.
 Run the command in the originating work's authoritative `FM_HOME`; secondmate-owned work registers in that secondmate home's backlog, and a question already held anywhere is never re-registered as a second row.
 Do not close a captain-held task merely because the originating investigation completed, its report was archived, its visual review ended, or its task was torn down.
@@ -61,9 +63,9 @@ The absence of a routed work item is not a divergence and the guard never requir
 2. Inventory only genuine unresolved choices that require the captain, and find the task each one gates.
    Name each choice's kind from `bin/fm-scorebook.sh kinds`; when `bin/fm-scorebook.sh granted <kind>` exits 0, the captain has said yes to handing that kind to firstmate, so decide it yourself as you would have recommended and leave it out of the inventory.
    A choice that `AGENTS.md`'s hard rules, captain-instruction precedence, or a policy-owning skill reserve for his own concrete word is `merge`, `credential`, `destructive`, or `authority`, never `other`, so it always stays his.
-3. Hold that task - or create one captain-held task for the review's open questions - with a concise reason carrying the question and options, then, unless a parent channel carries it to the captain, record it with `bin/fm-scorebook.sh ask --held <task-id>`, `--project <name>`, its kind, and your recommendation.
+3. Firstmate holds that task - or creates one captain-held task for the review's open questions - with a concise reason carrying the question and options, then, unless a parent channel carries it to the captain, records it with `bin/fm-scorebook.sh ask --held <task-id>`, `--project <name>`, its kind, and its recommendation.
    When one held task carries several questions, record the first with `--held` and each further question as its own chat question with `--question`, `--task <task-id>`, and `--project <name>`, so each is counted with its own kind, recommendation, and answer.
-4. Run `complete` with the full captain-held inventory for that review pass.
+4. Attest the full inventory for that review pass under the caller authority in Policy above.
 5. Relay the choices to the captain as decisions from Bearings' Captain's Call section under `AGENTS.md` section 9; do not use the word hold in captain chat.
 6. Close each call only through `answer` (or a channel that feeds `answers`), close a board-requested moot call through evidence-backed `reconcile close`, record a still-active reconciliation through `reconcile note`, use `--until` when the captain defers it, or confirm a channel already closed it.
    Once a recorded call is answered, record whether the answer matched your recommendation with `bin/fm-scorebook.sh answer <task-id> --matched yes|no`, and for each further question recorded on it with `answer <chat-id> --matched yes|no --answer <his words>`; once it is reconciled as moot, `withdraw` them instead.
