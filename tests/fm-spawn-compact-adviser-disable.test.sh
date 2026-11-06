@@ -405,7 +405,7 @@ SH
     chmod +x "$FAKEBIN_DIR/codex"
     seen=$(emitted_launch_env "$FAKEBIN_DIR" "$LAUNCH_LOG" "$PANE_LOG") \
       || fail "$name path: the emitted launch failed to run"
-    brief=$("$ROOT/bin/fm-operational-input.sh" encode launch-brief < "$HOME_DIR/data/$id/launch-brief.md")
+    brief=$("$ROOT/bin/fm-operational-input.sh" encode launch-brief < "$(task_data_path "$HOME_DIR" "$id" launch-brief.md)")
     want="$(cd "$HOME_DIR/state" && pwd -P)/$id.inbox
 $brief"
     assert_equals "$want" "$seen" "$name path: launch changed the home or brief bytes"
