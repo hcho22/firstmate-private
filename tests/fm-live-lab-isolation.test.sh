@@ -28,7 +28,10 @@ fi
 command -v tmux >/dev/null 2>&1 || { echo "skip: tmux not found"; exit 0; }
 unset TMUX TMUX_TMPDIR
 
-TMP_ROOT=$(fm_test_tmproot fm-lab-iso)
+# The gate and stuck servers' sockets live under this root, and a socket path is
+# capped at 104 bytes on macOS (108 on Linux); a runner's per-script TMPDIR can
+# push them past it, so the root sits directly under /tmp.
+TMP_ROOT=$(TMPDIR=/tmp fm_test_tmproot fm-lab-iso)
 LIVE_LAB="$ROOT/bin/fm-live-lab.sh"
 GATE_SOCKET="$TMP_ROOT/base/tmux-$(id -u)/default"
 DEFAULT_SOCKET="/tmp/tmux-$(id -u)/default"
