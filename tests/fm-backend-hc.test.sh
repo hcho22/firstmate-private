@@ -176,6 +176,7 @@ test_foreign_or_unlabeled_terminal_gets_no_input_and_no_close() {
 # (bin/fm-server-env-lib.sh).
 test_calls_withdraw_internal_environment() {
   setup_case server-env
+  # shellcheck disable=SC2016 # the stub expands this when it runs.
   printf '#!/bin/sh\nenv > "$FAKE_HC_DIR/env"\n' > "$FB/env-hc"
   chmod +x "$FB/env-hc"
   CASE_HC_BIN=$FB/env-hc hc_shell 'FM_WATCH_HANDLING_SUCCESSOR=1 SERVER_ENV_SENTINEL=kept fm_backend_hc_cli fmtest server status --json' \

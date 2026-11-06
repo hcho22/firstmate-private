@@ -93,6 +93,7 @@ test_server_starting_calls_withdraw_internal_environment() {
   local dir
   dir=$(new_case server-env)
   mkdir -p "$dir/env-bin"
+  # shellcheck disable=SC2016 # the stub expands these when it runs.
   printf '#!/bin/sh\nfor last do :; done\nenv > "$REX_ENV_OUT.$last"\n' > "$dir/env-bin/rex"
   chmod +x "$dir/env-bin/rex"
   rex_env "$dir" "REX_BIN_DIR=$dir/env-bin" "REX_ENV_OUT=$dir/env" \

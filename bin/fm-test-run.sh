@@ -1572,7 +1572,7 @@ families_for_unmapped_bin() {
 # Conservative path → family map. Over-selects rather than under-selects.
 # Never expands to the complete suite.
 families_for_changed_path() {
-  local path=$1 fixture_ref fixture_dir capture_ref
+  local path=$1 fixture_ref capture_ref
   case "$path" in
     bin/fm-remote*|bin/fm-secondmate*)
       printf '%s\n' "__script__:fm-remote-inherit-generation.test.sh"
@@ -1965,17 +1965,15 @@ families_for_changed_path() {
       families_for_test_reference git-config-helpers.sh lib.sh herdr-test-safety.sh \
         || printf '%s\n' "__unmapped__:$path"
       ;;
-    tests/fixtures/*/*|tests/captures/*/*)
-      # A fixture or recorded capture belongs to whichever suite reads its
-      # directory, found by the same reference scan used for shared helpers.
-      # Keyed on the directory rather than the file so adding a file selects
-      # the same suite, and so a reader that names files through a variable is
-      # still found. A removed directory has no consuming suite left to select.
-      fixture_ref=${path#tests/}
-      fixture_dir=${fixture_ref#*/}
-      fixture_ref="${fixture_ref%%/*}/${fixture_dir%%/*}"
-      if [ -d "tests/$fixture_ref" ]; then
-        families_for_test_reference "$fixture_ref" \
+    tests/fixtures/*/*)
+      # A fixture belongs to whichever suite reads its directory, found by the
+      # same reference scan used for shared helpers. Keyed on the directory
+      # rather than the file so adding a fixture selects the same suite.
+      # A removed fixture directory has no consuming suite left to select.
+      fixture_ref=${path#tests/fixtures/}
+      fixture_ref=${fixture_ref%%/*}
+      if [ -d "tests/fixtures/$fixture_ref" ]; then
+        families_for_test_reference "fixtures/$fixture_ref" \
           || printf '%s\n' "__unmapped__:$path"
       fi
       ;;
