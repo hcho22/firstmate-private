@@ -675,22 +675,25 @@ test_procinfo_helper_fails_closed() {
   pass "fm-procinfo.py: dead pid and broken offsets both produce an empty refusal"
 }
 
-# Fold the one byte a Linux ps build picks for a control byte onto the
-# placeholder the /proc route writes, so the two routes can be compared
-# by shape instead of by that build's choice. The /proc route renders a
-# newline as a space and every other control byte as '?'; procps builds
-# differ on which of those two a newline gets, and neither choice is this
-# repo's contract. What the contract fixes is one placeholder byte per
-# control byte, in place, with every printable and UTF-8 byte intact, so
-# a byte-for-byte comparison here would pin one procps build instead of
-# the rule and fail on the other. A route that spells control bytes with
-# characters ps itself prints (BSD and the macOS provider render them as
-# ^I / ^J) keeps them through the fold, which is why this touches only
-# the space and non-printable bytes.
+# Compare the two routes by shape. Each spelling a route uses for one byte
+# decodes back to that byte first: macOS 26 ps writes a tab or newline as
+# \011 / \012, another control byte as ^X, and a high byte as M-X under the C
+# locale but raw under UTF-8, while the macOS provider always writes ^X and
+# M-X. The /proc route writes a newline as a space and another control byte as
+# '?', and procps builds differ on which of those a newline gets, so every
+# space and control byte then folds to one '?'. What the contract fixes is one
+# placeholder byte per control byte, in place, with every printable and UTF-8
+# byte intact; a byte-for-byte comparison would pin one ps build instead.
 normalize_control_bytes() {  # <text>
-  printf '%s' "$1" \
-    | LC_ALL=C tr -c '\040-\176\200-\377' '?' \
-    | LC_ALL=C tr ' ' '?'
+  printf '%s' "$1" | LC_ALL=C perl -0777 -pe '
+    s{\\([0-7]{3})|M-\^(.)|M-(.)|\^(.)}{
+      defined $1 ? chr(oct $1)
+      : defined $2 ? chr(ord($2) ^ 0xC0)
+      : defined $3 ? chr(ord($3) | 0x80)
+      : chr(ord($4) ^ 0x40)
+    }gse;
+    tr/\000-\040\177/?/;
+  '
 }
 
 test_control_bytes_match_ps_route() {
@@ -721,8 +724,8 @@ os.execv(sys.executable, [os.fsencode(sys.executable), b"-c", b"import sys,time;
   # Non-vacuity: every fixture word that sits around a control byte must
   # still arrive from both routes, so a route that swallowed that text
   # cannot pass by matching a loss on the other route. The words are
-  # asserted without their placeholder, because a BSD ps and the macOS
-  # provider spell it ^I / ^J while a Linux one spells it as one byte.
+  # asserted without their placeholder, because each route spells it its
+  # own way (see normalize_control_bytes).
   local word
   for word in tab newline high; do
     case $got in
@@ -795,6 +798,12 @@ test_helper_identity_matches_ps_route() {
   pass "renamed process: the ps route and the ps-free route report one identity"
 }
 
+trim_trailing_blanks() {  # <text>
+  local text=$1
+  while [ "${text% }" != "$text" ]; do text=${text% }; done
+  printf '%s' "$text"
+}
+
 test_procinfo_helper_survives_empty_argv_element() {
   command -v python3 >/dev/null 2>&1 \
     || { pass "empty argv element: python3 absent, skipped"; return; }
@@ -818,7 +827,11 @@ os.execv(sys.executable, [sys.executable, "-c", "import sys,time; open(sys.argv[
       || { kill "$child"; fail "provider refused empty-element child"; }
     kill "$child" 2>/dev/null
     wait "$child" 2>/dev/null || :
-    [ "$got" = "$expected" ] || fail "$shape argv routes disagree: provider '$got', ps '$expected'"
+    # macOS 26 ps keeps the separator before a trailing empty element, where
+    # older ps builds and the provider drop it; trailing blanks carry no
+    # identity, so the routes are compared without them.
+    [ "$(trim_trailing_blanks "$got")" = "$(trim_trailing_blanks "$expected")" ] \
+      || fail "$shape argv routes disagree: provider '$got', ps '$expected'"
     args=${got##*$'\t'}
     case "$shape" in
       one|two) suffix='--resume' ;;
