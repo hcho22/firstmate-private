@@ -171,6 +171,22 @@ test_foreign_or_unlabeled_terminal_gets_no_input_and_no_close() {
   pass "hc: another task's, another home's, or an unlabeled terminal gets no input and no close"
 }
 
+# A call can start the session's core, which hands its environment to every
+# later pane, so every call runs from fm_server_env_scrub's environment
+# (bin/fm-server-env-lib.sh).
+test_calls_withdraw_internal_environment() {
+  setup_case server-env
+  printf '#!/bin/sh\nenv > "$FAKE_HC_DIR/env"\n' > "$FB/env-hc"
+  chmod +x "$FB/env-hc"
+  CASE_HC_BIN=$FB/env-hc hc_shell 'FM_WATCH_HANDLING_SUCCESSOR=1 SERVER_ENV_SENTINEL=kept fm_backend_hc_cli fmtest server status --json' \
+    || fail "the env-recording hc call failed"
+  assert_no_regex '^FM_HOME=' "$D/env" "an hc call kept the caller's FM_HOME"
+  assert_no_regex '^FM_WATCH_HANDLING_SUCCESSOR=' "$D/env" "an hc call kept an internal handoff setting"
+  assert_grep 'SERVER_ENV_SENTINEL=kept' "$D/env" "an hc call lost an ordinary variable"
+  assert_grep 'HC_SESSION=fmtest' "$D/env" "an hc call lost its explicit session"
+  pass "hc calls run without Firstmate's home and internal handoff settings"
+}
+
 test_invalid_session_never_reaches_hc() {
   setup_case session
   expect_refused hc_shell 'fm_backend_hc_cli "" ls'
@@ -367,6 +383,7 @@ fm_test_run \
   test_control_interrupt_delivers_the_harness_keys \
   test_foreign_or_unlabeled_terminal_gets_no_input_and_no_close \
   test_invalid_session_never_reaches_hc \
+  test_calls_withdraw_internal_environment \
   test_inherited_socket_never_overrides_the_session \
   test_agent_state_classifies_foreground_and_absence \
   test_agent_state_reads_a_shell_wrappers_group \

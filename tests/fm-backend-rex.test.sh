@@ -85,6 +85,27 @@ test_bin_prefers_rex_bin_dir() {
   pass "fm_backend_rex_bin: REX_BIN_DIR, then PATH, then the server bundle path"
 }
 
+# A call that may start the personal Rex server hands that server, and every
+# pane it later creates, the caller's environment, so it runs from
+# fm_server_env_scrub's (bin/fm-server-env-lib.sh); a call that cannot start
+# one keeps the caller's.
+test_server_starting_calls_withdraw_internal_environment() {
+  local dir
+  dir=$(new_case server-env)
+  mkdir -p "$dir/env-bin"
+  printf '#!/bin/sh\nfor last do :; done\nenv > "$REX_ENV_OUT.$last"\n' > "$dir/env-bin/rex"
+  chmod +x "$dir/env-bin/rex"
+  rex_env "$dir" "REX_BIN_DIR=$dir/env-bin" "REX_ENV_OUT=$dir/env" \
+    FM_WATCH_HANDLING_SUCCESSOR=1 SERVER_ENV_SENTINEL=kept \
+    'fm_backend_rex_cli autostart; FM_BACKEND_REX_NO_AUTOSTART=1 fm_backend_rex_cli guarded' \
+    || fail "the env-recording rex calls failed"
+  assert_no_regex '^FM_HOME=' "$dir/env.autostart" "a server-starting rex call kept the caller's FM_HOME"
+  assert_no_regex '^FM_WATCH_HANDLING_SUCCESSOR=' "$dir/env.autostart" "a server-starting rex call kept an internal handoff setting"
+  assert_grep 'SERVER_ENV_SENTINEL=kept' "$dir/env.autostart" "a server-starting rex call lost an ordinary variable"
+  assert_grep "FM_HOME=$dir/home" "$dir/env.guarded" "a rex call that cannot start a server lost the caller's FM_HOME"
+  pass "Rex calls that may start the personal server run without Firstmate's home and internal handoff settings"
+}
+
 test_rex_spawn_refuses_unproven_remote_endpoint() {
   local dir out
   dir=$(new_case remote-endpoint)
@@ -1028,6 +1049,7 @@ test_nm_run_progress_reads_captured_status() {
 }
 
 test_bin_prefers_rex_bin_dir
+test_server_starting_calls_withdraw_internal_environment
 test_rex_spawn_refuses_unproven_remote_endpoint
 test_version_check_gates_api_revision
 test_parse_target_restores_prefixes

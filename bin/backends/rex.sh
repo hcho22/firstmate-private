@@ -71,6 +71,8 @@ FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 . "$FM_BACKEND_REX_ROOT/bin/fm-agent-process-lib.sh"
 # shellcheck source=bin/fm-transition-lib.sh
 . "$FM_BACKEND_REX_ROOT/bin/fm-transition-lib.sh"
+# shellcheck source=bin/fm-server-env-lib.sh
+. "$FM_BACKEND_REX_ROOT/bin/fm-server-env-lib.sh"
 
 # Verified floor: the API revision the live verification ran against.
 FM_BACKEND_REX_MIN_API=5
@@ -118,13 +120,15 @@ fm_backend_rex_tool_check() {
 # unless FM_BACKEND_REX_NO_AUTOSTART=1 prevents calls from starting one. A remote second mate's host-local control plane sets it
 # (bin/fm-remote-secondmate-control.sh): there an automatic start creates an
 # exit-empty server, and only remote readiness may start the persistent one.
+# A call that may start the server runs from fm_server_env_scrub's environment
+# (bin/fm-server-env-lib.sh), because that server outlives the call.
 fm_backend_rex_cli() {  # <rex-args...>
   local bin
   bin=$(fm_backend_rex_bin) || return 1
   if [ "${FM_BACKEND_REX_NO_AUTOSTART:-}" = 1 ]; then
     "$bin" --autostart=false "$@"
   else
-    "$bin" "$@"
+    ( fm_server_env_scrub; exec "$bin" "$@" )
   fi
 }
 

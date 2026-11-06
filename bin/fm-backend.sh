@@ -1051,7 +1051,7 @@ fm_backend_source() {  # <name>
       set -- fm-backend-hometag-lib.sh fm-composer-lib.sh fm-server-env-lib.sh
       ;;
     rex)
-      set -- fm-backend-hometag-lib.sh fm-composer-lib.sh fm-agent-process-lib.sh fm-session-lock-lib.sh fm-gemini-lib.sh fm-hermes-process-lib.sh
+      set -- fm-backend-hometag-lib.sh fm-composer-lib.sh fm-agent-process-lib.sh fm-session-lock-lib.sh fm-gemini-lib.sh fm-hermes-process-lib.sh fm-server-env-lib.sh
       ;;
     t3code)
       set -- fm-composer-lib.sh fm-transition-lib.sh
@@ -1060,7 +1060,7 @@ fm_backend_source() {  # <name>
       set -- fm-backend-hometag-lib.sh fm-composer-lib.sh fm-timeout-lib.sh fm-agent-process-lib.sh fm-session-lock-lib.sh fm-gemini-lib.sh fm-hermes-process-lib.sh fm-cursor-lib.sh
       ;;
     hc)
-      set -- fm-backend-hometag-lib.sh fm-composer-lib.sh fm-agent-process-lib.sh fm-session-lock-lib.sh fm-gemini-lib.sh fm-hermes-process-lib.sh fm-cursor-lib.sh
+      set -- fm-backend-hometag-lib.sh fm-composer-lib.sh fm-agent-process-lib.sh fm-session-lock-lib.sh fm-gemini-lib.sh fm-hermes-process-lib.sh fm-cursor-lib.sh fm-server-env-lib.sh
       ;;
     *)
       return 1

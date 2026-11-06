@@ -54,6 +54,8 @@
 . "$FM_BACKEND_LIB_DIR/fm-composer-lib.sh"
 # shellcheck source=bin/fm-agent-process-lib.sh
 . "$FM_BACKEND_LIB_DIR/fm-agent-process-lib.sh"
+# shellcheck source=bin/fm-server-env-lib.sh
+. "$FM_BACKEND_LIB_DIR/fm-server-env-lib.sh"
 
 # The verified floor: the oldest herdr-core release every adapter surface
 # (including `send --wait` and the `hello` handshake) was exercised against.
@@ -135,12 +137,15 @@ fm_backend_hc_env_run() {  # <session> <args...>
     echo "error: backend=hc selected but no 'herdr-core' or 'hc' binary was found on PATH (install Herdr Core per docs/hc-backend.md or set FM_HC_BIN)" >&2
     return 1
   }
+  # A call can start the session's core, which outlives it and hands its
+  # environment to every later pane, so every call runs from
+  # fm_server_env_scrub's environment (bin/fm-server-env-lib.sh).
   if [ -n "${FM_HC_SOCKET:-}" ]; then
-    env -u HC_TERMINAL_ID -u HC_TERMINAL_SOCKET -u HC_SCOPE \
-      HC_SESSION="$session" HC_SOCKET="$FM_HC_SOCKET" "$bin" "$@"
+    ( fm_server_env_scrub; exec env -u HC_TERMINAL_ID -u HC_TERMINAL_SOCKET -u HC_SCOPE \
+      HC_SESSION="$session" HC_SOCKET="$FM_HC_SOCKET" "$bin" "$@" )
   else
-    env -u HC_TERMINAL_ID -u HC_TERMINAL_SOCKET -u HC_SCOPE -u HC_SOCKET \
-      HC_SESSION="$session" "$bin" "$@"
+    ( fm_server_env_scrub; exec env -u HC_TERMINAL_ID -u HC_TERMINAL_SOCKET -u HC_SCOPE -u HC_SOCKET \
+      HC_SESSION="$session" "$bin" "$@" )
   fi
 }
 

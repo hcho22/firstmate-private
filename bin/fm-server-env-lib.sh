@@ -9,7 +9,8 @@
 # the environment it started with to every pane it creates afterwards: the
 # captain's own panes, every crewmate, and every secondmate relaunch. A Paseo
 # daemon that Firstmate starts likewise outlives that spawn and creates every
-# later task terminal, so it starts the same way. A value that belonged only to
+# later task terminal, so it starts the same way, as does the personal Rex or
+# Herdr Core server that a Rex or hc backend call may start on demand. A value that belonged only to
 # the starting process therefore becomes a default for unrelated sessions until
 # that server next starts. Two groups never belong there:
 #
@@ -23,7 +24,9 @@
 #     holder, report turn, and primary-harness pins the host gives one engine
 #     turn, the predecessor arm pid an owner gives its successor watch arm, and
 #     the handling-successor and foreground-checkpoint markers a watch arm or
-#     checkpoint gives its watcher.
+#     checkpoint gives its watcher, the model-free park marker the supervision
+#     host gives a Codex park, and the metadata-lock-held marker teardown gives
+#     the record exporter.
 #     Owners withdraw their own value once read where they can, but a process
 #     whose owner never runs passes an inherited value straight through. A session
 #     started from a pane of a server that already carries them is exactly that
@@ -60,6 +63,7 @@ FM_INTERNAL_ENV_NAMES=(
   FM_SUPERVISION_HOST_AUTOARM_GEN FM_SUPERVISION_HOST_OWNER_PID FM_SUPERVISION_HOST_PRIMARY
   FM_SUPERVISION_ACTOR FM_LEASE_HOLDER_PID FM_BRANCH_REPORT_TURN FM_SUPERVISION_PRIMARY_HARNESS
   FM_WATCH_PREDECESSOR_ARM_PID FM_WATCH_HANDLING_SUCCESSOR FM_WATCH_FOREGROUND_CHECKPOINT
+  FM_CODEX_MODEL_FREE_PARK FM_RECORD_EXPORT_META_LOCK_HELD
 )
 
 fm_internal_env_withdraw() {
