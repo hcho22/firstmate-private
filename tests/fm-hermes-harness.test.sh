@@ -39,7 +39,8 @@ mkdir -p "$TMP_ROOT/process/tui_gateway"
 printf 'import time\nfrom pathlib import Path\nPath(__file__).with_name("ready").touch()\ntime.sleep(30)\n' > "$TMP_ROOT/process/tui_gateway/entry.py"
 PYTHONPATH="$TMP_ROOT/process" python3 -m tui_gateway.entry &
 process_pid=$!
-for _ in $(seq 1 100); do [ -f "$TMP_ROOT/process/tui_gateway/ready" ] && break; sleep 0.05; done
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do [ -f "$TMP_ROOT/process/tui_gateway/ready" ] && break; sleep 0.05; done
 native_args=$(ps -o args= -p "$process_pid")
 native_name=$(ps -o comm= -p "$process_pid")
 [ "$native_name" != hermes ] || fail 'identity fixture failed to separate name and module argv'
@@ -103,7 +104,8 @@ with open(sys.argv[1], 'wb') as handle:
     time.sleep(30)
 PY_LOCK
 lock_pid=$!
-for _ in $(seq 1 100); do [ -f "$TMP_ROOT/lock-ready" ] && break; sleep 0.05; done
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do [ -f "$TMP_ROOT/lock-ready" ] && break; sleep 0.05; done
 [ -f "$TMP_ROOT/lock-ready" ] || fail 'native lock fixture did not start'
 ! fm_hermes_gateway_check "$TMP_ROOT/profile" worker 2>/dev/null || fail 'held native lock without status accepted'
 gateway_state "$lock_pid" running 0

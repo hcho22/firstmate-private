@@ -52,8 +52,8 @@ cleanup() {
 trap cleanup EXIT
 
 wait_gone() { # <pid>
-  local i=0
-  while kill -0 "$1" 2>/dev/null && [ "$i" -lt 100 ]; do i=$((i + 1)); sleep 0.1; done
+  local deadline=$((SECONDS + 60))
+  while kill -0 "$1" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   ! kill -0 "$1" 2>/dev/null
 }
 

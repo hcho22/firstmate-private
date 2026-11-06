@@ -748,6 +748,7 @@ expect_unavailable "a declared source that never answers" 'credential source mac
 [ "$elapsed" -lt 30 ] || fail "an unanswered Keychain read held the resolver for ${elapsed}s"
 [ -s "$LOG/hang.pid" ] || fail "the fake security that never answers was not started"
 hang_pid=$(cat "$LOG/hang.pid")
+# fm-lint-waits: allow a reap grace well inside the fake's own 60 s sleep; a 60 s wait would let a leaked read exit by itself and pass
 for _ in $(seq 1 50); do
   kill -0 "$hang_pid" 2>/dev/null || break
   sleep 0.1

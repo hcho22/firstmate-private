@@ -2802,7 +2802,7 @@ test_self_held_lock_reclaims_instead_of_deadlocking() {
 # polling at 0.1s forever - the shape that kept orphaned watchers and
 # reconcile scans of removed test homes spinning under init.
 test_lock_wait_returns_when_its_directory_is_removed() {
-  local dir state holder waiter rc i
+  local dir state holder waiter rc deadline
   dir=$(make_case lock-dir-removed)
   state="$dir/state"
   FM_STATE_OVERRIDE="$state" bash -c '
@@ -2812,10 +2812,9 @@ test_lock_wait_returns_when_its_directory_is_removed() {
     exec sleep "$3"
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$state" "$FM_TEST_STUB_MAX_BLOCK_SECONDS" &
   holder=$!
-  i=0
-  while [ "$i" -lt 100 ] && [ ! -e "$state/holder.ready" ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$state/holder.ready" ]; do
     sleep 0.1
-    i=$((i + 1))
   done
   [ -e "$state/holder.ready" ] || fail "the fixture holder never took the lock"
   FM_STATE_OVERRIDE="$state" bash -c '
@@ -2829,10 +2828,9 @@ test_lock_wait_returns_when_its_directory_is_removed() {
     fail "the waiter stopped waiting on a live hold while its directory still existed"
   fi
   rm -rf "$state"
-  i=0
-  while [ "$i" -lt 20 ] && kill -0 "$waiter" 2>/dev/null; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && kill -0 "$waiter" 2>/dev/null; do
     sleep 0.1
-    i=$((i + 1))
   done
   kill -TERM "$holder" 2>/dev/null || true
   wait "$holder" 2>/dev/null || true

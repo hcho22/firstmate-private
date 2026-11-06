@@ -189,7 +189,7 @@ test_timed_cursor_retirement() {
 }
 
 test_watcher_loop() {
-  local dir="$TMP_ROOT/watcher-loop" pid i=0
+  local dir="$TMP_ROOT/watcher-loop" pid deadline
   mkdir -p "$dir/state" "$dir/config"
   fm_test_track_watcher_state "$dir/state"
   touch "$dir/config/open-decision-reminders" "$dir/state/home-summary.json"
@@ -198,7 +198,8 @@ test_watcher_loop() {
     FM_OPEN_DECISION_OVERDUE_SECS=100 FM_OPEN_DECISION_BACKOFF_MAX_SECS=400 \
     bash "$ROOT/bin/fm-watch.sh" > "$dir/out" 2> "$dir/err" &
   pid=$!
-  while [ "$i" -lt 100 ] && kill -0 "$pid" 2>/dev/null; do sleep 0.1; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && kill -0 "$pid" 2>/dev/null; do sleep 0.1; done
   if kill -0 "$pid" 2>/dev/null; then
     kill "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true

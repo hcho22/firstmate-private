@@ -30,10 +30,11 @@ new_home() { # name -> home with the monitor flag on
 set -eu
 printf '%s\n' "$*" >> "$FORGE/calls.log"
 model() {
-  local n=$1 attempt
+  local n=$1 deadline
   if [ -f "$FORGE/barrier-count" ]; then
     : > "$FORGE/arrived-$n"
-    for attempt in $(seq 1 100); do
+    deadline=$((SECONDS + 60))
+    while [ "$SECONDS" -lt "$deadline" ]; do
       [ "$(find "$FORGE" -name 'arrived-*' | wc -l)" -ge "$(cat "$FORGE/barrier-count")" ] && break
       sleep 0.02
     done
@@ -85,7 +86,8 @@ case "$1 $2" in
       # Stop the whole pass mid-read, as a check timeout would. The case
       # records the pass's PID once it has started it.
       rm -f "$FORGE/interrupt-$rest"
-      for attempt in $(seq 1 100); do [ -s "$FORGE/poll-pid" ] && break; sleep 0.05; done
+      deadline=$((SECONDS + 60))
+      while [ "$SECONDS" -lt "$deadline" ]; do [ -s "$FORGE/poll-pid" ] && break; sleep 0.05; done
       [ -s "$FORGE/poll-pid" ] && kill -TERM "$(cat "$FORGE/poll-pid")" && : > "$FORGE/interrupted"
       exit 1
     fi
@@ -122,7 +124,8 @@ branch=
 while [ "$#" -gt 0 ]; do [ "$1" = --head ] && branch=$2; shift; done
 if [ -f "$FORGE/branch-barrier-count" ]; then
   : > "$FORGE/branch-arrived-$(printf '%s' "$branch" | tr '/' '_')"
-  for attempt in $(seq 1 100); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ "$(find "$FORGE" -name 'branch-arrived-*' | wc -l)" -ge "$(cat "$FORGE/branch-barrier-count")" ] && break
     sleep 0.02
   done

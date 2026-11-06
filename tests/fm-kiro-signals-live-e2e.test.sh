@@ -243,7 +243,8 @@ esac
 [ -f "$LAB/SUBMIT_SEEN" ] && [ -f "$LAB/PROMPT" ] \
   || fail "the kiro userPromptSubmit hook never fired, or its script did not run to the end"
 hook_stop=
-for _ in $(seq 1 60); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   [ -f "$LAB/TURNEND" ] && [ -f "$LAB/STOP" ] && { hook_stop=1; break; }
   sleep 0.5
 done
@@ -269,7 +270,8 @@ printf '%s' "$screen" | kiro_footer_busy \
   || fail "could not type the long kiro prompt"
 "$REAL_TMUX" -L "$SOCKET" send-keys -t "$TARGET" Enter \
   || fail "could not submit the long kiro prompt"
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   screen=$(capture)
   printf '%s' "$screen" | kiro_footer_busy && break
   sleep 0.5
@@ -297,7 +299,8 @@ pass "a single Escape cancels the real kiro turn"
 # longer $KIRO_COMM means the process stopped. An unreadable read proves nothing
 # and keeps waiting rather than passing.
 gone=
-for _ in $(seq 1 60); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   current=$("$REAL_TMUX" -L "$SOCKET" display-message -p -t "$TARGET" '#{pane_current_command}' 2>/dev/null || true)
   if [ -n "$current" ] && [ "$current" != "$KIRO_COMM" ]; then gone=1; break; fi
   sleep 0.5

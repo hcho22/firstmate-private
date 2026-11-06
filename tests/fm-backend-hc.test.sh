@@ -223,7 +223,7 @@ test_agent_state_classifies_foreground_and_absence() {
 }
 
 test_agent_state_reads_a_shell_wrappers_group() {
-  local tag out wrapper
+  local tag out wrapper deadline
   setup_case wrapper
   tag=$(hometag_of)
   # A shell wrapper in its own process group, waiting on a harness child.
@@ -233,7 +233,8 @@ test_agent_state_reads_a_shell_wrappers_group() {
   set +m
   write_terminal "$D" t9 live fm-a1 "$tag" bash bash
   jq --argjson p "$wrapper" '.foreground.pid = $p' "$D/t9.json" > "$D/t9.tmp" && mv "$D/t9.tmp" "$D/t9.json"
-  for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -g "$wrapper" -f '^claude' >/dev/null && break; sleep 0.1; done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do pgrep -g "$wrapper" -f '^claude' >/dev/null && break; sleep 0.1; done
   out=$(hc_shell 'fm_backend_agent_state hc fmtest:t9')
   kill -- "-$wrapper" 2>/dev/null || true
   wait "$wrapper" 2>/dev/null || true

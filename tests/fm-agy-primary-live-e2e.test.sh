@@ -110,10 +110,9 @@ rm -f "$HOME_DIR/state/.lock" "$HOME_DIR/state/.agy-park-owner" \
       : > "$HOME_DIR/state/live-watcher-started"
       sleep 1
       printf 'done: live-park-wake\n' >> "$HOME_DIR/state/live-task.status"
-      j=0
-      while [ "$j" -lt 80 ] && [ -d "$HOME_DIR/state/.watch.lock" ]; do
+      lock_deadline=$((SECONDS + 60))
+      while [ "$SECONDS" -lt "$lock_deadline" ] && [ -d "$HOME_DIR/state/.watch.lock" ]; do
         sleep 0.25
-        j=$((j + 1))
       done
       sleep 2
       rm -f "$HOME_DIR/state/live-task.meta" "$HOME_DIR/state/.wake-queue" "$HOME_DIR/state/live-task.status"

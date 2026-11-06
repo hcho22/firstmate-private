@@ -284,7 +284,8 @@ if [ -n "$PYTHON_BIN" ] && [ -n "$NODE_BIN" ]; then
     target="$SESSION:hermes-$shape"
     new_window "hermes-$shape" env -u NODE_OPTIONS -u NODE_PATH "$PYTHON_BIN" -I -c "$bootstrap" "$NODE_BIN" "$script" "$LAB/$shape.pid"
     child_pid=
-    for _ in $(seq 1 100); do
+    deadline=$((SECONDS + 60))
+    while [ "$SECONDS" -lt "$deadline" ]; do
       [ -s "$LAB/$shape.pid" ] && child_pid=$(cat "$LAB/$shape.pid") && break
       sleep 0.1
     done
@@ -458,13 +459,12 @@ cursor_screen_dimrun() {  # <composer-text> <idle|typed>
 open_dimrun_pane() {  # <window> <binary> <composer-text> <idle|typed>
   local window=$1 binary=$2 text=$3 mode=$4
   new_window "$window" bash -c "$(declare -f cursor_screen_dimrun); cursor_screen_dimrun '$text' '$mode'; exec '$binary' 900"
-  local i=0
-  while [ "$i" -lt 100 ]; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     case "$("$REAL_TMUX" -L "$SOCKET" capture-pane -p -t "$SESSION:$window" 2>/dev/null)" in
       *"$text"*) return 0 ;;
     esac
     sleep 0.1
-    i=$((i + 1))
   done
   fail "pane $window never rendered its composer"
 }
@@ -589,14 +589,14 @@ hermes_screen() {  # <rule|norule> <hint|draft|placeholder|bare>
   esac
 }
 open_hermes_pane() {  # <window> <binary> <rule|norule> <row>
-  local window=$1 binary=$2 rule=$3 row=$4 i=0
+  local window=$1 binary=$2 rule=$3 row=$4 deadline
   new_window "$window" bash -c "$(declare -f hermes_screen); hermes_screen '$rule' '$row'; exec '$binary' 900"
-  while [ "$i" -lt 100 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     case "$("$REAL_TMUX" -L "$SOCKET" capture-pane -p -t "$SESSION:$window" 2>/dev/null)" in
       *'❯'*) sleep 0.2; return 0 ;;
     esac
     sleep 0.1
-    i=$((i + 1))
   done
   fail "pane $window never rendered its composer"
 }

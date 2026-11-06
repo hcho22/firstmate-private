@@ -533,7 +533,7 @@ test_check_repeated_directive_reports_once() {
 # Two callers overlap: the first check is held inside a slow read when the
 # second starts. Only one of them may warn for the single crossing.
 test_overlapping_checks_warn_once() {
-  local home fakebin notify_log first_out second_out pid _
+  local home fakebin notify_log first_out second_out pid deadline
   home=$(make_home overlap)
   fakebin="$TMP_ROOT/overlap/fakebin"
   notify_log="$TMP_ROOT/overlap/notify.log"
@@ -551,7 +551,8 @@ EOF
   printf 'five_hour:80\n' > "$home/config/usage-warner"
   run_check "$home" "$fakebin" > "$TMP_ROOT/overlap/first.out" &
   pid=$!
-  for _ in $(seq 1 50); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -e "$fakebin/.started" ] && break
     sleep 0.1
   done

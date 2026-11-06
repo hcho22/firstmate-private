@@ -145,10 +145,9 @@ SH
 #!/usr/bin/env bash
 printf '%s\n' "$$" >> "$FM_HOME/state/arm-ran"
 printf 'watcher: started pid=%s (beacon fresh)\n' "$$"
-i=0
-while [ ! -e "$FM_HOME/state/arm-release" ] && [ "$i" -lt 600 ]; do
+deadline=$((SECONDS + 60))
+while [ ! -e "$FM_HOME/state/arm-release" ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.05
-  i=$((i + 1))
 done
 printf 'signal: state/task1.status\n'
 exit 0
@@ -434,18 +433,17 @@ test_turnend_guard_agy_loop_ceiling() {
 }
 
 test_turnend_guard_agy_supersession() {
-  local dir payload first_pid waited first_out
+  local dir payload first_pid deadline first_out
   dir=$(make_primary_dir "$TMP_ROOT/stop-supersede")
   : > "$dir/state/task1.meta"
   write_arm_fixture "$dir" slow
   payload='{"sessionId":"s-1","conversationId":"c-1","executionNum":1,"terminationReason":"NO_TOOL_CALL"}'
   ( run_agy_stop "$dir" "$payload" > "$dir/state/first-out" ) &
   first_pid=$!
-  waited=0
+  deadline=$((SECONDS + 60))
   while [ ! -s "$dir/state/.agy-park-owner" ] || [ ! -e "$dir/state/arm-ran" ]; do
     sleep 0.05
-    waited=$((waited + 1))
-    [ "$waited" -lt 100 ] || fail "first park never wrote state/.agy-park-owner"
+    [ "$SECONDS" -lt "$deadline" ] || fail "first park never wrote state/.agy-park-owner"
   done
   printf 'superseded-owner\n' > "$dir/state/.agy-park-owner"
   wait "$first_pid" 2>/dev/null || true

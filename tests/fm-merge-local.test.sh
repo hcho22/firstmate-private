@@ -201,7 +201,7 @@ test_done_recording_preserves_caller_locks() {
 }
 
 test_two_tasks_cannot_undo_a_same_tree_landing() {
-  local real_git real_sleep other first_pid second_pid first_rc=0 second_rc=0 i project_lock
+  local real_git real_sleep other first_pid second_pid first_rc=0 second_rc=0 deadline settled project_lock
   make_case same-tree
   record_done || fail 'first task readiness was not accepted'
   other=$(printf 'second task\n' | git -C "$PROJ" commit-tree "$X^{tree}" -p "$BASE")
@@ -271,26 +271,27 @@ SH
       land > "$CASE/first.out" 2>&1 &
     # shellcheck disable=SC2031 # The background PID is captured immediately in this shell.
     first_pid=$!
-    i=0
-    while [ ! -f "$CASE/first.ready" ] && [ "$i" -lt 300 ]; do sleep 0.1; i=$((i + 1)); done
+    deadline=$((SECONDS + 60))
+    while [ ! -f "$CASE/first.ready" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
     [ -f "$CASE/first.ready" ] || fail 'first landing never reached its checkout update'
     PATH="$CASE/fakebin:$PATH" REAL_GIT="$real_git" REAL_SLEEP="$real_sleep" RACE_DIR="$CASE" RACE_ROLE=second \
       RACE_PROJECT_LOCK="$project_lock" RACE_CONTROL_LOCK="$HOME_DIR/state/.control-other-task.lock" \
       land other-task > "$CASE/second.out" 2>&1 &
     # shellcheck disable=SC2031 # The background PID is captured immediately in this shell.
     second_pid=$!
-    i=0
-    while [ "$i" -lt 300 ]; do
-      [ ! -f "$CASE/second.ready" ] || break
+    deadline=$((SECONDS + 60))
+    settled=
+    while [ "$SECONDS" -lt "$deadline" ]; do
+      [ ! -f "$CASE/second.ready" ] || { settled=1; break; }
       if [ -f "$CASE/second.waiting" ]; then
         [ -d "$project_lock" ] || fail 'the contended project lock disappeared'
         kill -0 "$second_pid" 2>/dev/null || fail 'second landing exited before contending'
+        settled=1
         break
       fi
       sleep 0.1
-      i=$((i + 1))
     done
-    [ "$i" -lt 300 ] || fail 'second landing neither prepared nor contended for the checkout'
+    [ -n "$settled" ] || fail 'second landing neither prepared nor contended for the checkout'
     : > "$CASE/release-first"
     wait "$first_pid" || first_rc=$?
     wait "$second_pid" || second_rc=$?

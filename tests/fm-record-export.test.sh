@@ -353,7 +353,7 @@ test_sync_refuses_unknown_managed_artifacts_before_publication() {
 }
 
 test_sync_detects_destination_parent_replacement() {
-  local home export_root outside pid rc=0 wait_count=0 stage='' live_target prior_snapshot
+  local home export_root outside pid rc=0 deadline stage='' live_target prior_snapshot
   home=$(make_home sync-destination-race)
   export_root="$TMP_ROOT/export-sync-destination-race"
   outside="$TMP_ROOT/outside-sync-destination-race"
@@ -367,12 +367,11 @@ test_sync_detects_destination_parent_replacement() {
 
   run_export "$home" sync > "$home/race.out" 2> "$home/race.err" &
   pid=$!
-  while kill -0 "$pid" 2>/dev/null; do
+  deadline=$((SECONDS + 60))
+  while kill -0 "$pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     stage=$(find "$export_root/live/data" -maxdepth 1 -name '.record-export.*' -print -quit 2>/dev/null || true)
     [ -n "$stage" ] || stage=$(find "$export_root/.live-generations" -maxdepth 1 -name '.stage-*' -print -quit 2>/dev/null || true)
     [ -z "$stage" ] || break
-    wait_count=$((wait_count + 1))
-    [ "$wait_count" -le 500 ] || break
     sleep 0.01
   done
   [ -n "$stage" ] || { wait "$pid" || true; fail "destination-race fixture never observed a staged snapshot"; }
@@ -550,7 +549,7 @@ test_archive_refuses_a_corrupt_committed_manifest() {
 }
 
 test_archive_detects_a_source_change_during_capture() {
-  local home export_root archive outside archive_pid worker_pid rc=0 wait_count=0 stage=
+  local home export_root archive outside archive_pid worker_pid rc=0 deadline stage=
   home=$(make_home archive-source-race)
   export_root="$TMP_ROOT/export-archive-source-race"
   outside="$TMP_ROOT/outside-archive-source-race"
@@ -562,11 +561,10 @@ test_archive_detects_a_source_change_during_capture() {
   dd if=/dev/zero of="$home/state/task-a.status" bs=1048576 count=64 status=none
   run_export "$home" archive-task task-a > "$home/stdout" 2> "$home/stderr" &
   archive_pid=$!
-  while kill -0 "$archive_pid" 2>/dev/null; do
+  deadline=$((SECONDS + 60))
+  while kill -0 "$archive_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
     stage=$(find "$export_root/archive/task-a" -maxdepth 1 -name '.archive-stage-*' -print -quit 2>/dev/null || true)
     [ -z "$stage" ] || break
-    wait_count=$((wait_count + 1))
-    [ "$wait_count" -le 500 ] || break
     sleep 0.01
   done
   [ -n "$stage" ] || { wait "$archive_pid" || true; fail "archive source-race fixture never observed staging"; }
@@ -659,7 +657,7 @@ test_archive_revalidates_sources_immediately_before_publication() {
 }
 
 test_archive_waits_for_the_task_lock_before_enumerating_sources() {
-  local home export_root archive lock holder_pid archive_pid rc=0 wait_count=0
+  local home export_root archive lock holder_pid archive_pid rc=0 deadline
   home=$(make_home archive-source-lock)
   export_root="$TMP_ROOT/export-archive-source-lock"
   printf '%s\n' "$export_root" > "$home/config/record-export-root"
@@ -673,10 +671,10 @@ test_archive_waits_for_the_task_lock_before_enumerating_sources() {
     fm_lock_release "$2"
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$lock" "$home/lock-held" "$home/lock-release" &
   holder_pid=$!
+  deadline=$((SECONDS + 60))
   while [ ! -e "$home/lock-held" ]; do
     kill -0 "$holder_pid" 2>/dev/null || fail "archive lock fixture exited before acquiring the task lock"
-    wait_count=$((wait_count + 1))
-    [ "$wait_count" -le 250 ] || fail "archive lock fixture never acquired the task lock"
+    [ "$SECONDS" -lt "$deadline" ] || fail "archive lock fixture never acquired the task lock"
     sleep 0.02
   done
 

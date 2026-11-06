@@ -108,7 +108,8 @@ for harness in claude codex opencode pi grok kimi; do
   fm_backend_hc_address_valid "$address" || fail "$harness ($version): hc did not start a terminal"
   target="$HC_SESSION:$address"
   state=
-  for _ in $(seq 1 150); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     state=$(fm_backend_agent_state hc "$target")
     [ "$state" = alive ] && break
     sleep 0.2

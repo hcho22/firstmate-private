@@ -125,7 +125,8 @@ for _ in $(seq 1 240); do
 done
 [ "$seen_busy" = 1 ] || fail 'no semantic and rendered busy during interrupt probe'
 "$ROOT/bin/fm-control.sh" "$ID" interrupt > "$LAB/interrupt.log" 2>&1 || fail "interrupt failed: $(cat "$LAB/interrupt.log")"
-for _ in $(seq 1 60); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   screen_text | grep -q 'Interrupted' && break
   sleep 0.5
 done

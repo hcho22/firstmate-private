@@ -223,7 +223,7 @@ test_handling_successor_does_not_go_blind() {
 # T3: a row appended after the predecessor closes but before its handling
 # successor can inspect the queue must survive the handoff and reach main.
 test_handling_successor_resurfaces_a_row_appended_during_startup() {
-  local dir home state fakebin child blocker now out
+  local dir home state fakebin child blocker deadline out
   dir=$(make_case recovery-startup-append)
   home="$dir/home"
   state="$dir/state"
@@ -244,10 +244,9 @@ test_handling_successor_resurfaces_a_row_appended_during_startup() {
     fm_lock_release "$FM_WAKE_QUEUE_LOCK"
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$state" &
   blocker=$!
-  now=0
-  while [ "$now" -lt 100 ] && [ ! -e "$state/queue-held" ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$state/queue-held" ]; do
     sleep 0.02
-    now=$((now + 1))
   done
   [ -e "$state/queue-held" ] || { kill "$blocker" 2>/dev/null || true; fail "fixture: queue lock was not held"; }
 
@@ -255,20 +254,18 @@ test_handling_successor_resurfaces_a_row_appended_during_startup() {
     FM_POLL=1 FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=600 \
     FM_WATCH_HANDLING_SUCCESSOR=1 "$WATCH" > "$out" 2>&1 &
   child=$!
-  now=0
-  while [ "$now" -lt 40 ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$child" ] && break
     sleep 0.1
-    now=$((now + 1))
   done
   [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$child" ] \
     || { kill -TERM "$child" "$blocker" 2>/dev/null || true; fail "handling successor did not take the watcher lock"; }
   : > "$state/append-now"
   wait "$blocker" || { kill -TERM "$child" 2>/dev/null || true; fail "fixture: startup append failed"; }
-  now=0
-  while [ "$now" -lt 40 ] && [ ! -e "$state/.last-watcher-beat" ]; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$state/.last-watcher-beat" ]; do
     sleep 0.1
-    now=$((now + 1))
   done
   [ -e "$state/.last-watcher-beat" ] \
     || { kill -TERM "$child" 2>/dev/null || true; fail "fixture: handling successor never finished startup"; }
@@ -283,10 +280,9 @@ test_handling_successor_resurfaces_a_row_appended_during_startup() {
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$state" \
     || { kill -TERM "$child" 2>/dev/null || true; fail "fixture: handled-turn settlement failed"; }
 
-  now=0
-  while [ "$now" -lt 40 ] && kill -0 "$child" 2>/dev/null; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && kill -0 "$child" 2>/dev/null; do
     sleep 0.25
-    now=$((now + 1))
   done
   if kill -0 "$child" 2>/dev/null; then
     kill -TERM "$child" 2>/dev/null || true

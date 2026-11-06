@@ -56,8 +56,8 @@ start_term() { # <dir> [cmd...]
   : >"$dir/cap"
   python3 "$DRIVER" "$dir/cap" "$dir/slave" "$@" &
   TERM_PID=$!
-  local i=0
-  while [ ! -s "$dir/slave" ] && [ "$i" -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+  local deadline=$((SECONDS + 60))
+  while [ ! -s "$dir/slave" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   [ -s "$dir/slave" ] || fail "fake terminal did not create the pty"
   TERM_SLAVE=$(cat "$dir/slave")
 }
@@ -82,19 +82,21 @@ busy_rec() { # <state-dir> <id> <busy|idle> [ts]: one armed busy-state record
     "$3" "${4:-$(date +%s)}" >"$1/$2.busy-state"
 }
 
-wait_cap() { # <needle-file-content> <cap> <seconds>: fixed string appears
-  local needle=$1 cap=$2 tries=${3:-40} i=0
+# Both waits are hang guards on the clock: [seconds] defaults to the suite's
+# 60-second standard.
+wait_cap() { # <needle-file-content> <cap> [seconds]: fixed string appears
+  local needle=$1 cap=$2 deadline=$((SECONDS + ${3:-60}))
   while ! grep -F -- "$needle" "$cap" >/dev/null 2>&1; do
-    [ "$i" -ge "$tries" ] && return 1
-    sleep 0.1; i=$((i + 1))
+    [ "$SECONDS" -lt "$deadline" ] || return 1
+    sleep 0.1
   done
 }
 
-wait_last_state() { # <state=X> <cap> <seconds>: the newest emitted record is X
-  local want=$1 cap=$2 tries=${3:-40} i=0
+wait_last_state() { # <state=X> <cap> [seconds]: the newest emitted record is X
+  local want=$1 cap=$2 deadline=$((SECONDS + ${3:-60}))
   while [ "$(grep -o 'state=[a-z]*' "$cap" 2>/dev/null | tail -1)" != "$want" ]; do
-    [ "$i" -ge "$tries" ] && return 1
-    sleep 0.1; i=$((i + 1))
+    [ "$SECONDS" -lt "$deadline" ] || return 1
+    sleep 0.1
   done
 }
 
@@ -147,7 +149,7 @@ t_ghostty_arms_watcher() {
   wait_cap 'state=working' "$d/cap" 60 || fail "aware: no working record emitted"
   grep -F -- 'state=working:app=firstmate-opencode' "$d/cap" >/dev/null \
     || fail "aware: working record missing app=firstmate-opencode"
-  wait_cap "$(printf 'title=%s' "$(printf 'fm-t2' | base64 | tr -d '\n')")" "$d/cap" 10 \
+  wait_cap "$(printf 'title=%s' "$(printf 'fm-t2' | base64 | tr -d '\n')")" "$d/cap" \
     || fail "aware: working record missing title=fm-t2"
   stop_term
   pass "passive detection: Ghostty arms watcher emitting working"
@@ -175,8 +177,8 @@ t_status_transitions_and_final_done() {
   printf 'done [at=2]: PR https://example.test/pr/1\n' >"$d/state/t3.status"
   wait_cap 'state=done' "$d/cap" 60 || fail "transition: done did not emit state=done"
   kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null || true
-  local i=0
-  while kill -0 "$wpid" 2>/dev/null && [ "$i" -lt 60 ]; do sleep 0.1; i=$((i + 1)); done
+  local deadline=$((SECONDS + 60))
+  while kill -0 "$wpid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   kill -0 "$wpid" 2>/dev/null && fail "watcher did not exit after parent death"
   wait "$wpid" 2>/dev/null || true
   local tail
@@ -201,8 +203,8 @@ t_final_idle_after_working() {
   local wpid=$!
   wait_cap 'state=working' "$d/cap" 60 || fail "park: no working record"
   kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null || true
-  local i=0
-  while kill -0 "$wpid" 2>/dev/null && [ "$i" -lt 60 ]; do sleep 0.1; i=$((i + 1)); done
+  local deadline=$((SECONDS + 60))
+  while kill -0 "$wpid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   wait "$wpid" 2>/dev/null || true
   local tail
   tail=$(tail -c 4000 "$d/cap" | grep -o 'state=[a-z]*' | tail -1)
@@ -904,8 +906,8 @@ watcher_pid() { # <state-dir> -> the one recorded watcher pid
 }
 
 wait_gone() { # <pid>
-  local i=0
-  while kill -0 "$1" 2>/dev/null && [ "$i" -lt 60 ]; do sleep 0.1; i=$((i + 1)); done
+  local deadline=$((SECONDS + 60))
+  while kill -0 "$1" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   ! kill -0 "$1" 2>/dev/null
 }
 
@@ -1035,10 +1037,10 @@ t_grok_pane_drives_activity() {
     bash "$SCRIPT" watch --task t25 --kind ship --state "$d/state" --harness grok \
     --backend tmux --target '%9' --parent "$holder" &
   local wpid=$!
-  wait_cap 'state=working:app=firstmate-grok' "$d/cap" 300 \
+  wait_cap 'state=working:app=firstmate-grok' "$d/cap" \
     || fail "grok: a pane showing the busy footer did not read as working"
   printf 'ready\n> \n' >"$d/pane"
-  wait_cap 'state=done' "$d/cap" 300 || fail "grok: done did not return once the footer cleared"
+  wait_cap 'state=done' "$d/cap" || fail "grok: done did not return once the footer cleared"
   kill "$wpid" 2>/dev/null; wait "$wpid" 2>/dev/null || true
   kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null || true
   pass "activity: a grok worker reports working from its rendered pane"
@@ -1059,12 +1061,12 @@ t_turn_then_terminal_line() {
     bash "$SCRIPT" watch --task t23 --kind ship --state "$d/state" --harness opencode \
     --parent "$holder" &
   local wpid=$!
-  wait_cap 'state=working' "$d/cap" 300 || fail "precedence: a running turn did not read as working"
+  wait_cap 'state=working' "$d/cap" || fail "precedence: a running turn did not read as working"
   busy_rec "$d/state" t23 idle
-  wait_cap 'state=done' "$d/cap" 300 || fail "precedence: the done line did not return after the turn"
+  wait_cap 'state=done' "$d/cap" || fail "precedence: the done line did not return after the turn"
   : >"$d/cap"
   busy_rec "$d/state" t23 busy
-  wait_cap 'state=working' "$d/cap" 300 || fail "precedence: a second turn did not read as working"
+  wait_cap 'state=working' "$d/cap" || fail "precedence: a second turn did not read as working"
   : >"$d/cap"
   kill "$wpid" 2>/dev/null; wait "$wpid" 2>/dev/null || true
   assert_equals "state=done " "$(grep -o 'state=[a-z]*' "$d/cap" | sort -u | tr '\n' ' ')" \
@@ -1088,14 +1090,14 @@ t_captain_hold_stays_question_blocked() {
       bash "$SCRIPT" watch --task t26 --kind ship --state "$d/state" --harness opencode \
       --parent "$$" &
     wpid=$!
-    if ! wait_cap 'state=blocked:kind=question:app=firstmate-opencode' "$d/cap" 100; then
+    if ! wait_cap 'state=blocked:kind=question:app=firstmate-opencode' "$d/cap"; then
       kill "$wpid" 2>/dev/null; wait "$wpid" 2>/dev/null || true
       fail "captain hold: $act activity did not report question-blocked"
     fi
     printf 'working: continuing\n' >>"$d/state/t26.status"
     local expected=idle
     [ "$act" != busy ] || expected=working
-    if ! wait_cap "state=$expected:app=firstmate-opencode" "$d/cap" 100; then
+    if ! wait_cap "state=$expected:app=firstmate-opencode" "$d/cap"; then
       kill "$wpid" 2>/dev/null; wait "$wpid" 2>/dev/null || true
       fail "captain hold: superseding status did not restore $expected"
     fi
@@ -1117,9 +1119,9 @@ t_paused_reads_from_busy_state() {
     bash "$SCRIPT" watch --task t24 --kind ship --state "$d/state" --harness opencode \
     --parent "$holder" &
   local wpid=$!
-  wait_cap 'state=idle' "$d/cap" 300 || fail "paused: an idle paused worker did not read as idle"
+  wait_cap 'state=idle' "$d/cap" || fail "paused: an idle paused worker did not read as idle"
   busy_rec "$d/state" t24 busy
-  wait_cap 'state=working' "$d/cap" 300 || fail "paused: a busy paused worker did not read as working"
+  wait_cap 'state=working' "$d/cap" || fail "paused: a busy paused worker did not read as working"
   kill "$wpid" 2>/dev/null; wait "$wpid" 2>/dev/null || true
   assert_equals "state=idle state=working " "$(grep -o 'state=[a-z]*' "$d/cap" | sort -u | tr '\n' ' ')" \
     "a paused worker never reports a separate waiting state"
@@ -1142,7 +1144,7 @@ t_retire_waits_for_slow_reporter() {
     --task t17 --harness opencode --agent-bin opencode --backend tmux --kind ship \
     --state "$d/state" --config "$d/config"
   first=$(watcher_pid "$d/state") || fail "slow: no first watcher"
-  wait_cap 'state=working' "$d/cap" 200 || fail "slow: the first reporter never reported"
+  wait_cap 'state=working' "$d/cap" || fail "slow: the first reporter never reported"
   env "${CLEAN_UNSET[@]}" FM_OSC7501_TTY="$TERM_SLAVE" HC_TERMINAL_ID=x FM_OSC7501_INTERVAL=1 bash "$SCRIPT" arm \
     --task t17 --harness opencode --agent-bin opencode --backend tmux --kind ship \
     --state "$d/state" --config "$d/config"

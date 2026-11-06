@@ -183,11 +183,10 @@ pass "live Herdr submit confirm: Claude Code ($VERSION) on $HERDR_VER submits a 
 # and its composer must be empty again. Claude Code 2.1.291 marks the popup's
 # selected row with a `❯` of its own, which the composer read must not take for
 # the typed command.
-i=0
-while [ "$i" -lt 45 ]; do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   st=$(lab agent get "$PANE" 2>/dev/null | jq -r '.result.agent.agent_status // empty')
   case "$st" in idle|done) break ;; esac
-  i=$((i + 1))
   sleep 1
 done
 verdict=$(fm_backend_herdr_send_text_submit "$TARGET" '/context' 3 0.4 1.2) \
@@ -199,13 +198,12 @@ verdict=$(fm_backend_herdr_send_text_submit "$TARGET" '/context' 3 0.4 1.2) \
 # not match. The report can run to hundreds of rows, so the read reaches far
 # enough back to keep its heading.
 rendered=0
-i=0
-while [ "$i" -lt 45 ]; do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   screen=$(lab pane read "$PANE" --source recent --lines 1000 2>/dev/null || true)
   case "$screen" in
     *'Context Usage'*) rendered=1; break ;;
   esac
-  i=$((i + 1))
   sleep 1
 done
 [ "$rendered" = 1 ] \

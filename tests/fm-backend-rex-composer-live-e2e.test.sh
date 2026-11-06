@@ -59,7 +59,7 @@ harness_version() {  # <binary>
 # check_harness_idle_empty: launch <name> idle in its own tab and poll the
 # adapter's verdict until it proves the composer empty.
 check_harness_idle_empty() {  # <name> <launch-cmd...>
-  local name=$1 version out bid t verdict='' i=0 budget=${FM_REX_COMPOSER_LIVE_POLLS:-45}
+  local name=$1 version out bid t verdict='' deadline budget=${FM_REX_COMPOSER_LIVE_SECS:-60}
   shift
   version=$(harness_version "$1")
   out=$(fm_backend_rex_cli window new -s "$SID" "fm-test-$name" --focus=false --cwd "$ROOT" --json \
@@ -69,10 +69,10 @@ check_harness_idle_empty() {  # <name> <launch-cmd...>
   fm_backend_rex_cli block call -s "$SID" -b "$bid" resize \
     "{\"columns\":$FM_BACKEND_REX_COLUMNS,\"rows\":$FM_BACKEND_REX_ROWS}" >/dev/null 2>&1 || true
   t=$(fm_backend_rex_target "$SID" "$bid")
-  while [ "$i" -lt "$budget" ]; do
+  deadline=$((SECONDS + budget))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     verdict=$(fm_backend_composer_state rex "$t")
     [ "$verdict" = empty ] && break
-    i=$((i + 1))
     sleep 1
   done
   if [ "$verdict" != empty ]; then

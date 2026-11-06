@@ -43,8 +43,8 @@ if [ -n "${FM_FIXTURE_PROBE_MODE:-}" ] && [ "${args[1]}" = generation ]; then
 fi
 if [ -n "${FM_FIXTURE_BLOCK:-}" ] && [ "${args[1]}" = generation ]; then
   touch "$FM_FIXTURE_BLOCK.entered"
-  for ((i=0; i<600; i++)); do
-    [ ! -f "$FM_FIXTURE_BLOCK.release" ] || break
+  deadline=$((SECONDS + 60))
+  while [ ! -f "$FM_FIXTURE_BLOCK.release" ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.05
   done
   [ -f "$FM_FIXTURE_BLOCK.release" ] || exit 95
@@ -125,8 +125,8 @@ previous=$committed
 printf '1\n' > "$COUNTER"
 FM_FIXTURE_BLOCK="$TMP_ROOT/race" push_fixture > "$TMP_ROOT/race-first.out" 2>&1 &
 first=$!
-for ((i=0; i<600; i++)); do
-  [ ! -f "$TMP_ROOT/race.entered" ] || break
+deadline=$((SECONDS + 60))
+while [ ! -f "$TMP_ROOT/race.entered" ] && [ "$SECONDS" -lt "$deadline" ]; do
   sleep 0.05
 done
 assert_present "$TMP_ROOT/race.entered" 'first push did not reach its generation query'

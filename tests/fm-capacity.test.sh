@@ -501,16 +501,15 @@ stop_watcher() {  # <home>
 }
 
 test_watcher_publishes_only_when_opted_in() {
-  local on off i
+  local on off deadline
   on=$(make_home watch-on 1 0)
   off=$(make_home watch-off 1 0)
   printf '3\n' > "$on/config/lane-capacity"
   start_watcher "$on"
   start_watcher "$off"
-  i=0
-  while [ "$i" -lt 150 ] && { [ ! -s "$on/state/lane-capacity.json" ] || [ ! -e "$off/state/.last-watcher-beat" ]; }; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && { [ ! -s "$on/state/lane-capacity.json" ] || [ ! -e "$off/state/.last-watcher-beat" ]; }; do
     sleep 0.1
-    i=$((i + 1))
   done
   sleep 2
   stop_watcher "$on"

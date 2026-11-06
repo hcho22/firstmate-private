@@ -20,7 +20,8 @@ t3_fake_start() {
   env -u T3CODE_TELEMETRY_ENABLED "$@" node "$T3_FAKE_SERVER" --case-file "$T3_FAKE_CASE_FILE" \
     --port-file "$dir/port" --parent-pid "$$" >"$dir/server.out" 2>&1 &
   T3_FAKE_PID=$!
-  for _ in $(seq 1 100); do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -s "$dir/port" ] && break
     sleep 0.05
   done

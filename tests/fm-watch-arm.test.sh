@@ -1314,7 +1314,7 @@ SH
 # which the supervision host passes straight back to main: a loop. The stopped
 # wait's reader scratch must not be left behind either.
 test_take_over_confirms_a_watcher_stopped_inside_its_event_wait() {
-  local dir state armout owner watcher fresh acknowledged before i leftover
+  local dir state armout owner watcher fresh acknowledged before deadline entered leftover
   dir=$(make_case take-over-event-wait)
   state="$dir/state"
   armout="$dir/arm.out"
@@ -1348,24 +1348,23 @@ test_take_over_confirms_a_watcher_stopped_inside_its_event_wait() {
   # arm's stop bound even when a loaded host stretches that bound, or a held
   # TERM is released in time and the case cannot catch the bug.
   before=$(grep -c '^session list' "$dir/herdr.log" 2>/dev/null) || before=0
-  i=0
-  while [ "$i" -lt 1000 ]; do
-    [ "$(grep -c '^session list' "$dir/herdr.log" 2>/dev/null)" -gt "$before" ] && break
+  deadline=$((SECONDS + 60))
+  entered=
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    [ "$(grep -c '^session list' "$dir/herdr.log" 2>/dev/null)" -gt "$before" ] && { entered=1; break; }
     sleep 0.05
-    i=$((i + 1))
   done
-  [ "$i" -lt 1000 ] || fail "fixture: the successor never entered its event wait: $(cat "$dir/herdr.log" 2>/dev/null)"
+  [ -n "$entered" ] || fail "fixture: the successor never entered its event wait: $(cat "$dir/herdr.log" 2>/dev/null)"
   sleep 1
   event_arm "" --take-over "$owner" > "$armout" &
   ARM_PID=$!
-  i=0
-  while [ "$i" -lt 400 ] && ! grep -q '^watcher: started pid=' "$armout" 2>/dev/null; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && ! grep -q '^watcher: started pid=' "$armout" 2>/dev/null; do
     is_live_non_zombie "$ARM_PID" || break
     sleep 0.05
-    i=$((i + 1))
   done
   grep -q '^watcher: started pid=' "$armout" \
-    || fail "the take-over did not own a fresh cycle within 20s of a stop during the event wait: $(cat "$armout")"
+    || fail "the take-over did not own a fresh cycle within 60s of a stop during the event wait: $(cat "$armout")"
   ! is_live_non_zombie "$watcher" || fail "the take-over left the watcher it stopped running"
   grep -q "^arm_pid=$ARM_PID	watcher_pid=$watcher	.*reason=taken-over	" "$state/.watch-cycle-exits.log" \
     || fail "the take-over did not confirm its stop: $(cat "$state/.watch-cycle-exits.log")"
@@ -1378,10 +1377,9 @@ test_take_over_confirms_a_watcher_stopped_inside_its_event_wait() {
   kill -TERM "$ARM_PID" 2>/dev/null || true
   wait_for_exit "$ARM_PID" 50 >/dev/null 2>&1 || true
   wait_for_exit "$owner" 50 >/dev/null 2>&1 || true
-  i=0
-  while [ "$i" -lt 50 ] && is_live_non_zombie "$fresh"; do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && is_live_non_zombie "$fresh"; do
     sleep 0.1
-    i=$((i + 1))
   done
   leftover=$(find "$dir/tmp" \( -name 'fm-herdr-eventwait.*' -o -name 'fm-watch-wait.*' \) -print 2>/dev/null)
   [ -z "$leftover" ] || fail "a stopped event wait left its scratch behind: $leftover"

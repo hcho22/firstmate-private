@@ -230,8 +230,8 @@ test_single_flight_claim_admits_one_park() {
   # arms fails the case instead of parking on the held arm forever.
   out=$(under_codex "$home" "$REGISTER"'
     bounded_wait() {  # <pid> <label>
-      i=0
-      while kill -0 "$1" 2>/dev/null && [ "$i" -lt 200 ]; do sleep 0.05; i=$((i + 1)); done
+      deadline=$((SECONDS + 60))
+      while kill -0 "$1" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.05; done
       if kill -0 "$1" 2>/dev/null; then
         echo "$2=still-running"; kill "$1"; wait "$1"
       else
@@ -240,10 +240,10 @@ test_single_flight_claim_admits_one_park() {
     }
     printf "%s" "$PAYLOAD" | "$PARK" > "$FM_HOME/first.out" 2>&1 &
     first=$!
-    i=0
+    deadline=$((SECONDS + 60))
     until [ "$(jq -r ".outcome // empty" "$FM_HOME/state/.codex-park.json" 2>/dev/null)" = waiting ] \
       && [ -s "$FM_HOME/arm-ran" ]; do
-      i=$((i + 1)); [ "$i" -lt 200 ] || { echo "first park never armed"; break; }
+      [ "$SECONDS" -lt "$deadline" ] || { echo "first park never armed"; break; }
       sleep 0.05
     done
     echo "first=$first"
@@ -297,9 +297,9 @@ SH
   out=$(under_codex "$home" "$REGISTER"'
     bash "$FM_HOME/holder.sh" "$(dirname "$PARK")" '"$held $hold"' &
     holder=$!
-    i=0
+    deadline=$((SECONDS + 60))
     until [ -s "$FM_HOME/holder.pid" ]; do
-      i=$((i + 1)); [ "$i" -lt 100 ] || { echo "holder never claimed"; break; }
+      [ "$SECONDS" -lt "$deadline" ] || { echo "holder never claimed"; break; }
       sleep 0.05
     done
     printf "%s" "$PAYLOAD" | "$PARK"; echo "stop=$?"
@@ -364,15 +364,15 @@ settle_idle_case() {  # <name> <queued|empty> [VAR=VAL ...]
   under_codex "$home" "$REGISTER"'
     printf "%s" "$PAYLOAD" | "$PARK" &
     park=$!
-    i=0
+    deadline=$((SECONDS + 60))
     until [ "$(jq -r ".outcome // empty" "$FM_HOME/state/.codex-park.json" 2>/dev/null)" = waiting ] \
       && [ -s "$FM_HOME/arm-ran" ]; do
-      i=$((i + 1)); [ "$i" -lt 200 ] || { echo "park never armed"; break; }
+      [ "$SECONDS" -lt "$deadline" ] || { echo "park never armed"; break; }
       sleep 0.05
     done
     rm -f "$FM_HOME/state/fixture-task.meta"
-    i=0
-    while kill -0 "$park" 2>/dev/null && [ "$i" -lt 200 ]; do sleep 0.1; i=$((i + 1)); done
+    deadline=$((SECONDS + 60))
+    while kill -0 "$park" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
     kill -0 "$park" 2>/dev/null && { echo "park still running"; kill "$park"; }
     wait "$park"; echo "stop=$?"
     rm -f "$FM_HOME/arm-hold"
@@ -440,7 +440,7 @@ test_repeated_arm_failure_latches_fallback() {
 
 # The real watcher bound to a park owner that a native teardown kills.
 test_watcher_exits_when_its_park_owner_is_gone() {
-  local home owner identity watcher i
+  local home owner identity watcher deadline
   home=$(make_home owner-gone plain)
   rm -f "$home/state/fixture-task.meta"
   sleep 60 &
@@ -455,8 +455,8 @@ test_watcher_exits_when_its_park_owner_is_gone() {
     || fail "the watcher must keep running while its park owner lives: $(cat "$home/watch.out" "$home/watch.err")"
   kill "$owner" 2>/dev/null
   wait "$owner" 2>/dev/null
-  i=0
-  while kill -0 "$watcher" 2>/dev/null && [ "$i" -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while kill -0 "$watcher" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   if kill -0 "$watcher" 2>/dev/null; then
     kill "$watcher" 2>/dev/null
     fail "the watcher outlived its park owner"
@@ -474,7 +474,7 @@ test_watcher_exits_when_its_park_owner_is_gone() {
 # seeded only after a quiet boundary, so its compaction must run on the new
 # clock. The engine stub fails, which still counts as an attempted compaction.
 test_host_quiet_boundary_retains_the_watcher() {
-  local home host first_watcher i key
+  local home host first_watcher deadline key
   home=$(make_home quiet-boundary plain)
   printf 'claude sonnet\n' > "$home/config/supervision-host"
   printf 'idle-seconds=60\nmin-context-tokens=1000\n' > "$home/config/warm-compact"
@@ -489,16 +489,16 @@ test_host_quiet_boundary_retains_the_watcher() {
     "$FAKE_CODEX" -c 'printf "%s\n" "$PPID" > "$FM_HOME/state/.lock"
       printf "%s\n" "$$" > "$FM_HOME/host.pid"
       exec "$1" park' _ "$ROOT/bin/fm-supervision-host.sh" > "$home/host.out" 2> "$home/host.err" &
-  i=0
+  deadline=$((SECONDS + 60))
   until [ -s "$home/host.pid" ] && [ -s "$home/state/.watch.lock/pid" ]; do
-    i=$((i + 1)); [ "$i" -lt 200 ] || fail "the host never started its watcher: $(cat "$home/host.out" "$home/host.err")"
+    [ "$SECONDS" -lt "$deadline" ] || fail "the host never started its watcher: $(cat "$home/host.out" "$home/host.err")"
     sleep 0.05
   done
   host=$(cat "$home/host.pid")
   first_watcher=$(cat "$home/state/.watch.lock/pid")
-  i=0
+  deadline=$((SECONDS + 60))
   until grep -q 'quiet-boundary' "$home/state/.supervision-host.log" 2>/dev/null; do
-    i=$((i + 1)); [ "$i" -lt 150 ] || fail "the host never logged a quiet boundary: $(cat "$home/host.out")"
+    [ "$SECONDS" -lt "$deadline" ] || fail "the host never logged a quiet boundary: $(cat "$home/host.out")"
     sleep 0.1
   done
   key=$(FM_HOME="$home" bash -c '. "$1"; . "$2"; fm_supervision_host_main_key "$3"' _ \
@@ -507,10 +507,10 @@ test_host_quiet_boundary_retains_the_watcher() {
   printf 'engine=claude\nmodel=sonnet\nsession=warm-sess\nkey=%s\nturns=1\nconversation_cost=0\nended=%s\n' \
     "$key" $(($(date +%s) - 600)) > "$home/state/.supervision-host-engine"
   printf 'prompt\n' > "$home/state/.supervision-host-prompt"
-  i=0
+  deadline=$((SECONDS + 60))
   until [ "$(grep -c 'quiet-boundary' "$home/state/.supervision-host.log" 2>/dev/null)" -ge 3 ] \
     && grep -q 'warm-compact	engine' "$home/state/.supervision-host.log" 2>/dev/null; do
-    i=$((i + 1)); [ "$i" -lt 150 ] || break
+    [ "$SECONDS" -lt "$deadline" ] || break
     sleep 0.1
   done
   grep -q 'warm-compact	engine	failed' "$home/state/.supervision-host.log" 2>/dev/null \
@@ -524,8 +524,8 @@ test_host_quiet_boundary_retains_the_watcher() {
   kill -0 "$first_watcher" 2>/dev/null || fail "the retained watcher must still be running"
   assert_not_contains "$(cat "$home/host.out")" "cycle boundary" "a quiet boundary must produce no model output"
   kill "$host" 2>/dev/null
-  i=0
-  while kill -0 "$host" 2>/dev/null && [ "$i" -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while kill -0 "$host" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
   pass "the model-free Codex host keeps one watcher across quiet boundaries with no model output and warm-compacts on the restarted clock"
 }
 

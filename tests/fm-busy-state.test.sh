@@ -237,18 +237,17 @@ test_leading_zero_stale_setting_waits_for_live_writer() {
 # writers re-taking it back to back - still ends in a lock-timeout refusal that
 # leaves the record untouched.
 test_lock_that_stays_young_is_refused_within_a_bound() {
-  local state gen stop out status started elapsed toucher i
+  local state gen stop out status started elapsed toucher deadline
   state=$(new_state_dir young-lock)
   gen=$("$EV" arm "$state" t1)
   stop="$state/../toucher-running"
   mkdir "$state/t1.busy-state.lock"
   : > "$stop"
   (
-    i=0
-    while [ -e "$stop" ] && [ "$i" -lt 100 ]; do
+    deadline=$((SECONDS + 60))
+    while [ -e "$stop" ] && [ "$SECONDS" -lt "$deadline" ]; do
       touch "$state/t1.busy-state.lock" 2>/dev/null || true
       sleep 0.2
-      i=$((i + 1))
     done
   ) &
   toucher=$!

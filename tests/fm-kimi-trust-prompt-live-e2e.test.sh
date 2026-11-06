@@ -189,7 +189,8 @@ note "$WHO: 100x7 pane shows: $(printf '%s\n' "$PANE" | grep -v '^[[:space:]]*$'
 "$REAL_TMUX" -L "$SOCKET" resize-window -t short -x 100 -y 12 \
   || fail "$WHO: could not resize the short pane"
 paged=0
-for _ in $(seq 1 100); do
+deadline=$((SECONDS + 60))
+while [ "$SECONDS" -lt "$deadline" ]; do
   PANE=$(fm_backend_visible_capture tmux short 2>/dev/null || true)
   if kimi_trust_prompt_is_paged "$PANE"; then
     paged=1
@@ -197,7 +198,7 @@ for _ in $(seq 1 100); do
   fi
   sleep 0.2
 done
-[ "$paged" -eq 1 ] || fail "$WHO: 100x12 pane: the prompt did not page its disclosure within 20s; visible pane:
+[ "$paged" -eq 1 ] || fail "$WHO: 100x12 pane: the prompt did not page its disclosure within 60s; visible pane:
 $PANE"
 kimi_trust_dialog_is_visible "$PANE" \
   || fail "$WHO: 100x12 pane: the paged prompt is not the complete dialog, so this guard cannot show the page marker is what keeps Enter off it; visible pane:

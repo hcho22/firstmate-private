@@ -2195,13 +2195,13 @@ auto_pid=$!
 # Fire the guard only once this generation's claim is observed open, so the
 # guard deterministically takes its step-aside observe branch instead of racing
 # the pre-claim ledger (the fixture still runs for ~1s).
-waited=0
-while [ "$waited" -lt 100 ]; do
-  [ "$(sed -n '1s/^.*outcome=\([a-z][a-z-]*\) .*$/\1/p' "$FM_HOME/state/.claude-autoarm-epoch" 2>/dev/null)" = arming ] && break
+deadline=$((SECONDS + 60))
+claimed=
+while [ "$SECONDS" -lt "$deadline" ]; do
+  [ "$(sed -n '1s/^.*outcome=\([a-z][a-z-]*\) .*$/\1/p' "$FM_HOME/state/.claude-autoarm-epoch" 2>/dev/null)" = arming ] && { claimed=1; break; }
   sleep 0.05
-  waited=$((waited + 1))
 done
-[ "$waited" -lt 100 ] || : > "$FM_HOME/noclaim-$i"
+[ -n "$claimed" ] || : > "$FM_HOME/noclaim-$i"
 printf '{"stop_hook_active":false,"session_id":"sess-claude-mode"}' \
   | CLAUDECODE=1 FM_CLAUDE_AUTOARM_SYNC_WAIT_MS=200 bash "$FM_HOME/bin/fm-turnend-guard.sh" --claude > "$FM_HOME/guard-$i.out" 2>&1
 printf '%s' "$?" > "$FM_HOME/guard-$i.status"

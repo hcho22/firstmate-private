@@ -606,9 +606,9 @@ CHILD
     env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_PID PATH="$path" \
       /bin/bash "$child" "$lib" > "$pidfile.anchor" 2>&1 &
     childpid=$!
-    i=0
-    while [ ! -s "$pidfile.anchor" ] && [ "$i" -lt 60 ]; do
-      sleep 0.25; i=$((i + 1))
+    deadline=$((SECONDS + 60))
+    while [ ! -s "$pidfile.anchor" ] && [ "$SECONDS" -lt "$deadline" ]; do
+      sleep 0.25
     done
     kill "$childpid" 2>/dev/null || true
     wait "$childpid" 2>/dev/null || true
@@ -698,12 +698,12 @@ normalize_control_bytes() {  # <text>
 
 test_control_bytes_match_ps_route() {
   command -v python3 >/dev/null 2>&1 || { pass "control bytes: python3 absent, skipped"; return; }
-  local marker="$TMP_ROOT/control-ready" child i got expected
+  local marker="$TMP_ROOT/control-ready" child deadline got expected
   python3 -c 'import os, sys
 os.execv(sys.executable, [os.fsencode(sys.executable), b"-c", b"import sys,time; open(sys.argv[1], chr(119)).close(); time.sleep(40)", os.fsencode(sys.argv[1]), b"tab\tnewline\nhigh\xc3\xa9"])' "$marker" &
   child=$!
-  i=0
-  while [ ! -f "$marker" ] && [ "$i" -lt 40 ]; do sleep 0.25; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ ! -f "$marker" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.25; done
   if [ ! -f "$marker" ]; then
     kill "$child" 2>/dev/null
     wait "$child" 2>/dev/null || :
@@ -766,20 +766,20 @@ test_helper_identity_matches_ps_route() {
   # compare against, and the case skips.
   ps -o comm= -p $$ >/dev/null 2>&1 \
     || { pass "route equivalence: ps unavailable on this host, skipped"; return; }
-  local marker="$TMP_ROOT/renamed-ready" child ps_comm ps_args got h_comm h_args i
+  local marker="$TMP_ROOT/renamed-ready" child ps_comm ps_args got h_comm h_args deadline
   rm -f "$marker"
   /bin/bash -c ': > "$1"; exec -a claude-fake /bin/sleep 40' x "$marker" &
   child=$!
   # Wait for the exec to land, then require ps itself to agree before
   # judging the helper - this pins the two routes against each other.
   ps_comm=''
-  i=0
-  while [ ! -f "$marker" ] && [ "$i" -lt 40 ]; do sleep 0.25; i=$((i + 1)); done
-  i=0
-  while [ "$i" -lt 40 ]; do
+  deadline=$((SECONDS + 60))
+  while [ ! -f "$marker" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.25; done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     ps_comm=$(ps -o comm= -p "$child" 2>/dev/null | tr -d ' ')
     [ "$ps_comm" = "claude-fake" ] && break
-    sleep 0.25; i=$((i + 1))
+    sleep 0.25
   done
   if [ "$ps_comm" != "claude-fake" ]; then
     kill "$child" 2>/dev/null
@@ -807,15 +807,15 @@ trim_trailing_blanks() {  # <text>
 test_procinfo_helper_survives_empty_argv_element() {
   command -v python3 >/dev/null 2>&1 \
     || { pass "empty argv element: python3 absent, skipped"; return; }
-  local shape marker child i got expected args suffix
+  local shape marker child deadline got expected args suffix
   for shape in one two middle space; do
     marker="$TMP_ROOT/empty-$shape-ready"
     python3 -c 'import os, sys
 extra = {"one": ["--resume", ""], "two": ["--resume", "", ""], "middle": ["aa", "", "bb"], "space": ["tail "]}[sys.argv[2]]
 os.execv(sys.executable, [sys.executable, "-c", "import sys,time; open(sys.argv[1], chr(119)).close(); time.sleep(40)", sys.argv[1]] + extra)' "$marker" "$shape" &
     child=$!
-    i=0
-    while [ ! -f "$marker" ] && [ "$i" -lt 40 ]; do sleep 0.25; i=$((i + 1)); done
+    deadline=$((SECONDS + 60))
+    while [ ! -f "$marker" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.25; done
     if [ ! -f "$marker" ]; then
       kill "$child" 2>/dev/null
       wait "$child" 2>/dev/null || :

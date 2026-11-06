@@ -40,8 +40,8 @@ rex_test_prepare() {
     --state-dir "$REX_TEST_WORK/server-state" --config "$REX_TEST_WORK/rex-config.lua" --exit-empty \
     >"$REX_TEST_WORK/server.log" 2>&1 &
   REX_TEST_SERVER_PID=$!
-  local i
-  for i in {1..100}; do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     "$REX_TEST_REAL" --autostart=false -S "$REX_TEST_ENDPOINT" api call server.status >/dev/null 2>&1 && break
     kill -0 "$REX_TEST_SERVER_PID" 2>/dev/null || break
     sleep 0.1
@@ -153,8 +153,8 @@ rex_test_start_server() {
     --state-dir "$REX_TEST_WORK/server-state" --config "$REX_TEST_WORK/rex-config.lua" --exit-empty \
     >"$REX_TEST_WORK/server.log" 2>&1 &
   REX_TEST_SERVER_PID=$!
-  local i
-  for ((i=0; i<100; i++)); do
+  local deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     rex_test_cli api call server.status >/dev/null 2>&1 && return 0
     kill -0 "$REX_TEST_SERVER_PID" 2>/dev/null || break
     sleep 0.1

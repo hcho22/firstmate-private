@@ -375,15 +375,14 @@ wait_for_exit() {
 # contention, so wait until the lock names <pid> or <pid> already exited, and
 # only then start the caller's wait_for_exit deadline. The generous bound still
 # fails a watcher that never takes its lock, stopping it through wait_for_exit.
-wait_for_watcher_lock() {
-  local pid=$1 state=$2 limit=${3:-300} i=0
-  while [ "$i" -lt "$limit" ]; do
+wait_for_watcher_lock() {  # <pid> <state>
+  local pid=$1 state=$2 deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" != "$pid" ] || return 0
     is_live_non_zombie "$pid" || return 0
     sleep 0.1
-    i=$((i + 1))
   done
-  printf 'wait_for_watcher_lock: owned pid %s never held its singleton lock in %s polls\n' "$pid" "$limit" >&2
+  printf 'wait_for_watcher_lock: owned pid %s never held its singleton lock within 60 s\n' "$pid" >&2
   wait_for_exit "$pid" 0 || true
   return 1
 }
