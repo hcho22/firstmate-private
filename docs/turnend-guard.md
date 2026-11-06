@@ -137,6 +137,7 @@ It also requires that the session that took over still holds the lock: its pid i
 That notice is a plain stop-acting notice in every harness, never a blind-turn alarm.
 Claude, Codex, and native Grok receive it as exit 2 with the guard's own stderr unchanged.
 The follow-up renderers (OpenCode, Pi, omp, Grok's pre-native resume fallback, and the Cursor park) call the guard with `--followup`, receive it as exit 3, and forward it unchanged, because they frame every exit 2 with their own `TURN WOULD END BLIND` repair heading.
+Antigravity reads its Stop decision from stdout, so `--agy` returns the notice as the reason of one `{"decision":"continue"}` response, which the Antigravity Stop park passes through for a session that may not reclaim the lock.
 This paragraph is the one description of that `--followup` contract; the harness references point here.
 
 The stand-down has these limits:

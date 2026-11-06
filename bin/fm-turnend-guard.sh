@@ -285,18 +285,25 @@ $(fm_session_lock_takeover_guidance captain "$STATE" "$holder")"
 # fleet. One bounded notice per session and takeover record carries the news;
 # the stop is allowed after it.
 displaced_session_notice() {  # <takeover record>
-  local record=$1 at new_pid rule
+  local record=$1 at new_pid rule notice
   notice_once displaced "$record" || return 0
   at=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^at=//p')
   new_pid=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^new_pid=//p')
   rule='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-  {
+  notice=$(
     printf '●%s\n' "$rule"
     printf '●  THIS SESSION NO LONGER OWNS THE FLEET - ITS LOCK WAS TAKEN OVER\n'
     printf '●  At %s a captain-confirmed takeover moved this home'"'"'s fleet lock to pid %s, so this session is now read-only.\n' "$at" "$new_pid"
     printf '●  This session must stop acting on the fleet now: do not spawn, steer, merge, tear down, drain wakes, arm the watcher, or otherwise mutate it from here. Tell the captain, and let the lock holder supervise.\n'
     printf '●%s\n' "$rule"
-  } >&2
+  )
+  # Antigravity reads its Stop decision from stdout, so it gets the notice as
+  # the reason of one continuation, exactly as it gets a repair nag.
+  if [ "$AGY_MODE" -eq 1 ]; then
+    jq -cn --arg r "$notice" '{decision:"continue",reason:$r}'
+    exit 0
+  fi
+  printf '%s\n' "$notice" >&2
   [ "$FOLLOWUP_MODE" -eq 0 ] || exit 3
   exit 2
 }

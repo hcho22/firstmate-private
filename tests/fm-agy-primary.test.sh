@@ -482,6 +482,42 @@ test_turnend_guard_agy_bounded_repair_nag() {
   pass "fm-turnend-guard --agy & fm-turnend-guard-agy: bounded repair nag blocks 3 times then fails open with {}"
 }
 
+# A session an explicit takeover displaced (bin/fm-lock.sh takeover) gets the
+# one-time stop-acting notice as a continuation reason, never a repair nag, and
+# the next stop ends quietly.
+test_turnend_guard_agy_displaced_notice_once() {
+  local dir payload out foreign first second deadline
+  dir=$(make_primary_dir "$TMP_ROOT/stop-displaced")
+  : > "$dir/state/task1.meta"
+  mkdir -p "$dir/tmp"
+  env -u CLAUDECODE -u CLAUDE_PID -u CLAUDE_CODE_SESSION_ID "$FAKE_AGY" -c 'exec sleep 120' &
+  foreign=$!
+  deadline=$((SECONDS + 60))
+  while ! kill -0 "$foreign" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
+  kill -0 "$foreign" 2>/dev/null || fail "the foreign agy holder did not start"
+  payload='{"sessionId":"s-1","conversationId":"c-1","executionNum":1,"terminationReason":"NO_TOOL_CALL"}'
+  AGY_CHILD_CMD='
+    printf "%s\n" "$FOREIGN_PID" > "$FM_HOME/state/.lock"
+    printf "at=2026-10-01T20:00:00Z\tnew_pid=%s\tnew_command=agy\tprev_pid=%s\tprev_holder=command: agy\n" "$FOREIGN_PID" "$$" > "$FM_HOME/state/.lock-takeovers"
+    printf "%s" "$PAYLOAD" | "$FM_HOME/bin/fm-turnend-guard-agy.sh"
+    printf "\n--second--\n"
+    printf "%s" "$PAYLOAD" | "$FM_HOME/bin/fm-turnend-guard-agy.sh"
+  '
+  out=$(run_under_agy FM_HOME="$dir" TMPDIR="$dir/tmp" FOREIGN_PID="$foreign" PAYLOAD="$payload" FM_AGY_PARK_POLL=1 2>/dev/null)
+  kill "$foreign" 2>/dev/null || true
+  wait "$foreign" 2>/dev/null || true
+  first=${out%%$'\n'--second--*}
+  second=${out#*--second--$'\n'}
+  assert_equals "continue" "$(printf '%s' "$first" | jq -r '.decision // empty' 2>/dev/null)" \
+    "the displaced session's first stop must continue with the notice: $first"
+  assert_contains "$(printf '%s' "$first" | jq -r '.reason // empty' 2>/dev/null)" "THIS SESSION NO LONGER OWNS THE FLEET" \
+    "the continuation did not carry the displaced-session notice"
+  assert_not_contains "$first" "TURN WOULD END BLIND" "the displaced notice was framed as a blind-turn alarm"
+  [ "$(cat "$dir/state/.lock")" = "$foreign" ] || fail "the displaced session took the lock back"
+  assert_equals "{}" "$second" "the displaced notice must be delivered once, then the stop ends quietly"
+  pass "fm-turnend-guard-agy: a displaced session gets the stop-acting notice once as a continuation"
+}
+
 # --- 4. PreToolUse seatbelts (--agy mode) ------------------------------------
 
 test_arm_pretool_check_agy() {
@@ -625,6 +661,7 @@ fm_test_run \
   test_turnend_guard_agy_loop_ceiling \
   test_turnend_guard_agy_supersession \
   test_turnend_guard_agy_bounded_repair_nag \
+  test_turnend_guard_agy_displaced_notice_once \
   test_arm_pretool_check_agy \
   test_cd_pretool_check_agy \
   test_subagent_pretool_check_agy \

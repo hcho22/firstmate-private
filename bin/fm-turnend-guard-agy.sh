@@ -86,10 +86,22 @@ fi
 
 EXEC_NUM=$(printf '%s' "$PAYLOAD" | jq -r 'if (.executionNum | type) == "number" then (.executionNum | floor | tostring) else "" end' 2>/dev/null || true)
 
+# Only the lock-owning session may park. The shared
+# fm_session_lock_pid_blocks_reclaim verdict decides whether a recorded owner
+# may be reclaimed, through bin/fm-lock.sh. A session that may not reclaim is
+# read-only; the shared guard tells it once, as a continuation, when an explicit
+# takeover moved the lock away from it (docs/turnend-guard.md), and otherwise
+# its turn ends.
 if ! fm_session_lock_owned_by_self "$STATE"; then
   LOCK_PID=$(cat "$STATE/.lock" 2>/dev/null || true)
   fm_session_pid_valid "$LOCK_PID" || allow_stop
-  fm_harness_pid_alive "$LOCK_PID" && allow_stop
+  if fm_session_lock_pid_blocks_reclaim "$LOCK_PID"; then
+    DISPLACED=$(printf '%s' "$PAYLOAD" | "$SCRIPT_DIR/fm-turnend-guard.sh" --agy 2>/dev/null) || true
+    case "$DISPLACED" in
+      '{"decision":"continue"'*) printf '%s\n' "$DISPLACED"; exit 0 ;;
+    esac
+    allow_stop
+  fi
   "$SCRIPT_DIR/fm-lock.sh" >/dev/null 2>&1 || allow_stop
   fm_session_lock_owned_by_self "$STATE" || allow_stop
 fi
