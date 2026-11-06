@@ -298,7 +298,7 @@ EOF
         out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$PROMOTE" "$id" --mode "$mode" --yolo off 2>&1)
         status=$?
         expect_code 0 "$status" "flag $flag, remote $remote, $mode: the promotion should succeed"$'\n'"$out"
-        instructions="$home/data/$id/ship-instructions.md"
+        instructions=$(task_data_path "$home" "$id" ship-instructions.md)
         if [ "$flag" = on ] && [ "$remote" = origin ] && [ "$mode" != local-only ]; then
           assert_grep "3. Return to a clean copy of origin's default branch rather than the primary checkout's, which can carry commits origin has never received, then create your branch" \
             "$instructions" "flag $flag, remote $remote, $mode: a publishing promotion did not name origin's default branch as its base"
@@ -320,7 +320,7 @@ EOF
   status=$?
   expect_code 0 "$status" "a named-base promotion in an opted-in home should succeed"$'\n'"$out"
   assert_grep "3. Return to a clean copy of the base branch \`feature/hub\`, then create your branch" \
-    "$home/data/$id/ship-instructions.md" "the opt-in changed a named base branch's promotion wording"
+    "$(task_data_path "$home" "$id" ship-instructions.md)" "the opt-in changed a named base branch's promotion wording"
   pass "fm-promote: an opted-in home sends a publishing promotion on a project with origin back to origin's default branch"
 }
 
@@ -633,7 +633,7 @@ test_pr_manual_brief_hands_the_pr_text_to_the_worker() {
   mkdir -p "$home/data" "$home/state"
   FM_HOME="$home" "$BRIEF" pr-manual-b1 proj --mode no-mistakes --pr manual >/dev/null \
     || fail "a pr=manual no-mistakes brief should scaffold"
-  brief="$home/data/pr-manual-b1/brief.md"
+  brief=$(task_data_path "$home" pr-manual-b1 brief.md)
   grep -qx "Delivery contract: mode=no-mistakes pr=manual" "$brief" \
     || fail "the brief did not record pr=manual on its delivery contract line"
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
@@ -655,7 +655,7 @@ test_pr_manual_brief_hands_the_pr_text_to_the_worker() {
 
   FM_HOME="$home" "$BRIEF" pr-manual-b3 proj --mode no-mistakes --pr manual --base-branch release/2 >/dev/null \
     || fail "a pr=manual brief with a base branch should scaffold"
-  based="$home/data/pr-manual-b3/brief.md"
+  based=$(task_data_path "$home" pr-manual-b3 brief.md)
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
   assert_grep 'pass `--base-branch release/2` on every `no-mistakes axi run`' "$based" "the worker was not told to rebase onto the base branch"
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
@@ -664,7 +664,7 @@ test_pr_manual_brief_hands_the_pr_text_to_the_worker() {
 
   FM_HOME="$home" "$BRIEF" pr-manual-b2 proj --mode no-mistakes >/dev/null \
     || fail "a default no-mistakes brief should scaffold"
-  plain="$home/data/pr-manual-b2/brief.md"
+  plain=$(task_data_path "$home" pr-manual-b2 brief.md)
   grep -qx "Delivery contract: mode=no-mistakes" "$plain" \
     || fail "an absent pr token changed the default delivery contract line"
   assert_no_grep 'skip pr' "$plain" "an absent pr token changed the default brief"
@@ -683,6 +683,7 @@ test_pr_manual_is_refused_where_it_cannot_apply() {
     status=$?
     [ "$status" -ne 0 ] || fail "fm-brief accepted $args"
     assert_absent "$home/data/pr-manual-r1/brief.md" "a refused scaffold ($args) still wrote a brief"
+    assert_absent "$home/data/proj/pr-manual-r1/brief.md" "a refused scaffold ($args) still wrote a brief in its project folder"
   done
   out=$(FM_HOME="$home" "$BRIEF" pr-manual-r2 proj --mode direct-PR --pr manual 2>&1)
   assert_contains "$out" "pr=manual ships mode=no-mistakes only" "the direct-PR refusal did not say why"
@@ -706,7 +707,7 @@ EOF
 
   FM_HOME="$home" "$BRIEF" pr-manual-a2 proj --mode no-mistakes --pr manual >/dev/null \
     || fail "a pr=manual brief should scaffold"
-  fill_brief_subsections "$home/data/pr-manual-a2/brief.md" "Open the PR by hand." "Ship it."
+  fill_brief_subsections "$(task_data_path "$home" pr-manual-a2 brief.md)" "Open the PR by hand." "Ship it."
   out=$(run_spawn "$home" "$fakebin" pr-manual-a2 "$proj" claude --mode no-mistakes --yolo off 2>&1)
   assert_not_contains "$out" "PR-text mismatch" "an agreeing brief and registry were reported as drift"
 
@@ -718,7 +719,7 @@ $rec
 EOF
   FM_HOME="$home" "$BRIEF" pr-manual-a3 proj --mode no-mistakes --pr manual >/dev/null \
     || fail "a pr=manual brief should scaffold"
-  fill_brief_subsections "$home/data/pr-manual-a3/brief.md" "Open the PR by hand." "Ship it."
+  fill_brief_subsections "$(task_data_path "$home" pr-manual-a3 brief.md)" "Open the PR by hand." "Ship it."
   out=$(run_spawn "$home" "$fakebin" pr-manual-a3 "$proj" claude --mode no-mistakes --yolo off 2>&1)
   status=$?
   [ "$status" -ne 0 ] || fail "a pr=manual brief launched on a project with no registered pr token"
@@ -733,7 +734,7 @@ $rec
 EOF
   FM_HOME="$home" "$BRIEF" pr-manual-a4 proj --mode direct-PR >/dev/null \
     || fail "a direct-PR brief should scaffold"
-  fill_brief_subsections "$home/data/pr-manual-a4/brief.md" "Open the PR." "Ship it."
+  fill_brief_subsections "$(task_data_path "$home" pr-manual-a4 brief.md)" "Open the PR." "Ship it."
   out=$(run_spawn "$home" "$fakebin" pr-manual-a4 "$proj" claude --mode direct-PR --yolo off 2>&1)
   assert_not_contains "$out" "PR-text mismatch" "a direct-PR task on a prod-only pr=manual project was reported as drift"
 
@@ -769,7 +770,7 @@ STUB
   printf 'window=fm-%s\nkind=scout\nworktree=/tmp/wt\nproject=%s\n' "$id" "$home/projects/proj" > "$meta"
   FM_HOME="$home" "$BRIEF" "$id" proj --scout >/dev/null 2>&1 \
     || fail "scout brief generation should succeed"
-  fill_brief_subsections "$home/data/$id/brief.md" "Fix what the investigation found." "Carry over only the fix."
+  fill_brief_subsections "$(task_data_path "$home" "$id" brief.md)" "Fix what the investigation found." "Carry over only the fix."
 
   out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$PROMOTE" "$id" --mode no-mistakes --yolo off 2>&1) \
     || fail "promotion should take the registered pr binding with no flag to remember: $out"
@@ -784,10 +785,10 @@ STUB
   assert_grep 'Pass `--skip pr,ci` on every `no-mistakes axi run` for this task' "$payload" \
     "the promoted worker was not told to skip the pr and ci steps"
 
-  rm "$home/data/$id/brief.md"
+  rm "$(task_data_path "$home" "$id" brief.md)"
   FM_HOME="$home" "$BRIEF" "$id" proj --mode no-mistakes --pr manual >/dev/null 2>&1 \
     || fail "ordinary pr=manual ship brief generation should succeed"
-  awk '/^# Definition of done$/ { emit=1 } emit' "$home/data/$id/brief.md" > "$TMP_ROOT/pr-manual-promote/brief-dod"
+  awk '/^# Definition of done$/ { emit=1 } emit' "$(task_data_path "$home" "$id" brief.md)" > "$TMP_ROOT/pr-manual-promote/brief-dod"
   awk '/^# Definition of done$/ { emit=1 } emit' "$payload" > "$TMP_ROOT/pr-manual-promote/delivered-dod"
   cmp -s "$TMP_ROOT/pr-manual-promote/brief-dod" "$TMP_ROOT/pr-manual-promote/delivered-dod" \
     || fail "promotion and ordinary brief generation delivered different pr=manual contracts"
@@ -800,7 +801,7 @@ STUB
   printf 'window=fm-%s\nkind=scout\nworktree=/tmp/wt\nproject=%s\n' "$id" "$home/projects/proj" > "$meta"
   FM_HOME="$home" "$BRIEF" "$id" proj --scout >/dev/null 2>&1 \
     || fail "scout brief generation should succeed"
-  fill_brief_subsections "$home/data/$id/brief.md" "Fix it." "Carry over only the fix."
+  fill_brief_subsections "$(task_data_path "$home" "$id" brief.md)" "Fix it." "Carry over only the fix."
   FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$PROMOTE" "$id" --mode direct-PR --yolo off >/dev/null 2>&1 \
     || fail "a prod-only pr=manual project should promote to direct-PR"
   pass "fm-promote: a promoted no-mistakes worker receives the registered pr=manual contract "
@@ -864,7 +865,7 @@ EOF
   id=delivery-herdr-lab-scaffold
   FM_HOME="$home" "$BRIEF" "$id" proj --mode direct-PR --herdr-lab >/dev/null 2>&1 \
     || fail "herdr-lab ship brief should scaffold"
-  fill_brief_subsections "$home/data/$id/brief.md" \
+  fill_brief_subsections "$(task_data_path "$home" "$id" brief.md)" \
     "Reproduce the session restart in an isolated lab." \
     "Drive every lifecycle step through the lab helper."
   out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode direct-PR --yolo off)
