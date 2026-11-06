@@ -30,7 +30,7 @@ fm_control_harness_supports_kind hermes scout || fail 'scout refused'
 for args in 'node /opt/hermes-agent/ui-tui/dist/entry.js' 'python3 -m tui_gateway.entry' '/usr/bin/hermes --tui'; do
   fm_hermes_process_matches "$args" || fail "structural identity lost: $args"
 done
-for args in 'node /tmp/server.js /opt/hermes-agent/ui-tui/dist/entry.js' 'python3 -c tui_gateway.entry' 'node -e hermes' 'hermes-helper'; do
+for args in 'node /tmp/server.js /opt/hermes-agent/ui-tui/dist/entry.js' 'python3 -c tui_gateway.entry' 'node -e hermes' 'hermes-helper' ''; do
   ! fm_hermes_process_matches "$args" || fail "false identity: $args"
 done
 # Use a real interpreter process so kernel-name loss and argv loss are
@@ -44,7 +44,10 @@ while [ "$SECONDS" -lt "$deadline" ]; do [ -f "$TMP_ROOT/process/tui_gateway/rea
 native_args=$(ps -o args= -p "$process_pid")
 native_name=$(ps -o comm= -p "$process_pid")
 [ "$native_name" != hermes ] || fail 'identity fixture failed to separate name and module argv'
-[ "$(fm_agent_process_classify unrelated unrelated '' "$process_pid")" = agent ] || fail 'NUL argv identity lost when names/ps args are blind'
+# Only Linux exposes the NUL-separated argv this route reads (/proc/<pid>/cmdline).
+if [ -r "/proc/$process_pid/cmdline" ]; then
+  [ "$(fm_agent_process_classify unrelated unrelated '' "$process_pid")" = agent ] || fail 'NUL argv identity lost when names/ps args are blind'
+fi
 [ "$(fm_agent_process_classify "$native_name" '' "$native_args")" = agent ] || fail 'ps argv identity lost when NUL argv is absent'
 [ "$(fm_agent_process_classify "$native_name" '' '')" = other ] || fail 'bare interpreter falsely identified without either argv source'
 kill "$process_pid"

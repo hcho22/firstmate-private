@@ -11,13 +11,18 @@ fm_hermes_process_matches() {  # <args> [pid]
   else
     read -r -a words <<< "$args"
   fi
+  # An empty argv is never Hermes, and bash 3.2 treats expanding an empty array
+  # under set -u as unbound.
+  [ "${#words[@]}" -gt 0 ] || return 1
   for word in "${words[@]}"; do
     if [ "$first" = 1 ]; then
       first=0
       case "${word##*/}" in
         hermes) return 0 ;;
         node|node-*|node[0-9]*|MainThread) interpreter=node ;;
-        python|python[0-9]*) interpreter=python ;;
+        # A macOS framework build (python.org, Homebrew, Apple's) re-execs
+        # into Python.app/Contents/MacOS/Python, so ps shows that argv[0].
+        python|python[0-9]*|Python) interpreter=python ;;
         *) return 1 ;;
       esac
       continue
