@@ -1900,7 +1900,8 @@ jq -e --arg workspace "$SIBLING_WORKSPACE" --arg pane "$SIBLING_PANE" '
 assert_no_grep 'session stop' "$HERDR_LOG" "remote retirement stopped the shared fm-remote session"
 assert_no_grep 'server stop' "$HERDR_LOG" "remote retirement stopped the shared fm-remote server"
 pass "remote retirement refuses child work, then removes only its own endpoint while a shared-session sibling survives"
-cmp -s "$TMP_ROOT/remote-status.expected" "$PARENT/data/ios/status.log" \
+ios_status_archive=$(task_data_path "$PARENT" ios status.log)
+cmp -s "$TMP_ROOT/remote-status.expected" "$ios_status_archive" \
   || fail "remote retirement lost the parent-side status history"
 assert_absent "$PARENT/state/ios.status" "remote retirement left the archived status live"
 pass "remote retirement archives the complete parent-side status log when enabled"
@@ -1920,7 +1921,7 @@ pass "remote retirement commits parent-side metadata, status, and inbox records 
 # Reconcile an already-retired remote home with no parent-side status. Holding
 # an unrelated presentation lock proves the no-op without risking an unbounded
 # hang if that fast path regresses.
-mv "$PARENT/data/ios" "$TMP_ROOT/remote-archive.saved"
+mv "$ios_status_archive" "$TMP_ROOT/remote-archive.saved"
 cp "$TMP_ROOT/remote-meta.saved" "$PARENT/state/ios.meta"
 cat "$TMP_ROOT/remote-route.saved" >> "$PARENT/data/secondmates.md"
 mkdir -p "$PARENT/state/.status-presentation-lock"
@@ -1937,7 +1938,8 @@ assert_grep 'teardown ios complete (remote ' "$TMP_ROOT/remote-noop.out" "no-op 
 cmp -s "$TMP_ROOT/remote-cursor.expected" "$PARENT/state/.status-presentation-cursor" \
   || fail "remote no-op rewrote the neighboring cursor"
 assert_present "$PARENT/state/.status-presentation-lock" "remote no-op acquired another presenter's lock"
-assert_absent "$PARENT/data/ios" "remote no-op created an empty archive directory"
+assert_absent "$ios_status_archive" "remote no-op created an archive"
+assert_absent "$PARENT/data/ios" "remote no-op created a flat archive directory"
 assert_absent "$PARENT/state/ios.meta" "remote no-op retained stale parent metadata"
 assert_absent "$REMOTE_HOME" "remote no-op recreated the retired remote home"
 pass "remote missing-status retirement remains lock-free with archival enabled"

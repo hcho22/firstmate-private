@@ -275,8 +275,8 @@ Text for a worker to read and commands that drive a worker's process are separat
 
 ### Task status archives
 
-When [status archival is enabled](configuration.md#task-status-archive-configstatus-archive), teardown preserves the complete status stream in `data/<task>/status.log`, using a separate `status.<N>.log` for reused IDs without overwriting earlier histories.
-Forced secondmate retirement stores descendant logs under the surviving parent's `data/<secondmate>/children/<child>/` tree.
+When [status archival is enabled](configuration.md#task-status-archive-configstatus-archive), teardown preserves the complete status stream in the task's data folder (`data/<Project>/<task>/status.log`, placed by [`bin/fm-task-data-lib.sh`](../bin/fm-task-data-lib.sh)), using a separate `status.<N>.log` for reused IDs without overwriting earlier histories.
+Forced secondmate retirement stores descendant logs under the surviving parent's `children/<child>/` tree in that secondmate's data folder.
 These archives are cold evidence: presentation, wake classification, and fleet snapshots consume live `state/` records and never read archived logs.
 Ordinary child teardown uses its own home's configuration; retiring a whole home still removes older archives stored inside that home.
 [`bin/fm-teardown.sh`](../bin/fm-teardown.sh) owns publication, retirement, path safety, and retention mechanics.

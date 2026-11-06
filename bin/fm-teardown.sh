@@ -352,11 +352,12 @@
 # never blocks cleanup. A no-mistakes ship task whose local copy this teardown
 # owns has its rounds to pass recorded the same way, always, by
 # bin/fm-nm-rounds.sh, which owns that ledger.
-# Opt-in config/status-archive preserves retired status logs in
-# data/<id>/status.log, then status.<N>.log for reused IDs. The presentation
+# Opt-in config/status-archive preserves retired status logs in the task's data
+# folder (data/<Project>/<id>/, placed by bin/fm-task-data-lib.sh) as
+# status.log, then status.<N>.log for reused IDs. The presentation
 # lock covers archive publication, cursor retirement, then the existing live
 # status and bookkeeping removal. A failed publication leaves live state intact.
-# Forced child retirement uses data/<id>/children/<child-id>/ (recursively),
+# Forced child retirement uses <task folder>/children/<child-id>/ (recursively),
 # outside the home being removed. Remote-home retirement with no status is a
 # no-op. Symlinked/non-regular sources and symlinked archive directories refuse
 # cleanup rather than following them; the configured data root may be a symlink.
@@ -491,8 +492,27 @@ teardown_prune_status_archives() {  # <task-directory>
   return 0
 }
 
+# The task's data folder relative to the data root, where its status archives
+# go: the folder bin/fm-task-data-lib.sh finds, or the one it would create in
+# the recorded project. An id the layout cannot place refuses, so the live
+# status is retained for a retry.
+teardown_status_archive_relpath() {  # <task-id>
+  local task=$1 rel rc=0 dir
+  rel=$(fm_task_data_relpath "$DATA" "$task" 2>/dev/null) || rc=$?
+  case "$rc" in
+    0) printf '%s\n' "$rel"; return 0 ;;
+    1) ;;
+    *) echo "error: the data folder for $task cannot be placed in the data layout; retaining its live status" >&2; return 1 ;;
+  esac
+  dir=$(fm_task_data_dir_for_new "$DATA" "$task" "$(meta_value "$META" project)") || {
+    echo "error: the data folder for $task cannot be placed in the data layout; retaining its live status" >&2
+    return 1
+  }
+  printf '%s/%s\n' "$(basename "$(dirname "$dir")")" "$task"
+}
+
 teardown_retire_status() {  # <state> <task-id> [<archive-relative-directory>]
-  local state=$1 task=$2 relative=${3:-$2} dir part archive n=0 entry
+  local state=$1 task=$2 relative=${3:-} dir part archive n=0 entry
   if [ ! -e "$CONFIG/status-archive" ]; then
     status_retire_presentation_task "$state" "$task"
     return $?
@@ -506,6 +526,7 @@ teardown_retire_status() {  # <state> <task-id> [<archive-relative-directory>]
     echo "error: unsafe status archive source: $state/$task.status" >&2
     return 1
   fi
+  [ -n "$relative" ] || relative=$(teardown_status_archive_relpath "$task") || return 1
   # The configured root may itself be relocated through a symlink; only
   # archive components below that trusted root must refuse symlinks.
   mkdir -p -- "$DATA" || return 1
@@ -529,9 +550,9 @@ teardown_retire_status() {  # <state> <task-id> [<archive-relative-directory>]
     echo "error: status archival failed for $task; retaining live status for retry" >&2
     return 1
   }
-  for entry in "$DATA"/*; do
+  while IFS= read -r entry; do
     teardown_prune_status_archives "$entry"
-  done
+  done < <(fm_task_data_task_dirs "$DATA")
 }
 
 teardown_export_records() {  # <state> <task-id>
@@ -3648,9 +3669,13 @@ endpoint_close_refusal() {  # <subject> <backend> <target> <honors-force>
 }
 
 cleanup_firstmate_home_children() {
-  local home=$1 archive_parent=${2:-$ID} sub_state child_meta child_id child_t child_wt child_proj child_kind child_home child_rex_home child_backend child_orca_worktree_id child_return_rc child_busy_gen child_owner_rc child_pool_slot
+  local home=$1 archive_parent=${2:-} sub_state child_meta child_id child_t child_wt child_proj child_kind child_home child_rex_home child_backend child_orca_worktree_id child_return_rc child_busy_gen child_owner_rc child_pool_slot
   sub_state="$home/state"
   [ -d "$sub_state" ] || return 0
+  if [ -z "$archive_parent" ] && [ -e "$CONFIG/status-archive" ]; then
+    archive_parent=$(teardown_status_archive_relpath "$ID") || return 1
+  fi
+  archive_parent=${archive_parent:-$ID}
   for child_meta in "$sub_state"/*.meta; do
     [ -e "$child_meta" ] || continue
     child_id=$(basename "$child_meta" .meta)

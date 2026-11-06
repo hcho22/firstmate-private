@@ -5921,19 +5921,19 @@ test_status_archive_opt_in() {
     write_meta "$case_dir" local-only ship
     printf 'working: started\nneeds-decision [key=choice]: choose\nresolved [key=choice]: chosen\ndone: complete\n' > "$case_dir/state/task-x1.status"
     cp "$case_dir/state/task-x1.status" "$case_dir/expected"
-    mkdir -p "$case_dir/data/old"
-    printf 'old archive\n' > "$case_dir/data/old/status.log"
-    touch -t 200001010000 "$case_dir/data/old/status.log"
+    mkdir -p "$case_dir/data/project/old"
+    printf 'old archive\n' > "$case_dir/data/project/old/status.log"
+    touch -t 200001010000 "$case_dir/data/project/old/status.log"
     [ "$mode" = off ] || touch "$case_dir/config/status-archive"
     rc=0
     run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
     expect_code 0 "$rc" "status archive $mode teardown"
     assert_absent "$case_dir/state/task-x1.status" "live status survived teardown"
     if [ "$mode" = on ]; then
-      cmp -s "$case_dir/expected" "$case_dir/data/task-x1/status.log" || fail "opt-in archive lost history"
+      cmp -s "$case_dir/expected" "$case_dir/data/project/task-x1/status.log" || fail "opt-in archive lost history"
     else
-      assert_absent "$case_dir/data/task-x1/status.log" "default-off teardown created an archive"
-      assert_present "$case_dir/data/old/status.log" "default-off teardown pruned an archive"
+      assert_absent "$case_dir/data/project/task-x1/status.log" "default-off teardown created an archive"
+      assert_present "$case_dir/data/project/old/status.log" "default-off teardown pruned an archive"
     fi
   done
   pass "status archival is opt-in and preserves the complete log"
@@ -6102,28 +6102,28 @@ test_status_archive_reuse_and_retention() {
   case_dir=$(make_case status-archive-reuse)
   write_meta "$case_dir" local-only ship
   touch "$case_dir/config/status-archive"
-  mkdir -p "$case_dir/data/task-x1" "$case_dir/data/old" "$case_dir/outside"
-  printf 'first generation\n' > "$case_dir/data/task-x1/status.log"
+  mkdir -p "$case_dir/data/project/task-x1" "$case_dir/data/project/old" "$case_dir/outside"
+  printf 'first generation\n' > "$case_dir/data/project/task-x1/status.log"
   printf 'outside sentinel\n' > "$case_dir/outside/status.log"
-  ln -s "$case_dir/outside/status.log" "$case_dir/data/task-x1/status.1.log"
+  ln -s "$case_dir/outside/status.log" "$case_dir/data/project/task-x1/status.1.log"
   ln -s "$case_dir/outside" "$case_dir/data/symlink-task"
-  printf 'expired\n' > "$case_dir/data/old/status.log"
-  printf 'report survives\n' > "$case_dir/data/old/report.md"
-  printf 'unowned file survives\n' > "$case_dir/data/old/status.notes.log"
-  touch -t 200001010000 "$case_dir/data/old/"* "$case_dir/outside/status.log"
+  printf 'expired\n' > "$case_dir/data/project/old/status.log"
+  printf 'report survives\n' > "$case_dir/data/project/old/report.md"
+  printf 'unowned file survives\n' > "$case_dir/data/project/old/status.notes.log"
+  touch -t 200001010000 "$case_dir/data/project/old/"* "$case_dir/outside/status.log"
   printf 'done: second generation\n' > "$case_dir/state/task-x1.status"
   touch -t 200001010000 "$case_dir/state/task-x1.status"
   rc=0
   run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
   expect_code 0 "$rc" "status archive reuse"
-  assert_grep 'first generation' "$case_dir/data/task-x1/status.log" "first archive overwritten"
-  archive="$case_dir/data/task-x1/status.2.log"
+  assert_grep 'first generation' "$case_dir/data/project/task-x1/status.log" "first archive overwritten"
+  archive="$case_dir/data/project/task-x1/status.2.log"
   assert_grep 'second generation' "$archive" "reused ID did not select a fresh archive"
   assert_grep 'outside sentinel' "$case_dir/outside/status.log" "archive or pruning followed a symlink"
-  [ -L "$case_dir/data/task-x1/status.1.log" ] || fail "archive replaced an existing symlink"
-  assert_absent "$case_dir/data/old/status.log" "expired status archive survived pruning"
-  assert_present "$case_dir/data/old/report.md" "pruning removed other task data"
-  assert_present "$case_dir/data/old/status.notes.log" "pruning removed an unowned filename"
+  [ -L "$case_dir/data/project/task-x1/status.1.log" ] || fail "archive replaced an existing symlink"
+  assert_absent "$case_dir/data/project/old/status.log" "expired status archive survived pruning"
+  assert_present "$case_dir/data/project/old/report.md" "pruning removed other task data"
+  assert_present "$case_dir/data/project/old/status.notes.log" "pruning removed an unowned filename"
   pass "reused task IDs never overwrite archives and retention removes only old owned logs"
 }
 
@@ -6139,14 +6139,14 @@ test_status_archive_unsafe_paths_refuse() {
     case "$unsafe" in
       source) rm "$case_dir/state/task-x1.status"; ln -s "$case_dir/outside/sentinel" "$case_dir/state/task-x1.status" ;;
       data) rmdir "$case_dir/data"; ln -s "$case_dir/outside" "$case_dir/data" ;;
-      task) ln -s "$case_dir/outside" "$case_dir/data/task-x1" ;;
-      children) mkdir -p "$case_dir/data/task-x1"; ln -s "$case_dir/outside" "$case_dir/data/task-x1/children" ;;
+      task) mkdir -p "$case_dir/data/project"; ln -s "$case_dir/outside" "$case_dir/data/project/task-x1" ;;
+      children) mkdir -p "$case_dir/data/project/task-x1"; ln -s "$case_dir/outside" "$case_dir/data/project/task-x1/children" ;;
     esac
     rc=0
     run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
     if [ "$unsafe" = data ]; then
       expect_code 0 "$rc" "configured symlinked data root"
-      assert_grep 'done: complete' "$case_dir/outside/task-x1/status.log" "archive did not use physical data root"
+      assert_grep 'done: complete' "$case_dir/outside/project/task-x1/status.log" "archive did not use physical data root"
     elif [ "$unsafe" = children ]; then
       expect_code 0 "$rc" "pruning ignores symlinked children: $(cat "$case_dir/stderr")"
     else
@@ -6239,15 +6239,15 @@ test_status_archive_cursor_failure_retries_without_duplicate() {
   assert_present "$case_dir/state/task-x1.status" "cursor failure lost live history"
   cmp -s "$case_dir/cursor.malformed" "$case_dir/state/.status-presentation-cursor" \
     || fail "cursor failure changed presentation rows"
-  assert_absent "$case_dir/data/task-x1/status.log" "failed retirement left a duplicate archive"
+  assert_absent "$case_dir/data/project/task-x1/status.log" "failed retirement left a duplicate archive"
   assert_present "$case_dir/state/task-x1.meta" "cursor failure removed task metadata"
   cp "$case_dir/cursor.before" "$case_dir/state/.status-presentation-cursor"
   rc=0
   run_teardown "$case_dir" > "$case_dir/retry.stdout" 2> "$case_dir/retry.stderr" || rc=$?
   expect_code 0 "$rc" "retry after cursor repair"
-  cmp -s "$case_dir/expected" "$case_dir/data/task-x1/status.log" || fail "retry archive lost history"
+  cmp -s "$case_dir/expected" "$case_dir/data/project/task-x1/status.log" || fail "retry archive lost history"
   assert_absent "$case_dir/state/task-x1.status" "successful retry retained live status"
-  assert_absent "$case_dir/data/task-x1/status.1.log" "retry wrote a duplicate archive"
+  assert_absent "$case_dir/data/project/task-x1/status.1.log" "retry wrote a duplicate archive"
   pass "cursor retirement failure removes its archive so retry publishes one history"
 }
 
@@ -6262,12 +6262,12 @@ test_status_archive_publish_and_cold_log_stay_inert() {
   expect_code 0 "$rc" "archive publication: $(cat "$case_dir/stderr")"
   assert_present "$case_dir/publish-entered" "fixture never attempted publication"
   [ ! -s "$case_dir/publish-signals" ] || fail "archival caused a spurious watcher wake"
-  assert_present "$case_dir/data/task-x1/status.log" "archive absent"
+  assert_present "$case_dir/data/project/task-x1/status.log" "archive absent"
   for text in task-x1.status .task-x1.home-appends .seen-task-x1_status .hb-surfaced-task-x1 .task-x1.open-decisions-cursor; do
     assert_absent "$case_dir/state/$text" "retirement left live bookkeeping"
   done
   assert_no_grep 'task-x1' "$case_dir/state/.status-presentation-cursor" "retirement left presentation cursor"
-  printf 'blocked: archive must stay cold\n' >> "$case_dir/data/task-x1/status.log"
+  printf 'blocked: archive must stay cold\n' >> "$case_dir/data/project/task-x1/status.log"
   FM_STATE_OVERRIDE="$case_dir/state" FM_CONFIG_OVERRIDE="$case_dir/config" FM_DATA_OVERRIDE="$case_dir/data" \
     bash "$ROOT/bin/fm-wake-drain.sh" > "$case_dir/after" 2>> "$case_dir/drain.err" || fail "post-retirement presentation failed"
   for text in task-x1 'archive must stay cold' 'archived note'; do
@@ -6289,9 +6289,9 @@ test_status_archive_pruning_failure_warns_and_completes() {
     write_meta "$case_dir" local-only ship
     touch "$case_dir/config/status-archive"
     printf 'done: current history\n' > "$case_dir/state/task-x1.status"
-    mkdir -p "$case_dir/data/unrelated-old"
-    printf 'expired\n' > "$case_dir/data/unrelated-old/status.log"
-    touch -t 200001010000 "$case_dir/data/unrelated-old/status.log"
+    mkdir -p "$case_dir/data/project/unrelated-old"
+    printf 'expired\n' > "$case_dir/data/project/unrelated-old/status.log"
+    touch -t 200001010000 "$case_dir/data/project/unrelated-old/status.log"
     cat > "$case_dir/fakebin/$operation" <<'SH'
 #!/usr/bin/env bash
 for arg in "$@"; do
@@ -6304,11 +6304,29 @@ SH
     FM_ARCHIVE_TEST_COMMAND="$(command -v "$operation")" run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
     expect_code 0 "$rc" "unrelated archive $operation failure aborted teardown"
     grep -E 'warning:.*unrelated-old' "$case_dir/stderr" >/dev/null || fail "pruning failure did not name its path"
-    assert_grep 'current history' "$case_dir/data/task-x1/status.log" "pruning failure lost current archive"
+    assert_grep 'current history' "$case_dir/data/project/task-x1/status.log" "pruning failure lost current archive"
     assert_absent "$case_dir/state/task-x1.meta" "pruning failure retained current metadata"
-    assert_present "$case_dir/data/unrelated-old/status.log" "failure fixture did not preserve expired archive"
+    assert_present "$case_dir/data/project/unrelated-old/status.log" "failure fixture did not preserve expired archive"
   done
   pass "retention failures warn without aborting unrelated teardown"
+}
+
+# Archives join the task's own data folder, wherever bin/fm-task-data-lib.sh
+# finds it, rather than creating a second folder for the same task.
+test_status_archive_joins_the_task_data_folder() {
+  local case_dir rc=0
+  case_dir=$(make_case status-archive-task-folder)
+  write_meta "$case_dir" local-only ship
+  touch "$case_dir/config/status-archive"
+  mkdir -p "$case_dir/data/Demo/task-x1"
+  printf 'brief\n' > "$case_dir/data/Demo/task-x1/brief.md"
+  printf 'done: complete\n' > "$case_dir/state/task-x1.status"
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 0 "$rc" "status archive into the task folder: $(cat "$case_dir/stderr")"
+  assert_grep 'done: complete' "$case_dir/data/Demo/task-x1/status.log" "the archive did not join the task's data folder"
+  assert_absent "$case_dir/data/project" "the archive created a second folder for the task"
+  assert_absent "$case_dir/data/task-x1" "the archive created a flat task folder"
+  pass "status archival writes into the task's existing per-project data folder"
 }
 
 test_status_archive_missing_status_noop() {
@@ -6329,7 +6347,7 @@ test_status_archive_missing_status_noop() {
   expect_code 0 "$rc" "local missing-status retirement"
   cmp -s "$case_dir/cursor.before" "$case_dir/state/.status-presentation-cursor" || fail "missing-status no-op rewrote neighboring cursor"
   assert_present "$case_dir/state/.status-presentation-lock" "missing-status no-op contended with presentation lock"
-  assert_absent "$case_dir/data/task-x1" "missing-status no-op created empty archive"
+  assert_absent "$case_dir/data/project/task-x1" "missing-status no-op created empty archive"
   pass "local missing-status retirement stays lock-free without creating an archive"
 }
 
@@ -6354,8 +6372,8 @@ test_status_archive_nested_secondmate_children() {
     printf 'done: child history\n' > "$home/state/nested-sm.status"
     printf 'done: grandchild history\n' > "$nested_home/state/grandchild.status"
     if [ "$unsafe" = children ]; then
-      mkdir -p "$case_dir/data/task-x1" "$case_dir/outside"
-      ln -s "$case_dir/outside" "$case_dir/data/task-x1/children"
+      mkdir -p "$case_dir/data/project/task-x1" "$case_dir/outside"
+      ln -s "$case_dir/outside" "$case_dir/data/project/task-x1/children"
     fi
     rc=0
     run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
@@ -6365,9 +6383,9 @@ test_status_archive_nested_secondmate_children() {
       assert_absent "$case_dir/outside/nested-sm" "child archive escaped through symlink"
     else
       expect_code 0 "$rc" "nested secondmate status archive: $(cat "$case_dir/stderr")"
-      assert_grep 'parent history' "$case_dir/data/task-x1/status.log" "parent history missing"
-      assert_grep 'child history' "$case_dir/data/task-x1/children/nested-sm/status.log" "child history missing"
-      assert_grep 'grandchild history' "$case_dir/data/task-x1/children/nested-sm/children/grandchild/status.log" "grandchild history missing"
+      assert_grep 'parent history' "$case_dir/data/project/task-x1/status.log" "parent history missing"
+      assert_grep 'child history' "$case_dir/data/project/task-x1/children/nested-sm/status.log" "child history missing"
+      assert_grep 'grandchild history' "$case_dir/data/project/task-x1/children/nested-sm/children/grandchild/status.log" "grandchild history missing"
       assert_absent "$home" "forced retirement retained secondmate home"
     fi
   done
@@ -6654,6 +6672,7 @@ fm_test_run_cases \
   test_record_export_captures_forced_secondmate_sub_state \
   test_record_export_waits_for_endpoint_quiescence_before_archiving \
   test_status_archive_nested_secondmate_children \
+  test_status_archive_joins_the_task_data_folder \
   test_status_archive_missing_status_noop \
   test_status_archive_reuse_and_retention \
   test_status_archive_unsafe_paths_refuse \
