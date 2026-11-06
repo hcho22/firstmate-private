@@ -652,7 +652,8 @@ test_extension_handoff_with_live_session_is_healthy() {
 # A fakebin whose uname reports <uname> and whose `ps -W` lists one Pi-shaped
 # Windows process, WINPID 7204; every other ps question is the real one.
 windows_table_fakebin() {  # <dir> <uname>
-  local fakebin
+  local fakebin real_stat
+  real_stat=$(command -v stat) || fail "stat not found"
   fakebin=$(fm_fakebin "$1")
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" %s\n' "$2" > "$fakebin/uname"
   cat > "$fakebin/ps" <<'SH'
@@ -662,6 +663,21 @@ printf '%s\n' '      PID    PPID    PGID     WINPID   TTY         UID    STIME C
 printf '%s\n' '  4201508       0       0       7204  ?              0 22:24:48 C:\Users\u\AppData\Roaming\npm\pi.exe'
 SH
   chmod +x "$fakebin/uname" "$fakebin/ps"
+  # A faked non-Darwin uname sends mtime reads to GNU `stat -c %Y`, which a Git
+  # Bash or Linux host answers. On a test host whose stat is BSD, a stand-in
+  # answers it the BSD way, so the beacon age is read and every verdict comes
+  # from the session check rather than an unreadable beacon.
+  if ! "$real_stat" -c %Y "$1" >/dev/null 2>&1; then
+    cat > "$fakebin/stat" <<SH
+#!/usr/bin/env bash
+if [ "\$1" = -c ] && [ "\$2" = %Y ]; then
+  shift 2
+  exec '$real_stat' -f %m "\$@"
+fi
+exec '$real_stat' "\$@"
+SH
+    chmod +x "$fakebin/stat"
+  fi
   printf '%s\n' "$fakebin"
 }
 
