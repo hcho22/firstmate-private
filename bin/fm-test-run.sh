@@ -683,12 +683,15 @@ portable_parallel_lane_weight() {
 # hints above. Stored order agrees with this lane's --list-scheduled output.
 # tests/fm-pi-primary-types.test.sh runs the production-consumer typecheck here;
 # its own header owns temporary dependency provisioning.
+# tests/fm-captain-hold-lifecycle.test.sh and tests/fm-captain-hold-records.test.sh
+# are the two halves of the suite the hints measured as one file, so together
+# they keep its slot here and the balance (docs/fm-test-portable-shards.md).
 list_portable_parallel_1() {
   cat <<'EOF'
 tests/fm-captain-hold-lifecycle.test.sh
-tests/fm-captain-hold-records.test.sh
 tests/fm-backend-t3code.test.sh
 tests/fm-crew-state.test.sh
+tests/fm-captain-hold-records.test.sh
 tests/fm-t3-mcp.test.sh
 tests/fm-arm-pretool-check.test.sh
 tests/fm-herdr-lab.test.sh
@@ -703,9 +706,6 @@ EOF
 }
 
 # Portable parallel shard 2: the complementary LPT half of the proven set.
-# tests/fm-captain-hold-lifecycle.test.sh and tests/fm-captain-hold-records.test.sh
-# are the two halves of the suite the hints measured as one file, so together
-# they keep its slot here and the balance (docs/fm-test-portable-shards.md).
 list_portable_parallel_2() {
   cat <<'EOF'
 tests/fm-pr-merge.test.sh
