@@ -346,6 +346,8 @@ case "${1:-} ${2:-}" in
         cp "$FM_TEST_GH_UPDATE_HEAD" "$FM_TEST_GH_HEAD"
         cp "$FM_TEST_GH_UPDATE_HEAD" "$server_head"
         : > "$FM_TEST_GH_UPDATE_DONE"
+        # A case can make the update land on its real origin as well.
+        [ ! -x "$FM_TEST_GH_UPDATE_DONE.hook" ] || "$FM_TEST_GH_UPDATE_DONE.hook"
         printf '{"message":"Updating pull request branch."}\n'
         exit 0
         ;;
@@ -3602,6 +3604,100 @@ test_github_updated_head_other_refusals_stop_waiting() {
   done
   [ -z "$violations" ] || fail "$violations"
   pass "fm-pr-merge immediately refuses draft, closed, conflicting, or unreadable updated heads despite pending or missing checks"
+}
+
+# An explicit --update-branch moves the head the captain approved. The update
+# is GitHub's clean merge of the base, so the bound merge verifies the new head
+# as a clean catch-up and proceeds without asking again.
+test_approved_head_branch_update_catch_up_merges() {
+  local case_dir url=https://github.com/example/repo/pull/74 approved updated
+  case_dir=$(make_case approved-head-branch-update)
+  approved=$(make_pr_repos "$case_dir" refs/pull/74/head)
+  push_base_commit "$case_dir" other.txt 'other' 'base: an unrelated change'
+  git -C "$case_dir/author" merge -q --no-edit main >/dev/null 2>&1
+  updated=$(git -C "$case_dir/author" rev-parse HEAD)
+  git -C "$case_dir/author" push -q origin "HEAD:refs/heads/update-result"
+  add_gh_mocks "$case_dir" "$approved"
+  : > "$case_dir/gh-axi.log"
+  write_github_required "$case_dir" classic:ci
+  jq '.mergeStateStatus = "BEHIND"' "$case_dir/github-view.json" > "$case_dir/view.tmp"
+  mv "$case_dir/view.tmp" "$case_dir/github-view.json"
+  jq --arg head "$updated" '.mergeStateStatus = "CLEAN" | .headRefOid = $head' \
+    "$case_dir/github-view.json" > "$case_dir/github-view-after-update.json"
+  printf '%s\n' "$updated" > "$case_dir/github-head-after-update"
+  printf '#!/usr/bin/env bash\ngit --git-dir %q update-ref refs/pull/74/head %q\n' \
+    "$case_dir/origin.git" "$updated" > "$case_dir/github-update-done.hook"
+  chmod +x "$case_dir/github-update-done.hook"
+  write_approved_meta "$case_dir" "$approved" "$url"
+  expect_code 0 "$(approved_head_merge "$case_dir" "$url" --update-branch)" \
+    "approved-head-branch-update: the updated head refused: $(cat "$case_dir/stderr")"
+  assert_grep "update-branch -f expected_head_sha=$approved" "$case_dir/gh.log" \
+    "approved-head-branch-update: the branch was not updated from the approved head"
+  assert_grep "adds only a clean catch-up with main to the captain-approved head $approved" "$case_dir/stderr" \
+    "approved-head-branch-update: the updated head was not verified as a clean catch-up"
+  assert_grep "--match-head-commit $updated" "$case_dir/gh.log" \
+    "approved-head-branch-update: the merge was not bound to the updated head"
+  pass "an approved-head merge with --update-branch verifies the updated head as a clean catch-up and merges it"
+}
+
+# A head that already moved past the approved one for any other reason is
+# refused before --update-branch writes anything to the pull request.
+test_approved_head_refusal_precedes_a_branch_update() {
+  local case_dir url=https://github.com/example/repo/pull/75 approved live rc
+  case_dir=$(make_case approved-head-before-update)
+  approved=$(make_pr_repos "$case_dir" refs/pull/75/head)
+  printf 'fixed\n' > "$case_dir/author/ci.txt"
+  git -C "$case_dir/author" add ci.txt
+  git -C "$case_dir/author" commit -qm 'fix: a pipeline tweak after approval'
+  live=$(push_pr_head "$case_dir" refs/pull/75/head)
+  add_gh_mocks "$case_dir" "$live"
+  : > "$case_dir/gh-axi.log"
+  write_github_required "$case_dir" classic:ci
+  jq '.mergeStateStatus = "BEHIND"' "$case_dir/github-view.json" > "$case_dir/view.tmp"
+  mv "$case_dir/view.tmp" "$case_dir/github-view.json"
+  write_approved_meta "$case_dir" "$approved" "$url"
+  rc=$(approved_head_merge "$case_dir" "$url" --update-branch)
+  expect_code 1 "$rc" "approved-head-before-update: a head past the approved one merged"
+  assert_grep "the captain approved head $approved, but the live head is $live" "$case_dir/stderr" \
+    "approved-head-before-update: the refusal did not name both heads"
+  assert_no_grep 'update-branch' "$case_dir/gh.log" \
+    "approved-head-before-update: the branch was updated before the approved head was checked"
+  assert_no_gh_merge "$case_dir" approved-head-before-update
+  pass "an approved-head refusal stops a merge before --update-branch changes the pull request"
+}
+
+# The tier judges the changed files at the head it merges, so the head an
+# explicit --update-branch produces is judged again before the merge.
+test_low_risk_judges_the_head_a_branch_update_produced() {
+  local case_dir rc head=7070707070707070707070707070707070707070 updated=7171717171717171717171717171717171717171
+  case_dir=$(make_case low-risk-branch-update)
+  mkdir -p "$case_dir/wt"
+  add_gh_mocks "$case_dir" "$head"
+  write_github_required "$case_dir" classic:ci
+  write_merge_tiers "$case_dir" 'project low-risk docs/**'
+  write_github_files "$case_dir" "$head" docs/guide.md
+  jq '.mergeStateStatus = "BEHIND"' "$case_dir/github-view.json" > "$case_dir/view.tmp"
+  mv "$case_dir/view.tmp" "$case_dir/github-view.json"
+  jq --arg head "$updated" '.mergeStateStatus = "CLEAN" | .headRefOid = $head' \
+    "$case_dir/github-view.json" > "$case_dir/github-view-after-update.json"
+  printf '%s\n' "$updated" > "$case_dir/github-head-after-update"
+  # The base this update brought in shows the pull request touching a workflow.
+  cat > "$case_dir/github-update-done.hook" <<SH
+#!/usr/bin/env bash
+printf '%s\n' '[{"filename":"docs/guide.md","status":"modified"},{"filename":".github/workflows/ci.yml","status":"modified"}]' > "$case_dir/github-files.json"
+printf '{"head":{"sha":"%s"},"changed_files":2}\n' "$updated" > "$case_dir/github-pr-rest"
+SH
+  chmod +x "$case_dir/github-update-done.hook"
+
+  run_low_risk_merge "$case_dir" --update-branch
+
+  expect_code 4 "$rc" "low-risk-branch-update: the updated head's changed files were not judged again"
+  assert_grep "verified: all 1 changed files of https://github.com/example/repo/pull/70 at head $head" "$case_dir/stderr" \
+    "low-risk-branch-update: the head before the update was not judged"
+  assert_grep 'fall outside the low-risk tier' "$case_dir/stderr" \
+    "low-risk-branch-update: the refusal did not name the tier"
+  assert_no_grep 'pr merge ' "$case_dir/gh.log" "low-risk-branch-update: the forge merge ran"
+  pass "fm-pr-merge --low-risk judges again the head an explicit --update-branch produced"
 }
 
 # The merge gate asks whether the task is still held for the captain. A home
@@ -6885,4 +6981,7 @@ fm_test_run_cases \
   test_expected_head_push_after_verify_is_refused_by_the_forge \
   test_expected_head_later_preflight_does_not_adopt_a_new_head \
   test_expected_head_bad_inputs_refuse_before_effects \
-  test_expected_head_keeps_existing_refusals
+  test_expected_head_keeps_existing_refusals \
+  test_approved_head_branch_update_catch_up_merges \
+  test_approved_head_refusal_precedes_a_branch_update \
+  test_low_risk_judges_the_head_a_branch_update_produced
