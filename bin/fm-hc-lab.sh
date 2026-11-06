@@ -42,6 +42,9 @@
 # the lab directory for inspection, never reducing the failure to a warning.
 set -u
 
+# shellcheck source=bin/fm-mkdir-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/fm-mkdir-lib.sh"
+
 fm_hclab_error() {
   echo "fm-hc-lab: $*" >&2
 }
@@ -210,7 +213,7 @@ fm_hclab_provision() { # <session>
   bin=$(fm_hclab_bin) || return 1
   command -v jq >/dev/null 2>&1 || { fm_hclab_error "jq is required"; return 1; }
   dir=$(fm_hclab_session_dir "$name")
-  mkdir -m 700 "$dir" || {
+  fm_mkdir_exclusive "$dir" 700 || {
     fm_hclab_error "could not create session dir for '$name'; refusing to adopt or overwrite it"
     return 1
   }
