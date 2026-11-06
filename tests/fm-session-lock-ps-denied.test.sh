@@ -863,6 +863,39 @@ SH
   pass "acquisition refuses a live owner with unreadable identity"
 }
 
+# The captain-confirmed takeover (bin/fm-lock.sh takeover) applies the same
+# verdict as acquisition, so a live owner whose identity cannot be read, which
+# acquisition refuses above, can still be displaced with the captain's word.
+test_unreadable_owner_can_be_taken_over_with_confirmation() {
+  [ "$(uname -s)" = Linux ] || { pass "unreadable owner takeover: Linux fixture only, skipped"; return; }
+  local dir fakebin real_ps owner rc
+  dir="$TMP_ROOT/unreadable-takeover"
+  fakebin=$(fm_fakebin "$dir")
+  real_ps=$(command -v ps)
+  owner=$$
+  mkdir -p "$dir/state" "$dir/proc" "$dir/named"
+  printf '%s\n' "$owner" > "$dir/state/.lock"
+  cat > "$fakebin/ps" <<'SH'
+#!/usr/bin/env bash
+case " $* " in
+  *" -V "*|*" -p $FM_TEST_OWNER "*) exit 126 ;;
+esac
+exec "$FM_TEST_REAL_PS" "$@"
+SH
+  chmod +x "$fakebin/ps"
+  ln -s "$(command -v bash)" "$dir/named/claude"
+  rc=0
+  env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_PID \
+    FM_TEST_OWNER="$owner" FM_TEST_REAL_PS="$real_ps" \
+    FM_PROC_ROOT_OVERRIDE="$dir/proc" FM_STATE_OVERRIDE="$dir/state" \
+    PATH="$fakebin:$PATH" "$dir/named/claude" -c 'bash "$1/bin/fm-lock.sh" takeover --confirm-holder "$2"; rc=$?; exit "$rc"' _ "$ROOT" "$owner" \
+    > "$dir/out" 2>&1 || rc=$?
+  [ "$rc" -eq 0 ] || fail "a confirmed takeover of an unreadable live owner was refused: $(cat "$dir/out")"
+  [ "$(cat "$dir/state/.lock")" != "$owner" ] || fail "the confirmed takeover left the unreadable owner holding the lock"
+  grep -q "prev_pid=$owner" "$dir/state/.lock-takeovers" || fail "the takeover did not record the unreadable owner it displaced"
+  pass "a captain-confirmed takeover displaces a live owner with unreadable identity"
+}
+
 test_partial_identity_reads_refuse() {
   local dir fakebin got
   dir="$TMP_ROOT/partial-identity"
@@ -955,6 +988,7 @@ test_partial_identity_reads_refuse
 test_nonpid_records_allow_acquisition
 
 test_unreadable_owner_refuses_acquisition
+test_unreadable_owner_can_be_taken_over_with_confirmation
 test_denied_route_fields_parse_exactly
 test_provider_shape_violations_rejected
 test_provider_empty_field_is_a_present_pid

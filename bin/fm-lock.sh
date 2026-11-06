@@ -53,6 +53,9 @@
 # lock this session already owns is confirmed or re-anchored, never taken over):
 #   - the confirmed pid is exactly the pid currently recorded as holder, so a
 #     stale confirmation can never displace a different, newer holder;
+#   - that holder is one an acquisition refuses to reclaim
+#     (fm_session_lock_pid_blocks_reclaim in bin/fm-session-lock-lib.sh): a
+#     live verified harness, or a live owner whose identity cannot be read;
 #   - no watcher beat is fresh (FM_GUARD_GRACE, default 300s), because a fresh
 #     beat means a live session is supervising this home right now;
 #   - the takeover can be recorded.
@@ -125,12 +128,10 @@ if [ "${1:-}" = "takeover" ]; then
       *) echo "usage: fm-lock.sh takeover --confirm-holder <pid>" >&2; exit 2 ;;
     esac
   done
-  case "$CONFIRM_HOLDER" in
-    ''|*[!0-9]*)
-      echo "error: takeover needs the explicit confirmation --confirm-holder <pid> naming the live holder; read it from 'fm-lock.sh status'" >&2
-      exit 2
-      ;;
-  esac
+  if ! fm_session_pid_valid "$CONFIRM_HOLDER"; then
+    echo "error: takeover needs the explicit confirmation --confirm-holder <pid> naming the live holder; read it from 'fm-lock.sh status'" >&2
+    exit 2
+  fi
 fi
 
 if ! me=$(fm_session_lock_anchor_pid); then
@@ -326,13 +327,14 @@ TAKEOVER_PREV_SUMMARY=
 TAKEOVER_PREV_SESSION=
 takeover_preflight() {  # <recorded-pid>
   local old=$1
-  case "$old" in
-    ''|*[!0-9]*)
-      echo "error: there is no live lock holder to take over; run $SCRIPT_DIR/fm-lock.sh to acquire the lock normally" >&2
-      exit 1
-      ;;
-  esac
-  if ! fm_harness_pid_alive "$old"; then
+  if ! fm_session_pid_valid "$old"; then
+    echo "error: there is no live lock holder to take over; run $SCRIPT_DIR/fm-lock.sh to acquire the lock normally" >&2
+    exit 1
+  fi
+  # The same verdict that refuses a plain acquisition decides whether there is
+  # a holder to displace, so every holder an acquisition refuses, including a
+  # live owner whose identity cannot be read, can be taken over.
+  if ! fm_session_lock_pid_blocks_reclaim "$old"; then
     echo "error: lock holder pid $old is not a live session, so no takeover is needed; run $SCRIPT_DIR/fm-lock.sh to acquire the lock normally" >&2
     exit 1
   fi

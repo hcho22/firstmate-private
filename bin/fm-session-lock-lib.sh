@@ -1088,7 +1088,7 @@ fm_session_lock_displaced_record() {  # <state>
   record=$(tail -n 1 "$state/.lock-takeovers" 2>/dev/null) || return 1
   [ -n "$record" ] || return 1
   holder=$(head -n 1 "$state/.lock" 2>/dev/null || true)
-  case "$holder" in ''|*[!0-9]*) return 1 ;; esac
+  fm_session_pid_valid "$holder" || return 1
   new_pid=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^new_pid=//p')
   new_session=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^new_session=//p')
   prev_pid=$(printf '%s\n' "$record" | tr '\t' '\n' | sed -n 's/^prev_pid=//p')
