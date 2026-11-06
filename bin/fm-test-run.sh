@@ -248,11 +248,11 @@ PER_SCRIPT_TIMEOUT_SECS=0
 PER_SCRIPT_TIMEOUT_AUTO=0
 # Bound applied automatically on the automatic --changed path. The floor is
 # derived from measured healthy runtimes with margin rather than picked: the
-# slowest measured script is tests/fm-watch-triage.test.sh at about 593s under
-# CI load (the hint table below records that loaded figure), and 1500s leaves
-# roughly 2.5x headroom over it while staying under the 30-minute normal CI
-# tier, so a script that goes silent fails here, with its output, before a job
-# cap cancels the lane. That headroom does not hold everywhere: on a
+# slowest measured script is tests/fm-remote-secondmate-lifecycle-e2e.test.sh at
+# about 1005s under CI load (the hint table below records that loaded figure),
+# and 1500s leaves roughly 1.5x headroom over it while staying under the
+# 30-minute normal CI tier, so a script that goes silent fails here, with its
+# output, before a job cap cancels the lane. That headroom does not hold everywhere: on a
 # macOS host with stock bash 3.2 under shared load the same suite ran about 3x
 # its reference-host time, and under heavy external load (load averages of 120
 # to 470 on 20 cores) healthy scripts that were still finishing cases ran past

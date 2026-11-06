@@ -753,7 +753,10 @@ test_changed_bound_scales_with_the_duration_hint() {
   local tmp repo hinted unhinted log rc bound backstop
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-hintbound.XXXXXX")
   repo="$tmp/repo"
-  hinted=tests/fm-watch-triage.test.sh
+  # The runner schedules its longest-hinted serial script first, so twice that
+  # hint clears the floor while any measured script runs past half of it.
+  hinted=$("$RUNNER" --list-scheduled --lane portable-serial | awk 'NR == 1')
+  case "$hinted" in tests/*.test.sh) ;; *) fail "the runner scheduled no portable-serial script first: '$hinted'" ;; esac
   # A name the hint table can never carry, so it always keeps the floor.
   unhinted=tests/fm-unhinted-bound-fixture.test.sh
   log="$tmp/bounds.log"
