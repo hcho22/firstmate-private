@@ -3965,7 +3965,7 @@ fi
 exit 0
 SH
 
-  FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" FM_FAKE_HERDR_RESTORED="$restored" \
+  FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" FM_FAKE_HERDR_RESTORED="$restored" FM_FAKE_HERDR_SOCKET="$case_dir/herdr.sock" \
     run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" \
     || fail "herdr-projection-close-before-return: forced teardown failed: $(cat "$case_dir/stderr")"
   assert_contains "$(cat "$log")" "treehouse return" \
@@ -3994,7 +3994,7 @@ SH
   perl -e 'chdir $ARGV[0] or die $!; exec "sleep", "300" or die $!' "$wt" &
   process_pid=$!
   sleep 0.1
-  FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" FM_FAKE_HERDR_RESTORED="$restored" \
+  FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" FM_FAKE_HERDR_RESTORED="$restored" FM_FAKE_HERDR_SOCKET="$case_dir/herdr.sock" \
     FM_FAKE_HERDR_CLOSE_FAIL=1 \
     run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
   kill -0 "$process_pid" 2>/dev/null && process_survived=1
