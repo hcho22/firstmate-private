@@ -776,7 +776,7 @@ LOCK_CONTENTION_READY="$TMP_ROOT/lock-contention-ready"
 LOCK_CONTENTION_RELEASE="$TMP_ROOT/lock-contention-release"
 LOCK_CONTENTION_PATH=$(session_presentation_lock_path) \
   || fail "could not resolve the session presentation lock for contention"
-ROOT="$ROOT" READY="$LOCK_CONTENTION_READY" RELEASE="$LOCK_CONTENTION_RELEASE" \
+FM_HOME="$HOME_DIR" ROOT="$ROOT" READY="$LOCK_CONTENTION_READY" RELEASE="$LOCK_CONTENTION_RELEASE" \
   LOCK="$LOCK_CONTENTION_PATH" bash -c '
   . "$ROOT/bin/fm-wake-lib.sh"
   fm_lock_try_acquire "$LOCK" || exit 1
@@ -1219,7 +1219,7 @@ CROSS_LOCK_READY="$TMP_ROOT/cross-lock-ready"
 CROSS_LOCK_RELEASE="$TMP_ROOT/cross-lock-release"
 CROSS_LOCK_PATH=$(session_presentation_lock_path) \
   || fail "could not resolve session lock for cross-home contention"
-ROOT="$ROOT" READY="$CROSS_LOCK_READY" RELEASE="$CROSS_LOCK_RELEASE" LOCK="$CROSS_LOCK_PATH" bash -c '
+FM_HOME="$HOME_DIR" ROOT="$ROOT" READY="$CROSS_LOCK_READY" RELEASE="$CROSS_LOCK_RELEASE" LOCK="$CROSS_LOCK_PATH" bash -c '
   . "$ROOT/bin/fm-wake-lib.sh"
   fm_lock_try_acquire "$LOCK" || exit 1
   : > "$READY"
@@ -1447,8 +1447,11 @@ teardown_task "$BRAVO_WAVE_ID" "$SECOND_HOME_B" > "$TMP_ROOT/bravo-wave-teardown
 pass "real Herdr lab: concurrent cross-home recoveries replace exact husks under one session lock with no focus drift"
 
 # Exact-resume presentation-lock contention refuses by default. Hold the
-# shared session lock from an unrelated process past the bounded-retry window
-# and assert the default resume hard-refuses without the opt-in flag.
+# shared session lock from an unrelated process until the resume returns and
+# assert the default resume hard-refuses without the opt-in flag. The bounded
+# retry is counted in attempts, and each contended attempt forks liveness
+# probes, so its wall-clock window varies by host; a fixed-length hold can end
+# inside it and hand the lock over.
 LOCK_REFUSE_ID=lock-refuse-resume-r1
 mkdir -p "$HOME_DIR/data/$LOCK_REFUSE_ID"
 write_ship_brief "$HOME_DIR" "$LOCK_REFUSE_ID" 'Resume lock-refuse fixture.'
@@ -1463,14 +1466,14 @@ PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" provision "$HERDR_LAB_SESSION" \
   || fail "could not reprovision the isolated session for resume lock-refuse"
 
 LOCK_REFUSE_READY="$TMP_ROOT/lock-refuse-ready"
-LOCK_REFUSE_HOLD_SECONDS=15
+LOCK_REFUSE_RELEASE="$TMP_ROOT/lock-refuse-release"
 LOCK_REFUSE_PATH=$(session_presentation_lock_path) \
   || fail "could not resolve session lock for resume lock-refuse"
-ROOT="$ROOT" READY="$LOCK_REFUSE_READY" HOLD="$LOCK_REFUSE_HOLD_SECONDS" LOCK="$LOCK_REFUSE_PATH" bash -c '
+FM_HOME="$HOME_DIR" ROOT="$ROOT" READY="$LOCK_REFUSE_READY" RELEASE="$LOCK_REFUSE_RELEASE" LOCK="$LOCK_REFUSE_PATH" bash -c '
   . "$ROOT/bin/fm-wake-lib.sh"
   fm_lock_try_acquire "$LOCK" || exit 1
   : > "$READY"
-  sleep "$HOLD"
+  while [ ! -e "$RELEASE" ]; do sleep 0.05; done
   fm_lock_release "$LOCK"
 ' &
 LOCK_REFUSE_HOLDER_PID=$!
@@ -1484,6 +1487,7 @@ if spawn_task "$LOCK_REFUSE_ID" "$HOME_DIR" "$RECOVERY_PROJECT_DIR" \
 else
   LOCK_REFUSE_STATUS=$?
 fi
+: > "$LOCK_REFUSE_RELEASE"
 if [ "$LOCK_REFUSE_STATUS" -eq 0 ]; then
   kill "$LOCK_REFUSE_HOLDER_PID" 2>/dev/null || true
   wait "$LOCK_REFUSE_HOLDER_PID" 2>/dev/null || true
@@ -1522,7 +1526,7 @@ LOCK_WAIT_READY="$TMP_ROOT/lock-wait-ready"
 LOCK_WAIT_HOLD_SECONDS=30
 LOCK_WAIT_PATH=$(session_presentation_lock_path) \
   || fail "could not resolve session lock for resume lock-wait"
-ROOT="$ROOT" READY="$LOCK_WAIT_READY" HOLD="$LOCK_WAIT_HOLD_SECONDS" LOCK="$LOCK_WAIT_PATH" bash -c '
+FM_HOME="$HOME_DIR" ROOT="$ROOT" READY="$LOCK_WAIT_READY" HOLD="$LOCK_WAIT_HOLD_SECONDS" LOCK="$LOCK_WAIT_PATH" bash -c '
   . "$ROOT/bin/fm-wake-lib.sh"
   fm_lock_try_acquire "$LOCK" || exit 1
   : > "$READY"
