@@ -1,0 +1,91 @@
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/usr/local/bin/node
+FM_TEST_BEGIN 2026-11-07T02:04:09Z tests/fm-backend-herdr-workspace-per-home-e2e.test.sh family=real-herdr-gated expected_gate_skip=herdr
+ok - real herdr E2E: a primary-shaped home spawns a crewmate on the herdr backend
+ok - real herdr E2E: the primary-shaped home's crewmate landed in the 'firstmate' workspace
+ok - real herdr E2E: the primary spawns a --secondmate task on the herdr backend
+ok - real herdr E2E: a --secondmate spawn by the PRIMARY lands in the SECONDMATE's own labeled workspace, distinct from the primary's
+ok - real herdr E2E: a crewmate spawns successfully FROM a secondmate-shaped home's own fm-spawn.sh process
+ok - real herdr E2E: a crewmate spawned FROM the secondmate-shaped home lands in the secondmate's OWN workspace - falls out of per-home resolution, no glue needed
+ok - real herdr E2E: list_live from the primary's own context sees only the primary's own task
+ok - real herdr E2E: list_live from the secondmate's own context sees only tasks in the secondmate's own workspace (both its own tab and its crewmate's)
+not ok - fm-teardown.sh failed for the primary-shaped crewmate cm1
+REFUSED: cannot resolve the shared Treehouse project lock for /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s0/tmp/fm-herdr-e2e.VehBpJ/scratch-project-1; nothing was changed
+fm-herdr-lab: missing fleet-state tripwire for 'fm-lab-herdr-e2e-40961'; refusing destructive calls
+FM_TEST_END 2026-11-07T02:04:47Z tests/fm-backend-herdr-workspace-per-home-e2e.test.sh exit=1 duration_ms=38588 gate_skip=false
+FM_TEST_BEGIN 2026-11-07T02:04:47Z tests/fm-herdr-session-cleanup-e2e.test.sh family=real-herdr-gated expected_gate_skip=herdr
+ok - real named lab reproduced the exact restored one-tab one-pane childless no-agent shell shape
+ok - real named lab cleanup closes only the exact stale pane and preserves exact focus
+ok - real named lab cleanup is idempotent and leaves the default fleet session to the teardown tripwire
+evidence: herdr=0.7.5 protocol=17 default-session-tripwire=armed
+FM_TEST_END 2026-11-07T02:04:58Z tests/fm-herdr-session-cleanup-e2e.test.sh exit=0 duration_ms=10293 gate_skip=false
+FM_TEST_BEGIN 2026-11-07T02:04:58Z tests/fm-backend-herdr-treehouse-wait-e2e.test.sh family=real-herdr-gated expected_gate_skip=herdr
+ok - a slow but advancing treehouse get completes the launch on Herdr and records its worktree
+ok - a get that exits without a worktree is refused promptly on Herdr and says so
+ok - a get that fails after a hook ran inside its new worktree is refused on Herdr with no launch line typed
+ok - a teardown on the same Herdr session gets past its presentation lock preflight while a projected spawn's get is still running
+ok - a second dispatch in the same home completes, projected, while a get runs and a teardown waits in treehouse return behind it
+ok - the teardown, its pane already closed under the presentation lock, completes once its treehouse return gets the pool lock
+ok - the projected spawn whose get was held open completes once the get settles
+ok - a projected spawn waits for a presentation lock still busy after its get and then launches under it
+ok - a refused get's abort cleanup waits out a busy presentation lock and removes its projection and journal under it
+ok - a presentation lock still busy at the get ceiling refuses the launch, naming its holder and the projection left behind
+# all fm-backend-herdr-treehouse-wait-e2e tests passed
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/pre-rebase: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/pre-applypatch: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/pre-auto-gc: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/pre-merge-commit: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/post-commit: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/sendemail-validate: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/applypatch-msg: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/prepare-commit-msg: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/post-checkout: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/post-applypatch: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/post-rewrite: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/commit-msg: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/pre-push: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/post-merge: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks/pre-commit: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-gated-79264.git-hooks: Directory not empty
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/pre-rebase: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/pre-applypatch: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/pre-auto-gc: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/pre-merge-commit: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/post-commit: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/sendemail-validate: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/applypatch-msg: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/prepare-commit-msg: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/post-checkout: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/post-applypatch: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/post-rewrite: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/commit-msg: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/pre-push: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/post-merge: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks/pre-commit: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-second-79264.git-hooks: Directory not empty
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/pre-rebase: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/pre-applypatch: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/pre-auto-gc: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/pre-merge-commit: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/post-commit: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/sendemail-validate: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/applypatch-msg: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/prepare-commit-msg: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/post-checkout: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/post-applypatch: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/post-rewrite: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/commit-msg: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/pre-push: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/post-merge: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks/pre-commit: Permission denied
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state/hthw-held-79264.git-hooks: Directory not empty
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home/state: Directory not empty
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6/home: Directory not empty
+rm: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.333ycn/s2/tmp/fm-herdr-treehouse-wait.Zsrfe6: Directory not empty
+FM_TEST_END 2026-11-07T02:07:35Z tests/fm-backend-herdr-treehouse-wait-e2e.test.sh exit=0 duration_ms=156887 gate_skip=false
+FM_TEST_SUMMARY total=3 failed=1 skipped_gate=0 duration_ms=206721
+FM_TEST_SUMMARY_FAMILY family=real-herdr-gated count=3 duration_ms=205768 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-backend-herdr-treehouse-wait-e2e.test.sh duration_ms=156887
+FM_TEST_SLOWEST rank=2 script=tests/fm-backend-herdr-workspace-per-home-e2e.test.sh duration_ms=38588
+FM_TEST_SLOWEST rank=3 script=tests/fm-herdr-session-cleanup-e2e.test.sh duration_ms=10293
+EXIT=1

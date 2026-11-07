@@ -1,0 +1,30 @@
+HEAD=f96fa79d5d1bb611f897e233ae53abb5c889f015 lab=/private/tmp/fm-lab.EEABA2
+--- 9 matched answers: not yet qualifying
+kind            asked answered matched open withdrawn recent  status
+finding-scope       9        9       9    0         0    9/9  not-yet
+--- 10 matched answers
+kind            asked answered matched open withdrawn recent  status
+finding-scope      10       10      10    0         0  10/10  qualifies
+$ bin/fm-scorebook.sh granted finding-scope
+rc=1
+$ bin/fm-scorebook.sh grant finding-scope --captain-words-file /private/tmp/fm-lab.EEABA2/words.txt
+rc=0
+$ bin/fm-scorebook.sh granted finding-scope
+rc=0
+kind            asked answered matched open withdrawn recent  status
+finding-scope      10       10      10    0         0  10/10  granted
+--- adversarial: captain-only kind with captain words still refuses
+$ bin/fm-scorebook.sh grant merge --captain-words-file /private/tmp/fm-lab.EEABA2/words.txt
+fm-scorebook: kind merge always stays with the captain: AGENTS.md or a policy-owning skill reserves it for his own concrete word, so it cannot be handed to firstmate
+rc=1
+--- adversarial: an unmatched answer after the grant
+$ bin/fm-scorebook.sh answer chat-20261107T050808Z-5250 --matched no --answer fix it
+rc=0
+kind            asked answered matched open withdrawn recent  status
+finding-scope      11       11      10    0         0   9/10  granted
+$ bin/fm-scorebook.sh granted finding-scope
+rc=0
+$ bin/fm-scorebook.sh revoke finding-scope --reason captain took it back
+rc=0
+$ bin/fm-scorebook.sh granted finding-scope
+rc=1

@@ -1,0 +1,10 @@
+warning: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.VrDmSX/s0/tmp/fm-herdr-presentation.JueVRD/home/data/lock-refuse-resume-r1/launch-brief.md records no ship branch; defaulting to legacy branch fm/lock-refuse-resume-r1
+warning: /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-test-run.VrDmSX/s0/tmp/fm-herdr-presentation.JueVRD/home/data/lock-refuse-resume-r1/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+DBGPROBE 1794023035 reached presentation recovery lock (wait=0) ses=fm-lab-fm-herdr-present-81216-11556 path=/tmp/firstmate-herdr-presentation-501/order-5100d0fe5917f3b1bd7bbca6bd9b611c.lock link=/private/tmp/firstmate-herdr-presentation-501/order-5100d0fe5917f3b1bd7bbca6bd9b611c.lock.owner.ONkdST ownerpid=35620 pidstart=Sat Nov  7 03:43:52 2026 probe=Sat Nov  7 03:43:52 2026 alive=y self=35682
+DBGPROBE 1794023048 acquired held=1 lock=/tmp/firstmate-herdr-presentation-501/order-5100d0fe5917f3b1bd7bbca6bd9b611c.lock recovered=
+warning: quarantined herdr presentation for lock-refuse-resume-r1 is dead or agent-free; exact bound reclaim may proceed, otherwise spawning flat
+A new version of treehouse is available: v3.1.0 → v3.1.8
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Leased worktree at ~/.treehouse/recovery-project-d3bd96/2/recovery-project. Run 'treehouse return ~/.treehouse/recovery-project-d3bd96/2/recovery-project' to release it.

@@ -1,0 +1,94 @@
+cwd: task copy on fm/fm-upstream-merge-1106 (read-only status/db reads); script from gate HEAD f96fa79d
+$ fm-nm-rounds.sh check --step test --out-dir $OUT
+run: 01M6STAFBZ2FEDNVKKJ5FJ816K
+step: test
+fix_rounds: 2
+cap: 3
+verdict: under-cap
+findings: teardown-holder-state-leak,teardown-secondmate-child-fm-home,lab-primary-no-autoarm-in-gate
+rc=0
+$ fm-nm-rounds.sh check --step test --cap 4 --out-dir $OUT
+run: 01M6STAFBZ2FEDNVKKJ5FJ816K
+step: test
+fix_rounds: 2
+cap: 4
+verdict: under-cap
+findings: teardown-holder-state-leak,teardown-secondmate-child-fm-home,lab-primary-no-autoarm-in-gate
+rc=0
+$ fm-nm-rounds.sh check --step review --out-dir $OUT
+run: 01M6STAFBZ2FEDNVKKJ5FJ816K
+step: review
+fix_rounds: 0
+cap: 3
+verdict: under-cap
+findings: review-1
+rc=0
+--- adversarial: cap equal to the rounds already spent
+$ fm-nm-rounds.sh check --step test --cap 2 --out-dir $OUT
+run: 01M6STAFBZ2FEDNVKKJ5FJ816K
+step: test
+fix_rounds: 2
+cap: 2
+verdict: cap-reached
+findings: teardown-holder-state-leak,teardown-secondmate-child-fm-home,lab-primary-no-autoarm-in-gate
+file: /tmp/fm-nmr.6R72j6/nm-01M6STAFBZ2FEDNVKKJ5FJ816K-test-rounds.txt
+escalation: needs-decision [at=1794028148] [key=nm-01M6STAFBZ2FEDNVKKJ5FJ816K-test]: fix-round cap rounds=2 findings=teardown-holder-state-leak,teardown-secondmate-child-fm-home,lab-primary-no-autoarm-in-gate file=/tmp/fm-nmr.6R72j6/nm-01M6STAFBZ2FEDNVKKJ5FJ816K-test-rounds.txt
+rc=3
+## out-dir file nm-01M6STAFBZ2FEDNVKKJ5FJ816K-test-rounds.txt
+run: 01M6STAFBZ2FEDNVKKJ5FJ816K
+step: test
+fix_rounds: 2
+
+## round 1 (initial)
+- id: herdr-per-home-teardown-fm-home
+  severity: warning
+  file: tests/fm-backend-herdr-workspace-per-home-e2e.test.sh:232
+  action: auto-fix
+  description: |
+    This real-Herdr e2e ran fm-teardown.sh with FM_*_OVERRIDE but no FM_HOME. Teardown then anchored the shared Treehouse project lock under the code root's state/, which a gate worktree or fresh clone does not have. The result was 'REFUSED: cannot resolve the shared Treehouse project lock' on any Herdr host outside the operator's own checkout. The bug predates the merge (same lock code on base). Fixed by giving each teardown the FM_HOME its spawn used; the test failed before the fix and passes after.
+- id: runbook-lab-physical-path
+  severity: info
+  file: 
+  action: no-op
+  description: |
+    The runbook's lab recipe, `mktemp -d "${TMPDIR:-/tmp}/fm-lab.XXXXXX"`, gives a symlinked path on macOS (/tmp and /var/folders resolve under /private). fm_gate_lab_permitted requires FM_HOME to equal its physical path, so a lab primary started that way gets 'refusing fleet lifecycle from inside a no-mistakes gate worktree' on spawn. Wrapping the path with `cd ... && pwd -P` fixes it. This is unchanged from base and not caused by the merge, but the runbook recipe may be worth updating.
+
+## round 2 (fix)
+- id: herdr-launcher-teardown-fm-home
+  severity: warning
+  file: tests/fm-backend-herdr-launcher-workspace-e2e.test.sh:435
+  action: auto-fix
+  description: |
+    This real-Herdr e2e ran fm-teardown.sh for dupC with FM_*_OVERRIDE but no FM_HOME. Teardown then looked for the shared Treehouse project lock under the code root's state/, which a fresh checkout does not have, and refused with 'cannot resolve the shared Treehouse project lock'. It is the same bug as round 1's per-home finding. Round 1's pass was an artifact: the unfixed per-home test, which ran first, had left a state/ in the code root. Fixed by giving teardown FM_HOME="$PRIMARY_HOME". The test failed at HEAD and passes after the fix.
+- id: herdr-presentation-lock-refuse-hold-race
+  severity: warning
+  file: tests/fm-backend-herdr-presentation-e2e.test.sh:1469
+  action: auto-fix
+  description: |
+    The case 'default resumed identity refuses session lock contention' held the lock for a fixed 15s. fm-spawn.sh's bounded acquire counts 50 attempts, not time, and each contended attempt forks sh and `ps -o lstart`, so on this macOS host the window is about 14s. The resume reached the lock at +2s and got it as the holder released, so the case failed on every run. The issue predates the merge: base's lock library takes about 13s too. Fixed by holding the lock until the resume returns, using the release-file pattern the test already uses elsewhere. All four lock holders now also get FM_HOME, so they stop creating a stray state/ in the code root, which is what masked the launcher bug.
+- id: herdr-bounded-lock-attempt-counted
+  severity: info
+  file: bin/fm-spawn.sh:2111
+  action: no-op
+  description: |
+    Product note, not changed in this test phase. spawn_herdr_presentation_order_lock_acquire and fm_backend_herdr_kill bound their non-waiting lock acquire by 50 attempts with a 0.1s sleep, which reads like about 5s. Each failed fm_lock_try_acquire also forks liveness probes (sh for the pid, ps -o lstart), so the real window is about 14s on this macOS host and varies with load. That makes a concurrent resume refusal or an unlocked-kill refusal slower and less predictable than the code suggests. A wall-clock deadline (for example via $SECONDS) would make the bound host-independent. The behavior is the same at base and upstream.
+
+## round 3 (fix)
+- id: teardown-holder-state-leak
+  severity: warning
+  file: tests/fm-teardown.test.sh:3258
+  action: auto-fix
+  description: |
+    The herdr-orphan-refusal case's lock holder sourced bin/fm-wake-lib.sh with no FM_STATE_OVERRIDE or FM_HOME. Every run of the suite therefore created an untracked state/ in the code root, with the same effect as the leak round 2 found in the presentation e2e. Fixed by giving the holder FM_STATE_OVERRIDE="$case_dir/state", the pattern the suite's other holder already uses. The suite still passes and the code root stays clean. The holder exists at base, so this predates the merge.
+- id: teardown-secondmate-child-fm-home
+  severity: warning
+  file: tests/fm-teardown.test.sh:1926
+  action: auto-fix
+  description: |
+    test_forced_secondmate_dirty_child_return_warns_and_completes ran a forced secondmate teardown with no FM_HOME. Its child sits in a real pool slot, so teardown resolves the shared Treehouse project lock under the code root's state/. That directory only existed because of the holder leak above. On a clean checkout the case fails every time with 'REFUSED: cannot resolve the shared Treehouse project lock for child child-scout', the same bug rounds 1-2 fixed in the Herdr e2e suites. FM_HOME="$case_dir" does not work: teardown's removal guard refuses a secondmate home inside FM_HOME. So the case now gets its own primary home, FM_HOME="$case_dir/primary-home", with a state/ dir. It failed before the fix and passes after; the full suite passes. The case exists at base, so this predates the merge.
+- id: lab-primary-no-autoarm-in-gate
+  severity: info
+  file: 
+  action: no-op
+  description: |
+    Lab note, not a product change. A Claude primary started from the gate worktree, as the runbook prescribes, never gets the Stop-hook watcher auto-arm. fm-claude-stop-autoarm.sh exits on fm_primary_root_matches because a linked git worktree is not a primary root, the same scoping that keeps crew worktrees inert. The behavior is the same at base. The primary only learns a scout finished if it starts its own wait; round 1's primary did, this round's did not. Live lab evidence should state when a captain nudge stood in for that notification.

@@ -1,0 +1,35 @@
+$ fm-approved-head.sh live ah-lab https://github.com/hcho22/firstmate-private/pull/25
+55fc0ee4c79c43e01d647f8303e30a4d630c167f
+rc=0
+--- no approved head recorded, captain present
+$ verify ah-lab https://github.com/hcho22/firstmate-private/pull/25 55fc0ee4c79c43e01d647f8303e30a4d630c167f main
+error: refusing to merge https://github.com/hcho22/firstmate-private/pull/25: no captain-approved head is recorded for task ah-lab
+error: present the pull request to the captain again and record the head shown then with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6STAFBZ2FEDNVKKJ5FJ816K/bin/fm-approved-head.sh record ah-lab https://github.com/hcho22/firstmate-private/pull/25 <head-shown>
+rc=1
+--- no approved head recorded, --away
+notice: no captain-approved head is recorded for https://github.com/hcho22/firstmate-private/pull/25; merging under away authority, bound to no head
+rc=3
+--- captain shown the PR at an earlier head 0ced86d6085eff7f0a415b7ecb183fba5ff157bc; PR head then moved by an ordinary commit
+$ record ah-lab https://github.com/hcho22/firstmate-private/pull/25 0ced86d6085eff7f0a415b7ecb183fba5ff157bc
+recorded: approved head 0ced86d6085eff7f0a415b7ecb183fba5ff157bc for https://github.com/hcho22/firstmate-private/pull/25
+rc=0
+approved_head=0ced86d6085eff7f0a415b7ecb183fba5ff157bc https://github.com/hcho22/firstmate-private/pull/25
+pr=https://github.com/hcho22/firstmate-private/pull/25
+$ verify ah-lab https://github.com/hcho22/firstmate-private/pull/25 55fc0ee4c79c43e01d647f8303e30a4d630c167f main
+error: refusing to merge https://github.com/hcho22/firstmate-private/pull/25: the captain approved head 0ced86d6085eff7f0a415b7ecb183fba5ff157bc, but the live head is 55fc0ee4c79c43e01d647f8303e30a4d630c167f
+  - 55fc0ee4c79c43e01d647f8303e30a4d630c167f no-mistakes(document): Document retry handling for failed approved-head reads (a commit added to the pull request)
+  - 1 commit between the heads, 1 not on main
+error: present the pull request to the captain again at head 55fc0ee4c79c43e01d647f8303e30a4d630c167f, recording that head with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6STAFBZ2FEDNVKKJ5FJ816K/bin/fm-approved-head.sh record ah-lab https://github.com/hcho22/firstmate-private/pull/25 55fc0ee4c79c43e01d647f8303e30a4d630c167f
+rc=1
+--- captain shown the live head (record with no head reads it from GitHub)
+$ record ah-lab https://github.com/hcho22/firstmate-private/pull/25
+recorded: approved head 55fc0ee4c79c43e01d647f8303e30a4d630c167f for https://github.com/hcho22/firstmate-private/pull/25
+rc=0
+approved_head=55fc0ee4c79c43e01d647f8303e30a4d630c167f https://github.com/hcho22/firstmate-private/pull/25
+$ verify ah-lab https://github.com/hcho22/firstmate-private/pull/25 55fc0ee4c79c43e01d647f8303e30a4d630c167f main
+verified: live head 55fc0ee4c79c43e01d647f8303e30a4d630c167f of https://github.com/hcho22/firstmate-private/pull/25 is the captain-approved head
+rc=0
+--- approved head bound to a different PR URL does not count
+error: refusing to merge https://github.com/hcho22/firstmate-private/pull/24: no captain-approved head is recorded for task ah-lab
+error: present the pull request to the captain again and record the head shown then with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6STAFBZ2FEDNVKKJ5FJ816K/bin/fm-approved-head.sh record ah-lab https://github.com/hcho22/firstmate-private/pull/24 <head-shown>
+rc=1

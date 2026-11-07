@@ -1,0 +1,48 @@
+$ fm-scorebook.sh kinds
+finding-scope	hand-off	an ask-user review finding whose fix would expand the accepted contract
+finding-design	hand-off	an ask-user review finding that needs a product or architecture call the accepted intent does not settle
+finding-repeat	hand-off	a repeated same-theme review finding while fixes accrete around a questionable abstraction
+design	hand-off	a design or product pick outside a review gate, such as an investigation, visual review, or intake question
+merge	captain-only	a merge or local landing approval; a project's yolo posture, not this record, is the only standing relaxation
+credential	captain-only	a credential or login only the captain can supply
+destructive	captain-only	a destructive, irreversible, or security-sensitive action
+authority	captain-only	any other decision AGENTS.md's hard rules, captain-instruction precedence, or a policy-owning skill reserve for his own concrete word, such as a direct project write under hard rule 1 or a fix-round cap escalation under ask-user-authority
+other	hand-off	any other question no AGENTS.md rule or policy-owning skill reserves for his own word
+ask -> chat-20261107T020056Z-88845
+ask -> chat-20261107T020057Z-89242
+ask -> chat-20261107T020058Z-89636
+ask -> chat-20261107T020058Z-90023
+ask -> chat-20261107T020059Z-90416
+ask -> chat-20261107T020100Z-90971
+ask -> chat-20261107T020100Z-91595
+ask -> chat-20261107T020101Z-92142
+ask -> chat-20261107T020102Z-92579
+$ grant finding-scope after 9 matched (allowed: the 10-answer threshold is advisory; grant refuses only captain-only kinds, per the script header)
+rc=0
+ask -> chat-20261107T020103Z-93111
+$ fm-scorebook.sh report
+kind            asked answered matched open withdrawn recent  status
+finding-scope      10       10      10    0         0  10/10  granted
+finding-design      0        0       0    0         0    0/0  not-yet
+finding-repeat      0        0       0    0         0    0/0  not-yet
+design              0        0       0    0         0    0/0  not-yet
+merge               0        0       0    0         0    0/0  captain-only
+credential          0        0       0    0         0    0/0  captain-only
+destructive         0        0       0    0         0    0/0  captain-only
+authority           0        0       0    0         0    0/0  captain-only
+other               0        0       0    0         0    0/0  not-yet
+
+A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
+A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
+$ granted finding-scope (before grant)
+rc=0
+$ grant finding-scope after 10 matched
+rc=0
+$ granted finding-scope
+rc=0
+$ grant merge (captain-only, must refuse)
+fm-scorebook: kind merge always stays with the captain: AGENTS.md or a policy-owning skill reserves it for his own concrete word, so it cannot be handed to firstmate
+rc=1
+$ revoke finding-scope
+rc=0
+granted rc=1

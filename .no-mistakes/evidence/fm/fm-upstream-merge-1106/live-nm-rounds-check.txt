@@ -1,0 +1,29 @@
+$ no-mistakes axi status (this gate run, read-only)
+[33mA new version of no-mistakes is available: v1.79.0 -> v1.106.1
+Run "no-mistakes update" to update[0m
+error: repo not initialized (run 'no-mistakes init' first)
+help[1]: Run `no-mistakes init` to set up the gate in this repository
+$ fm-nm-rounds.sh check --step review
+step: review
+cap: 3
+verdict: unknown
+reason: no-mistakes axi status failed
+rc=1
+$ fm-nm-rounds.sh check --step review --cap 1
+step: review
+cap: 1
+verdict: unknown
+reason: no-mistakes axi status failed
+rc=1
+$ fm-nm-rounds.sh check --step test
+step: test
+cap: 3
+verdict: unknown
+reason: no-mistakes axi status failed
+rc=1
+$ fm-nm-rounds.sh check --step test --cap 1
+step: test
+cap: 1
+verdict: unknown
+reason: no-mistakes axi status failed
+rc=1

@@ -1,0 +1,73 @@
+HEAD=9e15fb6e7f8f4c34f489c26336caa6f822430f0b lab=/private/tmp/fm-lab.lUcgil harness=claude (real CLI, machine login)
+=== primary pane (tmux -L fm-lab capture-pane)
+⏺ Skill(harness-adapters)
+  ⎿  Successfully loaded skill
+  Ran 1 shell command
+⏺ Captain, the lab home is up and has one project, demo. Its project list is missing, so I'm rebuilding that before I launch the scout.
+  Ran 6 shell commands
+⏺ Captain, I've filed the scout's task and written its instructions. Launching it now on Claude.
+  Ran 2 shell commands
+⏺ Captain, the scout is under way on Claude in its own isolated copy of demo and has started reading its instructions. I'll report what hello.sh prints as soon as it finishes, then clean it up.
+  Before launching I rebuilt the missing project list. I registered demo with the standard default for a project with a remote: changes to the product itself go through the full validation pipeline, and internal tooling
+  changes go straight to a PR. Tell me if you want a different setting for demo.
+✻ Churned for 1m 39s · done 8:27 PM
+❯ The scout has posted its status. Read its report, tell me the answer, then tear it down.
+  Ran 2 shell commands
+⏺ Skill(scout-completion)
+  ⎿  Successfully loaded skill
+⏺ Skill(captain-hold-lifecycle)
+  ⎿  Successfully loaded skill
+  Ran 1 shell command
+⏺ Captain, the scout's report checks out against the script itself. It has no open questions for you, so I'm cleaning it up now.
+⏺ Skill(ship-landing)
+  ⎿  Successfully loaded skill
+  Ran 4 shell commands
+⏺ Captain, hello.sh prints exactly this line, followed by a single newline, 18 bytes in total:
+  ahoy from demo 42
+  - Errors and exit: it writes nothing to stderr and exits 0.
+  - Script: it is two lines long, echo "ahoy from demo $((6*7))" under a #!/bin/sh line. The 42 is shell arithmetic, so the output is always the same.
+  - Arguments and setting: the scout ran it with arguments and from another directory, and the output was identical each time. The script reads no arguments or environment.
+  I compared the report against the script myself and it matches. The scout changed nothing in the project and left no questions for you.
+  Cleanup is done. The scout's isolated copy is gone, its task is closed, and the report is saved in the lab's data folder for demo. Nothing else is queued or running.
+✻ Brewed for 1m 15s · done 8:30 PM
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Opus 5.5 | Ctx 90% | 5h 4% / 7d 87%
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
+
+=== lifecycle commands the primary ran (from its transcript) and their key output
+$ bin/fm-session-start.sh 2>&1 | tee /tmp/fm-digest-$$.txt | head -300
+$ sed -n '1,60p' bin/fm-project-mode.sh; bin/fm-brief.sh --help 2>&1 | head -60
+$ printf '# Projects\n\n- demo [no-mistakes-prod-only] - Demo shell project with hello.sh (added 2026-11-06)\n' > "$FM_HOME/data/projects.md" && bin/fm-project-mode.sh demo; bin/fm-tasks-axi.sh --help 2>&1 | head -40; bin/fm-tasks-axi.sh add --help 2>&1 | head -40
+$ bin/fm-tasks-axi.sh add "demo hello.sh output" --mint --prefix demo --kind scout --repo demo --body "Scout: what exactly does hello.sh print when run. Claude scout; tear down after report (captain request)." 2>&1
+$ T=demo-demo-hello-sh-output-11 && bin/fm-brief.sh $T demo --scout 2>&1 | tail -5; ls $FM_HOME/data/demo/$T/ && cat $FM_HOME/data/demo/$T/brief.md; ls $FM_HOME/config
+$ bin/fm-spawn.sh --help 2>&1 | head -40
+$ bin/fm-spawn.sh demo-demo-hello-sh-output-11 "$FM_HOME/projects/demo" --scout --harness claude --effort low 2>&1 | tail -30
+$ T=demo-demo-hello-sh-output-11; cat $FM_HOME/state/$T.status; bin/fm-crew-state.sh $T 2>&1 | head -20; echo ---; cat $FM_HOME/data/demo/$T/report.md
+$ bin/fm-teardown.sh --help 2>&1 | head -25
+$ sed -n '2,40p' bin/fm-teardown.sh | grep -n -i 'usage\|report\|--' | head -20
+$ bin/fm-teardown.sh demo-demo-hello-sh-output-11 2>&1 | tail -20
+$ bin/fm-tasks-axi.sh ready 2>&1 | head; ls $FM_HOME/state/*.meta 2>&1; test -f $FM_HOME/data/demo/demo-demo-hello-sh-output-11/report.md && echo report-kept; bin/fm-wake-drain.sh 2>&1 | tail -5
+
+=== scout status
+done [at=1794025671]: hello.sh prints 'ahoy from demo 42
+' (18 bytes) to stdout, empty stderr, exit 0
+=== lab after teardown
+primary:0: claude.exe* (1 panes) [220x60] 
+home-summary.json
+operational-inbox
+terminal-outcomes
+brief.md
+launch-brief.md
+report.md
+  - the backlog listing disclosed omitted queued items and this turn needs them,
+Claude keeps each copy after its subagent ends without dispatching WorktreeRemove, so no WorktreeRemove hook is wired and teardown retires them.
+`permissions.allow` pre-approves rather than controls availability, so no closed positive allowlist exists.
+  closed: "-"
+The worktree is your laboratory - install, run, edit, and make scratch commits freely; all of it is discarded at teardown.
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/tmp/fm-lab.lUcgil
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/tmp/fm-lab.lUcgil
+error: teardown refused: task record is not a regular file at /private/tmp/fm-lab.lUcgil/state/--help.meta
+4:# scout tasks before reporting success (a secondmate teardown transitions none,
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/tmp/fm-lab.lUcgil

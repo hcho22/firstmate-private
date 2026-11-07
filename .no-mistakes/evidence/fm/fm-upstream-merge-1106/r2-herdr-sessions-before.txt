@@ -1,0 +1,5 @@
+name                 status   directory                                        socket
+default              running  /Users/hcho/.config/herdr                        /Users/hcho/.config/herdr/herdr.sock
+fm-lab-fm-herdr-present-31895-22495 stopped  /Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495 /Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-31895-22495/herdr.sock
+fm-lab-fm-herdr-present-48285-17739 stopped  /Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739 /Users/hcho/.config/herdr/sessions/fm-lab-fm-herdr-present-48285-17739/herdr.sock
+fm-remote            stopped  /Users/hcho/.config/herdr/sessions/fm-remote     /Users/hcho/.config/herdr/sessions/fm-remote/herdr.sock

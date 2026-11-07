@@ -1,0 +1,44 @@
+$ cat config/merge-tiers
+# lab low-risk tier for the fmp clone
+fmp low-risk docs/**
+fmp low-risk tests/**
+fmp always-ask tests/lib.sh
+
+=== PR #27 changed files read live from GitHub
+files: 30
+load rc=0
+verdict: WAITS FOR CAPTAIN (11 of 30 refused)
+  - bin/backends/herdr.sh (matches no low-risk pattern)
+  - bin/fm-afk-launch.sh (matches no low-risk pattern)
+  - bin/fm-busy-event.sh (matches no low-risk pattern)
+  - bin/fm-evidence-import-contract.py (matches no low-risk pattern)
+  - bin/fm-fleet-snapshot.sh (matches no low-risk pattern)
+  - bin/fm-mkdir-lib.sh (matches no low-risk pattern)
+  - bin/fm-remote-job-lib.sh (matches no low-risk pattern)
+  - bin/fm-remote-job-worker.sh (matches no low-risk pattern)
+  - bin/fm-spawn.sh (matches no low-risk pattern)
+  - bin/fm-teardown.sh (matches no low-risk pattern)
+  - bin/fm-test-run.sh (matches no low-risk pattern)
+
+=== PR #23 changed files read live from GitHub
+files: 8
+load rc=0
+verdict: WAITS FOR CAPTAIN (5 of 8 refused)
+  - .agents/skills/ask-user-authority/SKILL.md (always ask: agent instructions or settings)
+  - .agents/skills/captain-hold-lifecycle/SKILL.md (always ask: agent instructions or settings)
+  - .agents/skills/operational-home-layout/SKILL.md (always ask: agent instructions or settings)
+  - AGENTS.md (always ask: agent instructions or settings)
+  - bin/fm-scorebook.sh (matches no low-risk pattern)
+=== Docs-only path list (PR-shaped): docs/a.md, tests/fm-x.test.sh
+verdict: LOW-RISK
+
+=== Adversarial: built-in always-ask paths under a low-risk pattern (docs/.github/x.yml, tests/AGENTS.md, docs/.CLAUDE/settings.json)
+verdict: WAITS
+  - docs/.github/workflows/x.yml (always ask: CI or forge configuration)
+  - tests/AGENTS.md (always ask: agent instructions or settings)
+  - docs/.CLAUDE/settings.json (always ask: agent instructions or settings)
+  - tests/lib.sh (always ask: matches tests/lib.sh)
+
+=== Adversarial: malformed rule makes every low-risk merge refuse
+(eval):6: no such file or directory: /tmp/mtcfg.17542/merge-tiers
+load rc=2 error: /tmp/mtcfg.17542/merge-tiers line 1: pattern "docs/[a-z]*" contains one of [ ] { } \, which are not supported

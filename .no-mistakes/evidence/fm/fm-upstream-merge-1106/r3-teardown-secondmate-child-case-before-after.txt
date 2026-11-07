@@ -1,0 +1,7 @@
+Single case test_forced_secondmate_dirty_child_return_warns_and_completes from HEAD 9e15fb6e's unmodified tests/fm-teardown.test.sh, clean code root (state/: none):
+  teardown stderr: REFUSED: cannot resolve the shared Treehouse project lock for child child-scout; forced teardown changed nothing
+not ok - secondmate-child-dirty-return: a lost child slot should exit 4 after retirement: expected exit 4, got 1
+--- same case with the fix:
+ok - a forced secondmate teardown warns about a dirty child return and still completes
+--- holder leak: sourcing bin/fm-wake-lib.sh with no FM_HOME/FM_STATE_OVERRIDE (what the line-3255 holder did):
+code-root state/ after: state

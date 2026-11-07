@@ -1,0 +1,137 @@
+HEAD=9e15fb6e7f8f4c34f489c26336caa6f822430f0b lab=/private/tmp/fm-lab.q4KTVk
+=== #25 approved head: captain-approved merge covers only the commit he was shown
+$ bin/fm-approved-head.sh live ah-lab https://github.com/hcho22/firstmate-private/pull/25
+55fc0ee4c79c43e01d647f8303e30a4d630c167f
+rc=0
+--- no head recorded, captain present: refuse
+$ bin/fm-approved-head.sh verify ah-lab https://github.com/hcho22/firstmate-private/pull/25 55fc0ee4c79c43e01d647f8303e30a4d630c167f main
+error: refusing to merge https://github.com/hcho22/firstmate-private/pull/25: no captain-approved head is recorded for task ah-lab
+error: present the pull request to the captain again and record the head shown then with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6STAFBZ2FEDNVKKJ5FJ816K/bin/fm-approved-head.sh record ah-lab https://github.com/hcho22/firstmate-private/pull/25 <head-shown>
+rc=1
+--- no head recorded, --away: proceed bound to no head (rc=3)
+$ bin/fm-approved-head.sh verify ah-lab https://github.com/hcho22/firstmate-private/pull/25 55fc0ee4c79c43e01d647f8303e30a4d630c167f main --away
+notice: no captain-approved head is recorded for https://github.com/hcho22/firstmate-private/pull/25; merging under away authority, bound to no head
+rc=3
+--- adversarial: captain shown an earlier head 0ced86d6085eff7f0a415b7ecb183fba5ff157bc, live head moved
+$ bin/fm-approved-head.sh record ah-lab https://github.com/hcho22/firstmate-private/pull/25 0ced86d6085eff7f0a415b7ecb183fba5ff157bc
+recorded: approved head 0ced86d6085eff7f0a415b7ecb183fba5ff157bc for https://github.com/hcho22/firstmate-private/pull/25
+rc=0
+$ bin/fm-approved-head.sh verify ah-lab https://github.com/hcho22/firstmate-private/pull/25 55fc0ee4c79c43e01d647f8303e30a4d630c167f main
+error: refusing to merge https://github.com/hcho22/firstmate-private/pull/25: the captain approved head 0ced86d6085eff7f0a415b7ecb183fba5ff157bc, but the live head is 55fc0ee4c79c43e01d647f8303e30a4d630c167f
+  - the commits between them could not be read: the task worktree is unavailable
+error: present the pull request to the captain again at head 55fc0ee4c79c43e01d647f8303e30a4d630c167f, recording that head with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6STAFBZ2FEDNVKKJ5FJ816K/bin/fm-approved-head.sh record ah-lab https://github.com/hcho22/firstmate-private/pull/25 55fc0ee4c79c43e01d647f8303e30a4d630c167f
+rc=1
+$ bin/fm-approved-head.sh verify ah-lab https://github.com/hcho22/firstmate-private/pull/25 55fc0ee4c79c43e01d647f8303e30a4d630c167f main --away
+error: refusing to merge https://github.com/hcho22/firstmate-private/pull/25: the captain approved head 0ced86d6085eff7f0a415b7ecb183fba5ff157bc, but the live head is 55fc0ee4c79c43e01d647f8303e30a4d630c167f
+  - the commits between them could not be read: the task worktree is unavailable
+error: the captain is away, so hold the merge for the captain's return and present the pull request again at head 55fc0ee4c79c43e01d647f8303e30a4d630c167f then; record that head now, with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6STAFBZ2FEDNVKKJ5FJ816K/bin/fm-approved-head.sh record ah-lab https://github.com/hcho22/firstmate-private/pull/25 55fc0ee4c79c43e01d647f8303e30a4d630c167f, only when the captain's away words explicitly cover it
+rc=1
+--- captain shown the live head
+$ bin/fm-approved-head.sh record ah-lab https://github.com/hcho22/firstmate-private/pull/25
+recorded: approved head 55fc0ee4c79c43e01d647f8303e30a4d630c167f for https://github.com/hcho22/firstmate-private/pull/25
+rc=0
+$ bin/fm-approved-head.sh verify ah-lab https://github.com/hcho22/firstmate-private/pull/25 55fc0ee4c79c43e01d647f8303e30a4d630c167f main
+verified: live head 55fc0ee4c79c43e01d647f8303e30a4d630c167f of https://github.com/hcho22/firstmate-private/pull/25 is the captain-approved head
+rc=0
+--- adversarial: head bound to another PR URL does not count
+$ bin/fm-approved-head.sh verify ah-lab https://github.com/hcho22/firstmate-private/pull/24 55fc0ee4c79c43e01d647f8303e30a4d630c167f main
+error: refusing to merge https://github.com/hcho22/firstmate-private/pull/24: no captain-approved head is recorded for task ah-lab
+error: present the pull request to the captain again and record the head shown then with: /Users/hcho/.no-mistakes/worktrees/5e4a80ba0eae/01M6STAFBZ2FEDNVKKJ5FJ816K/bin/fm-approved-head.sh record ah-lab https://github.com/hcho22/firstmate-private/pull/24 <head-shown>
+rc=1
+
+=== #24 low-risk merge tier, judged from live changed files
+fmp low-risk docs/**
+fmp low-risk tests/**
+fmp always-ask tests/lib.sh
+--- PR #27 changed files read live from GitHub
+load rc=0 
+verdict: WAITS FOR CAPTAIN (11 of 30 refused)
+  - bin/backends/herdr.sh (matches no low-risk pattern)
+  - bin/fm-afk-launch.sh (matches no low-risk pattern)
+  - bin/fm-busy-event.sh (matches no low-risk pattern)
+  - bin/fm-evidence-import-contract.py (matches no low-risk pattern)
+  - bin/fm-fleet-snapshot.sh (matches no low-risk pattern)
+  - bin/fm-mkdir-lib.sh (matches no low-risk pattern)
+  - bin/fm-remote-job-lib.sh (matches no low-risk pattern)
+  - bin/fm-remote-job-worker.sh (matches no low-risk pattern)
+  - bin/fm-spawn.sh (matches no low-risk pattern)
+  - bin/fm-teardown.sh (matches no low-risk pattern)
+  - bin/fm-test-run.sh (matches no low-risk pattern)
+--- PR #23 changed files read live from GitHub
+load rc=0 
+verdict: WAITS FOR CAPTAIN (5 of 8 refused)
+  - .agents/skills/ask-user-authority/SKILL.md (always ask: agent instructions or settings)
+  - .agents/skills/captain-hold-lifecycle/SKILL.md (always ask: agent instructions or settings)
+  - .agents/skills/operational-home-layout/SKILL.md (always ask: agent instructions or settings)
+  - AGENTS.md (always ask: agent instructions or settings)
+  - bin/fm-scorebook.sh (matches no low-risk pattern)
+--- docs/tests only
+load rc=0 
+verdict: LOW-RISK (2 files)
+--- adversarial: built-in always-ask paths under a low-risk pattern
+load rc=0 
+verdict: WAITS FOR CAPTAIN (4 of 4 refused)
+  - docs/.github/workflows/x.yml (always ask: CI or forge configuration)
+  - tests/AGENTS.md (always ask: agent instructions or settings)
+  - docs/.CLAUDE/settings.json (always ask: agent instructions or settings)
+  - tests/lib.sh (always ask: matches tests/lib.sh)
+--- adversarial: malformed rule refuses every low-risk merge
+load rc=2 /private/tmp/fm-lab.q4KTVk/config/merge-tiers line 1: pattern "docs/[a-z]*" contains one of [ ] { } \, which are not supported
+verdict: WAITS FOR CAPTAIN (1 of 1 refused)
+  - docs/a.md (matches no low-risk pattern)
+--- adversarial: no declaration
+load rc=1 no low-risk merge tier is declared for fmp: /private/tmp/fm-lab.q4KTVk/config/merge-tiers does not exist
+verdict: WAITS FOR CAPTAIN (1 of 1 refused)
+  - docs/a.md (matches no low-risk pattern)
+
+=== #23 captain scorebook
+$ bin/fm-scorebook.sh grant merge
+fm-scorebook: kind merge always stays with the captain: AGENTS.md or a policy-owning skill reserves it for his own concrete word, so it cannot be handed to firstmate
+rc=1
+$ bin/fm-scorebook.sh granted merge
+rc=1
+ask -> chat-20261107T042340Z-45502
+ask -> chat-20261107T042340Z-46290
+ask -> chat-20261107T042341Z-46777
+ask -> chat-20261107T042342Z-47446
+ask -> chat-20261107T042343Z-48111
+ask -> chat-20261107T042343Z-48641
+ask -> chat-20261107T042344Z-49175
+ask -> chat-20261107T042345Z-49495
+ask -> chat-20261107T042345Z-49875
+ask -> chat-20261107T042346Z-50300
+$ bin/fm-scorebook.sh report
+kind            asked answered matched open withdrawn recent  status
+finding-scope      10       10      10    0         0  10/10  qualifies
+finding-design      0        0       0    0         0    0/0  not-yet
+finding-repeat      0        0       0    0         0    0/0  not-yet
+design              0        0       0    0         0    0/0  not-yet
+merge               0        0       0    0         0    0/0  captain-only
+credential          0        0       0    0         0    0/0  captain-only
+destructive         0        0       0    0         0    0/0  captain-only
+authority           0        0       0    0         0    0/0  captain-only
+other               0        0       0    0         0    0/0  not-yet
+
+A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
+A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
+rc=0
+$ bin/fm-scorebook.sh granted finding-scope
+rc=1
+$ bin/fm-scorebook.sh grant finding-scope
+fm-scorebook: grant needs --captain-words-file with the captain's own yes
+rc=2
+$ bin/fm-scorebook.sh granted finding-scope
+rc=1
+$ bin/fm-scorebook.sh revoke finding-scope
+fm-scorebook: revoke needs --reason
+rc=2
+$ bin/fm-scorebook.sh granted finding-scope
+rc=1
+
+=== #22 review fix-round cap
+$ bin/fm-nm-rounds.sh report
+cap: 3
+projects: []
+prs_total: 0
+prs: []
+rc=0

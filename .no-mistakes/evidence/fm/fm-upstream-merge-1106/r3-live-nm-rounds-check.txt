@@ -1,0 +1,82 @@
+cwd: task copy on fm/fm-upstream-merge-1106 (read-only status/db reads); script from gate HEAD 9e15fb6e
+$ fm-nm-rounds.sh check --step test --out-dir $OUT
+run: 01M6STAFBZ2FEDNVKKJ5FJ816K
+step: test
+fix_rounds: 1
+cap: 3
+verdict: under-cap
+findings: herdr-launcher-teardown-fm-home,herdr-presentation-lock-refuse-hold-race,herdr-bounded-lock-attempt-counted
+rc=0
+$ fm-nm-rounds.sh check --step test --cap 2 --out-dir $OUT
+run: 01M6STAFBZ2FEDNVKKJ5FJ816K
+step: test
+fix_rounds: 1
+cap: 2
+verdict: under-cap
+findings: herdr-launcher-teardown-fm-home,herdr-presentation-lock-refuse-hold-race,herdr-bounded-lock-attempt-counted
+rc=0
+$ fm-nm-rounds.sh check --step test --cap 3 --out-dir $OUT
+run: 01M6STAFBZ2FEDNVKKJ5FJ816K
+step: test
+fix_rounds: 1
+cap: 3
+verdict: under-cap
+findings: herdr-launcher-teardown-fm-home,herdr-presentation-lock-refuse-hold-race,herdr-bounded-lock-attempt-counted
+rc=0
+$ fm-nm-rounds.sh check --step review --out-dir $OUT
+run: 01M6STAFBZ2FEDNVKKJ5FJ816K
+step: review
+fix_rounds: 0
+cap: 3
+verdict: under-cap
+findings: review-1
+rc=0
+$ fm-nm-rounds.sh check --step review --cap 1 --out-dir $OUT
+run: 01M6STAFBZ2FEDNVKKJ5FJ816K
+step: review
+fix_rounds: 0
+cap: 1
+verdict: under-cap
+findings: review-1
+rc=0
+$ fm-nm-rounds.sh check --step test --cap 1 --out-dir $OUT
+run: 01M6STAFBZ2FEDNVKKJ5FJ816K
+step: test
+fix_rounds: 1
+cap: 1
+verdict: cap-reached
+findings: herdr-launcher-teardown-fm-home,herdr-presentation-lock-refuse-hold-race,herdr-bounded-lock-attempt-counted
+file: /tmp/nmr.1kXSUO/nm-01M6STAFBZ2FEDNVKKJ5FJ816K-test-rounds.txt
+escalation: needs-decision [at=1794025515] [key=nm-01M6STAFBZ2FEDNVKKJ5FJ816K-test]: fix-round cap rounds=1 findings=herdr-launcher-teardown-fm-home,herdr-presentation-lock-refuse-hold-race,herdr-bounded-lock-attempt-counted file=/tmp/nmr.1kXSUO/nm-01M6STAFBZ2FEDNVKKJ5FJ816K-test-rounds.txt
+rc=3
+=== nm-01M6STAFBZ2FEDNVKKJ5FJ816K-test-rounds.txt (first 30 lines, descriptions cut to 160 chars)
+run: 01M6STAFBZ2FEDNVKKJ5FJ816K
+step: test
+fix_rounds: 1
+
+## round 1 (initial)
+- id: herdr-per-home-teardown-fm-home
+  severity: warning
+  file: tests/fm-backend-herdr-workspace-per-home-e2e.test.sh:232
+  action: auto-fix
+  description: |
+    This real-Herdr e2e ran fm-teardown.sh with FM_*_OVERRIDE but no FM_HOME. Teardown then anchored the shared Treehouse project lock under the code root's sta
+- id: runbook-lab-physical-path
+  severity: info
+  file: 
+  action: no-op
+  description: |
+    The runbook's lab recipe, `mktemp -d "${TMPDIR:-/tmp}/fm-lab.XXXXXX"`, gives a symlinked path on macOS (/tmp and /var/folders resolve under /private). fm_ga
+
+## round 2 (fix)
+- id: herdr-launcher-teardown-fm-home
+  severity: warning
+  file: tests/fm-backend-herdr-launcher-workspace-e2e.test.sh:435
+  action: auto-fix
+  description: |
+    This real-Herdr e2e ran fm-teardown.sh for dupC with FM_*_OVERRIDE but no FM_HOME. Teardown then looked for the shared Treehouse project lock under the code
+- id: herdr-presentation-lock-refuse-hold-race
+  severity: warning
+  file: tests/fm-backend-herdr-presentation-e2e.test.sh:1469
+  action: auto-fix
+  description: |

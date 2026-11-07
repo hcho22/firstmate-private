@@ -1,0 +1,56 @@
+HEAD=57a7fa00b7b1c6cca9da9386889b8161b1d4f2f1 lab=/private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.VlWUoG
+$ fm-scorebook.sh grant merge --captain-words-file /private/var/folders/9t/k_yy9fqs5vd27rf12jx_rzqh0000gn/T/fm-lab.VlWUoG/words.txt
+fm-scorebook: kind merge always stays with the captain: AGENTS.md or a policy-owning skill reserves it for his own concrete word, so it cannot be handed to firstmate
+rc=1
+$ fm-scorebook.sh granted merge
+rc=1
+ask -> chat-20261107T023314Z-8529
+$ fm-scorebook.sh answer chat-20261107T023314Z-8529 --matched yes
+fm-scorebook: question chat-20261107T023314Z-8529 was asked in chat: pass his answer with --answer
+rc=1
+ask -> chat-20261107T023314Z-8698
+$ fm-scorebook.sh answer chat-20261107T023314Z-8698 --matched yes
+fm-scorebook: question chat-20261107T023314Z-8698 was asked in chat: pass his answer with --answer
+rc=1
+ask -> chat-20261107T023315Z-8814
+$ fm-scorebook.sh answer chat-20261107T023315Z-8814 --matched yes
+fm-scorebook: question chat-20261107T023315Z-8814 was asked in chat: pass his answer with --answer
+rc=1
+$ fm-scorebook.sh report
+kind            asked answered matched open withdrawn recent  status
+finding-scope       3        0       0    3         0    0/0  not-yet
+finding-design      0        0       0    0         0    0/0  not-yet
+finding-repeat      0        0       0    0         0    0/0  not-yet
+design              0        0       0    0         0    0/0  not-yet
+merge               0        0       0    0         0    0/0  captain-only
+credential          0        0       0    0         0    0/0  captain-only
+destructive         0        0       0    0         0    0/0  captain-only
+authority           0        0       0    0         0    0/0  captain-only
+other               0        0       0    0         0    0/0  not-yet
+
+A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
+A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
+rc=0
+$ fm-scorebook.sh granted finding-scope
+rc=1
+$ fm-scorebook.sh answer chat-20261107T023314Z-8529 --matched yes --answer decline it
+rc=0
+$ fm-scorebook.sh answer chat-20261107T023314Z-8698 --matched yes --answer decline it
+rc=0
+$ fm-scorebook.sh answer chat-20261107T023315Z-8814 --matched yes --answer decline it
+rc=0
+$ fm-scorebook.sh report
+kind            asked answered matched open withdrawn recent  status
+finding-scope       3        3       3    0         0    3/3  not-yet
+finding-design      0        0       0    0         0    0/0  not-yet
+finding-repeat      0        0       0    0         0    0/0  not-yet
+design              0        0       0    0         0    0/0  not-yet
+merge               0        0       0    0         0    0/0  captain-only
+credential          0        0       0    0         0    0/0  captain-only
+destructive         0        0       0    0         0    0/0  captain-only
+authority           0        0       0    0         0    0/0  captain-only
+other               0        0       0    0         0    0/0  not-yet
+
+A hand-off kind qualifies at 10 answered questions with the 10 most recent all answered as recommended.
+A qualifying kind stays with the captain until he says yes to it (fm-scorebook.sh grant).
+rc=0

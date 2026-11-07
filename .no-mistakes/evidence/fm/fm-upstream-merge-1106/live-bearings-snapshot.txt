@@ -1,0 +1,29 @@
+$ fm-bearings-snapshot.sh --json | jq "{decisions_open, rounds_by_project, rounds_per_pr, landed}"
+{
+  "decisions_open": [
+    {
+      "id": "demo-scope",
+      "key": "demo-scope",
+      "verb": "captain-hold",
+      "summary": "Choose demo rollout scope: Which route? A: keep hello.sh as is. B: add a --name flag.",
+      "question": "Choose demo rollout scope: Which route? A: keep hello.sh as is. B: add a --name flag.",
+      "owner": "(main)"
+    }
+  ],
+  "rounds_by_project": [],
+  "rounds_per_pr": [],
+  "landed": [
+    {
+      "id": "demo-hello-sc",
+      "what": "scout: what exactly does hello.sh print when run",
+      "artifact": "data/demo/demo-hello-sc/report.md",
+      "owner": "(main)"
+    }
+  ]
+}
+
+$ fm-nm-rounds.sh report
+cap: 3
+projects: []
+prs_total: 0
+prs: []
