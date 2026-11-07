@@ -6,8 +6,9 @@
 // --answer selects option <value> on Captain's Call card <key> and submits its
 // form, recording what the page queues for Lavish.
 // Prints one JSON document:
-//   { stats:[{n,label}], call:[{title,head,head_title}], underway:[{title,sub,badges}],
-//     charted:[{title,sub,badges,pickable}], empty, more, error, queued:[{prompt,data}] }
+//   { stats:[{n,label}], call:[{title,head,head_title}], captains_call:[text],
+//     underway:[{title,sub,badges}], charted:[{title,sub,badges,pickable}], empty,
+//     more, error, queued:[{prompt,data}] }
 import { readFileSync } from "node:fs";
 
 const html = readFileSync(process.argv[2], "utf8");
@@ -30,8 +31,14 @@ class Node {
     this.classList = {
       add: (c) => { this.className = (this.className + " " + c).trim(); },
       remove: (c) => { this.className = this.className.split(/\s+/).filter((k) => k !== c).join(" "); },
-      toggle: (c, on) => { (on ?? !this.classList.contains(c)) ? this.classList.add(c) : this.classList.remove(c); },
       contains: (c) => this.className.split(/\s+/).includes(c),
+      toggle: (c, force) => {
+        const classes = new Set(this.className.split(/\s+/).filter(Boolean));
+        const enabled = force ?? !classes.has(c);
+        if (enabled) classes.add(c); else classes.delete(c);
+        this.className = [...classes].join(" ");
+        return enabled;
+      },
     };
   }
   get textContent() {
@@ -154,6 +161,9 @@ if (answerAt > 0) {
 
 const uw = byId.get("bb-underway") || new Node("div");
 const underway = rowsOf(uw);
+const captains_call = (byId.get("bb-call") || new Node("div")).children
+  .filter((n) => n.className.split(/\s+/).includes("bb-decision"))
+  .map((n) => n.textContent);
 
 const ch = byId.get("bb-charted") || new Node("div");
 const charted = rowsOf(ch);
@@ -167,4 +177,4 @@ const empty = ch.children.filter((c) => c.className.includes("bb-empty")).map((c
 const more = ch.children.filter((c) => c.className.includes("bb-morechip")).map((c) => c.textContent);
 
 process.stdout.write(
-  JSON.stringify({ stats, call, underway, charted, empty, more, error: errorText, queued }) + "\n");
+  JSON.stringify({ stats, call, captains_call, underway, charted, empty, more, error: errorText, queued }) + "\n");

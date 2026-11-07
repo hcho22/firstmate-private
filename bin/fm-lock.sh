@@ -8,8 +8,10 @@
 # which is dead moments after it is written. For a Claude session that proves a
 # trusted session id the anchor is CLAUDE_PID, the model-loop process, so a
 # shared transient daemon or a front-end that outlives the session never keeps
-# a dead session's lock alive. Line 1 keeps its whole-line pid format because
-# every other reader takes the first line as the pid.
+# a dead session's lock alive. On Windows that pid is recorded tagged, and a
+# /clear re-key under the same tagged pid refreshes the sidecar as it does on
+# POSIX. Line 1 keeps its whole-line pid format because every other reader
+# takes the first line as the pid.
 #
 # The trusted id itself is recorded beside the lock in state/.lock-session, a
 # sidecar written only here and only under the claim lock: refreshed on every
@@ -51,6 +53,9 @@
 # lock this session already owns is confirmed or re-anchored, never taken over):
 #   - the confirmed pid is exactly the pid currently recorded as holder, so a
 #     stale confirmation can never displace a different, newer holder;
+#   - that holder is one an acquisition refuses to reclaim
+#     (fm_session_lock_pid_blocks_reclaim in bin/fm-session-lock-lib.sh): a
+#     live verified harness, or a live owner whose identity cannot be read;
 #   - no watcher beat is fresh (FM_GUARD_GRACE, default 300s), because a fresh
 #     beat means a live session is supervising this home right now;
 #   - the takeover can be recorded.
@@ -123,16 +128,19 @@ if [ "${1:-}" = "takeover" ]; then
       *) echo "usage: fm-lock.sh takeover --confirm-holder <pid>" >&2; exit 2 ;;
     esac
   done
-  case "$CONFIRM_HOLDER" in
-    ''|*[!0-9]*)
-      echo "error: takeover needs the explicit confirmation --confirm-holder <pid> naming the live holder; read it from 'fm-lock.sh status'" >&2
-      exit 2
-      ;;
-  esac
+  if ! fm_session_pid_valid "$CONFIRM_HOLDER"; then
+    echo "error: takeover needs the explicit confirmation --confirm-holder <pid> naming the live holder; read it from 'fm-lock.sh status'" >&2
+    exit 2
+  fi
 fi
 
 if ! me=$(fm_session_lock_anchor_pid); then
-  if [ "$TAKEOVER" -eq 1 ]; then
+  if fm_win_boundary_applies; then
+    # Here the parent link does not reach the harness at all, so "not in the
+    # ancestry" would describe the wrong problem and send the reader hunting a
+    # process tree that can never contain the answer.
+    echo "error: cannot identify this harness session on Windows: it publishes no session pid this build recognizes (see FM_WIN_HARNESS_PID_VARS in bin/fm-session-lock-lib.sh; CLAUDE_PID is taken only together with CLAUDE_CODE_SESSION_ID); operate read-only until resolved" >&2
+  elif [ "$TAKEOVER" -eq 1 ]; then
     echo "error: cannot locate harness process in ancestry: a takeover must be run by the firstmate session that will take the lock, and this command is not running inside one; ask firstmate in that session to run it" >&2
   else
     echo "error: cannot locate harness process in ancestry" >&2
@@ -319,13 +327,14 @@ TAKEOVER_PREV_SUMMARY=
 TAKEOVER_PREV_SESSION=
 takeover_preflight() {  # <recorded-pid>
   local old=$1
-  case "$old" in
-    ''|*[!0-9]*)
-      echo "error: there is no live lock holder to take over; run $SCRIPT_DIR/fm-lock.sh to acquire the lock normally" >&2
-      exit 1
-      ;;
-  esac
-  if ! fm_harness_pid_alive "$old"; then
+  if ! fm_session_pid_valid "$old"; then
+    echo "error: there is no live lock holder to take over; run $SCRIPT_DIR/fm-lock.sh to acquire the lock normally" >&2
+    exit 1
+  fi
+  # The same verdict that refuses a plain acquisition decides whether there is
+  # a holder to displace, so every holder an acquisition refuses, including a
+  # live owner whose identity cannot be read, can be taken over.
+  if ! fm_session_lock_pid_blocks_reclaim "$old"; then
     echo "error: lock holder pid $old is not a live session, so no takeover is needed; run $SCRIPT_DIR/fm-lock.sh to acquire the lock normally" >&2
     exit 1
   fi
@@ -374,7 +383,7 @@ if [ -f "$LOCK" ] && [ ! -L "$LOCK" ]; then
     confirm_own_lock "$old"
     old=$(cat "$LOCK" 2>/dev/null || true)
   fi
-  if [ "$TAKEOVER" -eq 0 ] && [ -z "$REANCHOR" ] && fm_harness_pid_alive "$old"; then
+  if [ "$TAKEOVER" -eq 0 ] && [ -z "$REANCHOR" ] && fm_session_lock_pid_blocks_reclaim "$old"; then
     refuse_live_owner "$old"
   fi
 fi
@@ -402,10 +411,10 @@ if [ -e "$LOCK" ] || [ -L "$LOCK" ]; then
   }
   # A re-anchor decided above has held the claim lock since, so line 1 is the
   # pid it recorded and needs no second verdict.
-  if [ -z "$REANCHOR" ] && [ "$old" != "$me" ] && fm_harness_pid_alive "$old"; then
+  if [ -z "$REANCHOR" ] && [ "$old" != "$me" ] && fm_session_lock_pid_blocks_reclaim "$old"; then
     fm_session_lock_owned_by_self "$STATE" && confirm_own_lock "$old"
     old=$(cat "$LOCK" 2>/dev/null || true)
-    if [ "$TAKEOVER" -eq 0 ] && [ -z "$REANCHOR" ] && [ "$old" != "$me" ] && fm_harness_pid_alive "$old"; then
+    if [ "$TAKEOVER" -eq 0 ] && [ -z "$REANCHOR" ] && [ "$old" != "$me" ] && fm_session_lock_pid_blocks_reclaim "$old"; then
       refuse_live_owner "$old"
     fi
   fi
