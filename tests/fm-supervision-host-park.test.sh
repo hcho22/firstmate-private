@@ -598,6 +598,15 @@ test_host_outside_the_lock_owner_stands_down() {
 
 test_tagged_lock_holder_reaches_the_engine_whole() {
   local home first
+  # Ownership walks this process's own ancestry before the Windows bridge, so a
+  # suite started under a live harness (an agent session) finds that harness
+  # first and never reaches the bridge this case exercises; CI and a plain
+  # shell have no harness above them.
+  if env -u CLAUDE_PID -u CLAUDE_CODE_SESSION_ID bash -c \
+    '. "$1/bin/fm-session-lock-lib.sh" && fm_harness_ancestry_pids' _ "$ROOT" >/dev/null 2>&1; then
+    pass "host: a Windows-tagged session-lock holder reaches the engine's lease whole (skipped: this suite runs under a live harness)"
+    return
+  fi
   home=$(make_home tagged-holder away)
   echo hold-lease > "$home/stub-mode"
   # A Windows/Git Bash home: uname reports MINGW and ps -W lists the session
