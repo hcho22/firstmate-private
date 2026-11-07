@@ -1373,12 +1373,12 @@ if [ "${1:-}" = merge-tree ]; then
 fi
 exec "$REAL_GIT_FOR_TEST" "${args[@]}"
 SH
-    cat > "$case_dir/fakebin/treehouse" <<'SH'
+    fm_shared_stub "$case_dir/fakebin" "treehouse" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${FM_TEST_TREEHOUSE_LOG:?}"
 exit 0
 SH
-    chmod +x "$case_dir/fakebin/git" "$case_dir/fakebin/treehouse"
+    chmod +x "$case_dir/fakebin/git"
 
     set +e
     FM_TEST_MERGE_TREE_MODE="$mode" \
@@ -1553,7 +1553,7 @@ test_hidden_untracked_work_refuses_before_return() {
     git -C "$case_dir/wt" config status.showUntrackedFiles no
     head=$(git -C "$case_dir/wt" rev-parse HEAD)
     cp "$case_dir/state/task-x1.meta" "$case_dir/meta-before"
-    cat > "$case_dir/fakebin/treehouse" <<'SH'
+    fm_shared_stub "$case_dir/fakebin" "treehouse" <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = return ]; then
   printf '%s\n' return >> "$FM_STATE_OVERRIDE/returned"
@@ -3956,7 +3956,7 @@ test_herdr_projection_teardown_closes_pane_before_returning_its_copy() {
   write_meta "$case_dir" local-only ship
   configure_herdr_projection_teardown_case "$case_dir"
   log="$case_dir/herdr.log"; closed="$case_dir/closed"; restored="$case_dir/restored"; : > "$log"
-  cat > "$case_dir/fakebin/treehouse" <<'SH'
+  fm_shared_stub "$case_dir/fakebin" "treehouse" <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = return ]; then
   printf 'treehouse %s\n' "$*" >> "${FM_FAKE_HERDR_LOG:?}"
@@ -3964,7 +3964,6 @@ if [ "${1:-}" = return ]; then
 fi
 exit 0
 SH
-  chmod +x "$case_dir/fakebin/treehouse"
 
   FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" FM_FAKE_HERDR_RESTORED="$restored" \
     run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" \
@@ -3986,12 +3985,11 @@ test_herdr_projection_teardown_refused_close_preserves_task_and_copy() {
   printf 'running\n' > "$case_dir/state/task-x1.status"
   wt="$case_dir/wt"
   log="$case_dir/herdr.log"; closed="$case_dir/closed"; restored="$case_dir/restored"; : > "$log"
-  cat > "$case_dir/fakebin/treehouse" <<'SH'
+  fm_shared_stub "$case_dir/fakebin" "treehouse" <<'SH'
 #!/usr/bin/env bash
 printf 'treehouse %s\n' "$*" >> "${FM_FAKE_HERDR_LOG:?}"
 exit 0
 SH
-  chmod +x "$case_dir/fakebin/treehouse"
 
   perl -e 'chdir $ARGV[0] or die $!; exec "sleep", "300" or die $!' "$wt" &
   process_pid=$!
@@ -6058,7 +6056,7 @@ test_record_export_waits_for_endpoint_quiescence_before_archiving() {
   mkdir -p "$case_dir/state/task-x1.inbox/handled"
   printf 'done: before refusal\n' > "$case_dir/state/task-x1.status"
   printf 'before refusal\n' > "$case_dir/state/task-x1.inbox/001.msg"
-  cat > "$case_dir/fakebin/tmux" <<'SH'
+  fm_shared_stub "$case_dir/fakebin" "tmux" <<'SH'
 #!/usr/bin/env bash
 case "${1:-}" in
   kill-window) exit 1 ;;
@@ -6066,7 +6064,6 @@ case "${1:-}" in
 esac
 exit 0
 SH
-  chmod +x "$case_dir/fakebin/tmux"
 
   run_teardown "$case_dir" > "$case_dir/first.stdout" 2> "$case_dir/first.stderr" || rc=$?
   expect_code 1 "$rc" "record-export-close-retry: endpoint close should refuse"
@@ -6079,11 +6076,10 @@ SH
 
   printf 'done: after refusal\n' > "$case_dir/state/task-x1.status"
   printf 'after refusal\n' > "$case_dir/state/task-x1.inbox/001.msg"
-  cat > "$case_dir/fakebin/tmux" <<'SH'
+  fm_shared_stub "$case_dir/fakebin" "tmux" <<'SH'
 #!/usr/bin/env bash
 exit 0
 SH
-  chmod +x "$case_dir/fakebin/tmux"
   rc=0
   run_teardown "$case_dir" > "$case_dir/retry.stdout" 2> "$case_dir/retry.stderr" || rc=$?
   expect_code 0 "$rc" "record-export-close-retry: retry should complete"
@@ -6434,7 +6430,7 @@ fi
 [ "$FM_REAP_CHANGE" != reap-refusal ] || exit 1
 exit 0
 SH
-      cat > "$case_dir/fakebin/treehouse" <<'SH'
+      fm_shared_stub "$case_dir/fakebin" "treehouse" <<'SH'
 #!/usr/bin/env bash
 printf 'return\n' >> "$FM_REAP_CASE/removal.log"
 exit 0
@@ -6451,7 +6447,7 @@ case "${1:-} ${2:-}" in
   *) printf '{"ok":true,"result":{}}\n' ;;
 esac
 SH
-      chmod +x "$case_dir/fakebin/lsof" "$case_dir/fakebin/treehouse" "$case_dir/fakebin/orca"
+      chmod +x "$case_dir/fakebin/lsof" "$case_dir/fakebin/orca"
       rc=0
       if [ "$change" = force ]; then
         FM_HOME="$case_dir" FM_REAP_CASE="$case_dir" FM_REAP_CHANGE="$change" \
