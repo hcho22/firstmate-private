@@ -108,7 +108,9 @@
 # skills/ reads, and the session identity a multiplexer injects (HERDR_ENV,
 # HERDR_PANE_ID, HERDR_TAB_ID, HERDR_WORKSPACE_ID, HERDR_SOCKET_PATH,
 # HERDR_SESSION, HERDR_STARTUP_CWD, TMUX, TMUX_PANE, ZELLIJ*, CMUX_WORKSPACE_ID,
-# CMUX_SURFACE_ID, ORCA_WORKTREE_ID, ORCA_TERMINAL). A test therefore sees
+# CMUX_SURFACE_ID, ORCA_WORKTREE_ID, ORCA_TERMINAL), and DISABLE_AUTOUPDATER,
+# which an agent session sets for itself and bin/fm-spawn.sh forwards into a
+# launch (a live test's gate sets it again inside the test). A test therefore sees
 # production defaults unless it sets a value itself, and a run inside an agent's
 # pane behaves like a run in CI instead of failing on, or touching, the live
 # session it was launched from. Test-owned controls pass through: FM_TEST_* and
@@ -2854,7 +2856,8 @@ scrub_ambient_environment() {
       FM_*|FMX_*) printf '%s\n' "$production" | grep -qxF -- "$name" || continue ;;
       HERDR_ENV|HERDR_PANE_ID|HERDR_TAB_ID|HERDR_WORKSPACE_ID|HERDR_SOCKET_PATH|\
       HERDR_SESSION|HERDR_STARTUP_CWD|TMUX|TMUX_PANE|ZELLIJ|ZELLIJ_*|\
-      CMUX_WORKSPACE_ID|CMUX_SURFACE_ID|ORCA_WORKTREE_ID|ORCA_TERMINAL) ;;
+      CMUX_WORKSPACE_ID|CMUX_SURFACE_ID|ORCA_WORKTREE_ID|ORCA_TERMINAL|\
+      DISABLE_AUTOUPDATER) ;;
       *) continue ;;
     esac
     unset "$name"
