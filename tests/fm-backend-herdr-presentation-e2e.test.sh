@@ -143,9 +143,32 @@ if [ "${1:-} ${2:-}" = "pane get" ] && [ -d "$ACTIVE_SEEDED_CONTROL" ] \
   refusal_probe=1
   refusal_before=$(focus_snapshot || printf ambiguous/ambiguous)
 fi
+# An idle abort pane is removed through Herdr's pane-death path, which issues
+# no pane close; its removal is the first exact pane_not_found answer.
+abort_pane_probe=
+if [ "${1:-} ${2:-}" = "pane get" ] && [ -d "$POST_CREATE_ABORT_CONTROL" ]; then
+  for task_dir in "$POST_CREATE_ABORT_CONTROL"/abort-*; do
+    [ -d "$task_dir" ] || continue
+    [ "${3:-}" = "$(cat "$task_dir/task-pane" 2>/dev/null || true)" ] || continue
+    abort_pane_probe=$3
+    break
+  done
+fi
 before=
 [ -z "$mutation" ] || before=$(focus_snapshot || printf ambiguous/ambiguous)
-if out=$(env PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" run "$HERDR_LAB_SESSION" "$@"); then
+if [ -n "$abort_pane_probe" ]; then
+  probe_err=$(mktemp "$TMP_ROOT/abort-pane-get.XXXXXX")
+  if out=$(env PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" run "$HERDR_LAB_SESSION" "$@" 2> "$probe_err"); then
+    status=0
+  else
+    status=$?
+  fi
+  if printf '%s\n%s' "$out" "$(cat "$probe_err")" | jq -e 'select(.error.code? == "pane_not_found")' >/dev/null 2>&1; then
+    printf 'pane-gone\t-\t-\t%s\n' "$abort_pane_probe" >> "$FOCUS_AUDIT_LOG"
+  fi
+  cat "$probe_err" >&2
+  rm -f "$probe_err"
+elif out=$(env PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" run "$HERDR_LAB_SESSION" "$@"); then
   status=0
 else
   status=$?
@@ -213,6 +236,8 @@ set -u
   printf '\n'
 } >> "$TREEHOUSE_CALL_LOG"
 if [ -d "$POST_CREATE_ABORT_CONTROL" ] && [ "${1:-}" = get ]; then
+  # Fail the lease after the projected pane is created, exercising the
+  # post-create abort cleanup without consuming a real pool slot.
   exit 0
 fi
 # Treehouse's pool allocator is outside the Herdr concurrency contract under
@@ -454,12 +479,6 @@ finish_concurrent_expected_abort() {  # <id> <status> <stdout> <stderr>
   fi
 }
 
-spawn_secondmate_task() {
-  local id=$1 home=$2
-  FM_GATE_REFUSE_BYPASS=1 FM_SPAWN_NO_GUARD=1 FM_HOME="$HOME_DIR" FM_ROOT_OVERRIDE="$ROOT" \
-    "$ROOT/bin/fm-spawn.sh" "$id" "$home" "sh -c 'while :; do sleep 60; done'" --secondmate --backend herdr
-}
-
 # Concurrent recoveries of existing presentation journals serialize on the
 # shared named-session lock, but the waiter's acquire is bounded while the
 # owner holds the lock through its reclaim and again around its launch handoff,
@@ -481,6 +500,12 @@ finish_concurrent_recovery() {  # <id> <home> <status> <stdout> <stderr> <old-pa
   spawn_task "$id" "$home" "$RECOVERY_PROJECT_DIR" > "$out" 2> "$err" \
     || fail "recovery $id retry failed after the concurrent recovery completed: $(cat "$err")"
   pass "real Herdr lab: concurrent recovery $id took the bounded lock refusal without mutation and resumed after the lock owner completed"
+}
+
+spawn_secondmate_task() {
+  local id=$1 home=$2
+  FM_GATE_REFUSE_BYPASS=1 FM_SPAWN_NO_GUARD=1 FM_HOME="$HOME_DIR" FM_ROOT_OVERRIDE="$ROOT" \
+    "$ROOT/bin/fm-spawn.sh" "$id" "$home" "sh -c 'while :; do sleep 60; done'" --secondmate --backend herdr
 }
 
 teardown_task() {  # <id> <home>
@@ -751,7 +776,7 @@ LOCK_CONTENTION_READY="$TMP_ROOT/lock-contention-ready"
 LOCK_CONTENTION_RELEASE="$TMP_ROOT/lock-contention-release"
 LOCK_CONTENTION_PATH=$(session_presentation_lock_path) \
   || fail "could not resolve the session presentation lock for contention"
-ROOT="$ROOT" READY="$LOCK_CONTENTION_READY" RELEASE="$LOCK_CONTENTION_RELEASE" \
+FM_HOME="$HOME_DIR" ROOT="$ROOT" READY="$LOCK_CONTENTION_READY" RELEASE="$LOCK_CONTENTION_RELEASE" \
   LOCK="$LOCK_CONTENTION_PATH" bash -c '
   . "$ROOT/bin/fm-wake-lib.sh"
   fm_lock_try_acquire "$LOCK" || exit 1
@@ -900,17 +925,17 @@ finish_concurrent_expected_abort abort-b "$ABORT_B_STATUS" "$TMP_ROOT/abort-b.ou
 # The forced foreground_cwd is a plain non-git directory, which the discovery
 # poll now screens out on every read rather than adopting, so the armed failure
 # arrives as the poll's own deadline refusal naming that path.
-grep -F "did not enter an isolated worktree" "$TMP_ROOT/abort-a.err" >/dev/null 2>&1 \
+grep -F "treehouse get --lease did not report a worktree" "$TMP_ROOT/abort-a.err" >/dev/null 2>&1 \
   || fail "post-create abort fixture A did not reach the armed validation failure"
-grep -F "did not enter an isolated worktree" "$TMP_ROOT/abort-b.err" >/dev/null 2>&1 \
+grep -F "treehouse get --lease did not report a worktree" "$TMP_ROOT/abort-b.err" >/dev/null 2>&1 \
   || fail "post-create abort fixture B did not reach the armed validation failure"
 ABORT_A_PANE=$(cat "$POST_CREATE_ABORT_CONTROL/abort-a/task-pane")
 ABORT_B_PANE=$(cat "$POST_CREATE_ABORT_CONTROL/abort-b/task-pane")
 ABORT_SEQUENCE=$(sed -n "$((ABORT_FOCUS_START + 1)),\$p" "$FOCUS_AUDIT_LOG" | awk -F '\t' -v a="$ABORT_A_PANE" -v b="$ABORT_B_PANE" '
   $1 == "workspace-create" && $4 ~ /^└ abort-a · p:/ { print "create-a" }
   $1 == "workspace-create" && $4 ~ /^└ abort-b · p:/ { print "create-b" }
-  $1 == "pane-close" && $4 == a { print "close-a" }
-  $1 == "pane-close" && $4 == b { print "close-b" }
+  ($1 == "pane-close" || $1 == "pane-gone") && $4 == a && !closed_a++ { print "close-a" }
+  ($1 == "pane-close" || $1 == "pane-gone") && $4 == b && !closed_b++ { print "close-b" }
 ')
 # Neither spawn holds the presentation lock while its get runs, so the other
 # may create its projection in between (unless a fresh-spawn lock refused it
@@ -1194,7 +1219,7 @@ CROSS_LOCK_READY="$TMP_ROOT/cross-lock-ready"
 CROSS_LOCK_RELEASE="$TMP_ROOT/cross-lock-release"
 CROSS_LOCK_PATH=$(session_presentation_lock_path) \
   || fail "could not resolve session lock for cross-home contention"
-ROOT="$ROOT" READY="$CROSS_LOCK_READY" RELEASE="$CROSS_LOCK_RELEASE" LOCK="$CROSS_LOCK_PATH" bash -c '
+FM_HOME="$HOME_DIR" ROOT="$ROOT" READY="$CROSS_LOCK_READY" RELEASE="$CROSS_LOCK_RELEASE" LOCK="$CROSS_LOCK_PATH" bash -c '
   . "$ROOT/bin/fm-wake-lib.sh"
   fm_lock_try_acquire "$LOCK" || exit 1
   : > "$READY"
@@ -1422,8 +1447,11 @@ teardown_task "$BRAVO_WAVE_ID" "$SECOND_HOME_B" > "$TMP_ROOT/bravo-wave-teardown
 pass "real Herdr lab: concurrent cross-home recoveries replace exact husks under one session lock with no focus drift"
 
 # Exact-resume presentation-lock contention refuses by default. Hold the
-# shared session lock from an unrelated process past the bounded-retry window
-# and assert the default resume hard-refuses without the opt-in flag.
+# shared session lock from an unrelated process until the resume returns and
+# assert the default resume hard-refuses without the opt-in flag. The bounded
+# retry is counted in attempts, and each contended attempt forks liveness
+# probes, so its wall-clock window varies by host; a fixed-length hold can end
+# inside it and hand the lock over.
 LOCK_REFUSE_ID=lock-refuse-resume-r1
 mkdir -p "$HOME_DIR/data/$LOCK_REFUSE_ID"
 write_ship_brief "$HOME_DIR" "$LOCK_REFUSE_ID" 'Resume lock-refuse fixture.'
@@ -1438,14 +1466,14 @@ PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" provision "$HERDR_LAB_SESSION" \
   || fail "could not reprovision the isolated session for resume lock-refuse"
 
 LOCK_REFUSE_READY="$TMP_ROOT/lock-refuse-ready"
-LOCK_REFUSE_HOLD_SECONDS=15
+LOCK_REFUSE_RELEASE="$TMP_ROOT/lock-refuse-release"
 LOCK_REFUSE_PATH=$(session_presentation_lock_path) \
   || fail "could not resolve session lock for resume lock-refuse"
-ROOT="$ROOT" READY="$LOCK_REFUSE_READY" HOLD="$LOCK_REFUSE_HOLD_SECONDS" LOCK="$LOCK_REFUSE_PATH" bash -c '
+FM_HOME="$HOME_DIR" ROOT="$ROOT" READY="$LOCK_REFUSE_READY" RELEASE="$LOCK_REFUSE_RELEASE" LOCK="$LOCK_REFUSE_PATH" bash -c '
   . "$ROOT/bin/fm-wake-lib.sh"
   fm_lock_try_acquire "$LOCK" || exit 1
   : > "$READY"
-  sleep "$HOLD"
+  while [ ! -e "$RELEASE" ]; do sleep 0.05; done
   fm_lock_release "$LOCK"
 ' &
 LOCK_REFUSE_HOLDER_PID=$!
@@ -1459,6 +1487,7 @@ if spawn_task "$LOCK_REFUSE_ID" "$HOME_DIR" "$RECOVERY_PROJECT_DIR" \
 else
   LOCK_REFUSE_STATUS=$?
 fi
+: > "$LOCK_REFUSE_RELEASE"
 if [ "$LOCK_REFUSE_STATUS" -eq 0 ]; then
   kill "$LOCK_REFUSE_HOLDER_PID" 2>/dev/null || true
   wait "$LOCK_REFUSE_HOLDER_PID" 2>/dev/null || true
@@ -1497,7 +1526,7 @@ LOCK_WAIT_READY="$TMP_ROOT/lock-wait-ready"
 LOCK_WAIT_HOLD_SECONDS=30
 LOCK_WAIT_PATH=$(session_presentation_lock_path) \
   || fail "could not resolve session lock for resume lock-wait"
-ROOT="$ROOT" READY="$LOCK_WAIT_READY" HOLD="$LOCK_WAIT_HOLD_SECONDS" LOCK="$LOCK_WAIT_PATH" bash -c '
+FM_HOME="$HOME_DIR" ROOT="$ROOT" READY="$LOCK_WAIT_READY" HOLD="$LOCK_WAIT_HOLD_SECONDS" LOCK="$LOCK_WAIT_PATH" bash -c '
   . "$ROOT/bin/fm-wake-lib.sh"
   fm_lock_try_acquire "$LOCK" || exit 1
   : > "$READY"

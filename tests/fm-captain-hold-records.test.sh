@@ -1718,6 +1718,7 @@ test_retained_row_artifacts_survive_captain_answers() {
     "project=$local_repo" "harness=codex" "kind=ship" "mode=local-only" \
     "spawn_gen=fixture-$local_id"
   printf 'done: local merge ready\n' > "$home/state/$local_id.status"
+  printf 'local_done_head=%s\n' "$(git -C "$local_wt" rev-parse HEAD)" >> "$home/state/$local_id.meta"
   run_captain "$home" hold "$local_id" --reason "captain local merge approval pending" \
     >/dev/null || fail "could not hold the released local merge"
   printf 'Land the approved change locally.\n' > "$home/local-answer.txt"
