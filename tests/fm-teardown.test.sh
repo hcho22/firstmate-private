@@ -1917,9 +1917,13 @@ test_forced_secondmate_dirty_child_return_warns_and_completes() {
     "kind=scout" \
     "mode=local-only"
   add_treehouse_that_leaves_residue "$case_dir"
+  # The child's slot is a real pool slot, so teardown takes the shared Treehouse
+  # project lock under the primary home's state/. Give it a primary home of its
+  # own, outside the secondmate home it removes, instead of the code root.
+  mkdir -p "$case_dir/primary-home/state"
 
   rc=0
-  run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  FM_HOME="$case_dir/primary-home" run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
 
   expect_code 4 "$rc" "secondmate-child-dirty-return: a lost child slot should exit 4 after retirement"
   assert_grep "lost this slot" "$case_dir/stderr" \
@@ -3251,7 +3255,10 @@ SH
     bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_presentation_session_lock_path default' "$ROOT") \
     || fail "herdr-orphan-refusal: could not resolve the fixture presentation lock path"
   ready="$case_dir/lock-ready"; release="$case_dir/lock-release"
-  ROOT="$ROOT" LOCK="$lock" READY="$ready" RELEASE="$release" bash -c '
+  # The holder resolves its state dir inside the case, as teardown does, so
+  # sourcing the lock library never creates state/ in the code root.
+  ROOT="$ROOT" LOCK="$lock" READY="$ready" RELEASE="$release" \
+    FM_STATE_OVERRIDE="$case_dir/state" bash -c '
     . "$ROOT/bin/fm-wake-lib.sh"
     fm_lock_try_acquire "$LOCK" || exit 1
     : > "$READY"
