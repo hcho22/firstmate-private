@@ -4303,7 +4303,7 @@ test_wedge_escalates_one_window_after_evidence_stops() {
 test_progress_deferral_resurfaces_on_the_bounded_cadence() {
   local dir key r back
   dir=$(progress_idle_fixture wedge-progress-resurface resurf test:fm-resurf 'working: validating')
-  key=test_fm-resurf
+  key=$(watch_window_key test:fm-resurf)
   back=$(( $(date +%s) - 500 ))
   : > "$dir/state/.writing-since-$key"
   set_mtime "$back" "$dir/state/.writing-since-$key"
