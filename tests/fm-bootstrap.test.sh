@@ -291,6 +291,8 @@ seed_record_hygiene_home() {
   mkdir -p "$case_dir/home/config" "$case_dir/home/state" "$case_dir/home/data"
   printf '%s\n' manual > "$case_dir/home/config/backlog-backend"
   fakebin=$(make_fake_toolchain "$case_dir")
+  # tasks-axi is a shared read-only stub (fm_shared_stub); replace the link.
+  rm -f "$fakebin/tasks-axi"
   cat > "$fakebin/tasks-axi" <<'SH'
 #!/usr/bin/env bash
 case "${1:-}" in
@@ -442,6 +444,8 @@ test_record_hygiene_bounds_backlog_read() {
   : > "$case_dir/home/config/record-hygiene"
   printf '%s\n' manual > "$case_dir/home/config/backlog-backend"
   fakebin=$(make_fake_toolchain "$case_dir")
+  # tasks-axi is a shared read-only stub (fm_shared_stub); replace the link.
+  rm -f "$fakebin/tasks-axi"
   cat > "$fakebin/tasks-axi" <<'SH'
 #!/usr/bin/env bash
 case "${1:-}" in
