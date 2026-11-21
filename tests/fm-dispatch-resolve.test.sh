@@ -1414,6 +1414,21 @@ TYPESAFE_API_KEY=$KEY run code out err "$TMP_ROOT/data/pager-fix/brief.md" --pro
 assert_absent "$TMP_ROOT/data/pager-fix/dispatch-resolution.json" "a data/<id>/ directory outside the configured data root writes no task record"
 pass "task record: the configured data root, including FM_DATA_OVERRIDE, decides where the record goes"
 
+# Briefs live in per-project task folders (data/<Project>/<id>/, owned by
+# bin/fm-task-data-lib.sh); fm-spawn.sh finds the record there through the same
+# lookup, so the resolver must write it beside such a brief too.
+PROJECT_TASK_DIR="$HOME_DIR/data/Pager/pager-layout"
+mkdir -p "$PROJECT_TASK_DIR"
+cp "$BRIEF" "$PROJECT_TASK_DIR/brief.md"
+reset_log
+write_response "$RESPONSE" rule_4 0.9
+TYPESAFE_API_KEY=$KEY run code out err "$PROJECT_TASK_DIR/brief.md" --project pager
+assert_equals 'pager-layout clear cursor' \
+  "$(jq -r '"\(.task) \(.status) \(.profile.harness)"' "$PROJECT_TASK_DIR/dispatch-resolution.json")" \
+  "a brief in its per-project task folder records its decision beside it"
+assert_absent "$HOME_DIR/data/pager-layout" "the resolver created a flat task folder for a per-project brief"
+pass "task record: a brief in its per-project task folder records its decision there"
+
 # --- per-rule confidence floor ------------------------------------------------
 write_floor_response() {  # <path> <choice> <confidence> <rule_1> <rule_2> <rule_3> <rule_4> <default>
   cat > "$1" <<JSON

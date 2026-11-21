@@ -3319,10 +3319,11 @@ case "$ARG3" in
 esac
 
 case "$DISPATCH_OVERRIDE" in *[![:print:]]*) echo 'error: --dispatch-override must be a printable reason' >&2; exit 1 ;; esac
-DISPATCH_RECORD="$DATA/$ID/dispatch-resolution.json"
+DISPATCH_TASK_DIR=$(fm_task_data_dir "$DATA" "$ID" 2>/dev/null) || DISPATCH_TASK_DIR="$DATA/$ID"
+DISPATCH_RECORD="$DISPATCH_TASK_DIR/dispatch-resolution.json"
 if [ "$KIND" != secondmate ] && [ "$RELAUNCH" -eq 0 ] && [ -f "$CONFIG/crew-dispatch.json" ]; then
   if [ ! -e "$DISPATCH_RECORD" ]; then
-    echo "error: config/crew-dispatch.json is active and task $ID has no recorded dispatch resolution; run bin/fm-dispatch-resolve.sh $DATA/$ID/brief.md --project <name> first" >&2
+    echo "error: config/crew-dispatch.json is active and task $ID has no recorded dispatch resolution; run bin/fm-dispatch-resolve.sh $DISPATCH_TASK_DIR/brief.md --project <name> first" >&2
     exit 1
   fi
   dispatch_fields=$(jq -r --arg id "$ID" '
@@ -3331,7 +3332,7 @@ if [ "$KIND" != secondmate ] && [ "$RELAUNCH" -eq 0 ] && [ -f "$CONFIG/crew-disp
     | .status, (.profile.harness // ""), (.profile.model // ""), (.profile.effort // "")' "$DISPATCH_RECORD" 2>/dev/null) || dispatch_fields=
   { read -r dispatch_status; read -r selected_harness; read -r selected_model; read -r selected_effort; } <<<"$dispatch_fields" || true
   if [ -z "$dispatch_status" ]; then
-    echo "error: malformed dispatch resolution $DISPATCH_RECORD for task $ID; rerun bin/fm-dispatch-resolve.sh $DATA/$ID/brief.md --project <name>" >&2
+    echo "error: malformed dispatch resolution $DISPATCH_RECORD for task $ID; rerun bin/fm-dispatch-resolve.sh $DISPATCH_TASK_DIR/brief.md --project <name>" >&2
     exit 1
   fi
   if [ "$dispatch_status" = clear ] && [ -z "$DISPATCH_OVERRIDE" ] \

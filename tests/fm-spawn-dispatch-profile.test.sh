@@ -511,6 +511,35 @@ test_recorded_dispatch_selection_refuses_conflicting_flags() {
   pass "a recorded dispatch selection refuses conflicting explicit launch flags"
 }
 
+# A brief bin/fm-brief.sh writes today lives in data/<Project>/<id>/, and the
+# resolver writes the record beside it; the spawn must read it there.
+test_recorded_dispatch_selection_is_read_from_the_project_task_folder() {
+  local rec id out status
+  id=profile-selected-project-z13
+  rec=$(make_spawn_case profile-selected-project claude)
+  read_case_record "$rec"
+  mkdir -p "$HOME_DIR/data/Project/$id"
+  printf '# Task\n## Captain%ss intent\nbrief for %s\n\n## Firstmate spec\nExercise the spawn behavior under test.\n' "'" "$id" \
+    > "$HOME_DIR/data/Project/$id/brief.md"
+  enable_dispatch_profile "$HOME_DIR"
+  jq -cn --arg id "$id" '{task: $id, status: "clear", profile: {harness: "claude", model: "opus", effort: "high"}}' \
+    > "$HOME_DIR/data/Project/$id/dispatch-resolution.json"
+
+  out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" \
+    "$id" "$PROJ_DIR" --harness codex --model gpt-5 --effort high)
+  status=$?
+  expect_code 1 "$status" "flags that differ from a per-project task folder's record should be refused"
+  assert_contains "$out" 'launch flags do not match the clear dispatch selection --harness claude --model opus --effort high' "spawn did not read the per-project task folder's record"
+  assert_absent "$HOME_DIR/data/$id" "the spawn created a flat task folder"
+
+  out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" \
+    "$id" "$PROJ_DIR" --harness claude --model opus --effort high)
+  status=$?
+  expect_code 0 "$status" "flags equal to a per-project task folder's record should launch: $out"
+  assert_meta_profile "$HOME_DIR/state/$id.meta" claude opus high
+  pass "a recorded dispatch selection is read from the task's per-project folder"
+}
+
 test_recorded_dispatch_selection_allows_matching_flags() {
   local rec id out status
   id=profile-selected-match-z13
@@ -3114,6 +3143,7 @@ fm_test_run_cases \
   test_active_dispatch_profile_does_not_block_secondmate_launch \
   test_recorded_dispatch_selection_refuses_conflicting_flags \
   test_recorded_dispatch_selection_allows_matching_flags \
+  test_recorded_dispatch_selection_is_read_from_the_project_task_folder \
   test_recorded_dispatch_selection_allows_recorded_override \
   test_recorded_dispatch_selection_leaves_unset_effort_unbound \
   test_recorded_dispatch_selection_refuses_raw_launch_without_override \
