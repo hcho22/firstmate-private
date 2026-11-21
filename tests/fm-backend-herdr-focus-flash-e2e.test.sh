@@ -15,7 +15,7 @@
 # On a future release whose explicit close preserves focus, Part A records
 # that and Parts B and C keep outcome-only assertions, so no version is guessed.
 # Every CLI operation is routed through one guarded named non-default lab, and
-# lab teardown verifies that the default fleet session is byte-identical.
+# lab teardown verifies that the configured fleet session is byte-identical.
 set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -71,24 +71,6 @@ set -- "${args[@]}"
 for arg in "$@"; do
   case "$arg" in --session|--session=*) exit 9 ;; esac
 done
-if [ -n "${FM_FLASH_CLOSE_COMPLETE_MARKER:-}" ] \
-  && [ -n "${FM_FLASH_FOCUS_OBSERVED_MARKER:-}" ] \
-  && [ "${1:-}" = pane ] \
-  && [ "${2:-}" = close ]; then
-  status=0
-  env PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" run "$HERDR_LAB_SESSION" "$@" || status=$?
-  [ "$status" -eq 0 ] || exit "$status"
-  : > "$FM_FLASH_CLOSE_COMPLETE_MARKER"
-  deadline=$((SECONDS + 60))
-  while [ ! -e "$FM_FLASH_FOCUS_OBSERVED_MARKER" ] && [ "$SECONDS" -lt "$deadline" ]; do
-    sleep 0.01
-  done
-  [ -e "$FM_FLASH_FOCUS_OBSERVED_MARKER" ] || {
-    printf 'focus sampler did not observe the completed explicit close\n' >&2
-    exit 8
-  }
-  exit 0
-fi
 exec env PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" run "$HERDR_LAB_SESSION" "$@"
 SH
 chmod +x "$FAKEBIN/herdr"
@@ -314,14 +296,9 @@ done
 
 C_CALL_LOG="$TMP_ROOT/call-c.log"
 C_FOCUS_SAMPLES="$TMP_ROOT/focus-c.samples"
+C_CLOSE_FOCUS="$TMP_ROOT/focus-c-close.snapshot"
 C_OPERATION_ACTIVE="$TMP_ROOT/operation-c.active"
 C_SAMPLER_READY="$TMP_ROOT/sampler-c.ready"
-C_CLOSE_COMPLETE_MARKER=
-C_FOCUS_OBSERVED_MARKER=
-if [ "$STEAL_LIVE" = 1 ]; then
-  C_CLOSE_COMPLETE_MARKER="$TMP_ROOT/close-c.complete"
-  C_FOCUS_OBSERVED_MARKER="$TMP_ROOT/focus-c.observed"
-fi
 SAMPLER_STOP="$TMP_ROOT/sampler-c.stop"
 : > "$C_CALL_LOG"
 : > "$C_FOCUS_SAMPLES"
@@ -331,11 +308,6 @@ SAMPLER_STOP="$TMP_ROOT/sampler-c.stop"
     if [ -e "$C_OPERATION_ACTIVE" ]; then
       if C_SAMPLE=$(focus_snapshot); then
         printf '%s\n' "$C_SAMPLE" >> "$C_FOCUS_SAMPLES"
-        if [ -n "$C_CLOSE_COMPLETE_MARKER" ] \
-          && [ -e "$C_CLOSE_COMPLETE_MARKER" ] \
-          && [ "$C_SAMPLE" != "$C_BEFORE" ]; then
-          : > "$C_FOCUS_OBSERVED_MARKER"
-        fi
       else
         printf '%s\n' UNREADABLE >> "$C_FOCUS_SAMPLES"
       fi
@@ -352,16 +324,20 @@ done
 # A short proof budget keeps the exhausted-proof path fast; the count below is
 # what proves the proof was exhausted rather than skipped.
 C_PROOF_POLLS=3
+export -f lab focus_snapshot
 C_OUT=$(PATH="$FAKEBIN:$HERDR_ORIGINAL_PATH" FM_FLASH_CALL_LOG="$C_CALL_LOG" \
-  FM_FLASH_CLOSE_COMPLETE_MARKER="$C_CLOSE_COMPLETE_MARKER" \
-  FM_FLASH_FOCUS_OBSERVED_MARKER="$C_FOCUS_OBSERVED_MARKER" \
+  FM_FLASH_CLOSE_FOCUS="$C_CLOSE_FOCUS" \
   FM_BACKEND_HERDR_IDLE_SHELL_PROOF_POLLS="$C_PROOF_POLLS" bash -c '
   . "$1/bin/backends/herdr.sh"
   fm_backend_herdr_cli() {
     local session=$1
     shift
     printf "%s\n" "$*" >> "$FM_FLASH_CALL_LOG"
-    HERDR_SESSION="$session" herdr "$@" --session "$session"
+    HERDR_SESSION="$session" herdr "$@" --session "$session" || return $?
+    # Observe the real close before the restore can erase its focus change.
+    if [ "$1 $2" = "pane close" ]; then
+      focus_snapshot > "$FM_FLASH_CLOSE_FOCUS" || return 1
+    fi
   }
   fm_backend_herdr_projection_close_pane_focus_preserving "$2" "$3"
 ' _ "$ROOT" "$HERDR_LAB_SESSION" "$C_DOOMED_PANE" 2>&1)
@@ -391,6 +367,8 @@ pass 'fallback: a doomed pane holding a persistent child exhausts the proof and 
 C_AFTER=$(focus_snapshot) || fail 'could not capture the Part C post-close focus'
 [ "$C_AFTER" = "$C_BEFORE" ] \
   || fail "the fallback close left focus off the anchor ($C_BEFORE -> $C_AFTER)"
+[ -s "$C_CLOSE_FOCUS" ] || fail 'Part C did not capture focus immediately after the explicit close'
+C_AT_CLOSE=$(< "$C_CLOSE_FOCUS")
 C_WRONG=$(grep -Fvxc -- "$C_BEFORE" "$C_FOCUS_SAMPLES" || true)
 if [ "$STEAL_LIVE" = 1 ]; then
   # A defective release cannot make this path focus-safe, which is precisely why
@@ -398,10 +376,12 @@ if [ "$STEAL_LIVE" = 1 ]; then
   # explicitly accepted here, but only as a BOUNDED one: the restore backstop
   # must have put the anchor back exactly, and the whole exposure must end with
   # the operation rather than parking the captain somewhere else.
-  [ "$C_WRONG" -ge 1 ] \
-    || fail 'Part C reached the fallback on a defective release but observed no wrong-focus sample at all, so the sampler proved nothing'
-  pass "fallback on a defective release: a bounded wrong-focus window of $C_WRONG samples was fully restored to the anchor"
+  [ "$C_AT_CLOSE" != "$C_BEFORE" ] \
+    || fail 'Part C reached the fallback on a defective release but the explicit close did not change focus'
+  pass 'fallback on a defective release: the explicit close changed focus and the backstop restored the exact anchor'
 else
+  [ "$C_AT_CLOSE" = "$C_BEFORE" ] \
+    || fail "a focus-preserving release changed focus at the explicit close ($C_BEFORE -> $C_AT_CLOSE)"
   [ "$C_WRONG" -eq 0 ] \
     || fail "a focus-preserving release exposed $C_WRONG wrong-focus samples on the fallback path"
   pass 'fallback on a focus-preserving release: the plain explicit close preserved exact focus throughout'
@@ -463,5 +443,5 @@ else
   pass "version floor: an unconfigured home stays projected on herdr $LIVE_VERSION and the explicit opt-in agrees"
 fi
 
-printf 'evidence: herdr=%s protocol=%s steal_live=%s floor_verdict=%s default-session-tripwire=armed\n' \
+printf 'evidence: herdr=%s protocol=%s steal_live=%s floor_verdict=%s fleet-session-tripwire=armed\n' \
   "$LIVE_VERSION" "$LIVE_PROTOCOL" "$STEAL_LIVE" "$FLOOR_VERDICT"

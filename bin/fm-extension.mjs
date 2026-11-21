@@ -78,6 +78,7 @@ import { createHash, randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TextDecoder, promisify } from "node:util";
+import { ExtensionDeadline } from "./fm-extension-deadline.mjs";
 
 const SELF = fileURLToPath(import.meta.url);
 const CODE_ROOT = path.dirname(path.dirname(SELF));
@@ -127,10 +128,11 @@ const fstatAsync = promisify(fstat);
 const readAsync = promisify(read);
 
 class HostError extends Error {
-  constructor(code, message) {
+  constructor(code, message, deadline = null) {
     super(message);
     this.name = "HostError";
     this.code = code;
+    this.deadline = deadline;
   }
 }
 
@@ -1335,9 +1337,9 @@ async function reserveInvocation(home, record, verb, request, statePath) {
 }
 
 async function publishInvocationGroup(invocation, owner) {
-  const deadline = Date.now() + startupBoundMs("launchReady");
+  const deadline = new ExtensionDeadline("launch-ready", startupBoundMs("launchReady"), owner.operation);
   let ready = null;
-  while (Date.now() < deadline) {
+  while (!deadline.expired()) {
     const value = await readPrivateJson(invocation.readyFile, "extension invocation readiness");
     if (value) {
       ready = validateInvocationReady(value, invocation.token);
@@ -1346,7 +1348,7 @@ async function publishInvocationGroup(invocation, owner) {
     if (!pidAlive(invocation.pid)) fail("entrypoint-missing", "extension launch barrier exited before publishing ownership");
     await sleep(INVOCATION_POLL_MS);
   }
-  if (!ready) fail("timeout", "extension launch barrier did not publish ownership in time");
+  if (!ready) throw new HostError("timeout", "extension launch barrier did not publish ownership in time", deadline.evidence());
   if (ready.group_pid !== invocation.pid) fail("process-cleanup-failed", "extension launch barrier published a different process group");
   // The tracked barrier is the exact detached child this host just created.
   // Package code cannot run until after this ready record is accepted and the
@@ -1443,12 +1445,14 @@ async function runExtensionProcess(home, record, verb, request, timeoutMs, state
   const stdout = [];
   let forcedCode = "";
   let forcedMessage = "";
+  let forcedDeadline = null;
   let killTimer = null;
 
-  const forceStop = (code, message) => {
+  const forceStop = (code, message, deadline = null) => {
     if (forcedCode) return;
     forcedCode = code;
     forcedMessage = message;
+    forcedDeadline = deadline;
     signalProcessGroup(invocation, "SIGTERM");
     killTimer = setTimeout(() => signalProcessGroup(invocation, "SIGKILL"), TERMINATE_GRACE_MS);
   };
@@ -1476,7 +1480,8 @@ async function runExtensionProcess(home, record, verb, request, timeoutMs, state
     await finalizeInvocation(invocation);
     throw error;
   }
-  const timeout = setTimeout(() => forceStop("timeout", `extension ${verb} exceeded ${timeoutMs} ms`), timeoutMs);
+  const timeout = new ExtensionDeadline(verb, timeoutMs, verb === "handshake" ? verb : request.operation)
+    .arm((deadline) => forceStop("timeout", `extension ${verb} exceeded ${timeoutMs} ms`, deadline));
   child.stdin.on("error", () => {});
   child.stdin.end(requestBytes);
 
@@ -1484,16 +1489,16 @@ async function runExtensionProcess(home, record, verb, request, timeoutMs, state
   try {
     outcome = await completion;
   } catch (error) {
-    clearTimeout(timeout);
+    timeout.cancel();
     if (killTimer) clearTimeout(killTimer);
     await finalizeInvocation(invocation);
     throw error;
   }
-  clearTimeout(timeout);
+  timeout.cancel();
   if (killTimer) clearTimeout(killTimer);
   const leakedProcessGroup = !forcedCode && groupAlive(invocation.pid);
   await finalizeInvocation(invocation);
-  if (forcedCode) fail(forcedCode, forcedMessage);
+  if (forcedCode) throw new HostError(forcedCode, forcedMessage, forcedDeadline);
   if (leakedProcessGroup) fail("process-leak", `extension ${verb} left a background process in its invocation group`);
   if (outcome.signal || outcome.code !== 0) fail("process-failed", `extension ${verb} exited nonzero`);
   return parseStrictJson(Buffer.concat(stdout), `extension ${verb} response`);
@@ -1836,6 +1841,7 @@ function errorEvidence(error, extensionId, operation) {
     extension_id: safeExtensionId,
     operation,
     code: allowedCode,
+    ...(error instanceof HostError && error.deadline ? { deadline: error.deadline } : {}),
   })}\n`;
 }
 

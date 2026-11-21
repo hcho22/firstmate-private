@@ -53,6 +53,19 @@ append_wake() {
   ' _ "$lib" "$kind" "$key" "$payload"
 }
 
+# shellcheck source=/dev/null
+. "$ROOT/bin/fm-watch-key-lib.sh"
+
+# A differential fixture may select an older watcher with its own key format.
+watch_window_key() {  # <window> [<watcher>]
+  if [ "$#" -eq 1 ]; then
+    window_key "$1"
+    return
+  fi
+  FM_HOME="$TMP_ROOT/key-owner" FM_STATE_OVERRIDE="$TMP_ROOT/key-owner/state" \
+    bash -c '. "$1"; window_key "$2"' _ "$2" "$1"
+}
+
 # make_case <name>: a case directory with a state/ and a fakebin holding the
 # fake tmux below and the fake fm-crew-state.sh. Both stubs are shared read-only
 # links (fm_shared_stub in tests/lib.sh), so a suite's hundreds of cases do not

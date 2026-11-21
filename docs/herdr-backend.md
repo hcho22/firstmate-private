@@ -991,9 +991,7 @@ The helper:
 - Performs destructive stop/delete only through its guarded lifecycle actions.
 
 Immediately before every destructive call it re-queries the named session and refuses empty, missing, literal `default`, or `default:true` identities.
-Its before/after tripwire requires the live default-session snapshot to remain byte-identical.
-
-The helper's header and `--help` own exact commands.
+For the live-fleet tripwire and custom fleet-session selection, see the [helper's header](../bin/fm-herdr-lab.sh); its header and `--help` own exact commands.
 Tests use thin compatibility wrappers in `tests/herdr-test-safety.sh` and never duplicate the destructive policy.
 Only the real-Herdr and live opt-in test families may reach the installed `herdr` at all: `bin/fm-test-run.sh` runs every other script with a refusing stand-in first on `PATH` and fails a script that calls it, because a stray CLI call against a production session name such as `fm-remote` starts a real server in the operator's Herdr config.
 
@@ -1031,5 +1029,5 @@ tests/fm-afk-inject-herdr-e2e.test.sh
 tests/fm-afk-pi-herdr-return-e2e.test.sh
 ```
 
-Real Herdr tests use the named lab helper and default-session tripwire.
+Real Herdr tests follow [destructive lab safety](#destructive-lab-safety).
 [`verification/runtime-backends.md`](verification/runtime-backends.md#herdr) records the active version, CLI, projection, event, and lifecycle evidence without task-specific chronology.
