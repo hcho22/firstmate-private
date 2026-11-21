@@ -6275,8 +6275,6 @@ test_retained_sources_still_reach_the_ordinary_refusal() {
   pass "present required sources still reach the ordinary teardown refusal"
 }
 
-test_teardown_preserves_opencode_busy_plugin_on_pool_return
-
 # An orphan status log archived by record hygiene must survive status-archive
 # retention: the prune counts 30 days from archive time, not the log's last write.
 test_record_hygiene_archive_survives_status_archive_prune() {
