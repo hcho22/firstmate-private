@@ -2086,8 +2086,20 @@ test_open_claim_from_an_earlier_session_is_superseded() {
     fire b sess-before-fork
     cp "$FM_HOME/state/arm-ran" "$FM_HOME/state/arm-ran.after-b"
     kill -0 "$a_pid" 2>/dev/null || { echo "owner A finished before the session change could be exercised" > "$FM_HOME/state/scenario-fail"; exit 1; }
-    fire c sess-after-fork
+    fire c sess-after-fork &
+    c_pid=$!
+    # The blocking fixture holds arm N until arm-release.N. Release A once C has
+    # claimed generation 2 and started its own arm, then release C.
+    deadline=$((SECONDS + 60))
+    while ! grep -q "^epoch=2 .*outcome=arming" "$FM_HOME/state/.claude-autoarm-epoch" 2>/dev/null \
+      || [ "$(wc -l < "$FM_HOME/state/arm-ran" | tr -d " ")" -lt 2 ]; do
+      [ "$SECONDS" -lt "$deadline" ] || { echo "owner C never started its own arm" > "$FM_HOME/state/scenario-fail"; exit 1; }
+      sleep 0.1
+    done
+    : > "$FM_HOME/state/arm-release.1"
     wait "$a_pid"
+    : > "$FM_HOME/state/arm-release.2"
+    wait "$c_pid"
   '
   [ ! -e "$dir/state/scenario-fail" ] || fail "$(cat "$dir/state/scenario-fail")"
   b_status=$(cat "$dir/state/b.rc"); b_out=$(cat "$dir/state/b.out")
