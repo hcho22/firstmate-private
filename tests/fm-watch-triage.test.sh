@@ -5796,6 +5796,7 @@ case "$1" in
   *) exit 1 ;;
 esac
 SH
+  chmod +x "$fakebin/tmux"
   printf 'window=s:a.b\nkind=ship\nharness=codex\n' > "$state/first.meta"
   printf 'window=s:a_b\nkind=ship\nharness=codex\n' > "$state/second.meta"
   # Conflicting legacy memory must neither suppress a fresh stale nor become
