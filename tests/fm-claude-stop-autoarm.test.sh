@@ -651,7 +651,7 @@ test_stopfailure_failure_continuations_are_paced() {
 # a vanished need leaves nothing to supervise, so either one appearing during
 # the wait ends the firing silently instead of waking the primary late.
 test_stopfailure_paced_rewake_honors_afk_and_need_after_wait() {
-  local dir case_name status fail_payload rcfile hook_pid
+  local dir case_name status fail_payload rcfile hook_pid deadline
   fail_payload='{"session_id":"sess-autoarm","hook_event_name":"StopFailure","error":"connection_failed","transcript_path":"/tmp/sess.jsonl"}'
   for case_name in afk need; do
     dir=$(make_primary_dir "$TMP_ROOT/stopfailure-wait-$case_name")
@@ -661,7 +661,8 @@ test_stopfailure_paced_rewake_honors_afk_and_need_after_wait() {
     rcfile="$dir/hook-rc"
     ( FM_CLAUDE_STOPFAILURE_REWAKE_COOLDOWN=5 run_autoarm "$dir" "$fail_payload" >/dev/null 2>&1; echo "$?" > "$rcfile" ) &
     hook_pid=$!
-    for _ in $(seq 1 100); do
+    deadline=$((SECONDS + 60))
+    while [ "$SECONDS" -lt "$deadline" ]; do
       [ -e "$dir/state/successor-ran" ] && break
       sleep 0.05
     done
@@ -2077,10 +2078,10 @@ test_open_claim_from_an_earlier_session_is_superseded() {
     fire() { printf "%s\n" "{\"session_id\":\"$2\",\"stop_hook_active\":false}" | "$FM_HOME/bin/fm-claude-stop-autoarm.sh" > "$FM_HOME/state/$1.out" 2>&1; echo $? > "$FM_HOME/state/$1.rc"; }
     fire a sess-before-fork &
     a_pid=$!
-    i=0
+    deadline=$((SECONDS + 60))
     while ! grep -q "outcome=arming" "$FM_HOME/state/.claude-autoarm-epoch" 2>/dev/null || [ ! -e "$FM_HOME/state/arm-ran" ]; do
-      [ "$i" -lt 50 ] || { echo "owner A never published its arming claim" > "$FM_HOME/state/scenario-fail"; exit 1; }
-      sleep 0.1; i=$((i + 1))
+      [ "$SECONDS" -lt "$deadline" ] || { echo "owner A never published its arming claim" > "$FM_HOME/state/scenario-fail"; exit 1; }
+      sleep 0.1
     done
     fire b sess-before-fork
     cp "$FM_HOME/state/arm-ran" "$FM_HOME/state/arm-ran.after-b"

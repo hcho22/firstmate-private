@@ -351,8 +351,8 @@ EOF
 }
 
 wait_for_result() {  # <home> <source-id> <sequence>
-  local file="$1/state/procevent-inbox/$2.$3.result" i
-  for i in $(seq 1 400); do
+  local file="$1/state/procevent-inbox/$2.$3.result" deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -s "$file" ] && return 0
     sleep 0.05
   done

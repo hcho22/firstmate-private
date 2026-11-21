@@ -339,10 +339,9 @@ SH
   [ -n "$legacy" ] && [ "$legacy" != "$current" ] \
     || fail "the legacy local-time identity does not differ from the UTC identity, so this case would pass vacuously ('$legacy')"
   if [ "$successor_first" -eq 1 ]; then
-    i=0
-    while [ "$i" -lt 100 ] && [ ! -e "$dir/old.paused" ] && is_live_non_zombie "$old"; do
+    deadline=$((SECONDS + 60))
+    while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$dir/old.paused" ] && is_live_non_zombie "$old"; do
       sleep 0.1
-      i=$((i + 1))
     done
     [ -e "$dir/old.paused" ] \
       || fail "old watcher never reached its lock-free poll sleep: $(cat "$old_out")"

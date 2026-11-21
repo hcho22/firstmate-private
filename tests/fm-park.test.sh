@@ -363,6 +363,7 @@ test_gitlab_gate_clean_and_unclean_conditions() {
   printf 'pr=%s\nhead=%s\nparked_at=%s\nslot_leased=yes\n' "$GL_URL" "$(cat "$w/head")" "$(date +%s)" > "$w/state/lane.review-park"
   local rc=0 out
   out=$(run_park "$w" tick 2>&1) || rc=$?
+  # fm-lint-waits: allow a relaunch would run detached; this short window only gives one the time to appear, and the case asserts none did
   for _ in $(seq 1 20); do [ ! -e "$w/control.log" ] || break; sleep 0.1; done
   [ "$rc" = 0 ] && [ -z "$out" ] || fail "gitlab unreachable forge: tick acted: $rc $out"
   [ -e "$w/state/lane.review-park" ] && [ ! -e "$w/control.log" ] || fail "gitlab unreachable forge: parked lane was relaunched"
@@ -421,6 +422,7 @@ test_park_refuses_when_head_moves_after_the_verdict() {
 }
 
 test_park_serializes_final_check_with_inbox_delivery() {
+  local deadline
   local w lock pid rc=0 out
   w=$(make_world park-inbox-lock "$GH_URL")
   local FM_HOME="$w"
@@ -431,7 +433,8 @@ test_park_serializes_final_check_with_inbox_delivery() {
   fm_lock_acquire_wait "$lock" || fail "inbox-lock: could not hold the task metadata lock"
   run_park "$w" park lane >"$w/park.out" 2>&1 &
   pid=$!
-  for _ in $(seq 1 200); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ "$(cat "$w/gh.count" 2>/dev/null || echo 0)" -ge 2 ] && break
     sleep 0.05
   done
@@ -491,12 +494,13 @@ SH
 
 # Starts a park whose stop hangs and kills it outright in the middle of it.
 kill_park_during_stop() {  # <world>
-  local w=$1 pid
+  local w=$1 pid deadline
   cp "$w/fakebin/fm-control.sh" "$w/fm-control.sh.orig"
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >> "%s/control.log"\nsleep 5\n' "$w" > "$w/fakebin/fm-control.sh"
   TMPDIR="$w" FM_TEST_EXEC_PARK=1 run_park "$w" park lane >/dev/null 2>&1 &
   pid=$!
-  for _ in $(seq 1 100); do [ -s "$w/control.log" ] && break; sleep 0.1; done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do [ -s "$w/control.log" ] && break; sleep 0.1; done
   [ -s "$w/control.log" ] || fail "interrupted: the stop never started"
   kill -KILL "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
@@ -534,6 +538,7 @@ test_interrupted_park_reads_as_parking_and_the_tick_settles_it() {
   gh_fixture "$w/gh.1.json" 'rollup="FAILURE"'
   out=$(run_park "$w" tick 2>&1)
   # A relaunch would run detached, so give one the time to appear.
+  # fm-lint-waits: allow a relaunch would run detached; this short window only gives one the time to appear, and the case asserts none did
   for _ in $(seq 1 20); do [ ! -e "$w/control.log" ] || break; sleep 0.1; done
   [ -z "$out" ] && [ ! -e "$w/control.log" ] || fail "interrupted-alive: tick acted: $out"
   grep -qx 'pending=1' "$w/state/lane.review-park" || fail "interrupted-alive: pending record dropped before stop bound"
@@ -545,6 +550,7 @@ test_interrupted_park_reads_as_parking_and_the_tick_settles_it() {
   gh_fixture "$w/gh.1.json" 'rollup="FAILURE"'
   : > "$w/tmux.unreadable"
   run_park "$w" tick >/dev/null 2>&1
+  # fm-lint-waits: allow a relaunch would run detached; this short window only gives one the time to appear, and the case asserts none did
   for _ in $(seq 1 20); do [ ! -e "$w/control.log" ] || break; sleep 0.1; done
   [ ! -e "$w/control.log" ] || fail "interrupted-unreadable: tick relaunched: $(cat "$w/control.log")"
   grep -qx 'pending=1' "$w/state/lane.review-park" || fail "interrupted-unreadable: an unanswered check settled the record"
@@ -692,21 +698,25 @@ park_world() {  # <world>
 
 # Waits for a detached lane action to publish its outcome for the next tick.
 wait_report() {  # <world> <label>
-  for _ in $(seq 1 200); do
+  local deadline
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     ! compgen -G "$1/state/.review-park-report-*" >/dev/null || return 0
     sleep 0.1
   done
-  fail "$2: no detached action reported within 20s"
+  fail "$2: no detached action reported within 60s"
 }
 
 # Waits for a detached land to settle. It publishes its report before it
 # removes the pending request, so a removed request means the report exists.
 wait_land_settled() {  # <world> <label>
-  for _ in $(seq 1 200); do
+  local deadline
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -e "$1/state/lane.review-park-land" ] || break
     sleep 0.1
   done
-  [ ! -e "$1/state/lane.review-park-land" ] || fail "$2: the pending cleanup request was not cleared within 20s"
+  [ ! -e "$1/state/lane.review-park-land" ] || fail "$2: the pending cleanup request was not cleared within 60s"
   compgen -G "$1/state/.review-park-report-*" >/dev/null || fail "$2: the pending request was cleared without a reported outcome"
 }
 
@@ -829,13 +839,14 @@ test_behind_base_does_not_relaunch() {
 # A relaunch that takes longer than the whole tick budget still completes: the
 # tick only starts it, and nothing bounded by the tick can kill it.
 test_slow_relaunch_is_never_cut_short_by_the_tick() {
-  local w out
+  local w out deadline
   w=$(make_world tick-slow-relaunch "$GH_URL"); gh_fixture "$w/gh.1.json"; park_world "$w"
   gh_fixture "$w/gh.1.json" 'rollup="FAILURE"'
   printf '#!/usr/bin/env bash\nprintf started > "%s/control.started"\nwhile [ ! -e "%s/control.release" ]; do sleep 0.05; done\nprintf "%%s\\n" "$*" >> "%s/control.log"\n' "$w" "$w" "$w" > "$w/fakebin/fm-control.sh"
   out=$(FM_PARK_TICK_SECS=6 run_park "$w" tick 2>&1)
   [ -z "$out" ] || fail "slow-relaunch: the starting tick printed: $out"
-  for _ in $(seq 1 100); do [ -e "$w/control.started" ] && break; sleep 0.1; done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do [ -e "$w/control.started" ] && break; sleep 0.1; done
   [ -e "$w/control.started" ] || fail "slow-relaunch: detached action never started"
   # A tick while the relaunch runs leaves the busy lane alone.
   out=$(FM_PARK_TICK_SECS=6 run_park "$w" tick 2>&1)
@@ -1012,12 +1023,13 @@ SH
 # however slow the teardown is, and the next tick reports the outcome, even in
 # a home that opted out of everything the tick otherwise watches.
 test_detached_land_returns_at_once_and_the_tick_reports_it() {
-  local w out
+  local w out deadline
   w=$(make_world land-detached "$GH_URL"); gh_fixture "$w/gh.1.json"; park_world "$w"
   printf '#!/usr/bin/env bash\nprintf started > "%s/teardown.started"\nwhile [ ! -e "%s/teardown.release" ]; do sleep 0.05; done\nprintf "%%s\\n" "$*" >> "%s/teardown.log"\nrm -f "%s/state/lane.review-park" "%s/state/lane.meta"\n' "$w" "$w" "$w" "$w" "$w" > "$w/fakebin/fm-teardown.sh"
   out=$(run_park "$w" land lane --if-eligible --detach 2>&1)
   [ "$out" = "automatic cleanup started" ] || fail "land-detached: $out"
-  for _ in $(seq 1 100); do [ -e "$w/teardown.started" ] && break; sleep 0.1; done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do [ -e "$w/teardown.started" ] && break; sleep 0.1; done
   [ -e "$w/teardown.started" ] || fail "land-detached: detached teardown never started"
   [ ! -e "$w/teardown.log" ] || fail "land-detached: teardown completed before release"
   : > "$w/teardown.release"
@@ -1031,7 +1043,7 @@ test_detached_land_returns_at_once_and_the_tick_reports_it() {
 }
 
 test_pending_land_recovers_after_watcher_restart() {
-  local w out
+  local w out deadline
   w=$(make_world land-recovery "$GH_URL"); gh_fixture "$w/gh.1.json"
   : > "$w/config/auto-land"
   printf 'pr=%s\n' "$GH_URL" > "$w/state/lane.review-park-land"
@@ -1044,7 +1056,8 @@ SH
   chmod +x "$w/fakebin/fm-teardown.sh"
   out=$(run_park "$w" tick 2>&1)
   [ -z "$out" ] || fail "land-recovery: starting tick printed: $out"
-  for _ in $(seq 1 100); do [ -e "$w/teardown.started" ] && break; sleep 0.1; done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do [ -e "$w/teardown.started" ] && break; sleep 0.1; done
   [ -e "$w/teardown.started" ] || fail "land-recovery: cleanup did not start"
   [ -e "$w/state/lane.review-park-land" ] || fail "land-recovery: request removed before cleanup outcome"
   : > "$w/teardown.release"
@@ -1057,7 +1070,7 @@ SH
 }
 
 test_pending_land_retries_after_control_lock_refusal() {
-  local w out
+  local w out deadline
   w=$(make_world land-lock-retry "$GH_URL"); gh_fixture "$w/gh.1.json"
   : > "$w/config/auto-land"
   printf 'pr=%s\n' "$GH_URL" > "$w/state/lane.review-park-land"
@@ -1071,12 +1084,14 @@ SH
   chmod +x "$w/fakebin/fm-teardown.sh"
   out=$(run_park "$w" tick 2>&1)
   [ -z "$out" ] || fail "land-lock-retry: first tick printed: $out"
-  for _ in $(seq 1 100); do [ "$(cat "$w/teardown.count" 2>/dev/null || echo 0)" -ge 1 ] && break; sleep 0.1; done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do [ "$(cat "$w/teardown.count" 2>/dev/null || echo 0)" -ge 1 ] && break; sleep 0.1; done
   [ "$(cat "$w/teardown.count")" = 1 ] || fail "land-lock-retry: first teardown did not run"
   # A tick skips the lane while the first attempt still holds it, and drains
   # any report it published, so tick until the retry runs: every tick must stay
   # silent and the pending request must survive the refusal.
-  for _ in $(seq 1 200); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ "$(cat "$w/teardown.count")" = 1 ] || break
     out=$(run_park "$w" tick 2>&1)
     [ -z "$out" ] || fail "land-lock-retry: the lock refusal was reported as an outcome: $out"
@@ -1093,7 +1108,7 @@ SH
 # A cleanup killed partway through its teardown leaves its request behind, so
 # the next tick retries it and reports the outcome once.
 test_killed_cleanup_is_retried_and_reported_once() {
-  local w out pgid
+  local w out pgid deadline
   w=$(make_world land-killed "$GH_URL"); gh_fixture "$w/gh.1.json"
   : > "$w/config/auto-land"
   printf 'pr=%s\n' "$GH_URL" > "$w/state/lane.review-park-land"
@@ -1116,14 +1131,16 @@ SH
   chmod +x "$w/fakebin/fm-teardown.sh"
   out=$(run_park "$w" tick 2>&1)
   [ -z "$out" ] || fail "land-killed: first tick printed: $out"
-  for _ in $(seq 1 100); do [ -e "$w/teardown.started" ] && break; sleep 0.1; done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do [ -e "$w/teardown.started" ] && break; sleep 0.1; done
   pgid=$(cat "$w/cleanup.pgid" 2>/dev/null)
   [ -n "$pgid" ] && [ "$pgid" != "$(ps -o pgid= -p $$ | tr -d ' ')" ] || fail "land-killed: no detached cleanup process group found: '$pgid'"
   kill -KILL -- "-$pgid"
   sleep 0.5
   [ -e "$w/state/lane.review-park-land" ] || fail "land-killed: the killed cleanup lost its request"
   ! compgen -G "$w/state/.review-park-report-*" >/dev/null || fail "land-killed: the killed cleanup published an outcome"
-  for _ in $(seq 1 200); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ "$(cat "$w/teardown.count")" = 1 ] || break
     out=$(run_park "$w" tick 2>&1)
     [ -z "$out" ] || fail "land-killed: a retry tick printed: $out"
@@ -1141,18 +1158,19 @@ SH
 # A cleanup request names the PR that merged. When the lane has since moved on
 # to another PR, the request is dropped without tearing anything down.
 test_stale_cleanup_request_for_another_pr_is_dropped() {
-  local w out
+  local w out deadline
   w=$(make_world land-stale "$GH_URL"); gh_fixture "$w/gh.1.json"
   : > "$w/config/auto-land"
   printf 'pr=%s\n' "$GH_URL" > "$w/state/lane.review-park-land"
   sed -i.bak "s#^pr=.*#pr=${GH_URL%/*}/8#" "$w/state/lane.meta" && rm -f "$w/state/lane.meta.bak"
   out=$(run_park "$w" tick 2>&1)
   [ -z "$out" ] || fail "land-stale: tick printed: $out"
-  for _ in $(seq 1 200); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -e "$w/state/lane.review-park-land" ] || break
     sleep 0.1
   done
-  [ ! -e "$w/state/lane.review-park-land" ] || fail "land-stale: the stale request was not dropped within 20s"
+  [ ! -e "$w/state/lane.review-park-land" ] || fail "land-stale: the stale request was not dropped within 60s"
   [ ! -e "$w/teardown.log" ] || fail "land-stale: a stale request tore down the lane: $(cat "$w/teardown.log")"
   ! compgen -G "$w/state/.review-park-report-*" >/dev/null || fail "land-stale: a stale request reported: $(cat "$w"/state/.review-park-report-*)"
   out=$(run_park "$w" tick 2>&1)
@@ -1185,14 +1203,15 @@ test_reports_survive_until_their_wake_is_recorded() {
 # A merge-time cleanup that lands while a relaunch of the same lane is under
 # way waits for it instead of tearing the lane down mid-relaunch.
 test_land_waits_for_an_action_under_way() {
-  local w out
+  local w out deadline
   w=$(make_world land-waits "$GH_URL"); gh_fixture "$w/gh.1.json"; park_world "$w"
   gh_fixture "$w/gh.1.json" 'rollup="FAILURE"'
   printf '#!/usr/bin/env bash\nsleep 3\nprintf "%%s\\n" "$*" >> "%s/order.log"\n' "$w" > "$w/fakebin/fm-control.sh"
   printf '#!/usr/bin/env bash\nprintf "teardown\\n" >> "%s/order.log"\n' "$w" > "$w/fakebin/fm-teardown.sh"
   out=$(run_park "$w" tick 2>&1)
   [ -z "$out" ] || fail "land-waits: the starting tick printed: $out"
-  for _ in $(seq 1 50); do [ -d "$w/state/.review-park-lane.lock" ] && break; sleep 0.1; done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do [ -d "$w/state/.review-park-lane.lock" ] && break; sleep 0.1; done
   [ -d "$w/state/.review-park-lane.lock" ] || fail "land-waits: the relaunch never took the lane lock"
   out=$(run_park "$w" land lane 2>&1)
   case "$out" in "cleaned up lane: "*) ;; *) fail "land-waits: $out" ;; esac

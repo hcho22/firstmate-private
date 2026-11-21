@@ -43,13 +43,14 @@ unusable() {
 # capture_tools <label> [claude args...]: write the main request's tool names, one per line,
 # to $TMP_ROOT/<label>.tools. Runs in the main shell so unusable can end the script.
 capture_tools() {
-  local label=$1 port_file capture port
+  local label=$1 port_file capture port deadline
   shift
   port_file=$TMP_ROOT/$label.port
   capture=$TMP_ROOT/$label.jsonl
   python3 "$ROOT/tests/fixtures/fm-claude-request-capture.py" "$port_file" "$capture" &
   CAPTURE_PID=$!
-  for _ in $(seq 1 50); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -s "$port_file" ] && break
     sleep 0.1
   done

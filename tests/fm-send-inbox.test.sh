@@ -410,7 +410,7 @@ SH
 }
 
 test_delivery_lock_serializes_enqueue() {
-  local dir err lock sender rc=0 waiting i=0
+  local dir err lock sender rc=0 waiting deadline
   dir=$(setup_case delivery-lock)
   err="$dir/send.err"
   waiting="$dir/delivery-lock-waiting"
@@ -425,9 +425,9 @@ SH
   chmod +x "$dir/fakebin/sleep"
   run_send "$dir" "$err" FM_TASK_INBOX_LOCK_WAIT_SECS=10 FM_TEST_DELIVERY_LOCK_WAITING="$waiting" -- t1 "arrived during parking" &
   sender=$!
-  while [ ! -e "$waiting" ] && [ "$i" -lt 200 ]; do
+  deadline=$((SECONDS + 60))
+  while [ ! -e "$waiting" ] && [ "$SECONDS" -lt "$deadline" ]; do
     /bin/sleep 0.01
-    i=$((i + 1))
   done
   [ -e "$waiting" ] || {
     fm_lock_release "$lock"

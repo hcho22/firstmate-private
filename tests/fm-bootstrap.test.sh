@@ -395,7 +395,7 @@ test_record_hygiene_watcher_absent_flag_is_inert() {
 }
 
 test_record_hygiene_reclaims_stale_running_marker() {
-  local case_dir status tries
+  local case_dir status deadline
   case_dir="$TMP_ROOT/record-hygiene-stale-marker"
   mkdir -p "$case_dir/home"/{state,data,config}
   : > "$case_dir/home/config/record-hygiene"
@@ -407,12 +407,11 @@ test_record_hygiene_reclaims_stale_running_marker() {
     FM_RECORD_HYGIENE_TIMEOUT=1 timeout 30 "$ROOT/bin/fm-watch.sh" >"$case_dir/out" 2>"$case_dir/err" || status=$?
   { [ "$status" -eq 0 ] || [ "$status" -eq 124 ]; } \
     || fail "watcher failed while reclaiming stale hygiene marker (exit=$status)"
-  tries=0
+  deadline=$((SECONDS + 60))
   while [ ! -s "$case_dir/home/state/.record-hygiene-last" ] \
       && ! grep -q $'\tcheck\trecord-hygiene\t' "$case_dir/home/state/.wake-queue" 2>/dev/null \
-      && [ "$tries" -lt 30 ]; do
+      && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 0.1
-    tries=$((tries + 1))
   done
   [ -s "$case_dir/home/state/.record-hygiene-last" ] \
     || grep -q $'\tcheck\trecord-hygiene\t' "$case_dir/home/state/.wake-queue" 2>/dev/null \

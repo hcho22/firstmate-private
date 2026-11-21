@@ -2230,7 +2230,7 @@ test_forge_release_waits_for_an_attended_session() {
 }
 
 hold_lock() { # home lock: hold the lock until $home/release exists; sets HOLDER_PID
-  local home=$1 lock=$2 i=0
+  local home=$1 lock=$2 deadline
   rm -f "$home/holder.ready" "$home/release"
   FM_STATE_OVERRIDE="$home/state" bash -c '
     . "$1"
@@ -2240,7 +2240,8 @@ hold_lock() { # home lock: hold the lock until $home/release exists; sets HOLDER
     fm_lock_release "$2"
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$lock" "$home/holder.ready" "$home/release" &
   HOLDER_PID=$!
-  while [ "$i" -lt 100 ] && [ ! -s "$home/holder.ready" ]; do sleep 0.05; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -s "$home/holder.ready" ]; do sleep 0.05; done
   [ -s "$home/holder.ready" ] || { kill "$HOLDER_PID" 2>/dev/null || true; fail "the fixture never took $lock"; }
 }
 

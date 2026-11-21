@@ -766,14 +766,13 @@ for arg in "$@"; do
       hang) sleep 30 ;;
       rendezvous)
         : > "$FM_TEST_COMPOSE_DIR/composing-$$"
-        i=0
-        while [ ! -e "$FM_TEST_COMPOSE_DIR/overlap-proved" ] && [ "$i" -lt 600 ]; do
+        deadline=$((SECONDS + 60))
+        while [ ! -e "$FM_TEST_COMPOSE_DIR/overlap-proved" ] && [ "$SECONDS" -lt "$deadline" ]; do
           markers=("$FM_TEST_COMPOSE_DIR"/composing-*)
           if [ "${#markers[@]}" -ge "$FM_TEST_COMPOSE_COUNT" ]; then
             : > "$FM_TEST_COMPOSE_DIR/overlap-proved"
           fi
           sleep 0.05
-          i=$((i + 1))
         done
         printf '%s\n' "$$" >> "$FM_TEST_COMPOSE_DIR/composed"
         ;;

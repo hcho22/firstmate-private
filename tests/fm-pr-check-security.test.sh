@@ -1330,7 +1330,7 @@ test_scan_does_not_replace_a_pr_whose_merge_is_being_recorded() {
 }
 
 test_scan_keeps_the_watch_when_replacement_status_changes_during_reads() {
-  local dir state before scan_pid
+  local dir state before scan_pid deadline
   dir=$(make_case scan-status-race)
   state="$dir/home/state"
   write_task_meta "$dir"
@@ -1342,7 +1342,8 @@ test_scan_keeps_the_watch_when_replacement_status_changes_during_reads() {
   FM_CHECK_TIMEOUT=60 FM_TEST_GH_SLOW_URL=pull/8 FM_TEST_GH_SLOW_SECONDS=3 \
     run_check_entry "$dir" scan >/dev/null 2>"$dir/stderr" &
   scan_pid=$!
-  for _ in $(seq 100); do
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do
     grep -q 'pull/8' "$dir/gh.log" 2>/dev/null && break
     kill -0 "$scan_pid" 2>/dev/null || fail "the scan exited before reading pull/8: $(cat "$dir/stderr")"
     sleep 0.1
@@ -2095,7 +2096,7 @@ test_degraded_watch_opt_in_absent_preserves_merged_only_behavior() {
 }
 
 test_degraded_watch_flag_refreshes_each_sweep() {
-  local dir state url pid i
+  local dir state url pid deadline
   dir=$(make_case degraded-watch-flag-refresh)
   state="$dir/home/state"
   url=https://github.com/o/r/pull/1
@@ -2107,8 +2108,8 @@ test_degraded_watch_flag_refreshes_each_sweep() {
     FM_TEST_GH_ROLLUP='[{"__typename":"CheckRun","name":"ci","status":"COMPLETED","conclusion":"FAILURE"}]' \
     run_watcher_bounded "$dir/home" "$dir/fakebin" > "$dir/watch.out" 2> "$dir/watch.err" &
   pid=$!
-  i=0
-  while [ "$i" -lt 1000 ] && [ ! -e "$state/.last-check" ]; do sleep 0.01; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$state/.last-check" ]; do sleep 0.01; done
   [ -e "$state/.last-check" ] || fail "watcher did not finish its first disabled sweep: $(cat "$dir/watch.err") $(cat "$dir/watch.out") $(cat "$dir/gh.log")"
   : > "$dir/home/config/pr-degraded-watch"
   wait "$pid" || fail "watcher failed after the opt-in flag was enabled: $(cat "$dir/watch.err") $(cat "$dir/watch.out")"
@@ -2568,7 +2569,7 @@ SH
 }
 
 test_term_during_pr_baseline_move_restores_registration() {
-  local dir state url1 url2 artifact before pid i rc
+  local dir state url1 url2 artifact before pid rc deadline
   dir=$(make_case term-during-pr-baseline-move)
   state="$dir/home/state"
   url1=https://gitlab.example/group/subgroup/project/-/merge_requests/1
@@ -2605,8 +2606,8 @@ SH
     PATH="$dir/fakebin:$BASE_PATH" "$PR_CHECK" task-a "$url2" \
       > "$dir/rearm.out" 2> "$dir/rearm.err" &
   pid=$!
-  i=0
-  while [ "$i" -lt 300 ] && [ ! -e "$dir/move-started" ]; do sleep 0.01; i=$((i + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ] && [ ! -e "$dir/move-started" ]; do sleep 0.01; done
   [ -e "$dir/move-started" ] || fail "re-arm did not enter baseline preservation"
   kill -TERM "$pid" || fail "could not interrupt re-arm during baseline preservation"
   : > "$dir/move-release"
@@ -3825,7 +3826,7 @@ SH
 }
 
 test_gitlab_merge_watch() {
-  local dir state out rc url value noglab nojq noperl entry bindir name wide train started elapsed poll_pid waited hung
+  local dir state out rc url value noglab nojq noperl entry bindir name wide train started elapsed poll_pid hung deadline
   dir=$(make_case gitlab-merge-watch)
   state="$dir/home/state"
   # The poll reads the merge request as JSON, so the fixture's search path
@@ -3936,16 +3937,16 @@ group/subgroup/project
     perl -e 'setpgrp(0, 0) or die "setpgrp: $!"; exec @ARGV or die "exec: $!"' \
     bash "$dir/home/state/task-a.check.sh" > /dev/null 2>&1 &
   poll_pid=$!
-  waited=0
-  while [ ! -s "$dir/glab.log.hangpid" ] && [ "$waited" -lt 100 ]; do sleep 0.05; waited=$((waited + 1)); done
+  deadline=$((SECONDS + 60))
+  while [ ! -s "$dir/glab.log.hangpid" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.05; done
   hung=$(cat "$dir/glab.log.hangpid" 2>/dev/null)
   if [ -z "$hung" ] || ! kill -0 "$hung" 2>/dev/null; then
     fail "the hung GitLab detail read never started"
   fi
   kill -TERM -- "-$poll_pid" 2>/dev/null
   wait "$poll_pid" 2>/dev/null || true
-  waited=0
-  while kill -0 "$hung" 2>/dev/null && [ "$waited" -lt 40 ]; do sleep 0.05; waited=$((waited + 1)); done
+  deadline=$((SECONDS + 60))
+  while kill -0 "$hung" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.05; done
   if kill -0 "$hung" 2>/dev/null; then
     kill -KILL "$hung" 2>/dev/null
     fail "a stopped GitLab poll left its hung detail read running"
@@ -4371,7 +4372,7 @@ test_merged_poll_retries_a_failed_upward_report() {
 # lane's merge-time cleanup, detached so even a slow teardown never holds the
 # watcher iteration, and the next park tick reports its outcome.
 test_self_merged_lane_is_still_cleaned_up_by_the_poll() {
-  local dir state url rc
+  local dir state url rc deadline
   url=https://github.com/o/r/pull/1
   dir=$(make_case self-merge-cleanup)
   state="$dir/home/state"
@@ -4400,7 +4401,8 @@ test_self_merged_lane_is_still_cleaned_up_by_the_poll() {
   rc=$?
   set -e
   [ "$rc" -eq 0 ] || fail "self-merge-cleanup: watcher failed: $(cat "$dir/watch.err")"
-  for _ in $(seq 1 200); do [ -e "$dir/teardown.started" ] && break; sleep 0.05; done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do [ -e "$dir/teardown.started" ] && break; sleep 0.05; done
   [ -e "$dir/teardown.started" ] \
     || fail "self-merge-cleanup: detached teardown did not start"
   [ ! -e "$dir/teardown.log" ] \
@@ -4409,7 +4411,8 @@ test_self_merged_lane_is_still_cleaned_up_by_the_poll() {
   assert_grep 'stop-cycle' "$dir/watch.out" \
     "self-merge-cleanup: the absorbed duplicate did not fall through to the next check"
   assert_poll_absent "$state" task-a
-  for _ in $(seq 1 200); do compgen -G "$state/.review-park-report-*" >/dev/null && break; sleep 0.1; done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do compgen -G "$state/.review-park-report-*" >/dev/null && break; sleep 0.1; done
   [ "$(cat "$dir/teardown.log" 2>/dev/null)" = task-a ] \
     || fail "self-merge-cleanup: the poll did not clean up the self-merged lane: $(cat "$dir/teardown.log" 2>/dev/null)"
   FM_HOME="$dir/home" "$ROOT/bin/fm-park.sh" tick >"$dir/tick.out" 2>&1 \
@@ -4420,7 +4423,7 @@ test_self_merged_lane_is_still_cleaned_up_by_the_poll() {
 }
 
 test_merged_poll_stays_armed_when_cleanup_queue_fails() {
-  local dir state url rc
+  local dir state url rc deadline
   url=https://github.com/o/r/pull/1
   dir=$(make_case merge-queue-failure)
   state="$dir/home/state"
@@ -4465,7 +4468,8 @@ SH
     >"$dir/watch-retry.out" 2>"$dir/watch-retry.err" \
     || fail "merge-queue-failure: retry failed: $(cat "$dir/watch-retry.err")"
   assert_poll_absent "$state" task-a
-  for _ in $(seq 1 100); do [ -e "$dir/teardown.log" ] && break; sleep 0.1; done
+  deadline=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$deadline" ]; do [ -e "$dir/teardown.log" ] && break; sleep 0.1; done
   [ -e "$dir/teardown.log" ] \
     || fail "merge-queue-failure: persisted retry did not start teardown"
   pass "a failed cleanup queue keeps the merged poll armed until cleanup retries"
