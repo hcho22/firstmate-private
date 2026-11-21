@@ -697,8 +697,8 @@ list_portable_parallel_1() {
 tests/fm-captain-hold-lifecycle.test.sh
 tests/fm-backend-t3code.test.sh
 tests/fm-crew-state.test.sh
-tests/fm-captain-hold-records.test.sh
 tests/fm-park.test.sh
+tests/fm-captain-hold-records.test.sh
 tests/fm-t3-mcp.test.sh
 tests/fm-herdr-lab.test.sh
 tests/fm-cd-pretool-check.test.sh
