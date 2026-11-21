@@ -30,7 +30,7 @@ fm_control_harness_supports_kind hermes scout || fail 'scout refused'
 for args in 'node /opt/hermes-agent/ui-tui/dist/entry.js' 'python3 -m tui_gateway.entry' '/usr/bin/hermes --tui'; do
   fm_hermes_process_matches "$args" || fail "structural identity lost: $args"
 done
-for args in 'node /tmp/server.js /opt/hermes-agent/ui-tui/dist/entry.js' 'python3 -c tui_gateway.entry' 'node -e hermes' 'hermes-helper' ''; do
+for args in 'node /tmp/server.js /opt/hermes-agent/ui-tui/dist/entry.js' 'python3 -c tui_gateway.entry' 'node -e hermes' 'hermes-helper'; do
   ! fm_hermes_process_matches "$args" || fail "false identity: $args"
 done
 ! fm_hermes_process_matches '' || fail 'empty args matched under set -u'
