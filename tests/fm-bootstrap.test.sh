@@ -353,14 +353,23 @@ test_record_hygiene_archives_old_orphan_status() {
   pass "bootstrap archives an old orphan status log and reports interleaved duplicates"
 }
 
+# Every entry under state/ and data/ with each regular file's content hash. A
+# directory's own time is left out: bootstrap briefly creates and removes its
+# own lock entries in state/, and on a loaded host that can land in a later
+# minute than the snapshot taken before it, with no record changed.
+record_hygiene_records_snapshot() {  # <home>
+  ( cd "$1" && find state data -print | LC_ALL=C sort \
+      && find state data -type f -exec shasum -a 256 {} + | LC_ALL=C sort -k2 )
+}
+
 test_record_hygiene_absent_flag_is_inert() {
   local case_dir fakebin out_off out_on before after
   case_dir="$TMP_ROOT/record-hygiene-off"
   fakebin=$(seed_record_hygiene_home "$case_dir")
-  before=$(cd "$case_dir/home" && ls -laR state data)
+  before=$(record_hygiene_records_snapshot "$case_dir/home")
   out_off=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$case_dir/home" \
     FM_BOOTSTRAP_NETWORK=skip FM_FAKE_TREEHOUSE_LEASE_HELP=1 "$ROOT/bin/fm-bootstrap.sh")
-  after=$(cd "$case_dir/home" && ls -laR state data)
+  after=$(record_hygiene_records_snapshot "$case_dir/home")
   assert_not_contains "$out_off" 'RECORD_HYGIENE' "bootstrap reported record hygiene without config/record-hygiene"
   [ "$before" = "$after" ] || fail "bootstrap changed state or data records without config/record-hygiene"
   [ -f "$case_dir/home/state/orphan.status" ] || fail "bootstrap archived an orphan status log without config/record-hygiene"
