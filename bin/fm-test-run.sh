@@ -3043,6 +3043,7 @@ script_group_command() {
   local FM_TIMEOUT_GROUP_FILE="$work/script.pgid"
   shift 3
   if command -v perl >/dev/null 2>&1; then
+    # shellcheck disable=SC2016 # Perl code, not shell expansion.
     set -- perl -e '$SIG{INT} = $SIG{QUIT} = "DEFAULT"; exec @ARGV or exit 127' "$@"
   fi
   if [ "$bound" -gt 0 ]; then
