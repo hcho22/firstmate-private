@@ -1673,10 +1673,14 @@ test_teardown_conformance_old_vs_new() {
 # --- backend selection loudly refuses an unknown backend --------------------
 
 test_spawn_refuses_unknown_backend_flag() {
-  local out status
+  local out status home
+  # Its own empty home: the code root is no case's home, and these cases run
+  # in concurrent lanes, so a shared one would race on its task-set lock.
+  home="$TMP_ROOT/spawn-unknown-backend-flag"
+  mkdir -p "$home"
   # bogus names a backend with no adapter at all; zellij and orca both
   # graduated to real adapters and have their own spawn tests.
-  out=$(FM_ROOT_OVERRIDE='' FM_HOME='' FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
+  out=$(FM_ROOT_OVERRIDE='' FM_HOME="$home" FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
     FM_PROJECTS_OVERRIDE='' FM_CONFIG_OVERRIDE='' FM_SPAWN_NO_GUARD=1 \
     "$ROOT/bin/fm-spawn.sh" nope-backend-z1 projects/none claude --mode no-mistakes --yolo off --backend bogus 2>&1)
   status=$?
@@ -1686,8 +1690,12 @@ test_spawn_refuses_unknown_backend_flag() {
 }
 
 test_spawn_refuses_codex_app_backend_flag() {
-  local out status
-  out=$(FM_ROOT_OVERRIDE='' FM_HOME='' FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
+  local out status home
+  # Its own empty home: the code root is no case's home, and these cases run
+  # in concurrent lanes, so a shared one would race on its task-set lock.
+  home="$TMP_ROOT/spawn-codex-app-backend-flag"
+  mkdir -p "$home"
+  out=$(FM_ROOT_OVERRIDE='' FM_HOME="$home" FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
     FM_PROJECTS_OVERRIDE='' FM_CONFIG_OVERRIDE='' FM_SPAWN_NO_GUARD=1 \
     "$ROOT/bin/fm-spawn.sh" nope-codex-app-z1 projects/none claude --mode no-mistakes --yolo off --backend codex-app 2>&1)
   status=$?
@@ -1697,8 +1705,12 @@ test_spawn_refuses_codex_app_backend_flag() {
 }
 
 test_spawn_refuses_unknown_fm_backend_env() {
-  local out status
-  out=$(FM_ROOT_OVERRIDE='' FM_HOME='' FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
+  local out status home
+  # Its own empty home: the code root is no case's home, and these cases run
+  # in concurrent lanes, so a shared one would race on its task-set lock.
+  home="$TMP_ROOT/spawn-unknown-fm-backend-env"
+  mkdir -p "$home"
+  out=$(FM_ROOT_OVERRIDE='' FM_HOME="$home" FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
     FM_PROJECTS_OVERRIDE='' FM_CONFIG_OVERRIDE='' FM_SPAWN_NO_GUARD=1 FM_BACKEND=bogus \
     "$ROOT/bin/fm-spawn.sh" nope-backend-z2 projects/none claude --mode no-mistakes --yolo off 2>&1)
   status=$?
