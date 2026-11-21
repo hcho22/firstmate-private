@@ -1,0 +1,17 @@
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/tmp/fm-lab.lRUW6n
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+teardown: reaping leaked worktree process(es) for dispatch-scout: 87723 90015 90099 90100 90129 90167
+teardown: force-killing leaked worktree process(es) for dispatch-scout: 87723
+A new version of treehouse is available: v3.1.0 → v3.1.8
+Run "treehouse update" to update
+
+🌳 Worktree returned to pool.
+teardown dispatch-scout complete (window primary:fm-dispatch-scout, worktree /private/tmp/fm-lab.lRUW6n/treehouse/.treehouse/demo-b648ed/1/demo)
+Backlog: dispatch-scout just finished (this home keeps no markdown backlog at /private/tmp/fm-lab.lRUW6n/data/backlog.md). Update /private/tmp/fm-lab.lRUW6n/data/backlog.md - move dispatch-scout to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+exit=0

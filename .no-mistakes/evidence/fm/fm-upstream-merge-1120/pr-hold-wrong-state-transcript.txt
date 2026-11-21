@@ -1,0 +1,16 @@
+===== policy closed->release on a PR that actually merged
+add exit=0
+hold exit=0
+pr-policy: pr-wrong-state https://github.com/hcho22/firstmate-private/pull/28 closed release
+policy exit=0
+/private/tmp/fm-lab.lRUW6n/data/demo/pr-wrong-state
+/private/tmp/fm-lab.lRUW6n/data/demo/pr-wrong-state/hold-pr-policy.json
+===== poll
+contributions: PR hold settlement failed for pr-wrong-state https://github.com/hcho22/firstmate-private/pull/28: fm-captain-hold: dropped the PR policy for pr-wrong-state: the PR is merged and can no longer reach the declared event; the hold stays open
+poll exit=0
+===== settle-pr directly
+settle exit=0
+open exit=0 (0 = still an open captain hold)
+/private/tmp/fm-lab.lRUW6n/data/demo/pr-wrong-state
+/private/tmp/fm-lab.lRUW6n/data/demo/pr-wrong-state/contributions.json
+ls: /private/tmp/fm-lab.lRUW6n/data/pr-wrong-state: No such file or directory

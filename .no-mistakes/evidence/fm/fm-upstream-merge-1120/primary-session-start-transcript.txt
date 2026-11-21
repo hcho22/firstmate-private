@@ -1,0 +1,50 @@
+
+  Searched for 2 patterns, ran 3 shell commands
+
+⏺ Still tracing where the unreadable-contribution count comes from; checking the producer and running it directly.
+
+  Searched for 2 patterns, ran 2 shell commands
+
+⏺ Captain, two corrections to what I told you earlier.
+
+  1. What session start printed for record hygiene
+
+  The two lines, verbatim:
+
+  RECORD_HYGIENE: status log without metadata older than 24 hours: orphan-known
+  RECORD_HYGIENE: status log without metadata older than 24 hours: orphan-unknown
+
+  Startup printed only those two lines. They don't say whether the logs were archived. I got that from checking the files afterwards:
+  - Neither state/orphan-known.status nor state/orphan-unknown.status exists any more.
+  - They now live at data/demo/orphan-known/status.log and data/_unassigned/orphan-unknown/status.log.
+
+  The orphan-logs section of the digest listed only orphan-fresh. Its last line was fresh line, and it wasn't flagged.
+
+  2. The "unreadable" contribution record
+
+  There isn't one, and I was wrong to describe it that way. The raw field in the bearings snapshot is:
+
+  "unreadable_records": 1,
+
+  No contribution record file exists anywhere in this home's data folder.
+
+  The 1 is a placeholder count that bin/fm-contributions.sh adds when the backlog file is missing. This is the rule at bin/fm-contributions.sh:310:
+
+  | summary($rows;($errors + (if $input[0].backlog.present == true then 0 else 1 end)))
+
+  The input it reads confirms the backlog is missing:
+
+  {"path":"/private/tmp/fm-lab.lRUW6n/data/backlog.md","present":false,"records":[]}
+
+  Without a backlog the tool can't check who owns which contribution, so it reports coverage as unverified. It does that by counting the gap as one unreadable record. The real finding is "this home
+  has no backlog file," not a damaged record. Creating a backlog here would clear it.
+
+  That count name is misleading. If you want it fixed, I can draft a firstmate issue or patch locally to give the missing-backlog case its own label. I'd keep it local and not publish anything.
+
+✻ Churned for 47s · done 2:33 AM
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ draft the local issue for the misleading count
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Opus 5.5 | Ctx 91% | 5h 13% / 7d 68%
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents

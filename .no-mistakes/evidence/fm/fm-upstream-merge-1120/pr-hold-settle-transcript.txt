@@ -1,0 +1,87 @@
+
+===== 0. opt in: config/hold-pr-settle
+
+===== 1. backlog task for project demo linked to a real merged PR
+ok: added pr-question (repo demo) -> Queued
+task:
+  id: pr-question
+  title: "Decide whether PR 28 should land https://github.com/hcho22/firstmate-private/pul\n... (truncated, 84 chars total - use show pr-question --full to see complete text)"
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: task
+  repo: demo
+  priority: "-"
+  created: 2026-11-21
+  closed: "-"
+  deps: none
+  links: "pr:https://github.com/hcho22/firstmate-private/pull/28"
+  body: ""
+help[2]:
+  - Run `tasks-axi start pr-question` to move it to in flight
+  - Run `tasks-axi block pr-question --by <other>` to record a dependency
+exit=0
+
+===== 2. hold it for the captain
+pr-question
+exit=0
+open exit=0 (0 = open captain hold)
+
+===== 3. declare the PR policy: merged -> close
+pr-policy: pr-question https://github.com/hcho22/firstmate-private/pull/28 merged close
+exit=0
+
+===== 3b. where the policy landed
+/private/tmp/fm-lab.lRUW6n/data/demo/pr-question/hold-pr-policy.json
+ls: /private/tmp/fm-lab.lRUW6n/data/pr-question: No such file or directory
+{
+  "schema": "fm-hold-pr.v1",
+  "task": "pr-question",
+  "url": "https://github.com/hcho22/firstmate-private/pull/28",
+  "on": "merged",
+  "action": "close",
+  "fingerprint": "a416a23f6b10ae425584ebe6de24cf13208baa6d5568f1b4f8e3a448365a8cdc",
+  "occurrence": 1
+}
+
+
+===== 4. contribution poll observes the real PR (gh) and settles
+poll exit=0
+
+===== 4b. records after poll
+total 16
+drwxr-xr-x@ 3 hcho  wheel    96 Nov 21 02:37 .
+drwxr-xr-x@ 5 hcho  wheel   160 Nov 21 02:37 ..
+-rw-------@ 1 hcho  wheel  6302 Nov 21 02:37 contributions.json
+ls: /private/tmp/fm-lab.lRUW6n/data/pr-question: No such file or directory
+{
+  "url": "https://github.com/hcho22/firstmate-private/pull/28",
+  "kind": "pr",
+  "state": "merged"
+}
+
+===== 5. hold state after settlement
+open exit=1 (non-zero = no longer an open captain hold)
+task:
+  id: pr-question
+  title: "Decide whether PR 28 should land https://github.com/hcho22/firstmate-private/pull/28"
+  state: done
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "Decide whether PR 28 should land"
+  hold_kind: captain
+  hold_until: "-"
+  kind: task
+  repo: demo
+  priority: "-"
+  created: "-"
+  closed: 2026-11-21
+  deps: none
+  links: "pr:https://github.com/hcho22/firstmate-private/pull/28"
+  body: "Resolution recorded by fm-captain-hold.\nDecision digest: ee9732f49dab0d86026222a9bc7ecb93fcd41301406f70ef063a3566dba45ee6\nResolution mode: forge-closed\n\nReconciliation evidence:\nForge PR merged: https://github.com/hcho22/firstmate-private/pull/28\nObserved at: 2026-11-21T10:37:13Z\nSettlement policy: merged -> close"
+DRIVER-DONE

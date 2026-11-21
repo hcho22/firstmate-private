@@ -1,0 +1,115 @@
+fm-test-run: test runtime python3=/usr/local/bin/python3.11
+fm-test-run: test runtime node=/Users/hcho/.nvm/versions/node/v24.22.2/bin/node
+FM_TEST_BEGIN 2026-11-21T10:38:03Z tests/fm-test-run.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - runtime selection preserves callers, finds installed capabilities, fails closed, and cleans up
+ok - exact suite coverage: --all lists every tests/*.test.sh once
+ok - family selection returns a proper subset of the suite
+ok - single-script selection lists exactly that path
+ok - changed-file selection stays conservative (never silent full suite)
+ok - a task marker refuses execution in the primary checkout and leaves worktrees and inspection alone
+ok - runner and its documentation surfaces select their curated family, not just their contract owners
+ok - CONTEXT.md changes select documentation and guidance checks
+ok - root prose with no naming suite selects the documentation audience check
+ok - shell line-ending policy selects runner coverage
+ok - changed inheritance sender, receiver and counter select the focused generation contract
+ok - changed selection covers dependents, fails closed for live unmapped source, and accepts retired unconsumed source
+fm-test-run: no tests selected for changes vs HEAD (map is conservative; use --all for the complete suite)
+ok - a bin reference selects the referencing scripts, and consumers still select their curated families
+ok - the automatic changed bound scales with the duration hint and stays flat when explicit
+ok - changed defaults to bounded automatic scheduling with serial override
+ok - Windows emulation exempts only synthetic POSIX modes
+ok - a plain script list defaults to bounded automatic concurrency without an automatic timeout
+ok - every script, serial or concurrent, runs with its own private TMPDIR
+ok - only the real-herdr-gated and live-harness-optin families reach the real herdr; any other script that does is failed
+ok - family proofs run concurrently only within separate family phases
+ok - empty changed selection emits deterministic text and JSON summaries
+ok - timing markers and JSON artifact are valid
+ok - aggregate exit reflects any script failure
+ok - gate-skip accounting is honest and non-failing
+ok - a gate skip records why it skipped
+ok - a script that actually ran records no skip reason
+ok - live guards are recorded as a capability class, not a bare env opt-in
+ok - fail-on-gate-skip converts herdr-not-found into a hard failure
+ok - exclude-family drops the named primary family after selection
+ok - fm-test-run: family tern selects the tern suite and smoke test, and the lane coverage guard accepts them
+ok - proven-isolated scheduling ignores parallel hints
+ok - family, all, changed, and script selections ignore parallel hints
+ok - portable shard union, disjointness, and coverage guard hold
+ok - portable parallel lanes are fully hinted and packed within 5% of each other
+ok - portable serial shards are a deterministic disjoint cover of the serial lane
+ok - coverage guard bounds the unmeasured share and serial packing within twenty minutes
+ok - serial packing accepts the exact budget and refuses one millisecond above it
+ok - portable serial shard lanes refuse mismatched, out-of-range, and countless names
+ok - --jobs refuses non-proven / stateful selections
+ok - --jobs admits and schedules a family with a recorded concurrent proof
+ok - an unclassified new test stays serial while the proven residual family runs concurrently
+ok - a changed shared test fixture selects its readers while an unread tests/ path still refuses
+ok - a changed T3 fake or adapter selects the suites that read it beyond backend-dispatch
+ok - changed captures, assets, and helper programs select the suites that read them
+ok - changed selection over many paths is identical under a low open-file limit
+ok - a concurrent run starts the longest-hint script first
+ok - --per-script-timeout-secs turns a hung script into a bounded failure
+ok - the automatic --changed bound gives the slow watcher suite at least 1500s
+ok - a script run by the runner can trap INT as it can when run directly
+ok - Ctrl-C stops the run and leaves no remote job worker or sandbox behind
+ok - TERM stops the run and leaves no remote job worker or sandbox behind
+ok - a script killed without its cleanup leaves no remote job worker behind once it ends
+ok - a run killed outright leaves no remote job worker or sandbox behind
+ok - a script killed without its cleanup leaves no worker run from the checkout with its state in the sandbox
+ok - a script killed before its checkout-rooted worker published worker.pid leaves no worker behind
+ok - a script killed while its checkout-rooted worker waits to restart leaves no worker behind
+ok - the reaper leaves workers outside the script's sandbox running, and never reads one older than the run
+ok - the worker scan never reports a process that only names a worker among its arguments
+ok - the progress-aware guard stops silence and the backstop, never slow progress
+ok - scripts run without the caller's firstmate state and live session identity
+ok - --max-wall-ms fails an over-budget run and refuses a malformed budget
+ok - jobs scheduler runs proven scripts; failure propagates; non-proven refused
+ok - Herdr CI family-run step times out at 20 min under a 75 min job backstop
+ok - aggregate-json merges lane timing artifacts
+FM_TEST_END 2026-11-21T10:44:41Z tests/fm-test-run.test.sh exit=0 duration_ms=398636 gate_skip=false
+FM_TEST_BEGIN 2026-11-21T10:44:41Z tests/fm-remote-doctor.test.sh family=secondmate expected_gate_skip=none
+ok - a missing session backend is a human gap that --fix never claims to close
+ok - an absent launch agent is a fixable gap and the read-only run changes nothing
+ok - --fix installs the dedicated fm-remote launch agent without touching default
+ok - --fix is idempotent once the host is ready
+ok - a second code root gets a separate Herdr session and launch agent
+ok - a second code root reaches readiness through the shared entrypoint and the primary root stays ready
+ok - a legacy service is adopted by its matching guard without service control
+ok - automatic readiness reports a running drifted service to an operator and leaves it untouched
+ok - an operator's --fix repairs a running service this root owns once its pane list proves it empty
+ok - a service with live panes is never rewritten or restarted
+ok - a pane listing that fails or lacks a panes array blocks every repair
+ok - a reload never force-restarts the freshly bootstrapped server
+ok - concurrent automatic readiness runs with an intervening mate launch never restart the service
+ok - a failed reload leaves stale effective launch-agent state unready
+ok - a launch agent outside the Aqua session scope is rewritten in place
+ok - launchd failures are reported and delayed server readiness is awaited
+ok - a foreign-born session is left to the operator, whose --fix takes it over through launchd
+ok - human gaps are reported with their operator step and never claimed as fixed
+ok - a bash Directory Services login shell is rendered with -l -c
+ok - custom Directory Services shell paths remain valid plist arguments
+ok - shell resolution bounds Directory Services and uses executable SHELL and POSIX fallbacks
+ok - repeated repair reuses one resolved login shell and remains a no-op
+ok - a legacy service without a provable owner is reported and never taken over
+ok - a non-darwin host skips launch agents and starts its herdr server directly
+ok - omp alone satisfies the remote harness requirement
+ok - --fix creates only owned version-manager wrappers and never clobbers an operator file
+ok - doctor refreshes stale worker identity before probing tools
+ok - the entrypoint symlink is recreated when absent and never overwritten when operator-owned
+ok - a rex-verified host checks rex, its persistent server, and the backend-independent worker
+ok - backend resolution keeps herdr the default on a host offering both
+ok - backend resolution falls to rex when herdr is absent
+ok - --fix starts a missing rex server as the persistent shape
+ok - --fix never stops an answering exit-empty rex server and reports the operator restart
+ok - unreadable, missing, and malformed rex persistence settings require human action
+ok - a rex CLI or server below the verified API floor is a human gap
+ok - a rex endpoint that is not a local unix socket is a human gap
+ok - an explicit rex request needs the CLI on PATH, and --backend rejects unknown backends
+ok - a Linux host verifies rex without any Aqua-specific requirement
+FM_TEST_END 2026-11-21T10:46:27Z tests/fm-remote-doctor.test.sh exit=0 duration_ms=105102 gate_skip=false
+FM_TEST_SUMMARY total=2 failed=0 skipped_gate=0 duration_ms=504845
+FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=398636 failed=0
+FM_TEST_SUMMARY_FAMILY family=secondmate count=1 duration_ms=105102 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-test-run.test.sh duration_ms=398636
+FM_TEST_SLOWEST rank=2 script=tests/fm-remote-doctor.test.sh duration_ms=105102
+EXIT=0

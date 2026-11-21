@@ -1,0 +1,60 @@
+
+===== TMUX=/private/tmp/fm-lab.lRUW6n/tmux/tmux-501/fm-lab,59305,0
+
+===== 1. scaffold a scout brief with bin/fm-brief.sh
+scaffolded: /private/tmp/fm-lab.lRUW6n/data/demo/dispatch-scout/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})
+exit=0
+0
+
+===== 2. activate config/crew-dispatch.json
+{"rules":[{"when":"reading and summarizing small code files","use":{"harness":"claude","model":"sonnet","effort":"low"}}],"default":{"harness":"claude"}}
+
+===== 3. spawn BEFORE any resolution is recorded (must refuse, naming the per-project brief path)
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/tmp/fm-lab.lRUW6n
+error: config/crew-dispatch.json is active and task dispatch-scout has no recorded dispatch resolution; run bin/fm-dispatch-resolve.sh /private/tmp/fm-lab.lRUW6n/data/demo/dispatch-scout/brief.md --project <name> first
+exit=1
+
+===== 4. bin/fm-dispatch-resolve.sh on the per-project brief (no provider configured -> off)
+dispatch-resolve: off (TYPESAFE_API_KEY absent from the environment and /private/tmp/fm-lab.lRUW6n/.env)
+exit=0
+
+===== 4b. task record location
+total 32
+drwxr-xr-x@ 4 hcho  wheel    128 Nov 21 02:35 .
+drwxr-xr-x@ 4 hcho  wheel    128 Nov 21 02:34 ..
+-rw-r--r--@ 1 hcho  wheel  10081 Nov 21 02:34 brief.md
+-rw-r--r--@ 1 hcho  wheel     56 Nov 21 02:35 dispatch-resolution.json
+{"task":"dispatch-scout","status":"off","profile":null}
+
+ls: /private/tmp/fm-lab.lRUW6n/data/dispatch-scout: No such file or directory
+
+===== 5. adversarial: a clear record selecting codex must make a claude spawn refuse (spawn reads the per-project record)
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/tmp/fm-lab.lRUW6n
+error: launch flags do not match the clear dispatch selection --harness codex --model gpt-5 --effort medium recorded in /private/tmp/fm-lab.lRUW6n/data/demo/dispatch-scout/dispatch-resolution.json; pass those flags with no raw launch command, or record this task's override with --dispatch-override <reason>
+exit=1
+ls: /private/tmp/fm-lab.lRUW6n/data/dispatch-scout: No such file or directory
+
+===== 6. restore the resolver's own record and spawn a real claude scout
+dispatch-resolve: off (TYPESAFE_API_KEY absent from the environment and /private/tmp/fm-lab.lRUW6n/.env)
+resolve exit=0
+{"task":"dispatch-scout","status":"off","profile":null}
+
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/tmp/fm-lab.lRUW6n
+spawned dispatch-scout harness=claude kind=scout window=primary:fm-dispatch-scout worktree=/private/tmp/fm-lab.lRUW6n/treehouse/.treehouse/demo-b648ed/1/demo
+exit=0
+
+===== 7. state after spawn
+window=primary:fm-dispatch-scout
+endpoint_task_id=dispatch-scout
+worktree=/private/tmp/fm-lab.lRUW6n/treehouse/.treehouse/demo-b648ed/1/demo
+project=/private/tmp/fm-lab.lRUW6n/projects/demo
+harness=claude
+approval_mode=bypass
+kind=scout
+tasktmp=/tmp/fm-dispatch-scout
+model=default
+effort=default
+busy_gen=g1795257309.88943.3107
+spawn_gen=s1795257310.85903.23770
+ls: /private/tmp/fm-lab.lRUW6n/data/dispatch-scout: No such file or directory
+DRIVER-DONE

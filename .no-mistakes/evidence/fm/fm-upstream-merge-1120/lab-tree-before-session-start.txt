@@ -1,0 +1,14 @@
+/private/tmp/fm-lab.lRUW6n
+/private/tmp/fm-lab.lRUW6n/.fm-lab-home
+/private/tmp/fm-lab.lRUW6n/config
+/private/tmp/fm-lab.lRUW6n/config/record-hygiene
+/private/tmp/fm-lab.lRUW6n/data
+/private/tmp/fm-lab.lRUW6n/data/demo
+/private/tmp/fm-lab.lRUW6n/data/demo/orphan-known
+/private/tmp/fm-lab.lRUW6n/data/demo/orphan-known/report.md
+/private/tmp/fm-lab.lRUW6n/data/projects.md
+/private/tmp/fm-lab.lRUW6n/state
+/private/tmp/fm-lab.lRUW6n/state/orphan-fresh.status
+/private/tmp/fm-lab.lRUW6n/state/orphan-known.status
+/private/tmp/fm-lab.lRUW6n/state/orphan-unknown.status
+/private/tmp/fm-lab.lRUW6n/tmux
