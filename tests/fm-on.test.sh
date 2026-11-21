@@ -68,7 +68,8 @@ case "\${1:-}:\${2:-}" in
 esac
 SH
 cp "$ROOT/bin/fm-remote-doctor.sh" "$ROOT/bin/fm-tasks-axi-lib.sh" \
-  "$ROOT/bin/fm-remote-herdr-owner-lib.sh" "$ROOT/bin/fm-backend.sh" "$REMOTE_ROOT/bin/"
+  "$ROOT/bin/fm-remote-herdr-owner-lib.sh" "$ROOT/bin/fm-remote-herdr-identity-lib.sh" \
+  "$ROOT/bin/fm-backend.sh" "$REMOTE_ROOT/bin/"
 mkdir -p "$REMOTE_ROOT/bin/backends"
 cp "$ROOT/bin/backends/herdr.sh" "$REMOTE_ROOT/bin/backends/herdr.sh"
 # A host that really has herdr and jq makes the doctor load this adapter from the

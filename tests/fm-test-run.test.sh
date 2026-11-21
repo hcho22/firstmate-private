@@ -2367,6 +2367,36 @@ run_worker_leak_case() {
   rm -rf "$tmp"
 }
 
+# The runner starts each script as a background job, and a non-interactive
+# shell starts background jobs with INT and QUIT ignored. A script must still
+# be able to trap INT exactly as it can when run directly.
+test_script_can_trap_int_under_the_runner() {
+  local tmp repo file rc=0
+  tmp=$(fm_test_tmproot fm-test-run-script-int)
+  repo="$tmp/repo"
+  mkdir -p "$repo/bin" "$repo/tests"
+  for file in fm-test-run.sh fm-timeout-lib.sh fm-test-run-reap.sh \
+    fm-remote-job-lib.sh fm-remote-job-worker.sh fm-mkdir-lib.sh; do
+    cp "$ROOT/bin/$file" "$repo/bin/$file"
+  done
+  chmod +x "$repo/bin"/*.sh
+  cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
+  printf 'fixture\n' >"$repo/AGENTS.md"
+  cat >"$repo/tests/fm-int-trap-fixture.test.sh" <<'SH'
+#!/usr/bin/env bash
+trap 'echo "ok - the script trapped INT"; exit 0' INT
+kill -INT "$$"
+sleep 5
+echo "not ok - INT reached the script ignored"
+exit 1
+SH
+  (cd "$repo" && bin/fm-test-run.sh --jobs 1 tests/fm-int-trap-fixture.test.sh) >"$tmp/out" 2>&1 || rc=$?
+  [ "$rc" -eq 0 ] || fail "a script that traps INT failed under the runner (rc=$rc): $(cat "$tmp/out")"
+  grep -Fq 'ok - the script trapped INT' "$tmp/out" || fail "the script's INT trap never ran: $(cat "$tmp/out")"
+  rm -rf "$tmp"
+  pass "a script run by the runner can trap INT as it can when run directly"
+}
+
 test_interrupted_run_leaves_no_remote_job_worker() {
   run_worker_leak_case int
   pass "Ctrl-C stops the run and leaves no remote job worker or sandbox behind"
@@ -2938,6 +2968,7 @@ fm_test_run_cases \
   test_concurrent_runs_are_ordered_longest_first \
   test_per_script_timeout_bounds_a_hang \
   test_changed_bound_gives_slow_watcher_suites_headroom \
+  test_script_can_trap_int_under_the_runner \
   test_interrupted_run_leaves_no_remote_job_worker \
   test_terminated_run_leaves_no_remote_job_worker \
   test_killed_script_leaves_no_remote_job_worker \

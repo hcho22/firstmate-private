@@ -60,6 +60,7 @@ SH
   ln -s "$ROOT/bin/fm-tmux-lib.sh" "$fake/bin/fm-tmux-lib.sh"
   ln -s "$ROOT/bin/fm-hermes-process-lib.sh" "$fake/bin/fm-hermes-process-lib.sh"
   ln -s "$ROOT/bin/fm-session-lock-lib.sh" "$fake/bin/fm-session-lock-lib.sh"
+  ln -s "$ROOT/bin/fm-omp-process-lib.sh" "$fake/bin/fm-omp-process-lib.sh"
   ln -s "$ROOT/bin/fm-agent-process-lib.sh" "$fake/bin/fm-agent-process-lib.sh"
   # fm-server-env-lib.sh: a sibling the real tmux adapter requires.
   ln -s "$ROOT/bin/fm-server-env-lib.sh" "$fake/bin/fm-server-env-lib.sh"
@@ -89,6 +90,12 @@ SH
   ln -s "$ROOT/bin/fm-pr-lib.sh" "$fake/bin/fm-pr-lib.sh"
   # fm-task-data-lib.sh: teardown resolves a scout report through the task-data layout.
   ln -s "$ROOT/bin/fm-task-data-lib.sh" "$fake/bin/fm-task-data-lib.sh"
+  # fm-dod-lib.sh (and the fm-brief-heading-lib.sh and fm-external-review-lib.sh
+  # it sources from its own directory): teardown sources it for the shared
+  # bounded remote-ref refresh before its landed-work check.
+  ln -s "$ROOT/bin/fm-dod-lib.sh" "$fake/bin/fm-dod-lib.sh"
+  ln -s "$ROOT/bin/fm-brief-heading-lib.sh" "$fake/bin/fm-brief-heading-lib.sh"
+  ln -s "$ROOT/bin/fm-external-review-lib.sh" "$fake/bin/fm-external-review-lib.sh"
   # fm-public-followup-lib.sh (and the fm-x-lib.sh and fm-env-lib.sh it
   # sources): teardown sources it for the relay-activation gate on the
   # promised-public-reply check. None does anything in this fixture, which has
@@ -178,6 +185,7 @@ SH
   ln -s "$ROOT/bin/fm-tmux-lib.sh" "$fake/bin/fm-tmux-lib.sh"
   ln -s "$ROOT/bin/fm-hermes-process-lib.sh" "$fake/bin/fm-hermes-process-lib.sh"
   ln -s "$ROOT/bin/fm-session-lock-lib.sh" "$fake/bin/fm-session-lock-lib.sh"
+  ln -s "$ROOT/bin/fm-omp-process-lib.sh" "$fake/bin/fm-omp-process-lib.sh"
   ln -s "$ROOT/bin/fm-agent-process-lib.sh" "$fake/bin/fm-agent-process-lib.sh"
   # fm-server-env-lib.sh: a sibling the real tmux adapter requires.
   ln -s "$ROOT/bin/fm-server-env-lib.sh" "$fake/bin/fm-server-env-lib.sh"
@@ -204,6 +212,12 @@ SH
   ln -s "$ROOT/bin/fm-pr-lib.sh" "$fake/bin/fm-pr-lib.sh"
   # fm-task-data-lib.sh: teardown resolves a scout report through the task-data layout.
   ln -s "$ROOT/bin/fm-task-data-lib.sh" "$fake/bin/fm-task-data-lib.sh"
+  # fm-dod-lib.sh (and the fm-brief-heading-lib.sh and fm-external-review-lib.sh
+  # it sources from its own directory): teardown sources it for the shared
+  # bounded remote-ref refresh before its landed-work check.
+  ln -s "$ROOT/bin/fm-dod-lib.sh" "$fake/bin/fm-dod-lib.sh"
+  ln -s "$ROOT/bin/fm-brief-heading-lib.sh" "$fake/bin/fm-brief-heading-lib.sh"
+  ln -s "$ROOT/bin/fm-external-review-lib.sh" "$fake/bin/fm-external-review-lib.sh"
   # fm-public-followup-lib.sh (and the fm-x-lib.sh and fm-env-lib.sh it
   # sources): teardown sources it for the relay-activation gate on the
   # promised-public-reply check. None does anything in this fixture, which has

@@ -11,10 +11,7 @@ fm_hermes_process_matches() {  # <args> [pid]
   else
     read -r -a words <<< "$args"
   fi
-  # An empty argv is never Hermes, and bash 3.2 treats expanding an empty array
-  # under set -u as unbound.
-  [ "${#words[@]}" -gt 0 ] || return 1
-  for word in "${words[@]}"; do
+  for word in ${words[@]+"${words[@]}"}; do
     if [ "$first" = 1 ]; then
       first=0
       case "${word##*/}" in

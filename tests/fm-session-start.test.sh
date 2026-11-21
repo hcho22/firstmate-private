@@ -992,10 +992,10 @@ EOF
 # poll), and the wait ends early once the directory is gone, the suite has
 # died, or FM_TEST_STUB_MAX_BLOCK_SECONDS has passed, so an interrupted run
 # cannot leave forty pollers spinning under init.
-lock_concurrency_barrier() {  # <dir> <count>
-  local dir=$1 want=$2 start=$SECONDS entries
+lock_concurrency_barrier() {  # <dir> <count> [<max-seconds>]
+  local dir=$1 want=$2 max=${3:-$FM_TEST_STUB_MAX_BLOCK_SECONDS} start=$SECONDS entries
   while [ -d "$dir" ] && kill -0 "$FM_TEST_SUITE_PID" 2>/dev/null \
-    && [ $((SECONDS - start)) -lt "$FM_TEST_STUB_MAX_BLOCK_SECONDS" ]; do
+    && [ $((SECONDS - start)) -lt "$max" ]; do
     entries=("$dir"/*)
     [ -e "${entries[0]}" ] || entries=()
     [ "${#entries[@]}" -lt "$want" ] || return 0
@@ -1058,7 +1058,12 @@ SH
         printf '%s\n' "$harness_pid" >> "$winners"
       fi
       : > "$completed/$i"
-      lock_concurrency_barrier "$completed" 40
+      # Every contender, winner included, stays alive until all 40 have tried:
+      # a winner that exited early would leave a dead holder that a later
+      # contender reclaims correctly. The 40 acquisitions serialize through
+      # the claim lock, which on a loaded host outlasts the default stub
+      # bound, so this hang guard is wider and a timeout is reported as such.
+      lock_concurrency_barrier "$completed" 40 600 || : > "$root/completion-barrier-timeout"
     ) &
     pids="$pids $!"
     i=$((i + 1))
@@ -1066,6 +1071,8 @@ SH
   for pid in $pids; do
     wait "$pid" 2>/dev/null || true
   done
+  [ ! -e "$root/completion-barrier-timeout" ] \
+    || fail "the concurrent session-lock contenders did not all finish within the 600s hang guard"
   count=$(awk 'NF { count++ } END { print count + 0 }' "$winners")
   [ "$count" -eq 1 ] || fail "concurrent session-lock acquisition produced $count winners"
 

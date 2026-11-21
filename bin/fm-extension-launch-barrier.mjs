@@ -10,6 +10,7 @@
 import { spawn } from "node:child_process";
 import { open, readFile, rename } from "node:fs/promises";
 import path from "node:path";
+import { ExtensionDeadline } from "./fm-extension-deadline.mjs";
 
 const READY_SCHEMA = "firstmate.extension-invocation-ready.v1";
 const OWNER_SCHEMA = "firstmate.extension-invocation-owner.v1";
@@ -92,10 +93,9 @@ async function main() {
   const rawWait = process.env.FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS;
   delete process.env.FM_EXTENSION_LAUNCH_BARRIER_WAIT_MS;
   if (!/^[0-9]+$/.test(rawWait ?? "") || Number(rawWait) <= 0) die("host did not pass its launch wait bound");
-  const startupWaitMs = Number(rawWait);
-  const deadline = Date.now() + startupWaitMs;
+  const deadline = new ExtensionDeadline("startup-release", Number(rawWait), verb);
   let release;
-  while (Date.now() < deadline) {
+  while (!deadline.expired()) {
     if (!pidAlive(hostPid)) process.exit(125);
     try {
       release = await readControl(releaseFile);
@@ -105,7 +105,7 @@ async function main() {
     }
     await sleep(POLL_MS);
   }
-  if (!release) die("host did not release the launch barrier");
+  if (!release) die(`host did not release the launch barrier ${JSON.stringify(deadline.evidence())}`);
   if (!exactKeys(release, ["schema", "token"]) || release.schema !== RELEASE_SCHEMA || release.token !== token) {
     die("launch release identity is invalid");
   }

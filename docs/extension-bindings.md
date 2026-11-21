@@ -94,6 +94,9 @@ Each can be widened or narrowed by an environment variable: `FM_EXTENSION_HANDSH
 An override is a whole number of milliseconds in the same 100 to 3,600,000 range as `timeout_ms`, and the host refuses any other value instead of ignoring it.
 The defaults are unchanged and the overrides exist for hosts whose process starts are slow enough to exceed them.
 
+Invocation, handshake, launch-readiness, and launch-release deadlines each allow one 1,000 millisecond grace when their expiry check arrives more than 2,000 milliseconds late, as after host suspension.
+An on-time deadline retains its original bound, and a second suspension cannot renew the grace.
+
 The host supports at most 128 binding records and refuses malformed, unsafe, duplicate-id, or duplicate-adapter registries rather than selecting around them.
 Binding publication is atomic and does not replace a concurrent file.
 `list`, `inspect`, and `verify` expose the resulting identity and live compatibility without creating state when no registry exists.
@@ -224,7 +227,11 @@ An unknown enabled version refuses rather than downgrading.
 A missing or changed package never executes.
 A malformed binding, integrity mismatch, failed handshake, crash, nonzero exit, timeout, oversized stream, wrong request id, or invalid response never selects another adapter.
 A source invocation failure becomes a bounded host-produced `firstmate.process-event-extension-error.v1` result and remains unhandled.
-For the same source, a repeated complete host-error envelope reuses an existing unhandled capture only when its host-error sidecar, exact result bytes, adapter, and immutable extension identity all match.
+Host timeout evidence includes a `deadline` object identifying the bound, actual operation, configured `timeout_ms`, measured `elapsed_ms` and `overrun_ms`, and granted `grace_ms`.
+The launch barrier reports its release-deadline diagnostics on its bounded stderr.
+For the same source, a repeated complete host-error envelope reuses an existing unhandled capture only when its host-error sidecar, result identity, adapter, and immutable extension identity all match.
+For timeout envelopes with deadline evidence, result identity compares parsed fields with `elapsed_ms` and `overrun_ms` excluded, retaining the first complete diagnostic capture for that bound.
+Other host-error envelopes require exact result bytes.
 A matching retry allocates no new result sequence and records no handled acknowledgement.
 Ordinary reconciliation continues to publish the retained evidence and retry polling, so old failure evidence does not block recovery.
 A changed error or extension identity remains distinct, and a failure after its matching evidence was handled receives a fresh capture.

@@ -377,6 +377,21 @@ export FM_TEST_STUB_MAX_BLOCK_SECONDS
 FM_TEST_SUITE_PID=$$
 export FM_TEST_SUITE_PID
 
+# fm_test_nonplatform_binary <binary> <dir>: print a path that runs <binary> as
+# a non-platform process. macOS hides a platform binary's environment from
+# `ps -E`, so a holder whose environment a fixture must read cannot run Apple's
+# own copy, such as /usr/bin/jq. On Darwin this copies <binary> into <dir> and
+# ad-hoc signs the copy, which drops its platform identity; elsewhere it prints
+# <binary> unchanged.
+fm_test_nonplatform_binary() {
+  local bin=$1 dir=$2 copy
+  [ "$(uname -s)" = Darwin ] || { printf '%s\n' "$bin"; return 0; }
+  copy="$dir/$(basename "$bin")-nonplatform"
+  cp "$bin" "$copy" || return 1
+  codesign --force --sign - "$copy" >/dev/null 2>&1 || return 1
+  printf '%s\n' "$copy"
+}
+
 # Remove a fixture tree even when it holds a read-only directory, such as the
 # spawn-owned state/<id>.git-hooks strip directory.
 fm_test_remove_tree() {
@@ -568,6 +583,9 @@ fm_test_remote_job_workers_under() {
       substr(script, length(script) - 27) == "/bin/fm-remote-job-worker.sh") print $1
   }'
 }
+
+TREEHOUSE_ROOT=$(fm_test_tmproot fm-treehouse-pool)
+export TREEHOUSE_ROOT
 
 # fm_test_reap_orphans: best-effort sweep for fixture roots left behind by a
 # prior run that was killed hard enough to skip the traps above (e.g. a
