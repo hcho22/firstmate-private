@@ -421,7 +421,9 @@ test_record_hygiene_reclaims_stale_running_marker() {
     FM_RECORD_HYGIENE_TIMEOUT=1 fm_run_timed 30 "$ROOT/bin/fm-watch.sh" >"$case_dir/out" 2>"$case_dir/err" || status=$?
   { [ "$status" -eq 0 ] || [ "$status" -eq 124 ]; } \
     || fail "watcher failed while reclaiming stale hygiene marker (exit=$status)"
+  # shellcheck disable=SC2031 # The fleet-sync cases' simulated clock advances SECONDS only in their bootstrap subprocess.
   deadline=$((SECONDS + 60))
+  # shellcheck disable=SC2031 # as above
   while [ ! -s "$case_dir/home/state/.record-hygiene-last" ] \
       && ! grep -q $'\tcheck\trecord-hygiene\t' "$case_dir/home/state/.wake-queue" 2>/dev/null \
       && [ "$SECONDS" -lt "$deadline" ]; do
