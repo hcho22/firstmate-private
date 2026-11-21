@@ -3032,11 +3032,19 @@ bounded_script_command() {
 # script_group_command <bound> <out> <work> <command...>: run the script's
 # command in its own process group, recording the group id in
 # <work>/script.pgid, under the per-script bound when there is one.
+# The runner starts it as a background job, and a non-interactive shell starts
+# background jobs with INT and QUIT ignored, which a script would inherit and
+# could not trap. Their defaults are restored first, so a script sees the
+# dispositions it would have run directly; it sits in its own process group, so
+# a terminal's Ctrl-C still reaches only the runner, which stops it.
 script_group_command() {
   local bound=$1 out=$2 work=$3
   # Read by fm-timeout-lib.sh's runners, never exported to the script.
   local FM_TIMEOUT_GROUP_FILE="$work/script.pgid"
   shift 3
+  if command -v perl >/dev/null 2>&1; then
+    set -- perl -e '$SIG{INT} = $SIG{QUIT} = "DEFAULT"; exec @ARGV or exit 127' "$@"
+  fi
   if [ "$bound" -gt 0 ]; then
     bounded_script_command "$bound" "$out" "$@"
   elif [ "$GROUP_RUNNER" -eq 1 ]; then
