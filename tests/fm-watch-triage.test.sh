@@ -4139,7 +4139,7 @@ progress_idle_fixture() {  # <case-name> <id> <window> <status-line> -> echoes d
   printf 'window=%s\nkind=ship\nworktree=%s\n' "$window" "$dir/wt" > "$state/$id.meta"
   printf '%s\n' "$4" > "$state/$id.status"
   sig=$(seen_sig "$state/$id.status"); printf '%s' "$sig" > "$state/.seen-${id}_status"
-  key=$(printf '%s' "$window" | tr ':/.' '___')
+  key=$(watch_window_key "$window")
   pane_hash=$(hash_text "idle pane")
   printf '%s' "$pane_hash" > "$state/.hash-$key"
   printf '1\n' > "$state/.count-$key"
@@ -4156,7 +4156,7 @@ progress_round() {  # <dir> <window> <back-secs> [env assignments...]
   local dir=$1 window=$2 back=$3 state key out pid since
   shift 3
   state="$dir/state"; out="$dir/watch.out"
-  key=$(printf '%s' "$window" | tr ':/.' '___')
+  key=$(watch_window_key "$window")
   back=$(( $(date +%s) - back ))
   echo "$back" > "$state/.stale-since-$key"
   set_mtime "$back" "$state/.stale-since-$key"
@@ -4187,7 +4187,7 @@ progress_round() {  # <dir> <window> <back-secs> [env assignments...]
 assert_three_deferrals() {  # <dir> <window> <what> [env assignments...]
   local dir=$1 window=$2 what=$3 n r key
   shift 3
-  key=$(printf '%s' "$window" | tr ':/.' '___')
+  key=$(watch_window_key "$window")
   n=1
   while [ "$n" -le 3 ]; do
     r=$(progress_round "$dir" "$window" "${PROGRESS_ROUND_BACK:-500}" "$@")
@@ -4343,7 +4343,7 @@ busy_foreground_watch() {  # <dir> <window> <want> [crew-state]
   local dir=$1 window=$2 want=$3 verdict=${4:-'state: working · source: pane · harness busy (pi-ext)'}
   local state key out pid since last n=0 deadline
   state="$dir/state"; out="$dir/watch.out"
-  key=$(printf '%s' "$window" | tr ':/.' '___')
+  key=$(watch_window_key "$window")
   last=$(date +%s)
   echo "$last" > "$state/.stale-since-$key"
   : > "$out"
