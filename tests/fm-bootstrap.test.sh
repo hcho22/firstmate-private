@@ -338,7 +338,8 @@ test_record_hygiene_archives_old_orphan_status() {
   assert_contains "$out" 'RECORD_HYGIENE: duplicate PR https://example.test/pull/42 in records: first, second' \
     "bootstrap did not report duplicate PR references"
   assert_not_contains "$out" 'linked' "bootstrap read symlinked metadata"
-  [ -f "$case_dir/home/data/orphan/status.log" ] || fail "bootstrap did not archive the orphan status log"
+  [ -f "$case_dir/home/data/_unassigned/orphan/status.log" ] || fail "bootstrap did not archive the orphan status log in data/_unassigned/orphan/"
+  [ ! -e "$case_dir/home/data/orphan" ] || fail "bootstrap created a flat task folder, which the data layout reads as a project folder"
   [ ! -e "$case_dir/home/state/orphan.status" ] || fail "archived orphan status log remained in state"
   [ ! -e "$case_dir/home/state/.meta-orphan.lock" ] && [ ! -L "$case_dir/home/state/.meta-orphan.lock" ] \
     || fail "successful archive left its metadata lock behind"
@@ -1894,7 +1895,7 @@ test_record_hygiene_old_orphan_skips_held_metadata_lock() {
   assert_contains "$out" 'RECORD_HYGIENE: status log without metadata older than 24 hours: orphan' \
     "bootstrap did not scan the orphan status log while its metadata lock was held"
   [ -f "$case_dir/home/state/orphan.status" ] || fail "bootstrap moved orphan status while metadata lock was held"
-  [ ! -e "$case_dir/home/data/orphan" ] || fail "bootstrap archived orphan status while metadata lock was held"
+  [ ! -e "$case_dir/home/data/orphan" ] && [ ! -e "$case_dir/home/data/_unassigned/orphan" ] || fail "bootstrap archived orphan status while metadata lock was held"
   [ -d "$lock" ] || fail "bootstrap removed another holder's metadata lock"
   pass "bootstrap skips archiving while the task metadata lock is held"
 }
@@ -1927,7 +1928,7 @@ test_record_hygiene_old_orphan_survives_spawn_publication() {
   ' _ "$ROOT" "$case_dir/home" 2>&1) || fail "record hygiene pass failed: $out"
   [ -f "$case_dir/home/state/orphan.meta" ] || fail "fixture did not publish metadata during the scan"
   [ -f "$case_dir/home/state/orphan.status" ] || fail "record hygiene archived a status log whose metadata a spawn just published"
-  [ ! -e "$case_dir/home/data/orphan" ] || fail "record hygiene created an archive for a just-published worker"
+  [ ! -e "$case_dir/home/data/orphan" ] && [ ! -e "$case_dir/home/data/_unassigned/orphan" ] || fail "record hygiene created an archive for a just-published worker"
   pass "record hygiene keeps a status log whose metadata is published before the move"
 }
 

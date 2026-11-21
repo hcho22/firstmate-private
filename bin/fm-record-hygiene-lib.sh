@@ -25,6 +25,8 @@ record_hygiene_report() {
           case "$id" in ''|.*|*[!A-Za-z0-9._-]*) continue ;; esac
           # shellcheck source=bin/fm-wake-lib.sh
           command -v fm_meta_lock_path >/dev/null 2>&1 || . "$SCRIPT_DIR/fm-wake-lib.sh"
+          # shellcheck source=bin/fm-task-data-lib.sh
+          command -v fm_task_data_dir_for_new >/dev/null 2>&1 || . "$SCRIPT_DIR/fm-task-data-lib.sh"
           lock=$(fm_meta_lock_path "$STATE/$id.meta") || continue
           fm_lock_try_acquire "$lock" || continue
           if { [ ! -e "$STATE/$id.meta" ] && [ ! -L "$STATE/$id.meta" ]; } \
@@ -35,7 +37,13 @@ record_hygiene_report() {
               # shellcheck disable=SC2153 # DATA is set by the sourcing script (fm-bootstrap.sh).
               mkdir -p -- "$DATA" || { fm_lock_release "$lock"; continue; }
               dir=$(CDPATH='' cd -- "$DATA" && pwd -P) || { fm_lock_release "$lock"; continue; }
-              dir="$dir/$id"
+              # The task's existing data folder, else, with no metadata left to
+              # name a project, a new one under _unassigned (bin/fm-task-data-lib.sh).
+              dir=$(fm_task_data_dir_for_new "$dir" "$id" 2>/dev/null) || {
+                echo "RECORD_HYGIENE: could not place orphan status log in the data layout: $id" >&2
+                fm_lock_release "$lock"
+                continue
+              }
               if { [ ! -e "$dir" ] && [ ! -L "$dir" ]; } || { [ -d "$dir" ] && [ ! -L "$dir" ]; }; then
                 mkdir -p -- "$dir" || { fm_lock_release "$lock"; continue; }
                 archive="$dir/status.log"
