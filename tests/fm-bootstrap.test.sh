@@ -26,6 +26,9 @@ set -u
 
 # shellcheck source=tests/lib.sh disable=SC1091
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# fm_run_timed bounds the watcher cases: stock macOS has no timeout binary.
+# shellcheck source=bin/fm-timeout-lib.sh
+. "$ROOT/bin/fm-timeout-lib.sh"
 
 BASE_PATH=${FM_TEST_BASE_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}
 TMP_ROOT=$(fm_test_tmproot fm-bootstrap-tests)
@@ -383,7 +386,7 @@ test_record_hygiene_watcher_absent_flag_is_inert() {
   status=0
   FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_LIVE=0 \
     FM_POLL=1 FM_HEARTBEAT=1 FM_HEARTBEAT_MAX=1 FM_CHECK_INTERVAL=999999 \
-    FM_RECORD_HYGIENE_TIMEOUT=1 timeout 5 "$ROOT/bin/fm-watch.sh" >"$case_dir/out" 2>"$case_dir/err" || status=$?
+    FM_RECORD_HYGIENE_TIMEOUT=1 fm_run_timed 5 "$ROOT/bin/fm-watch.sh" >"$case_dir/out" 2>"$case_dir/err" || status=$?
   { [ "$status" -eq 0 ] || [ "$status" -eq 124 ]; } \
     || fail "watcher failed without config/record-hygiene (exit=$status)"
   sleep 2
@@ -406,7 +409,7 @@ test_record_hygiene_reclaims_stale_running_marker() {
   status=0
   FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_LIVE=0 \
     FM_POLL=1 FM_HEARTBEAT=1 FM_HEARTBEAT_MAX=1 FM_CHECK_INTERVAL=999999 \
-    FM_RECORD_HYGIENE_TIMEOUT=1 timeout 30 "$ROOT/bin/fm-watch.sh" >"$case_dir/out" 2>"$case_dir/err" || status=$?
+    FM_RECORD_HYGIENE_TIMEOUT=1 fm_run_timed 30 "$ROOT/bin/fm-watch.sh" >"$case_dir/out" 2>"$case_dir/err" || status=$?
   { [ "$status" -eq 0 ] || [ "$status" -eq 124 ]; } \
     || fail "watcher failed while reclaiming stale hygiene marker (exit=$status)"
   deadline=$((SECONDS + 60))
@@ -417,7 +420,7 @@ test_record_hygiene_reclaims_stale_running_marker() {
   done
   [ -s "$case_dir/home/state/.record-hygiene-last" ] \
     || grep -q $'\tcheck\trecord-hygiene\t' "$case_dir/home/state/.wake-queue" 2>/dev/null \
-    || fail "replacement hygiene worker did not complete within 3s"
+    || fail "replacement hygiene worker did not complete within 60s"
   pass "watcher reclaims a stale hygiene marker and starts a worker"
 }
 
@@ -429,7 +432,7 @@ test_record_hygiene_watcher_data_is_defined() {
   status=0
   FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_LIVE=0 \
     FM_POLL=1 FM_HEARTBEAT=1 FM_HEARTBEAT_MAX=1 FM_CHECK_INTERVAL=999999 \
-    timeout 5 "$ROOT/bin/fm-watch.sh" >"$case_dir/out" 2>"$case_dir/err" || status=$?
+    fm_run_timed 5 "$ROOT/bin/fm-watch.sh" >"$case_dir/out" 2>"$case_dir/err" || status=$?
   { [ "$status" -eq 0 ] || [ "$status" -eq 124 ]; } \
     || fail "watcher failed during hygiene check (exit=$status)"
   assert_not_contains "$(cat "$case_dir/err")" 'DATA: unbound variable' \
