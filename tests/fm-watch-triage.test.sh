@@ -5780,6 +5780,8 @@ test_colliding_endpoints_keep_independent_stale_history() (
   dir=$(make_case independent-window-keys); state="$dir/state"; fakebin="$dir/fakebin"
   mkdir -p "$dir/config" "$dir/data"
   out="$dir/watch.out"
+  # make_case's tmux is a shared read-only stub (fm_shared_stub); replace the link.
+  rm -f "$fakebin/tmux"
   cat > "$fakebin/tmux" <<'SH'
 #!/usr/bin/env bash
 case "$1" in
